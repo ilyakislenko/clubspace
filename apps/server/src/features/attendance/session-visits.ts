@@ -11,9 +11,10 @@ import {
 } from '../../domains/subscriptions/visit-abonement'
 import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { Prisma, type PrismaTransactionClientType } from '../../infrastructure/prisma'
+import { agree, type ClubVocabulary } from '../../shared/utils/club-vocabulary'
 
-export const VISIT_ABONEMENT_REFUSED_MESSAGE =
-    'Этот абонемент нельзя списать на эту тренировку'
+export const visitAbonementRefusedMessage = (v: ClubVocabulary): string =>
+    `Этот абонемент нельзя списать на ${agree(v.session, 'эту', 'это')} ${v.session.acc}`
 
 type Db = Pick<PrismaTransactionClientType, 'subscription' | 'attendanceSession'>
 

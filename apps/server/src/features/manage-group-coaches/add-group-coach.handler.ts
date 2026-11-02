@@ -7,6 +7,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     AddGroupCoachFeature,
     AddGroupCoachFeatureResponse,
@@ -53,9 +54,9 @@ export class AddGroupCoachHandler
                 })
             }
             if (!COACH_CAPABLE_ROLES.includes(member.role.name)) {
+                const v = await loadClubVocabulary(this.prisma, workspaceId)
                 throw new BadRequestError({
-                    message:
-                        'У выбранного участника нет тренерской роли — сначала повысьте его',
+                    message: `У выбранного участника нет роли ${v.coach.gen} — сначала повысьте его`,
                 })
             }
         }

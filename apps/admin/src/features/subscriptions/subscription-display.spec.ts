@@ -1,3 +1,5 @@
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+
 import {
   classesLabel,
   renewFromForPlan,
@@ -9,17 +11,26 @@ import {
 
 // Sold on the browser's 24 October: the latest start is 7 November.
 const createdAt = new Date(2026, 9, 24, 12).toISOString()
+const GRAPPLING = vocabularyForWorkspaceType("GRAPPLING")
+const DANCE = vocabularyForWorkspaceType("DANCE")
 
 describe("periodLabel", () => {
   it("says the term counts from the first visit, no later than the deadline", () => {
     expect(
-      periodLabel({
-        startDate: null,
-        endDate: null,
-        durationDays: 30,
-        createdAt,
-      }),
+      periodLabel(
+        { startDate: null, endDate: null, durationDays: 30, createdAt },
+        GRAPPLING,
+      ),
     ).toBe("с первой тренировки (не позже 07.11.2026) · 30 дн.")
+  })
+
+  it("names the first class in the club's words", () => {
+    expect(
+      periodLabel(
+        { startDate: null, endDate: null, durationDays: 30, createdAt },
+        DANCE,
+      ),
+    ).toBe("с первого занятия (не позже 07.11.2026) · 30 дн.")
   })
 
   it("drops the duration for a row from before it was recorded", () => {
@@ -29,7 +40,7 @@ describe("periodLabel", () => {
         endDate: null,
         durationDays: null,
         createdAt,
-      }),
+      }, GRAPPLING),
     ).toBe("с первой тренировки (не позже 07.11.2026)")
   })
 
@@ -40,7 +51,7 @@ describe("periodLabel", () => {
         endDate: "2026-11-23T12:00:00.000Z",
         durationDays: 30,
         createdAt,
-      }),
+      }, GRAPPLING),
     ).toBe("24.10.2026 → 23.11.2026")
   })
 
@@ -51,7 +62,7 @@ describe("periodLabel", () => {
         endDate: null,
         durationDays: null,
         createdAt,
-      }),
+      }, GRAPPLING),
     ).toBe("24.10.2026 → —")
   })
 })

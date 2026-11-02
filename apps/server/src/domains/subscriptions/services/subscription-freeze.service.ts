@@ -11,6 +11,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
+import { vocabularyForWorkspaceType } from '../../../shared/utils/club-vocabulary'
 import {
     currentSubscriptionWhere,
     subscriptionDtoInclude,
@@ -212,7 +213,7 @@ export class SubscriptionFreezeService {
                 status: true,
                 startDate: true,
                 endDate: true,
-                workspace: { select: { timezone: true } },
+                workspace: { select: { timezone: true, type: true } },
                 workspaceMember: {
                     select: {
                         id: true,
@@ -239,6 +240,7 @@ export class SubscriptionFreezeService {
             timezone: tz,
             now,
             subscription: sub,
+            vocabulary: vocabularyForWorkspaceType(sub.workspace.type),
         })
         if (refusal) throw new BadRequestError({ message: refusal })
         // Only a current abonement (several may be current at once).

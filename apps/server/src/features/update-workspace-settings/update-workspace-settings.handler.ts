@@ -17,6 +17,7 @@ import {
     ForbiddenError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { workspaceBookingSettingsSelect } from '../class-bookings/group-booking-fields'
 import {
     UpdateWorkspaceSettingsFeature,
@@ -86,7 +87,12 @@ export class UpdateWorkspaceSettingsHandler
         )
         const refused = lockedFlagChanges(payload, locks)
         if (refused.length > 0) {
-            throw new ForbiddenError({ message: lockedFlagMessage(refused) })
+            throw new ForbiddenError({
+                message: lockedFlagMessage(
+                    refused,
+                    await loadClubVocabulary(this.prisma, workspaceId),
+                ),
+            })
         }
 
         // The club's own video switch only turns ON with the VIDEO module (a

@@ -102,11 +102,13 @@ export class UpdateMemberRoleHandler
 
         // Both ends of the change count: a head_coach may neither hand out
         // admin/head_coach nor touch someone who already holds one.
-        assertCanManageRoles(
+        await assertCanManageRoles(
+            this.prisma,
             ctx,
             { roleName, isSuperAdmin },
             [membership.role.name, role.name],
-            'Назначать и снимать роли администратора и старшего тренера может только владелец или администратор клуба',
+            (v) =>
+                `Назначать и снимать роли администратора и ${v.headCoach.gen} может только владелец или администратор клуба`,
         )
 
         // Workspace owner can't be demoted from the workspace UI. RbacService

@@ -74,11 +74,13 @@ export class UpdateWorkspaceMemberAccessHandler
 
         // An expired access date shuts a member out of the club, so cutting
         // off an admin or head coach is reserved for the top of the club.
-        assertCanManageRoles(
+        await assertCanManageRoles(
+            this.prisma,
             ctx,
             { roleName, isSuperAdmin },
             [member.role.name],
-            'Менять доступ администратора или старшего тренера может только владелец или администратор клуба',
+            (v) =>
+                `Менять доступ администратора или ${v.headCoach.gen} может только владелец или администратор клуба`,
         )
 
         const accessUntil =

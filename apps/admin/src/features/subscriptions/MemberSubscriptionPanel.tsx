@@ -429,7 +429,7 @@ export function MemberSubscriptionPanel({
               className="flex items-center justify-between gap-2 px-3 py-2"
             >
               <span className="min-w-0">
-                {s.planName} · {periodLabel(s)} ·{" "}
+                {s.planName} · {periodLabel(s, vocabulary)} ·{" "}
                 <span className="text-muted-foreground">
                   {frozenNowIds.has(s.id)
                     ? "Заморожен"

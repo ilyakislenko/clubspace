@@ -5,6 +5,7 @@ import { syncFirstVisitStartInTx } from '../../domains/subscriptions/first-visit
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { nameOrPlaceholder } from '../../shared/utils/person-name'
 import { LeaderboardCacheService } from '../attendance-leaderboard/leaderboard-cache.service'
 import { localDateInTz } from './attendance-utils'
@@ -21,7 +22,7 @@ import {
     chargeVisits,
     loadSessionVisitOptions,
     sessionUsesAbonements,
-    VISIT_ABONEMENT_REFUSED_MESSAGE,
+    visitAbonementRefusedMessage,
     type SessionVisitOptions,
 } from './session-visits'
 
@@ -61,9 +62,9 @@ export class MarkRecordsHandler
                 select: { memberId: true },
             })
             if (ids.some((id) => id !== request?.memberId)) {
+                const v = await loadClubVocabulary(this.prisma, f.workspaceId)
                 throw new BadRequestError({
-                    message:
-                        'На персональной тренировке можно отметить только ученика из заявки',
+                    message: `На ${v.personalSession.prep} можно отметить только ученика из заявки`,
                 })
             }
         }
@@ -145,7 +146,9 @@ export class MarkRecordsHandler
                         !ranked.some((c) => c.id === subscriptionId)
                     ) {
                         throw new BadRequestError({
-                            message: VISIT_ABONEMENT_REFUSED_MESSAGE,
+                            message: visitAbonementRefusedMessage(
+                                await loadClubVocabulary(this.prisma, f.workspaceId),
+                            ),
                         })
                     }
                 }

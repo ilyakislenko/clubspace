@@ -13,6 +13,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     isSlotActiveOn,
     localDateInTz,
@@ -118,17 +119,18 @@ export class CreateClassSubstitutionHandler
         const decides = (await loadDecider(this.rbac, ctx))(group)
         const substituteId = p.substituteId ?? ctx.userId
         if (substituteId !== ctx.userId && !decides) {
+            const v = await loadClubVocabulary(this.prisma, f.workspaceId)
             throw new ForbiddenError({
-                message:
-                    'Назначить замену может тренер группы, руководитель направления или администратор клуба',
+                message: `Назначить замену может ${v.coach.nom} группы, руководитель направления или администратор клуба`,
             })
         }
         if (group.coaches.some((c) => c.userId === substituteId)) {
+            const v = await loadClubVocabulary(this.prisma, f.workspaceId)
             throw new BadRequestError({
                 message:
                     substituteId === ctx.userId
                         ? 'Вы и так ведёте эту группу'
-                        : 'Этот тренер и так ведёт эту группу',
+                        : `Этот ${v.coach.nom} и так ведёт эту группу`,
             })
         }
         const candidate = await this.prisma.user.findFirst({
@@ -139,8 +141,9 @@ export class CreateClassSubstitutionHandler
             select: { id: true },
         })
         if (!candidate) {
+            const v = await loadClubVocabulary(this.prisma, f.workspaceId)
             throw new BadRequestError({
-                message: 'Заменять может только тренер этого клуба',
+                message: `Заменять может только ${v.coach.nom} этого клуба`,
             })
         }
 

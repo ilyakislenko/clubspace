@@ -4,7 +4,7 @@ import { CreateGroupHandler } from './create-group.handler'
 
 const OWNER = 'owner-1'
 
-const build = (membership: unknown) => {
+const build = (membership: unknown, type = 'GRAPPLING') => {
     const tx = {
         group: {
             create: jest.fn().mockResolvedValue({
@@ -17,6 +17,7 @@ const build = (membership: unknown) => {
         groupCoach: { create: jest.fn().mockResolvedValue({}) },
     }
     const prisma = {
+        workspace: { findUnique: jest.fn().mockResolvedValue({ type }) },
         gym: { findFirst: jest.fn().mockResolvedValue({ id: 'gym1' }) },
         workspaceMember: {
             findFirst: jest.fn().mockResolvedValue(membership),
@@ -73,5 +74,13 @@ describe('createGroup coach', () => {
         await expect(run(handler, 'student')).rejects.toBeInstanceOf(
             BadRequestError,
         )
+    })
+
+    it.each([
+        ['GRAPPLING', 'У выбранного участника нет роли тренера — сначала повысьте его'],
+        ['DANCE', 'У выбранного участника нет роли педагога — сначала повысьте его'],
+    ])('names the missing role in the words of a %s club', async (type, message) => {
+        const { handler } = build({ role: { name: 'user' } }, type)
+        await expect(run(handler, 'student')).rejects.toThrow(message)
     })
 })

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { useWorkspaceRealtime } from "../../../../shared/realtime/useWorkspaceRealtime"
 import {
@@ -17,7 +17,7 @@ import { listPendingUsers } from "../../../../shared/api/members"
 import { listAtRiskMembers } from "../../../../shared/api/retention"
 import { listRenewalCandidates } from "../../../../shared/api/subscriptions"
 import {
-  ACTION_META,
+  actionMetaFor,
   formatActor,
   targetTypeLabel,
 } from "../../../../features/audit/audit-meta"
@@ -60,6 +60,7 @@ const formatMonth = (key: string) => {
 export default function WorkspaceOverviewPage() {
   const params = useParams<{ workspaceId: string }>()
   const vocabulary = useVocabulary()
+  const actionMeta = useMemo(() => actionMetaFor(vocabulary), [vocabulary])
   const workspaceId = params?.workspaceId
   const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
   // Blocks of a section the club switched off (video at a fitness club,
@@ -436,7 +437,7 @@ export default function WorkspaceOverviewPage() {
               >
                 <div className="min-w-0">
                   <div className="font-medium">
-                    {ACTION_META[event.action]?.label ?? event.action}
+                    {actionMeta[event.action]?.label ?? event.action}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {formatActor(event)}

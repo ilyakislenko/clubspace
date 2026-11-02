@@ -10,6 +10,7 @@ import {
 } from '../../domains/payments/online-grant-start'
 import { scopeMatchesAny } from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import {
     GetOnlinePurchaseOptionsFeature,
     GetOnlinePurchaseOptionsFeatureResponse,
@@ -117,6 +118,7 @@ export class GetOnlinePurchaseOptionsHandler
         // Each tariff collides only with current abonements of its own scope.
         // The block shows one reason / renewal date: a refusal when no offered
         // tariff can be bought, a renewal date when every one renews from it.
+        const vocabulary = vocabularyForWorkspaceType(workspace.type)
         const starts: OnlineGrantStart[] = plans.map((p) =>
             onlineGrantStart(
                 sameScopeAbonements(
@@ -125,6 +127,7 @@ export class GetOnlinePurchaseOptionsHandler
                 ),
                 workspace.timezone,
                 now,
+                vocabulary,
             ),
         )
         const firstBlocked = starts.find((s) => s.kind === 'blocked')

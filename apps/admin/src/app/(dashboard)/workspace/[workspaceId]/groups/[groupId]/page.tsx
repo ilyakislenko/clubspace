@@ -34,6 +34,7 @@ import {
 import { AT_RISK_CHIP, AT_RISK_LABEL } from "../../../../../../shared/lib/at-risk"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
 import { pluralRu } from "../../../../../../shared/lib/plural-ru"
+import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
 
 export default function WorkspaceGroupPage() {
   const params = useParams<{ workspaceId: string; groupId: string }>()
@@ -232,6 +233,7 @@ function MemberRow({
   member: GroupDetailsMember
   showStatus: boolean
 }) {
+  const vocabulary = useVocabulary()
   return (
     <tr>
       <td className="p-3">
@@ -260,7 +262,7 @@ function MemberRow({
                     </Link>
                     <span className="text-xs text-muted-foreground">
                       {" "}
-                      · {periodLabel(s)}
+                      · {periodLabel(s, vocabulary)}
                       {classes ? ` · ${classes}` : ""}
                     </span>
                     {!s.isPaid && (

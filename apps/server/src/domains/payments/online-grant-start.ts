@@ -2,6 +2,7 @@ import {
     localDateInTz,
     wallClockToUtc,
 } from '../../features/attendance/attendance-utils'
+import { type ClubVocabulary, fromFirstSession } from '../../shared/utils/club-vocabulary'
 import {
     sameScope,
     scopeDirectionIds,
@@ -60,6 +61,7 @@ export const onlineGrantStart = (
     sameScopeCurrent: readonly CurrentAbonement[],
     timezone: string,
     now: Date,
+    vocabulary: ClubVocabulary,
 ): OnlineGrantStart => {
     let renewFrom: Date | null = null
     for (const current of sameScopeCurrent) {
@@ -75,8 +77,7 @@ export const onlineGrantStart = (
         if (current.startDate === null || current.endDate === null) {
             return {
                 kind: 'blocked',
-                message:
-                    'Ваш абонемент начнётся с первой тренировки — продлить его можно после начала',
+                message: `Ваш абонемент начнётся ${fromFirstSession(vocabulary)} — продлить его можно после начала`,
             }
         }
         if (!renewFrom || current.endDate > renewFrom) renewFrom = current.endDate

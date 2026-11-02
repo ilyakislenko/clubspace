@@ -15,6 +15,7 @@ import {
     ConflictError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { localDateInTz } from '../attendance/attendance-utils'
 import { displayName } from '../attendance/schemas'
 import { findFreezeRequestDeciders } from './freeze-request-recipients'
@@ -59,7 +60,7 @@ export class RequestSubscriptionFreezeHandler
                 user: {
                     select: { firstname: true, lastname: true, email: true },
                 },
-                workspace: { select: { timezone: true, ownerId: true } },
+                workspace: { select: { timezone: true, ownerId: true, type: true } },
             },
         })
         // Also covers the owner and a super admin: no member row, no abonement.
@@ -101,6 +102,7 @@ export class RequestSubscriptionFreezeHandler
             now,
             tz,
             subscription: sub,
+            vocabulary: vocabularyForWorkspaceType(member.workspace.type),
         })
         if (refusal) throw new BadRequestError({ message: refusal })
 

@@ -8,6 +8,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     AssignDirectionManagerFeature,
     AssignDirectionManagerFeatureResponse,
@@ -107,11 +108,12 @@ export class AssignDirectionManagerHandler
             })
         }
         if (member.role.name !== 'coach') {
+            const v = await loadClubVocabulary(this.prisma, f.workspaceId)
             throw new BadRequestError({
                 message:
                     member.role.name === 'user'
-                        ? 'Руководителем направления может быть только тренер — сначала назначьте роль тренера'
-                        : 'У администратора и старшего тренера уже есть доступ ко всем направлениям',
+                        ? `Руководителем направления может быть только ${v.coach.nom} — сначала назначьте роль ${v.coach.gen}`
+                        : `У администратора и ${v.headCoach.gen} уже есть доступ ко всем направлениям`,
             })
         }
 

@@ -75,11 +75,13 @@ export class RemoveWorkspaceMemberHandler
             throw new NotFoundError({ message: 'Участник не найден' })
         }
 
-        assertCanManageRoles(
+        await assertCanManageRoles(
+            this.prisma,
             ctx,
             { roleName, isSuperAdmin },
             [member.role.name],
-            'Удалить администратора или старшего тренера может только владелец или администратор клуба',
+            (v) =>
+                `Удалить администратора или ${v.headCoach.gen} может только владелец или администратор клуба`,
         )
 
         await this.prisma.$transaction((tx) =>

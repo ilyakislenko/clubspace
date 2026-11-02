@@ -8,6 +8,7 @@ import {
     requestRange,
     requestUntilYmd,
 } from './freeze-request-utils'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 
 const TZ = 'Asia/Tomsk' // UTC+7
 const now = new Date('2026-10-25T05:00:00Z') // 12:00 local, 2026-10-25
@@ -85,6 +86,7 @@ describe('memberFreezeRefusal', () => {
             now,
             tz: TZ,
             subscription: sub(),
+            vocabulary: vocabularyForWorkspaceType(null),
             ...over,
         })
 

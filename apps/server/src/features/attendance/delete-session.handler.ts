@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     DeleteSessionFeature,
     DeleteSessionFeatureResponse,
@@ -36,8 +37,9 @@ export class DeleteSessionHandler
             'manage',
         )
         if (session.isPersonal) {
+            const v = await loadClubVocabulary(this.prisma, f.workspaceId)
             throw new BadRequestError({
-                message: 'Персональную тренировку отменяют в заявке',
+                message: `${cap(v.personalSession.acc)} отменяют в заявке`,
             })
         }
         // Records cascade via the AttendanceRecord FK.

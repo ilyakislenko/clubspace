@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { type ClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { APP_FEATURE_KEYS, type AppFeatureKey } from './feature-flags'
 
 // Platform locks on a club's app-section switches (WorkspaceFeatureLock).
@@ -67,7 +68,7 @@ export const lockedFlagChanges = (
     })
 
 // Section names as the club's settings page shows them, for error messages.
-const FEATURE_LABEL: Record<AppFeatureKey, string> = {
+const featureLabels = (v: ClubVocabulary): Record<AppFeatureKey, string> => ({
     announcements: 'Объявления',
     ranks: 'Ранги',
     leaderboard: 'Рейтинг посещаемости',
@@ -79,12 +80,16 @@ const FEATURE_LABEL: Record<AppFeatureKey, string> = {
     guestVisits: 'Гостевые визиты в другие группы',
     videos: 'Видео и курсы',
     achievements: 'Достижения',
-    journal: 'Дневник тренировок',
-}
+    journal: `Дневник ${v.session.genPl}`,
+})
 
 // «Раздел «Видео и курсы» установлен платформой — …» for the refused patch.
-export const lockedFlagMessage = (locks: FeatureLock[]): string => {
-    const names = locks.map((l) => `«${FEATURE_LABEL[l.feature]}»`).join(', ')
+export const lockedFlagMessage = (
+    locks: FeatureLock[],
+    vocabulary: ClubVocabulary,
+): string => {
+    const labels = featureLabels(vocabulary)
+    const names = locks.map((l) => `«${labels[l.feature]}»`).join(', ')
     return locks.length > 1
         ? `Разделы ${names} установлены платформой — изменить их может только ClubSpace`
         : `Раздел ${names} установлен платформой — изменить его может только ClubSpace`

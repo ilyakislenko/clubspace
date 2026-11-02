@@ -14,7 +14,7 @@ import { errorMessage } from "../../../../../shared/lib/error-message"
 import {
   ACTION_CATEGORIES,
   ACTION_CATEGORY_LABELS,
-  ACTION_META,
+  actionMetaFor,
   type ActionMeta,
   formatActor,
   formatDate,
@@ -27,6 +27,7 @@ import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 
 export default function WorkspaceAuditPage() {
   const vocabulary = useVocabulary()
+  const actionMeta = useMemo(() => actionMetaFor(vocabulary), [vocabulary])
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
 
@@ -152,14 +153,14 @@ export default function WorkspaceAuditPage() {
               <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
                 {dayEvents.map((event) => {
                   const meta =
-                    ACTION_META[event.action] ??
+                    actionMeta[event.action] ??
                     ({
                       label: event.action,
                       icon: Activity,
                       tone: "zinc",
                     } as ActionMeta)
                   const Icon = meta.icon
-                  const fields = parseMetadata(event.metadata)
+                  const fields = parseMetadata(event.metadata, vocabulary)
                   const targetLabel = targetTypeLabel(event.targetType)
                   const relative = formatRelative(event.createdAt)
                   return (

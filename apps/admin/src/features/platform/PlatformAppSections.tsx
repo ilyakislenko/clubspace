@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
 import { Button } from "@clubspace/ui-kit/ui"
 
 import {
@@ -12,7 +13,7 @@ import {
 } from "../../shared/api/platform"
 import { inputClsFull } from "../../shared/lib/input-class"
 import { formatDay } from "../billing/billing-view"
-import { APP_SECTIONS, type AppSectionFeature } from "../settings/app-sections"
+import { appSections, type AppSectionFeature } from "../settings/app-sections"
 
 // The club's app sections in the console card: the platform flips a switch,
 // and can pin it («Закрепить») so the club's admin cannot change it — until
@@ -20,11 +21,13 @@ import { APP_SECTIONS, type AppSectionFeature } from "../settings/app-sections"
 // platform's checkbox.
 export function PlatformAppSections({
   workspaceId,
+  workspaceType,
   card,
   busy,
   run,
 }: {
   workspaceId: string
+  workspaceType: string
   card: PlatformWorkspaceBillingCard
   busy: boolean
   run: (call: () => Promise<PlatformWorkspaceBillingCard>, done: string) => Promise<void>
@@ -75,7 +78,7 @@ export function PlatformAppSections({
         </label>
       </div>
       <ul className="divide-y rounded-md border bg-card">
-        {APP_SECTIONS.map((s) => {
+        {appSections(vocabularyForWorkspaceType(workspaceType)).map((s) => {
           const on = card.features[s.feature]
           const needsVideo = s.feature === "videos" && !videoEntitled && !on
           const pinned = card.featureLocks.find((l) => l.feature === s.feature)

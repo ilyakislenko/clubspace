@@ -6,6 +6,7 @@ import {
     BadRequestError,
     ForbiddenError,
 } from '../../shared/errors/shared.errors'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { formatRuDate } from '../../shared/utils/format-ru-date'
 import { localDateInTz } from '../attendance/attendance-utils'
 import {
@@ -70,7 +71,7 @@ export const loadSelfCheckInSession = async (
 
     const membership = await prisma.workspaceMember.findFirst({
         where: { workspaceId: p.workspaceId, userId: p.userId },
-        select: { status: true, workspace: { select: { timezone: true } } },
+        select: { status: true, workspace: { select: { timezone: true, type: true } } },
     })
     if (!membership || membership.status !== MemberStatus.ACTIVE) {
         throw new ForbiddenError({
@@ -117,7 +118,7 @@ export const loadSelfCheckInSession = async (
             : null
         if (freeze) {
             throw new BadRequestError({
-                message: `Абонемент заморожен по ${formatRuDate(freeze.untilDate, 'UTC')}. Чтобы отметиться, попросите тренера или администратора клуба снять заморозку.`,
+                message: `Абонемент заморожен по ${formatRuDate(freeze.untilDate, 'UTC')}. Чтобы отметиться, попросите ${vocabularyForWorkspaceType(membership.workspace.type).coach.acc} или администратора клуба снять заморозку.`,
             })
         }
     }

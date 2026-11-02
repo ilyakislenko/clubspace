@@ -8,6 +8,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     CreateGroupFeature,
     CreateGroupFeatureResponse,
@@ -76,14 +77,15 @@ export class CreateGroupHandler
         const isOwner = ctx.workspaceOwnerId === payload.coachId
         if (!isOwner) {
             if (!coachMembership) {
+                const v = await loadClubVocabulary(this.prisma, workspaceId)
                 throw new BadRequestError({
-                    message: 'Тренер должен быть участником клуба',
+                    message: `${cap(v.coach.nom)} должен быть участником клуба`,
                 })
             }
             if (!COACH_CAPABLE_ROLES.includes(coachMembership.role.name)) {
+                const v = await loadClubVocabulary(this.prisma, workspaceId)
                 throw new BadRequestError({
-                    message:
-                        'У выбранного участника нет тренерской роли — сначала повысьте его',
+                    message: `У выбранного участника нет роли ${v.coach.gen} — сначала повысьте его`,
                 })
             }
         }
@@ -92,9 +94,9 @@ export class CreateGroupHandler
         // Coach can't double as a student in their own group — both
         // listings would point to the same user with conflicting roles.
         if (memberIds.includes(payload.coachId)) {
+            const v = await loadClubVocabulary(this.prisma, workspaceId)
             throw new BadRequestError({
-                message:
-                    'Тренера нельзя добавить учеником в его же группу',
+                message: `${cap(v.coach.acc)} нельзя добавить учеником в его же группу`,
             })
         }
         if (memberIds.length > 0) {

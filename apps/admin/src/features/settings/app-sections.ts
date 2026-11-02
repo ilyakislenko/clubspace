@@ -1,15 +1,19 @@
 import type { ApiTypes } from "@clubspace/api-client"
+import type { ClubVocabulary } from "@clubspace/ui-kit/brand"
 
 // The club's app-section switches: each `feature` is a `${feature}Enabled`
 // Boolean on the workspace settings; the mobile app hides the matching block
-// when it's off. Shown on the club's settings page and in the platform console.
+// when it's off. Shown on the club's settings page and in the platform console,
+// named in the club's words like the app's own menu.
 export type AppSectionFeature = ApiTypes.SetPlatformWorkspaceFeatureInputDto["feature"]
 
-export const APP_SECTIONS: Array<{
+export const appSections = (
+  v: ClubVocabulary,
+): Array<{
   feature: AppSectionFeature
   label: string
   description: string
-}> = [
+}> => [
   {
     feature: "announcements",
     label: "Объявления",
@@ -54,7 +58,7 @@ export const APP_SECTIONS: Array<{
     feature: "guestVisits",
     label: "Гостевые визиты в другие группы",
     description:
-      "Ученики видят расписание всех групп и могут записаться на тренировку другой группы. Занятие списывается с абонемента, только когда гостя отметят на тренировке.",
+      `Ученики видят расписание всех групп и могут записаться на ${v.session.acc} другой группы. Занятие списывается с абонемента, только когда гостя отметят на ${v.session.prep}.`,
   },
   {
     feature: "videos",
@@ -68,7 +72,7 @@ export const APP_SECTIONS: Array<{
   },
   {
     feature: "journal",
-    label: "Дневник тренировок",
-    description: "Личные заметки ученика о тренировках.",
+    label: `Дневник ${v.session.genPl}`,
+    description: `Личные заметки ученика о ${v.session.prepPl}.`,
   },
 ]

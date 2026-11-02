@@ -9,6 +9,7 @@ import {
     BadRequestError,
     NotFoundError,
 } from '../../../shared/errors/shared.errors'
+import { fromFirstSession, loadClubVocabulary } from '../../../shared/utils/club-vocabulary'
 import { formatRuDate } from '../../../shared/utils/format-ru-date'
 import { pluralRu } from '../../../shared/utils/plural-ru'
 import {
@@ -155,7 +156,7 @@ export class SubscriptionService {
                 (current.classesRemaining ?? 0) <= 0
             if (!usedUp) {
                 const detail = current.startDate === null
-                    ? ` («${current.plan.name}», начнётся с первой тренировки)`
+                    ? ` («${current.plan.name}», начнётся ${fromFirstSession(await loadClubVocabulary(this.prisma, params.workspaceId))})`
                     : left != null && current.classesTotal != null
                       ? ` («${current.plan.name}», осталось ${left} из ${current.classesTotal})`
                       : ` («${current.plan.name}»)`

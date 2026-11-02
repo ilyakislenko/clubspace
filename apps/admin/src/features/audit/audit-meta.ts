@@ -29,6 +29,12 @@ import {
   Layers,
 } from "lucide-react"
 
+import {
+  type ClubVocabulary,
+  cap,
+  vocabularyForWorkspaceType,
+} from "@clubspace/ui-kit/brand"
+
 import { PROVIDER_LABEL } from "../payments/payment-labels"
 
 export type ActionMeta = {
@@ -37,7 +43,10 @@ export type ActionMeta = {
   tone: "blue" | "green" | "red" | "amber" | "zinc" | "indigo"
 }
 
-export const ACTION_META: Record<string, ActionMeta> = {
+// Labels name classes and coaches in the club's words.
+export const actionMetaFor = (
+  v: ClubVocabulary,
+): Record<string, ActionMeta> => ({
   "video.startUpload": {
     label: "Загрузка видео начата",
     icon: UploadCloud,
@@ -283,27 +292,27 @@ export const ACTION_META: Record<string, ActionMeta> = {
     tone: "indigo",
   },
   "group.exceptionCreate": {
-    label: "Отмена тренировки добавлена",
+    label: `Отмена ${v.session.gen} добавлена`,
     icon: CalendarOff,
     tone: "amber",
   },
   "group.exceptionUpdate": {
-    label: "Отмена тренировки изменена",
+    label: `Отмена ${v.session.gen} изменена`,
     icon: CalendarOff,
     tone: "indigo",
   },
   "group.exceptionDelete": {
-    label: "Отмена тренировки снята",
+    label: `Отмена ${v.session.gen} снята`,
     icon: Calendar,
     tone: "green",
   },
   "group.substituteAssign": {
-    label: "Назначена замена тренера",
+    label: `Назначена замена ${v.coach.gen}`,
     icon: UserPlus,
     tone: "blue",
   },
   "group.substituteRequest": {
-    label: "Тренер попросил провести занятие",
+    label: `${cap(v.coach.nom)} попросил провести занятие`,
     icon: UserPlus,
     tone: "amber",
   },
@@ -588,7 +597,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     icon: Bot,
     tone: "indigo",
   },
-}
+})
 
 export const TONE_CLASS: Record<ActionMeta["tone"], string> = {
   blue: "bg-sky-50 text-sky-700 ring-sky-600/20",
@@ -682,7 +691,6 @@ export const META_KEY_LABEL: Record<string, string> = {
   endDate: "Окончание",
   exceptionId: "Отмена",
   gymId: "Зал",
-  coachId: "Тренер",
   groupId: "Группа",
   startAt: "Начало",
   endAt: "Окончание",
@@ -763,12 +771,18 @@ export const DAY_OF_WEEK_LABEL: Record<string, string> = {
   "7": "Вс",
 }
 
-export const formatMetaValue = (value: unknown): string => {
+const metaKeyLabel = (key: string, v: ClubVocabulary): string =>
+  key === "coachId" ? cap(v.coach.nom) : (META_KEY_LABEL[key] ?? key)
+
+export const formatMetaValue = (
+  value: unknown,
+  v: ClubVocabulary,
+): string => {
   if (value === null || value === undefined) return "—"
   if (typeof value === "boolean") return value ? "да" : "нет"
   if (Array.isArray(value)) {
     if (value.length === 0) return "—"
-    return value.map((v) => formatMetaValue(v)).join(", ")
+    return value.map((item) => formatMetaValue(item, v)).join(", ")
   }
   if (typeof value === "string") {
     if (/^[0-9a-f]{8}-/.test(value)) return value.slice(0, 8) + "…"
@@ -781,7 +795,7 @@ export const formatMetaValue = (value: unknown): string => {
     if (entries.length === 0) return "—"
     return entries
       .map(
-        ([k, v]) => `${META_KEY_LABEL[k] ?? k}: ${formatMetaValue(v)}`,
+        ([k, val]) => `${metaKeyLabel(k, v)}: ${formatMetaValue(val, v)}`,
       )
       .join("; ")
   }
@@ -790,20 +804,21 @@ export const formatMetaValue = (value: unknown): string => {
 
 export const parseMetadata = (
   metadata: unknown,
+  vocabulary: ClubVocabulary,
 ): Array<{ key: string; label: string; value: string }> => {
   if (!metadata || typeof metadata !== "object") return []
   return Object.entries(metadata as Record<string, unknown>)
     .filter(([, v]) => v !== null && v !== undefined && v !== "")
     .map(([k, v]) => ({
       key: k,
-      label: META_KEY_LABEL[k] ?? k,
+      label: metaKeyLabel(k, vocabulary),
       value:
         k === "dayOfWeek"
-          ? (DAY_OF_WEEK_LABEL[String(v)] ?? formatMetaValue(v))
+          ? (DAY_OF_WEEK_LABEL[String(v)] ?? formatMetaValue(v, vocabulary))
           : k === "provider" || k === "previousProvider"
             ? (PROVIDER_LABEL[v as keyof typeof PROVIDER_LABEL] ??
-              formatMetaValue(v))
-            : formatMetaValue(v),
+              formatMetaValue(v, vocabulary))
+            : formatMetaValue(v, vocabulary),
     }))
 }
 
@@ -834,7 +849,11 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
 const ACCOUNT_LEVEL_CATEGORIES: Record<string, true> = { auth: true, me: true }
 
 export const ACTION_CATEGORIES = Array.from(
-  new Set(Object.keys(ACTION_META).map((action) => action.split(".")[0])),
+  new Set(
+    Object.keys(actionMetaFor(vocabularyForWorkspaceType(null))).map(
+      (action) => action.split(".")[0],
+    ),
+  ),
 )
   .filter((category) => ACCOUNT_LEVEL_CATEGORIES[category] !== true)
   .sort((a, b) =>

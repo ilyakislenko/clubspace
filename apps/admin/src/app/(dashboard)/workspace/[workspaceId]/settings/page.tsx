@@ -20,7 +20,7 @@ import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
 import { ClubAboutSection } from "../../../../../features/club-about/ClubAboutSection"
 import { formatDay } from "../../../../../features/billing/billing-view"
 import {
-  APP_SECTIONS,
+  appSections,
   type AppSectionFeature,
 } from "../../../../../features/settings/app-sections"
 import { TimezoneSelect } from "../../../../../features/settings/TimezoneSelect"
@@ -246,7 +246,7 @@ export default function WorkspaceSettingsPage() {
           </div>
 
           <ul className="mt-4 divide-y divide-border">
-            {APP_SECTIONS.map((section) => {
+            {appSections(vocabulary).map((section) => {
               const key: AppSectionKey = `${section.feature}Enabled`
               const on = settings[key]
               // Without the VIDEO module the section can only be switched off.
