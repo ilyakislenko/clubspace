@@ -89,16 +89,27 @@ describe('toAppFeatureFlags', () => {
 describe('defaultFeatureColumnsFor', () => {
     it('keeps everything on for a grappling club', () => {
         expect(defaultFeatureColumnsFor('GRAPPLING')).toEqual({
+            ranksEnabled: true,
             videosEnabled: true,
             achievementsEnabled: true,
             journalEnabled: true,
         })
     })
 
+    it('starts a dance studio with videos but without ranks and journal', () => {
+        expect(defaultFeatureColumnsFor('DANCE')).toEqual({
+            ranksEnabled: false,
+            videosEnabled: true,
+            achievementsEnabled: true,
+            journalEnabled: false,
+        })
+    })
+
     it.each(['FITNESS', 'YOGA', 'CUSTOM'])(
-        'starts a %s club without videos and journal',
+        'starts a %s club without ranks, videos and journal',
         (type) => {
             expect(defaultFeatureColumnsFor(type)).toEqual({
+                ranksEnabled: false,
                 videosEnabled: false,
                 achievementsEnabled: true,
                 journalEnabled: false,

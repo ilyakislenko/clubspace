@@ -45,6 +45,10 @@ import {
 
 import { signOut } from "../../../../shared/api/client"
 import { fetchMe } from "../../../../shared/api/me"
+import {
+  fetchWorkspaces,
+  type WorkspaceSummary,
+} from "../../../../shared/api/workspaces"
 import { visibleNavItems } from "../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
@@ -57,6 +61,9 @@ type NavItem = {
   path: string
   adminOnly?: boolean
   adminOrDirectionManager?: boolean
+  // App section the item belongs to: hidden while the club has it switched
+  // off in the settings (a dance studio without ranks sees no «Аттестации»).
+  feature?: keyof WorkspaceSummary["features"]
 }
 
 // The daily pair (Обзор, Кто пропадает) is its own group so «Аналитика» can sit
@@ -121,12 +128,14 @@ const manageNavItems: NavItem[] = [
     icon: Award,
     path: "ranks",
     adminOrDirectionManager: true,
+    feature: "ranks",
   },
   {
     key: "gradings",
     label: "Аттестации",
     icon: GraduationCap,
     path: "gradings",
+    feature: "ranks",
   },
   {
     key: "subscriptions",
@@ -239,6 +248,29 @@ export function WorkspaceSidebar() {
     }
   }, [])
 
+  // The club's app sections, re-read on every navigation: a section switched
+  // off in the settings leaves the menu on the next page. Until they load,
+  // every item shows — the server still guards each page.
+  const [features, setFeatures] = useState<WorkspaceSummary["features"] | null>(
+    null,
+  )
+  useEffect(() => {
+    let alive = true
+    fetchWorkspaces({ perPage: 100 })
+      .then((list) => {
+        if (!alive) return
+        setFeatures(
+          list.find((w) => w.workspaceId === workspaceId)?.features ?? null,
+        )
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [workspaceId, pathname])
+  const sectionOn = (item: NavItem) =>
+    !item.feature || !features || features[item.feature]
+
   const handleSignOut = async () => {
     clearActiveWorkspaceId()
     await signOut()
@@ -306,7 +338,9 @@ export function WorkspaceSidebar() {
           <SidebarGroupLabel>Управление</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleNavItems(manageNavItems, membership).map(renderNavItem)}
+              {visibleNavItems(manageNavItems, membership)
+                .filter(sectionOn)
+                .map(renderNavItem)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -47,6 +47,8 @@ describe("ACTION_META", () => {
     ["group.occurrenceMove", "Занятие перенесено"],
     ["group.slotSplit", "Расписание изменено с даты"],
     ["platform.accessClub", "Платформа открыла клуб"],
+    ["workspace.create", "Клуб создан"],
+    ["workspace.legalAccept", "Принята оферта"],
   ])("labels %s", (action, label) => {
     expect(ACTION_META[action]?.label).toBe(label)
   })

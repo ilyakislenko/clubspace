@@ -105,7 +105,7 @@ export default async function LandingPage() {
         <section className="mx-auto max-w-6xl px-4 pb-16 pt-12 sm:pt-20">
           <div className="max-w-3xl space-y-6">
             <p className="text-sm font-medium text-primary">
-              Для клубов единоборств, фитнеса, йоги и любых секций
+              Для клубов единоборств, фитнеса, йоги, танцевальных студий и любых секций
             </p>
             <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
               Одно приложение для клуба и всех его учеников

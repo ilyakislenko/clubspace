@@ -119,7 +119,7 @@ export function DirectionFormSheet({
             {isCreate ? "Новое направление" : "Редактировать направление"}
           </SheetTitle>
           <SheetDescription>
-            Направление — дисциплина внутри клуба (БЖЖ, ММА, тайский бокс…).
+            Направление — дисциплина внутри клуба (БЖЖ, хип-хоп, йога…).
             Группы, ранги, тарифы и события можно привязать к нему.
           </SheetDescription>
         </SheetHeader>
@@ -132,7 +132,7 @@ export function DirectionFormSheet({
                 id="direction-icon"
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
-                placeholder="🥋"
+                placeholder="⭐"
                 maxLength={8}
                 className="text-center text-lg"
               />
@@ -143,7 +143,7 @@ export function DirectionFormSheet({
                 id="direction-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="БЖЖ"
+                placeholder="Например, хип-хоп"
               />
             </div>
           </div>

@@ -14,7 +14,7 @@ type StepKey = WorkspaceOnboarding["steps"][number]["key"]
 const STEPS: Record<StepKey, { label: string; hint: string; path: string }> = {
   gym: {
     label: "Добавьте зал",
-    hint: "Адрес, где проходят тренировки",
+    hint: "Адрес, где проходят занятия",
     path: "gyms",
   },
   group: {
@@ -24,7 +24,7 @@ const STEPS: Record<StepKey, { label: string; hint: string; path: string }> = {
   },
   schedule: {
     label: "Заполните расписание",
-    hint: "Дни и время тренировок группы",
+    hint: "Дни и время занятий группы",
     path: "groups",
   },
   members: {
@@ -34,7 +34,7 @@ const STEPS: Record<StepKey, { label: string; hint: string; path: string }> = {
   },
   video: {
     label: "Загрузите первое видео",
-    hint: "Разбор техники или приветствие",
+    hint: "Приветствие, разбор техники или связки",
     path: "content",
   },
 }

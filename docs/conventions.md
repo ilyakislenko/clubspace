@@ -252,8 +252,9 @@ Reference wrapper: `src/shared/api/groups.ts`.
 
 ## 5. Prisma schema design (`apps/server/prisma/schema.prisma`)
 
-- Multi-tenant root is `Workspace` (`WorkspaceType` enum: GRAPPLING/FITNESS/YOGA/CUSTOM — the
-  platform is intentionally multi-discipline; keep new models sport-agnostic).
+- Multi-tenant root is `Workspace` (`WorkspaceType` enum: GRAPPLING/FITNESS/YOGA/DANCE/CUSTOM — the
+  platform is intentionally multi-discipline; keep new models sport-agnostic). The type only picks the
+  club's starting app sections (`defaultFeatureColumnsFor`) and its brand preset (`libs/ui-kit/brand`).
 - Rosters key on **`User`**, not `WorkspaceMember` (matches `GroupMember`, `Group.coachId`;
   survives member removal; owner has no member row).
 - Two relations between the same pair of models must both be `@relation("Name")`.

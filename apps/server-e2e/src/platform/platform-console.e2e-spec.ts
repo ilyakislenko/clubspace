@@ -198,6 +198,30 @@ describe('platform console', () => {
         expect(actions).toContain('workspace.create')
     })
 
+    it('creates a dance studio with videos on and ranks off', async () => {
+        const admin = await signIn(ctx, PLATFORM_OWNER)
+        await ctx
+            .http()
+            .post('/platform/workspaces')
+            .set(...admin.auth)
+            .send({
+                name: 'Dance Studio',
+                ownerEmail: 'dance-owner@example.com',
+                type: 'DANCE',
+            })
+            .expect(201)
+
+        const workspace = await ctx.prisma.workspace.findFirstOrThrow({
+            where: { name: 'Dance Studio' },
+        })
+        expect(workspace).toMatchObject({
+            type: 'DANCE',
+            ranksEnabled: false,
+            videosEnabled: true,
+            journalEnabled: false,
+        })
+    })
+
     it('rejects a club with no name', async () => {
         const admin = await signIn(ctx, PLATFORM_OWNER)
 

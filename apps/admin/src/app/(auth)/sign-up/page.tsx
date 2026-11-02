@@ -19,18 +19,14 @@ import {
 import { errorMessage, retryAfterSeconds } from "../../../shared/lib/error-message"
 import { inputClsFull } from "../../../shared/lib/input-class"
 import { pluralRu } from "../../../shared/lib/plural-ru"
+import {
+  WORKSPACE_TYPE_OPTIONS,
+  type WorkspaceTypeValue,
+} from "../../../shared/lib/workspace-type"
 import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
 import { ConsentGate } from "../../../features/consent/ConsentGate"
 import { isConflictError } from "../../../features/billing/billing-view"
 import { LegalDocsPhrase } from "../../../features/billing/LegalDocLink"
-
-// Mirrors the server's WorkspaceType enum — the platform is multi-discipline.
-const WORKSPACE_TYPES = [
-  { value: "GRAPPLING", label: "Единоборства / грэпплинг" },
-  { value: "FITNESS", label: "Фитнес" },
-  { value: "YOGA", label: "Йога" },
-  { value: "CUSTOM", label: "Другое" },
-] as const
 
 const TIMEZONES = [
   { value: "Europe/Kaliningrad", label: "Калининград (UTC+2)" },
@@ -69,7 +65,7 @@ export default function SignUp() {
   // down with the button instead of freezing on the first number.
   const [cooldownRefused, setCooldownRefused] = useState(false)
   const [name, setName] = useState("")
-  const [type, setType] = useState<string>("GRAPPLING")
+  const [type, setType] = useState<WorkspaceTypeValue>("GRAPPLING")
   const [timezone, setTimezone] = useState("Europe/Moscow")
   const [city, setCity] = useState("")
   // The offer and the DPA — the editions the config named are the ones sent.
@@ -146,7 +142,7 @@ export default function SignUp() {
       try {
         const created = await createSelfServeWorkspace({
           name: name.trim(),
-          type: type as "GRAPPLING",
+          type,
           timezone,
           ...(city.trim() ? { city: city.trim() } : {}),
           offerVersion: config.offerVersion,
@@ -265,7 +261,7 @@ export default function SignUp() {
                 className={inputClsFull}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Академия БЖЖ на Садовой"
+                placeholder="Студия на Садовой"
                 minLength={2}
                 maxLength={255}
                 required
@@ -273,8 +269,12 @@ export default function SignUp() {
             </label>
             <label className="grid gap-1 text-sm">
               <span className="text-xs text-muted-foreground">Чем занимаетесь</span>
-              <select className={inputClsFull} value={type} onChange={(e) => setType(e.target.value)}>
-                {WORKSPACE_TYPES.map((t) => (
+              <select
+                className={inputClsFull}
+                value={type}
+                onChange={(e) => setType(e.target.value as WorkspaceTypeValue)}
+              >
+                {WORKSPACE_TYPE_OPTIONS.map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
                   </option>
