@@ -64,16 +64,17 @@ describe('SendAuthCodeHandler.execute — unknown address', () => {
         expect(await send(fresh.handler)).toEqual(await send(existing.handler))
     })
 
-    it('surfaces the resend cooldown without naming the account', async () => {
+    it('surfaces the resend cooldown with the seconds left, without naming the account', async () => {
         const { handler, users } = build()
         users.createCompleteCode.mockRejectedValue(
-            new UserCompleteCodeTooEarlyError(),
+            new UserCompleteCodeTooEarlyError(new Date(Date.now() + 41_500)),
         )
         const error = await send(handler).catch((e: unknown) => e)
         if (!(error instanceof UserCompleteCodeTooEarlyError)) {
             throw new Error('expected the cooldown error')
         }
-        expect(error.metadata).toEqual({})
+        expect(error.metadata).toEqual({ retryAfterSeconds: 42 })
+        expect(error.message).toBe('Новый код можно запросить через 42 с')
         expect(error.message).not.toContain('u1')
     })
 })
@@ -191,23 +192,21 @@ describe('SendAuthCodeHandler.execute — store review account', () => {
         expect(users.createCompleteCode).not.toHaveBeenCalled()
         expect(prisma.pendingSignIn.upsert).not.toHaveBeenCalled()
         const data = prisma.user.update.mock.calls[0][0].data
-        expect(data.completeCodeIssuedAt).toBeInstanceOf(Date)
-        expect(data.completeCodeNextResendAt.getTime()).toBeGreaterThan(
-            Date.now(),
-        )
-        expect(data).not.toHaveProperty('completeCode')
+        expect(data).toEqual({ completeCodeIssuedAt: expect.any(Date) })
     })
 
-    it('refuses a too-early repeat like a normal account', async () => {
+    // Nothing is mailed, so there is nothing to hold back: one demo account
+    // is opened on the tablet and the phone within the same minute.
+    it('answers a repeat right away, with no resend cooldown', async () => {
         const { handler, prisma } = buildReview({
             id: 'u1',
             email: 'review@b.com',
             completeCodeNextResendAt: new Date(Date.now() + 30_000),
         })
-        await expect(runReview(handler)).rejects.toBeInstanceOf(
-            UserCompleteCodeTooEarlyError,
-        )
-        expect(prisma.user.update).not.toHaveBeenCalled()
+        await expect(runReview(handler)).resolves.toEqual({ sent: true })
+        expect(prisma.user.update.mock.calls[0][0].data).toEqual({
+            completeCodeIssuedAt: expect.any(Date),
+        })
     })
 
     it('does not create a missing review user', async () => {

@@ -17,7 +17,7 @@ import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
 import { environment } from "../../shared/env"
-import { errorMessage } from "../../shared/error-message"
+import { errorMessage, retryAfterSeconds } from "../../shared/error-message"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { peekPendingJoin } from "../join/pending-join"
@@ -38,6 +38,9 @@ export function SignInScreen() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cooldown, setCooldown] = useState(0)
+  // The server refused a code inside its resend cooldown: its notice counts
+  // down with the button instead of freezing on the first number.
+  const [cooldownRefused, setCooldownRefused] = useState(false)
 
   useEffect(() => {
     if (cooldown <= 0) return
@@ -49,6 +52,7 @@ export function SignInScreen() {
     if (!email.trim()) return
     setSubmitting(true)
     setError(null)
+    setCooldownRefused(false)
     try {
       // No workspaceKey: signing in must not file a join request on its own.
       // A branded build asks first (brand-join-offer).
@@ -60,6 +64,12 @@ export function SignInScreen() {
       setCooldown(RESEND_COOLDOWN_S)
       if (isResend) showToast("Код отправлен ещё раз", "success")
     } catch (e) {
+      const wait = retryAfterSeconds(e)
+      if (wait) {
+        setCooldown(wait)
+        setCooldownRefused(true)
+        return
+      }
       setError(
         errorMessage(
           e,
@@ -116,7 +126,12 @@ export function SignInScreen() {
               <TextInput
                 style={styles.input}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(text) => {
+                  setEmail(text)
+                  // The cooldown belongs to the address it was asked for.
+                  setCooldown(0)
+                  setCooldownRefused(false)
+                }}
                 placeholder="you@example.com"
                 placeholderTextColor={theme.colors.muted}
                 autoCapitalize="none"
@@ -133,17 +148,22 @@ export function SignInScreen() {
               />
               <Pressable
                 onPress={() => void sendCode()}
-                disabled={submitting || !email.trim()}
+                disabled={submitting || !email.trim() || cooldown > 0}
                 style={({ pressed }) => [
                   styles.button,
-                  (!email.trim() || submitting) && styles.buttonDisabled,
+                  (!email.trim() || submitting || cooldown > 0) &&
+                    styles.buttonDisabled,
                   pressed && styles.buttonPressed,
                 ]}
               >
                 {submitting ? (
                   <ActivityIndicator color={theme.colors.accentText} />
                 ) : (
-                  <Text style={styles.buttonText}>Получить код</Text>
+                  <Text style={styles.buttonText}>
+                    {cooldown > 0
+                      ? `Получить код через ${cooldown} с`
+                      : "Получить код"}
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -211,10 +231,18 @@ export function SignInScreen() {
             </View>
           )}
 
-          {error && (
+          {cooldownRefused && cooldown > 0 ? (
             <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
+              <Text style={styles.errorText}>
+                {`Новый код можно запросить через ${cooldown} с`}
+              </Text>
             </View>
+          ) : (
+            error && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )
           )}
         </ScrollView>
       </KeyboardAvoidingContainer>

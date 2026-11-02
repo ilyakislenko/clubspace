@@ -281,7 +281,7 @@ export class UsersService {
             user.completeCodeNextResendAt &&
             user.completeCodeNextResendAt > new Date()
         ) {
-            throw new UserCompleteCodeTooEarlyError()
+            throw new UserCompleteCodeTooEarlyError(user.completeCodeNextResendAt)
         }
 
         const salt = await genSalt()
@@ -332,7 +332,7 @@ export class UsersService {
             select: { codeNextResendAt: true },
         })
         if (pending?.codeNextResendAt && pending.codeNextResendAt > new Date()) {
-            throw new UserCompleteCodeTooEarlyError()
+            throw new UserCompleteCodeTooEarlyError(pending.codeNextResendAt)
         }
 
         const completeCode = randomInt(100000, 999999).toString()

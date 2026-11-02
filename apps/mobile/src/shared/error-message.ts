@@ -8,7 +8,10 @@ type ApiErrorShape = {
   code?: unknown
   message?: unknown
   config?: { method?: unknown; baseURL?: unknown; url?: unknown }
-  response?: { status?: unknown; data?: { message?: unknown; error?: unknown } }
+  response?: {
+    status?: unknown
+    data?: { message?: unknown; error?: unknown; metadata?: unknown }
+  }
 }
 
 const OFFLINE_MESSAGE = "Нет подключения к интернету. Проверьте сеть и попробуйте ещё раз."
@@ -66,4 +69,18 @@ export const errorMessage = (
     return error.message
   }
   return fallback
+}
+
+/**
+ * Seconds the server asks to wait before the next sign-in code (the resend
+ * cooldown, `metadata.retryAfterSeconds`), or null for any other error.
+ */
+export const retryAfterSeconds = (error: unknown): number | null => {
+  if (typeof error !== "object" || error === null) return null
+  const metadata = (error as ApiErrorShape).response?.data?.metadata
+  const raw =
+    typeof metadata === "object" && metadata !== null
+      ? (metadata as { retryAfterSeconds?: unknown }).retryAfterSeconds
+      : undefined
+  return typeof raw === "number" && raw > 0 ? Math.ceil(raw) : null
 }

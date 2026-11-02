@@ -40,11 +40,18 @@ export class UserNoCompleteCodeError extends DefaultError {
     }
 }
 
+// The resend cooldown of an address. Says how long is left, so the apps can
+// count it down on the button instead of a vague «чуть позже».
 export class UserCompleteCodeTooEarlyError extends DefaultError {
-    constructor() {
+    constructor(nextResendAt: Date) {
+        const retryAfterSeconds = Math.max(
+            1,
+            Math.ceil((nextResendAt.getTime() - Date.now()) / 1000),
+        )
         super({
             code: 'USER_COMPLETE_CODE_TOO_EARLY',
-            message: 'Новый код можно запросить чуть позже',
+            message: `Новый код можно запросить через ${retryAfterSeconds} с`,
+            metadata: { retryAfterSeconds },
         })
     }
 }

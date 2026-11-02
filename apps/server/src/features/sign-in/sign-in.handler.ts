@@ -322,11 +322,15 @@ export class SignInHandler
         // Successful sign-in — burn the OTP so it can't be replayed and
         // reset brute-force state. (For the store-review account there is no
         // stored code; the write is a harmless no-op on those fields.)
+        // The resend cooldown goes too: it guards the mailbox while a code is
+        // pending, and kept after sign-in it refused the next sign-in on this
+        // address («чуть позже») for the rest of the minute.
         await this.prisma.user.update({
             where: { id: user.id },
             data: {
                 completeCode: null,
                 completeCodeIssuedAt: null,
+                completeCodeNextResendAt: null,
                 signInFailedAttempts: 0,
                 signInLockedUntil: null,
             },

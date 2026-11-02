@@ -365,6 +365,25 @@ describe('SignInHandler', () => {
             refreshToken: 'refresh-token',
         })
     })
+
+    // Regression: the cooldown of the code just used outlived the sign-in, so
+    // signing out and asking for a code again within the minute answered
+    // «Новый код можно запросить чуть позже».
+    it('lifts the resend cooldown on a successful sign-in', async () => {
+        const { handler, prisma } = build(
+            baseUser({
+                completeCodeNextResendAt: new Date(Date.now() + 50_000),
+            }),
+        )
+        await run(handler)
+        expect(prisma.user.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    completeCodeNextResendAt: null,
+                }),
+            }),
+        )
+    })
 })
 
 describe('SignInHandler — store review account', () => {
