@@ -267,8 +267,7 @@ function ClassDetails({
         <ClassAttendancePanel
           key={`attendance:${item.key}`}
           workspaceId={workspaceId}
-          slotId={s.slotId}
-          sessionDate={item.date}
+          session={{ kind: "scheduled", slotId: s.slotId, sessionDate: item.date }}
         />
       )}
 

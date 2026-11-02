@@ -83,10 +83,18 @@ export class MarkEventRegistrationPaidHandler
                 message: 'Событие бесплатное — отмечать оплату не нужно',
             })
         }
+        // Money is taken for a place: someone on the waitlist (or who
+        // cancelled) has none — it would count as revenue for nothing.
+        if (registration.status !== 'BOOKED') {
+            throw new BadRequestError({
+                message: 'Оплату отмечают только у тех, у кого есть место',
+            })
+        }
 
-        // Guarded on isPaid: a double tap (or two staff at once) marks once.
+        // Guarded on isPaid: a double tap (or two staff at once) marks once;
+        // and on BOOKED: a cancel landing in between is not marked paid.
         const marked = await this.prisma.eventRegistration.updateMany({
-            where: { id: registration.id, isPaid: false },
+            where: { id: registration.id, isPaid: false, status: 'BOOKED' },
             data: {
                 isPaid: true,
                 paidAt: new Date(),

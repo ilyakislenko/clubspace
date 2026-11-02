@@ -176,7 +176,7 @@ describe('MarkEventRegistrationPaidHandler', () => {
         const { out, audit, registrations } = run(p, rbac('coach'))
         expect(await out).toMatchObject({ isPaid: true, amountPaid: 1500, paymentMethod: 'TRANSFER' })
         const call = p.eventRegistration.updateMany.mock.calls[0][0]
-        expect(call.where).toEqual({ id: 'r1', isPaid: false })
+        expect(call.where).toEqual({ id: 'r1', isPaid: false, status: 'BOOKED' })
         expect(call.data).toMatchObject({
             isPaid: true,
             amountPaid: 1500,
@@ -216,6 +216,14 @@ describe('MarkEventRegistrationPaidHandler', () => {
             run(prisma(reg({ event: event({ price: null }) })), rbac('admin')).out,
         ).rejects.toBeInstanceOf(BadRequestError)
         await expect(run(prisma(null), rbac('admin')).out).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it('no payment without a place: the waitlist and a cancelled registration are refused', async () => {
+        for (const status of ['WAITLISTED', 'CANCELLED']) {
+            const p = prisma(reg({ status, event: event() }))
+            await expect(run(p, rbac('admin')).out).rejects.toThrow(/есть место/)
+            expect(p.eventRegistration.updateMany).not.toHaveBeenCalled()
+        }
     })
 })
 

@@ -705,7 +705,7 @@ function PlanBreakdown({
   return (
     <div className="space-y-3 rounded-lg border border-border bg-card p-4">
       <div className="text-xs uppercase text-muted-foreground">
-        Тарифы за 30 дней
+        Продажи за 30 дней
       </div>
       {data.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">

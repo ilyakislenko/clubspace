@@ -48,7 +48,7 @@ const load = async (
 // mark that class (`mark`: its group's coaches, the direction's manager, the
 // approved substitute, any coach when the club allows it) or only for whoever
 // runs the group (`manage`, e.g. deleting the session); event sessions
-// require admin scope.
+// require admin scope or being the event's coach (its teacher marks who came).
 export const loadSessionForWrite = async (
     prisma: PrismaService,
     rbac: RbacService,
@@ -73,16 +73,22 @@ export const loadSessionForWrite = async (
         } else {
             await rbac.assertCanWriteGroup(ctx, s.groupId)
         }
-    } else if (!rbac.canWriteAllGroups(ctx)) {
+    } else if (
+        !rbac.canWriteAllGroups(ctx) &&
+        !(access === 'mark' && s.coachId === ctx.userId)
+    ) {
         throw new ForbiddenError({
-            message: 'Менять посещения на ивентах может только администратор клуба',
+            message:
+                access === 'manage'
+                    ? 'Это действие с событием доступно только администратору клуба'
+                    : 'Менять посещения на событии может администратор клуба или педагог события',
         })
     }
     return s
 }
 
 // Read access: see-all scopes read anything; otherwise a coach reads a group
-// session of a class they may mark. Event rosters need a see-all scope.
+// session of a class they may mark, or the event they lead.
 export const loadSessionForRead = async (
     prisma: PrismaService,
     rbac: RbacService,
@@ -104,6 +110,7 @@ export const loadSessionForRead = async (
         )
         return s
     }
+    if (s.workspaceEventId && s.coachId === ctx.userId) return s
     throw new ForbiddenError({
         message: 'Нет доступа к этому занятию',
     })

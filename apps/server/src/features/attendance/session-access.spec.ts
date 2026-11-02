@@ -254,4 +254,23 @@ describe('loadSessionForRead', () => {
             ),
         ).rejects.toBeInstanceOf(ForbiddenError)
     })
+
+    it('the event’s own coach marks and reads it; deleting it stays admin-only', async () => {
+        const led = { ...eventSession, coachId: 'coach1' }
+        await expect(
+            loadSessionForWrite(prismaWith(led) as never, rbac() as never, ctx, 'w1', 's2'),
+        ).resolves.toMatchObject({ id: 's2' })
+        await expect(
+            loadSessionForRead(prismaWith(led) as never, rbac() as never, ctx, 'w1', 's2'),
+        ).resolves.toMatchObject({ id: 's2' })
+        await expect(
+            loadSessionForWrite(prismaWith(led) as never, rbac() as never, ctx, 'w1', 's2', 'manage'),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        await expect(
+            loadSessionForWrite(prismaWith(led) as never, rbac() as never, otherCtx, 'w1', 's2'),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        await expect(
+            loadSessionForRead(prismaWith(led) as never, rbac() as never, otherCtx, 'w1', 's2'),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+    })
 })

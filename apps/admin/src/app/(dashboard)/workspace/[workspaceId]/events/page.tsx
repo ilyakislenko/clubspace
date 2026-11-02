@@ -22,6 +22,7 @@ import { safeExternalUrl } from "../../../../../shared/lib/safe-url"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { EventForm } from "../../../../../features/events/EventForm"
 import { EventRegistrationsPanel } from "../../../../../features/events/EventRegistrationsPanel"
+import { ClassAttendancePanel } from "../../../../../features/schedule/ClassAttendancePanel"
 import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
@@ -296,11 +297,15 @@ export default function EventsPage() {
                     {event.registration &&
                       openRegistrations === event.id &&
                       workspaceId && (
-                        <div className="mt-3">
+                        <div className="mt-3 space-y-3">
                           <EventRegistrationsPanel
                             workspaceId={workspaceId}
                             eventId={event.id}
                             canUnmark={isAdmin}
+                          />
+                          <ClassAttendancePanel
+                            workspaceId={workspaceId}
+                            session={{ kind: "event", workspaceEventId: event.id }}
                           />
                         </div>
                       )}
