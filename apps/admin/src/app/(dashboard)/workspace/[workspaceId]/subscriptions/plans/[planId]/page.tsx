@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 
+import { cap, fromFirstSession } from "@clubspace/ui-kit/brand"
 import { Button } from "@clubspace/ui-kit/ui"
 
 import { DirectionScopeChips } from "../../../../../../../features/directions/DirectionScopePicker"
@@ -19,10 +20,12 @@ import {
 import { personName } from "../../../../../../../shared/lib/analytics"
 import { errorMessage } from "../../../../../../../shared/lib/error-message"
 import { pluralRu } from "../../../../../../../shared/lib/plural-ru"
+import { useVocabulary } from "../../../../../../../shared/lib/vocabulary"
 
 // The tariff page (behind the section's AdminOrDirectionManagerGate; the
 // server opens it on the same terms as editing the tariff).
 export default function WorkspacePlanPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string; planId: string }>()
   const workspaceId = params?.workspaceId
   const planId = params?.planId
@@ -83,7 +86,9 @@ export default function WorkspacePlanPage() {
     ["Срок", `${plan.durationDays} дн.`],
     [
       "Начало срока",
-      plan.startsOnFirstVisit ? "С первого посещения" : "Со дня продажи",
+      plan.startsOnFirstVisit
+        ? cap(fromFirstSession(vocabulary))
+        : "Со дня продажи",
     ],
     [
       "Направления",
