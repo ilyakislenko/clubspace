@@ -125,8 +125,8 @@ describe("ScheduleCalendar", () => {
     moveMock.mockResolvedValue({ slotId: "one-off", sessionDate: "2026-11-05", restored: false })
     render(<ScheduleCalendar workspaceId="w1" />)
     await dragClass()
-    expect(await screen.findByText("Перенести занятие")).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: "Только это занятие" }))
+    expect(await screen.findByText("Перенести тренировку")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Только эту тренировку" }))
     await waitFor(() =>
       expect(moveMock).toHaveBeenCalledWith({
         workspaceId: "w1",
@@ -172,7 +172,7 @@ describe("ScheduleCalendar", () => {
     moveMock.mockRejectedValue(new Error("boom"))
     render(<ScheduleCalendar workspaceId="w1" />)
     await dragClass()
-    fireEvent.click(await screen.findByRole("button", { name: "Только это занятие" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Только эту тренировку" }))
     expect(await screen.findByText(/boom|Не удалось перенести/)).toBeTruthy()
   })
 

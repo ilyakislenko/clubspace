@@ -30,6 +30,7 @@ import {
 } from "lucide-react"
 
 import {
+  agree,
   type ClubVocabulary,
   cap,
   vocabularyForWorkspaceType,
@@ -282,7 +283,7 @@ export const actionMetaFor = (
     tone: "red",
   },
   "group.occurrenceMove": {
-    label: "Занятие перенесено",
+    label: `${cap(v.session.nom)} ${agree(v.session, "перенесена", "перенесено")}`,
     icon: Calendar,
     tone: "indigo",
   },
@@ -312,7 +313,7 @@ export const actionMetaFor = (
     tone: "blue",
   },
   "group.substituteRequest": {
-    label: `${cap(v.coach.nom)} попросил провести занятие`,
+    label: `${cap(v.coach.nom)} попросил провести ${v.session.acc}`,
     icon: UserPlus,
     tone: "amber",
   },
@@ -332,17 +333,17 @@ export const actionMetaFor = (
     tone: "zinc",
   },
   "booking.staffAdd": {
-    label: "Ученик записан на занятие",
+    label: `Ученик записан на ${v.session.acc}`,
     icon: UserPlus,
     tone: "green",
   },
   "booking.staffRemove": {
-    label: "Ученик снят с занятия",
+    label: `Ученик снят с ${v.session.gen}`,
     icon: UserMinus,
     tone: "amber",
   },
   "booking.setCapacity": {
-    label: "Изменено число мест на занятии",
+    label: `Изменено число мест на ${v.session.prep}`,
     icon: Pencil,
     tone: "indigo",
   },
@@ -831,7 +832,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   club: "Импорт клуба",
   guardian: "Родители",
   group: "Группы",
-  booking: "Запись на занятия",
+  booking: "Запись учеников",
   gym: "Залы",
   direction: "Направления",
   event: "События",

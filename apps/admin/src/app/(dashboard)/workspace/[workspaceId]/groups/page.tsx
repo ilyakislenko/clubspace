@@ -543,7 +543,7 @@ export default function WorkspaceGroupsPage() {
                         </span>
                         {group.bookingMode === "BOOKING" && (
                           <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700 ring-1 ring-inset ring-sky-600/20">
-                            Запись на занятие ·{" "}
+                            Запись на {vocabulary.session.acc} ·{" "}
                             {group.capacity === null
                               ? "без ограничения мест"
                               : `${group.capacity} ${pluralRu(group.capacity, "место", "места", "мест")}`}

@@ -27,7 +27,7 @@ export const appSections = (
   {
     feature: "leaderboard",
     label: "Рейтинг посещаемости",
-    description: "Таблица учеников по числу занятий за неделю/месяц.",
+    description: `Таблица учеников по числу ${v.session.genPl} за неделю/месяц.`,
   },
   {
     feature: "attendance",
@@ -42,7 +42,7 @@ export const appSections = (
   {
     feature: "schedule",
     label: "Расписание",
-    description: "Расписание занятий клуба.",
+    description: `Расписание ${v.session.genPl} клуба.`,
   },
   {
     feature: "groups",

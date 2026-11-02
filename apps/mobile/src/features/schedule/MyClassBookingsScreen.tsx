@@ -1,3 +1,4 @@
+import { agree, cap } from "@clubspace/ui-kit/brand"
 import React, { useCallback, useState } from "react"
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -165,7 +166,7 @@ export function MyClassBookingsScreen() {
               {upcoming.length === 0 ? (
                 <View style={styles.empty}>
                   <Text style={styles.emptyText}>
-                    Записей нет. Записаться на занятие можно в расписании.
+                    Записей нет. Записаться на {vocabulary.session.acc} можно в расписании.
                   </Text>
                   <Pressable
                     onPress={() => navigateToTab("Schedule")}
@@ -198,7 +199,9 @@ export function MyClassBookingsScreen() {
                       </View>
                       {classLines(b)}
                       {b.classCancelled && (
-                        <Text style={styles.danger}>Занятие отменено</Text>
+                        <Text style={styles.danger}>
+                          {cap(vocabulary.session.nom)} {agree(vocabulary.session, "отменена", "отменено")}
+                        </Text>
                       )}
                       {promoted && (
                         <Text style={styles.success}>
@@ -223,7 +226,9 @@ export function MyClassBookingsScreen() {
                         </Text>
                       )}
                       {started && (
-                        <Text style={styles.note}>Занятие уже началось.</Text>
+                        <Text style={styles.note}>
+                          {cap(vocabulary.session.nom)} уже {agree(vocabulary.session, "началась", "началось")}.
+                        </Text>
                       )}
                       {live && !started && !b.classCancelled && (
                         <Pressable

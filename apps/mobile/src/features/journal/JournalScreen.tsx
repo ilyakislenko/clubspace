@@ -139,7 +139,7 @@ export function JournalScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.subtitle}>
-          Личные заметки после занятий — видны только вам.
+          Личные заметки после {vocabulary.session.genPl} — видны только вам.
         </Text>
 
         <View style={styles.composer}>

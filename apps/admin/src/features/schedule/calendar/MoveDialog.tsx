@@ -1,5 +1,6 @@
 "use client"
 
+import { agree } from "@clubspace/ui-kit/brand"
 import { AlertTriangle, ArrowRight } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -51,12 +52,14 @@ export function MoveDialog({ move, conflicts, busy, error, onCancel, onConfirm }
   const booked = s.booking?.booked ?? 0
   const waitlist = s.booking?.waitlist ?? 0
   const sameWeekday = isoDow(target.date) === isoDow(item.date)
+  const session = vocabulary.session
+  const thisSession = `${agree(session, "эту", "это")} ${session.acc}`
 
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onCancel()}>
       <DialogContent className="max-w-xl" data-calendar-move-dialog>
         <DialogHeader>
-          <DialogTitle>{resizeOnly ? "Изменить длительность" : "Перенести занятие"}</DialogTitle>
+          <DialogTitle>{resizeOnly ? "Изменить длительность" : `Перенести ${session.acc}`}</DialogTitle>
           <DialogDescription>«{item.title}»</DialogDescription>
         </DialogHeader>
 
@@ -74,22 +77,25 @@ export function MoveDialog({ move, conflicts, busy, error, onCancel, onConfirm }
               {booked + waitlist > 0
                 ? `${booked} ${pluralRu(booked, "запись", "записи", "записей")}${
                     waitlist > 0 ? ` и ${waitlist} в листе ожидания` : ""
-                  } переедут вместе с занятием.`
-                : "На это занятие пока никто не записан."}
+                  } переедут вместе с ${session.ins}.`
+                : `На ${thisSession} пока никто не записан.`}
             </p>
           ) : (
             <p>Состав группы не меняется.</p>
           )}
           {weekly ? (
             <p>
-              «Это и все следующие» — с {dayMonth(item.date)} занятие по{" "}
+              «Это и все следующие» — с {dayMonth(item.date)} {session.nom} по{" "}
               {DOW_SHORT[isoDow(item.date)].toLowerCase()} {formatRange(item.startMin, item.endMin)} станет{" "}
               {sameWeekday ? "" : `по ${DOW_SHORT[isoDow(target.date)].toLowerCase()} `}
-              {formatRange(target.startMin, target.endMin)} каждую неделю. Прошедшие занятия
+              {formatRange(target.startMin, target.endMin)} каждую неделю. Прошедшие {session.nomPl}
               не изменятся.
             </p>
           ) : (
-            <p>Это разовое занятие — меняется только оно.</p>
+            <p>
+              Это {agree(session, "разовая", "разовое")} {session.nom} — меняется только{" "}
+              {agree(session, "она", "оно")}.
+            </p>
           )}
         </div>
 
@@ -131,7 +137,7 @@ export function MoveDialog({ move, conflicts, busy, error, onCancel, onConfirm }
             onClick={() => onConfirm("one", notify)}
             data-move-scope="one"
           >
-            {busy ? "Сохраняем…" : "Только это занятие"}
+            {busy ? "Сохраняем…" : `Только ${thisSession}`}
           </Button>
         </DialogFooter>
       </DialogContent>

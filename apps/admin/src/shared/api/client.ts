@@ -64,10 +64,24 @@ export const getAccessToken = (): string | null => {
   return getTokenStore().getAccessToken()
 }
 
+// Per-account caches (the membership behind the sidebar) register a reset
+// here, so the next account signed in on this tab never starts from the
+// previous one's role.
+const sessionResets = new Set<() => void>()
+
+export const onAuthSessionChange = (reset: () => void): void => {
+  sessionResets.add(reset)
+}
+
+const resetSessionCaches = (): void => {
+  sessionResets.forEach((reset) => reset())
+}
+
 export const storeAuthTokens = (
   response: Parameters<typeof persistAuthTokens>[1]
 ) => {
   persistAuthTokens(getTokenStore(), response)
+  resetSessionCaches()
 }
 
 export const getRefreshToken = (): string | null => {
@@ -80,6 +94,7 @@ export const getRefreshToken = (): string | null => {
 
 export const clearAuthTokens = (): void => {
   getTokenStore().clear()
+  resetSessionCaches()
 }
 
 // Revoke the refresh token server-side, then clear local tokens. The server

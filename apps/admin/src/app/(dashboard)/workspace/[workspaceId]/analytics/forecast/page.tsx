@@ -15,6 +15,7 @@ import {
 } from "../../../../../../shared/lib/analytics"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
 import { pluralRu } from "../../../../../../shared/lib/plural-ru"
+import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
 import {
   AnalyticsCard,
   AnalyticsError,
@@ -27,6 +28,7 @@ import {
 export default function ForecastPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  const vocabulary = useVocabulary()
 
   const [filter, setFilter] = useState(EMPTY_ANALYTICS_FILTER)
   const [data, setData] = useState<RevenueForecast | null>(null)
@@ -157,7 +159,7 @@ export default function ForecastPage() {
               value={formatPercent(trial.rate)}
               subtitle={
                 trial.trials === 0
-                  ? "пробных занятий не было"
+                  ? `пробных ${vocabulary.session.genPl} не было`
                   : `${trial.converted} из ${trial.trials}${
                       trial.medianDaysToPay !== null
                         ? ` · платят в среднем через ${trial.medianDaysToPay} ${pluralRu(trial.medianDaysToPay, "день", "дня", "дней")}`

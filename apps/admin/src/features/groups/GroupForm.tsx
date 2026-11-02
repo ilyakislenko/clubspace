@@ -23,7 +23,7 @@ import { DirectionSelect } from "../directions/DirectionSelect"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { formatMemberLabel, matchesMemberQuery } from "./helpers"
 import { useVocabulary } from "../../shared/lib/vocabulary"
-import { cap } from "@clubspace/ui-kit/brand"
+import { agree, cap } from "@clubspace/ui-kit/brand"
 
 export type GroupFormPayload = {
   name: string
@@ -249,19 +249,19 @@ export function GroupForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="FIXED">Постоянная группа</SelectItem>
-              <SelectItem value="BOOKING">Запись на занятие</SelectItem>
+              <SelectItem value="BOOKING">Запись на {vocabulary.session.acc}</SelectItem>
             </SelectContent>
           </Select>
           <p className="mt-1 text-xs text-muted-foreground">
             {bookingMode === "BOOKING"
-              ? "Ученики клуба сами записываются на каждое занятие в расписании; при заполнении — лист ожидания."
-              : "На занятия ходят ученики группы; другие могут прийти разово."}
+              ? `Ученики клуба сами записываются на ${agree(vocabulary.session, "каждую", "каждое")} ${vocabulary.session.acc} в расписании; при заполнении — лист ожидания.`
+              : `На ${vocabulary.session.nomPl} ходят ученики группы; другие могут прийти разово.`}
           </p>
           {mode === "edit" &&
             initial?.bookingMode === "BOOKING" &&
             bookingMode === "FIXED" && (
               <p className="mt-1 text-xs text-amber-700">
-                Все записи на будущие занятия будут отменены, ученики получат
+                Все записи на будущие {vocabulary.session.nomPl} будут отменены, ученики получат
                 уведомление.
               </p>
             )}
@@ -270,7 +270,7 @@ export function GroupForm({
         {bookingMode === "BOOKING" && (
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1">
-              <Label htmlFor="group-capacity">Мест на занятии</Label>
+              <Label htmlFor="group-capacity">Мест на {vocabulary.session.prep}</Label>
               <Input
                 id="group-capacity"
                 inputMode="numeric"

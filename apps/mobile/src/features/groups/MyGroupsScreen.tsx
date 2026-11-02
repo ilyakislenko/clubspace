@@ -178,6 +178,7 @@ function AttendanceAction({
   onOpen: (slotId: string, sessionDate: string) => void
 }) {
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   const today = findTodaySlot(
     group.slots,
     group.exceptions,
@@ -187,7 +188,7 @@ function AttendanceAction({
   if (!today) {
     return (
       <Text style={styles.cardLineMuted}>
-        Сегодня занятий по расписанию нет
+        Сегодня {vocabulary.session.genPl} по расписанию нет
       </Text>
     )
   }

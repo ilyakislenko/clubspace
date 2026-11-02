@@ -153,9 +153,9 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
       })
       setRoster(r)
     } catch (err) {
-      setError(errorMessage(err, "Не удалось открыть занятие"))
+      setError(errorMessage(err, `Не удалось открыть ${vocabulary.session.acc}`))
     }
-  }, [workspace, openedId, slotId, sessionDate, eventId])
+  }, [workspace, openedId, slotId, sessionDate, eventId, vocabulary])
 
   useEffect(() => {
     void load()
@@ -345,7 +345,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
     showAlert(
       roster.booking ? "Отметить записавшихся?" : "Отметить всех?",
       roster.booking
-        ? `Отметить ${count} чел., записанных на занятие? С абонементов спишется по занятию.`
+        ? `Отметить ${count} чел., записанных на ${vocabulary.session.acc}? С абонементов спишется по занятию.`
         : `Отметить ${count} чел.? С абонементов спишется по занятию.`,
       [
         { text: "Отмена", style: "cancel" },
@@ -539,7 +539,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                   {isPersonal
                     ? "Ученик"
                     : roster.booking
-                      ? "Записаны на занятие"
+                      ? `Записаны на ${vocabulary.session.acc}`
                       : "Записались"}
                 </Text>
                 {split.expected.map((g) => (
@@ -585,7 +585,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
               isPersonal ? null : (
                 <Text style={styles.empty}>
                   {roster.booking
-                    ? "На занятие пока никто не записался."
+                    ? `На ${vocabulary.session.acc} пока никто не записался.`
                     : "В группе пока нет участников."}
                 </Text>
               )

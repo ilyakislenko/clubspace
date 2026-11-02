@@ -40,7 +40,7 @@ import type { CalendarItem } from "./calendar-items"
 import { ConflictList } from "./ConflictList"
 import { groupOptionLabel } from "../../../shared/lib/group-label"
 import { useVocabulary } from "../../../shared/lib/vocabulary"
-import { cap } from "@clubspace/ui-kit/brand"
+import { agree, cap } from "@clubspace/ui-kit/brand"
 
 const DURATIONS = [45, 60, 75, 90, 120]
 
@@ -120,7 +120,7 @@ export function CreateSlotDialog({
       })
       onCreated(slot, group)
     } catch (e) {
-      setError(errorMessage(e, "Не удалось добавить занятие"))
+      setError(errorMessage(e, `Не удалось добавить ${vocabulary.session.acc}`))
     } finally {
       setBusy(false)
     }
@@ -130,13 +130,15 @@ export function CreateSlotDialog({
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent className="max-w-lg" data-calendar-create-dialog>
         <DialogHeader>
-          <DialogTitle>Новое занятие</DialogTitle>
+          <DialogTitle>
+            {agree(vocabulary.session, "Новая", "Новое")} {vocabulary.session.nom}
+          </DialogTitle>
           <DialogDescription className="first-letter:uppercase">{dayLabel(request.date)}</DialogDescription>
         </DialogHeader>
 
         {groups.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Нет групп, в расписание которых вы можете добавлять занятия.
+            Нет групп, в расписание которых вы можете добавлять {vocabulary.session.nomPl}.
           </p>
         ) : (
           <div className="grid gap-4">
@@ -217,7 +219,9 @@ export function CreateSlotDialog({
 
         {error && <p className="text-sm text-destructive">{error}</p>}
         {!validDuration && (
-          <p className="text-sm text-destructive">Занятие должно закончиться до полуночи.</p>
+          <p className="text-sm text-destructive">
+            {cap(vocabulary.session.nom)} {agree(vocabulary.session, "должна", "должно")} закончиться до полуночи.
+          </p>
         )}
 
         <DialogFooter>

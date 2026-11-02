@@ -159,7 +159,7 @@ function ClassDetails({
       })
       onCancelled(item, exception)
     } catch (e) {
-      setError(errorMessage(e, "Не удалось отменить занятие"))
+      setError(errorMessage(e, `Не удалось отменить ${vocabulary.session.acc}`))
     } finally {
       setBusy(false)
     }
@@ -177,7 +177,7 @@ function ClassDetails({
       })
       onRestored()
     } catch (e) {
-      setError(errorMessage(e, "Не удалось вернуть занятие"))
+      setError(errorMessage(e, `Не удалось вернуть ${vocabulary.session.acc}`))
     } finally {
       setBusy(false)
     }
@@ -192,7 +192,7 @@ function ClassDetails({
             <DirectionChip direction={s.group.direction} />
             {s.booking && (
               <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 ring-1 ring-inset ring-violet-600/20">
-                Запись на занятие
+                Запись на {vocabulary.session.acc}
               </span>
             )}
             {!s.recurring && (

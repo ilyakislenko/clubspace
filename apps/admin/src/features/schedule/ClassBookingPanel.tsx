@@ -20,6 +20,8 @@ import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { useWorkspaceRealtime } from "../../shared/realtime/useWorkspaceRealtime"
 import { formatMemberLabel, matchesMemberQuery } from "../groups/helpers"
+import { useVocabulary } from "../../shared/lib/vocabulary"
+import { agree, cap } from "@clubspace/ui-kit/brand"
 import {
   CLASS_BOOKING_STATUS_LABEL,
   CLASS_BOOKING_STATUS_TONE,
@@ -59,6 +61,8 @@ export function ClassBookingPanel({
   sessionDate,
   onChanged,
 }: Props) {
+  const vocabulary = useVocabulary()
+  const session = vocabulary.session
   const [occurrence, setOccurrence] = useState<ClassOccurrence | null>(null)
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [loading, setLoading] = useState(false)
@@ -74,7 +78,7 @@ export function ClassBookingPanel({
       setOccurrence(data)
       setCapacityDraft(data.capacity === null ? "" : String(data.capacity))
     } catch (err) {
-      setError(errorMessage(err, "Не удалось загрузить запись на занятие"))
+      setError(errorMessage(err, `Не удалось загрузить запись на ${session.acc}`))
     }
   }
 
@@ -133,7 +137,7 @@ export function ClassBookingPanel({
   }
 
   const handleRemove = (b: ClassOccurrenceBooking) => {
-    if (!window.confirm(`Снять «${b.displayName}» с занятия?`)) return
+    if (!window.confirm(`Снять «${b.displayName}» с ${session.gen}?`)) return
     void run(
       () =>
         removeClassBooking({
@@ -142,7 +146,7 @@ export function ClassBookingPanel({
           sessionDate,
           bookingId: b.bookingId,
         }),
-      "Не удалось снять с занятия",
+      `Не удалось снять с ${session.gen}`,
     )
   }
 
@@ -178,7 +182,7 @@ export function ClassBookingPanel({
 
   return (
     <section className="space-y-3" data-class-booking-panel>
-      <div className="text-sm font-medium">Запись на занятие</div>
+      <div className="text-sm font-medium">Запись на {session.acc}</div>
       {error && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error}
@@ -202,7 +206,7 @@ export function ClassBookingPanel({
               <Stat label="Пришли" value={String(occurrence.attended)} />
               {occurrence.classCancelled && (
                 <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-700 ring-1 ring-inset ring-red-600/20">
-                  Занятие отменено
+                  {cap(session.nom)} {agree(session, "отменена", "отменено")}
                 </span>
               )}
               {occurrence.settled && (
@@ -215,7 +219,7 @@ export function ClassBookingPanel({
             {editable && (
               <div className="space-y-1.5 rounded-md border border-border p-3">
                 <Label htmlFor="class-capacity" className="text-xs">
-                  Мест на это занятие
+                  Мест на {agree(session, "эту", "это")} {session.acc}
                 </Label>
                 <div className="flex flex-wrap items-center gap-2">
                   <Input
@@ -388,6 +392,7 @@ function RosterSection({
   onRemove?: (b: ClassOccurrenceBooking) => void
   busy: boolean
 }) {
+  const session = useVocabulary().session
   return (
     <div>
       <div className="mb-1.5 text-xs uppercase text-muted-foreground">
@@ -430,7 +435,7 @@ function RosterSection({
               )}
               {b.classBurned && (
                 <span className="w-full text-xs text-amber-700">
-                  списано занятие
+                  {agree(session, "списана", "списано")} {session.nom}
                   {b.burnedPlanName ? `: ${b.burnedPlanName}` : ""}
                 </span>
               )}

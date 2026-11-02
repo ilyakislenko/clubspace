@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 
+import { onAuthSessionChange } from "../api/client"
 import { getMyMembership, type MyMembership } from "../api/members"
 
 // Module-level cache so navigating between admin pages doesn't refire the
@@ -15,6 +16,15 @@ type CacheEntry = { value: MyMembership; storedAt: number }
 
 const cache = new Map<string, CacheEntry>()
 const inflight = new Map<string, Promise<MyMembership>>()
+// Bumped on every sign-in / sign-out: a request of the previous account that
+// settles afterwards must not land in the next account's cache.
+let session = 0
+
+onAuthSessionChange(() => {
+  session += 1
+  cache.clear()
+  inflight.clear()
+})
 
 const readFresh = (workspaceId: string): MyMembership | null => {
   const entry = cache.get(workspaceId)
@@ -52,10 +62,13 @@ export const useMyMembershipState = (
 
     let cancelled = false
     const existing = inflight.get(workspaceId)
+    const requestSession = session
     const promise =
       existing ??
       getMyMembership({ workspaceId }).then((m) => {
-        cache.set(workspaceId, { value: m, storedAt: Date.now() })
+        if (requestSession === session) {
+          cache.set(workspaceId, { value: m, storedAt: Date.now() })
+        }
         return m
       })
     inflight.set(workspaceId, promise)

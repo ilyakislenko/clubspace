@@ -5,6 +5,7 @@ import { useMemo } from "react"
 import { cn } from "@clubspace/ui-kit/util"
 
 import { pluralRu } from "../../../shared/lib/plural-ru"
+import { useVocabulary } from "../../../shared/lib/vocabulary"
 import { coachShortName } from "./calendar-format"
 import { DOW_LONG, dayMonth, formatRange, isoDow, withAlpha } from "./calendar-helpers"
 import { fillLabel, groupByDate, isFull, type CalendarItem } from "./calendar-items"
@@ -18,12 +19,13 @@ type Props = {
 
 /** The month as a list of days (volt's agenda view). */
 export function AgendaView({ items, today, onOpenItem }: Props) {
+  const vocabulary = useVocabulary()
   const byDate = useMemo(() => [...groupByDate(items).entries()], [items])
 
   if (byDate.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-        В этом месяце занятий нет.
+        В этом месяце {vocabulary.session.genPl} нет.
       </p>
     )
   }

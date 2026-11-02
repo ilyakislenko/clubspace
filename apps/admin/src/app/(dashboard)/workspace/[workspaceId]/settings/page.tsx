@@ -25,7 +25,7 @@ import {
 } from "../../../../../features/settings/app-sections"
 import { TimezoneSelect } from "../../../../../features/settings/TimezoneSelect"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
-import { cap } from "@clubspace/ui-kit/brand"
+import { agree, cap } from "@clubspace/ui-kit/brand"
 
 type AppSectionKey = `${AppSectionFeature}Enabled`
 
@@ -219,7 +219,7 @@ export default function WorkspaceSettingsPage() {
               <div className="font-medium">Отметки в чужих группах</div>
               <p className="mt-1 text-xs text-muted-foreground">
                 Если выключено — {vocabulary.coach.nom} отмечает посещаемость только в своих
-                группах и в занятиях, где ему одобрили замену.{" "}
+                группах и на тех {vocabulary.session.prepPl}, где ему одобрили замену.{" "}
                 {cap(vocabulary.headCoach.nom)} и администраторы
                 отмечают в любой группе всегда.
               </p>
@@ -437,7 +437,7 @@ function SettingSwitch({
   )
 }
 
-// Club-wide rules for booking-mode groups («Запись на занятие»). Window and
+// Club-wide rules for booking-mode groups («Запись на тренировку/занятие»). Window and
 // deadline can be overridden per group in the group form.
 function BookingSettings({
   settings,
@@ -448,6 +448,8 @@ function BookingSettings({
   saving: boolean
   onSave: (patch: WorkspaceSettingsPatch) => void | Promise<void>
 }) {
+  const session = useVocabulary().session
+  const one = agree(session, "одну", "одно")
   const [windowDays, setWindowDays] = useState(String(settings.bookingWindowDays))
   const [cancelHours, setCancelHours] = useState(
     String(settings.bookingCancelHours),
@@ -467,11 +469,11 @@ function BookingSettings({
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <div className="font-medium">Запись на занятия</div>
+      <div className="font-medium">Запись на {session.nomPl}</div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Правила для групп в режиме «Запись на занятие»: когда открывается
+        Правила для групп в режиме «Запись на {session.acc}»: когда открывается
         запись, до какого момента можно отменить без последствий и списывать
-        ли занятие с абонемента. Окно записи и срок отмены можно переопределить
+        ли {session.acc} с абонемента. Окно записи и срок отмены можно переопределить
         в карточке группы.
       </p>
 
@@ -528,34 +530,34 @@ function BookingSettings({
         <li className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0">
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium">
-              Списывать занятие при поздней отмене
+              Списывать {session.acc} при поздней отмене
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Отмена позже срока бесплатной отмены забирает одно занятие из
+              Отмена позже срока бесплатной отмены забирает {one} {session.acc} из
               абонемента.
             </p>
           </div>
           <SettingSwitch
             checked={settings.bookingLateCancelBurn}
             disabled={saving}
-            label="Списывать занятие при поздней отмене"
+            label={`Списывать ${session.acc} при поздней отмене`}
             onChange={(next) => void onSave({ bookingLateCancelBurn: next })}
           />
         </li>
         <li className="flex flex-wrap items-start justify-between gap-3 py-3 last:pb-0">
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium">
-              Списывать занятие при неявке
+              Списывать {session.acc} при неявке
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Записался, но не пришёл и не отменил — занятие списывается с
+              Записался, но не пришёл и не отменил — {session.nom} списывается с
               абонемента.
             </p>
           </div>
           <SettingSwitch
             checked={settings.bookingNoShowBurn}
             disabled={saving}
-            label="Списывать занятие при неявке"
+            label={`Списывать ${session.acc} при неявке`}
             onChange={(next) => void onSave({ bookingNoShowBurn: next })}
           />
         </li>

@@ -8,13 +8,17 @@ import {
   getWorkspaceOnboarding,
   type WorkspaceOnboarding,
 } from "../../shared/api/billing"
+import type { ClubVocabulary } from "@clubspace/ui-kit/brand"
+import { useVocabulary } from "../../shared/lib/vocabulary"
 
 type StepKey = WorkspaceOnboarding["steps"][number]["key"]
 
-const STEPS: Record<StepKey, { label: string; hint: string; path: string }> = {
+const steps = (
+  v: ClubVocabulary,
+): Record<StepKey, { label: string; hint: string; path: string }> => ({
   gym: {
     label: "Добавьте зал",
-    hint: "Адрес, где проходят занятия",
+    hint: `Адрес, где проходят ${v.session.nomPl}`,
     // Halls are added on the groups page; /gyms has only per-hall pages.
     path: "groups",
   },
@@ -25,7 +29,7 @@ const STEPS: Record<StepKey, { label: string; hint: string; path: string }> = {
   },
   schedule: {
     label: "Заполните расписание",
-    hint: "Дни и время занятий группы",
+    hint: `Дни и время ${v.session.genPl} группы`,
     path: "groups",
   },
   members: {
@@ -38,11 +42,12 @@ const STEPS: Record<StepKey, { label: string; hint: string; path: string }> = {
     hint: "Приветствие, разбор техники или связки",
     path: "content",
   },
-}
+})
 
 // The launch checklist on the dashboard. Every tick comes from the server's
 // view of real data, so it updates itself; it disappears once all is done.
 export function OnboardingChecklist({ workspaceId }: { workspaceId: string }) {
+  const vocabulary = useVocabulary()
   const [data, setData] = useState<WorkspaceOnboarding | null>(null)
 
   useEffect(() => {
@@ -75,7 +80,7 @@ export function OnboardingChecklist({ workspaceId }: { workspaceId: string }) {
       </div>
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {data.steps.map((step) => {
-          const meta = STEPS[step.key]
+          const meta = steps(vocabulary)[step.key]
           return (
             <li key={step.key}>
               <Link
