@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>ClubSpace — для владельца клуба</title>
+<style>
+  @page { size: A4; margin: 14mm 14mm 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #0f172a; font-size: 10.5pt; line-height: 1.38; margin: 0; }
+  .kicker { color: #5b58d9; font-weight: 700; font-size: 9pt; letter-spacing: .06em; text-transform: uppercase; }
+  h1 { font-size: 24pt; line-height: 1.12; margin: 4px 0 8px; }
+  h2 { font-size: 13.5pt; margin: 16px 0 8px; }
+  p.lead { color: #475569; font-size: 11.5pt; margin: 0 0 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+  .card b { display: block; margin-bottom: 3px; }
+  .card ul { margin: 0; padding-left: 16px; }
+  .card li { margin: 2px 0; }
+  .accent { border-left: 4px solid #5b58d9; }
+  .green { border-left: 4px solid #16a34a; }
+  table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+  th { background: #0f172a; color: #fff; font-weight: 600; }
+  td.r, th.r { text-align: right; }
+  .offer { background: #eef2ff; border-radius: 12px; padding: 12px 14px; margin-top: 12px; }
+  .offer b { color: #5b58d9; }
+  .muted { color: #64748b; font-size: 9pt; }
+  .page-break { page-break-before: always; }
+  .contacts { margin-top: 14px; display: flex; gap: 24px; font-size: 11pt; }
+  .shots2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+  .shots4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+  figure { margin: 0; }
+  figure img { width: 100%; display: block; border-radius: 6px; border: 1px solid #e2e8f0; }
+  .shots4 figure img { height: 64mm; width: auto; max-width: 100%; margin: 0 auto; border-radius: 10px; }
+  figcaption { font-size: 8.6pt; line-height: 1.3; color: #334155; margin-top: 4px; }
+  figcaption b { color: #0f172a; }
+</style>
+</head>
+<body>
+  <div class="kicker">ClubSpace · для владельца клуба</div>
+  <h1>Одно приложение для клуба и всех его учеников</h1>
+  <p class="lead">Расписание, посещения, абонементы и долги, пояса и аттестации, видео для учеников, несколько направлений и залов —
+  вместо Excel, тетради и десятка чатов. Ученики и родители пользуются бесплатно.</p>
+
+  <div class="grid">
+    <div class="card accent"><b>Владельцу</b><ul>
+      <li>Кто перестал ходить и кому пора продлить — списком</li>
+      <li>Абонементы, заморозки, долги, выручка, выгрузки</li>
+      <li>Залы, направления (БЖЖ, ММА, тайский бокс…) и их руководители</li>
+      <li>Импорт базы из Excel за вечер</li></ul></div>
+    <div class="card accent"><b>Тренеру</b><ul>
+      <li>Отметка группы с телефона за минуту</li>
+      <li>Свои группы, расписание, переносы</li>
+      <li>Аттестации: кто готов, история поясов</li>
+      <li>Видео и программа для своих групп</li></ul></div>
+    <div class="card accent"><b>Ученику</b><ul>
+      <li>Вступление сканом QR на ресепшене</li>
+      <li>Расписание, остаток абонемента, свой пояс и прогресс</li>
+      <li>Ачивки и рейтинг своего направления, видеоуроки</li>
+      <li>Все свои клубы в одном приложении</li></ul></div>
+    <div class="card accent"><b>Родителю</b><ul>
+      <li>Дети в профиле родителя — без отдельных аккаунтов</li>
+      <li>Расписание, посещения и пояса каждого ребёнка</li>
+      <li>Оплата абонемента онлайн, если клуб подключил</li>
+      <li>Все уведомления клуба в одном месте</li></ul></div>
+  </div>
+
+  <h2>Почему это удобно клубу</h2>
+  <div class="grid">
+    <div class="card green"><b>Наличные — можно</b>Тренер отмечает «оплачено». Онлайн-оплата через вашу ЮKassa — по желанию, без процента с платежей.</div>
+    <div class="card green"><b>Работает на любом телефоне</b>Android, iPhone, RuStore и просто браузер. Ставить приложение необязательно.</div>
+    <div class="card green"><b>Несколько направлений</b>Абонемент «БЖЖ 12» списывается только на БЖЖ, «БЖЖ + ММА» — на оба, «Весь клуб» — на всё.</div>
+    <div class="card green"><b>Данные ваши</b>Выгрузка в CSV в любой момент. Договор-оферта и поручение на обработку данных — на сайте.</div>
+  </div>
+
+  <div class="page-break"></div>
+  <div class="kicker">Новое · ноябрь</div>
+  <h2 style="margin-top:4px">Что клуб получает сверх учёта</h2>
+  <div class="shots2">
+    <figure><img src="screens/admin-ai-chat.png" alt="ИИ-ассистент">
+      <figcaption><b>ИИ-ассистент.</b> Спросите обычными словами: «Кто может уйти в этом месяце и почему?» — ответ с именами и причинами за полминуты. Он только смотрит, ничего не меняет.</figcaption></figure>
+    <figure><img src="screens/admin-call-list.png" alt="Кому позвонить сегодня">
+      <figcaption><b>Кому позвонить сегодня.</b> Ученики, которые могут уйти, с причиной и суммой, которую клуб теряет. Позвонили — отметили.</figcaption></figure>
+    <figure><img src="screens/admin-calendar.png" alt="Календарь занятий">
+      <figcaption><b>Календарь занятий.</b> Всё расписание клуба на неделю. Перенести занятие — перетащить мышкой.</figcaption></figure>
+    <figure><img src="screens/admin-occupancy.png" alt="Загрузка расписания">
+      <figcaption><b>Загрузка залов.</b> Где тесно, а где полупустые занятия — и что поменять в расписании.</figcaption></figure>
+  </div>
+  <div class="shots4">
+    <figure><img src="screens/pwa-student-booking.png" alt="Запись на занятие">
+      <figcaption><b>Запись и лист ожидания.</b> Мест нет — ученик в очереди, место освободилось — записан сам.</figcaption></figure>
+    <figure><img src="screens/pwa-coach-substitution.png" alt="Замена тренера">
+      <figcaption><b>Замены тренеров.</b> Тренер просится провести занятие — главный даёт добро с телефона.</figcaption></figure>
+    <figure><img src="screens/pwa-student-schedule.png" alt="Расписание ученика">
+      <figcaption><b>Без установки.</b> Ссылка → значок на экране телефона. Уведомления о переносах и абонементе.</figcaption></figure>
+    <figure><img src="screens/pwa-coach-home.png" alt="Главная тренера">
+      <figcaption><b>Главная тренера.</b> Кого он ведёт сегодня, кому позвонить, заявки на заморозку.</figcaption></figure>
+  </div>
+  <p class="muted" style="margin-top:8px"><b>Ещё:</b> видео без интернета — ученик скачивает урок заранее и смотрит в зале без связи;
+  уведомления о переносах, записи и абонементе приходят и в веб-приложение, без установки из магазина.</p>
+
+  <div class="page-break"></div>
+  <div class="kicker">Цены</div>
+  <h2 style="margin-top:4px">Платите за активных учеников — тех, кто ходит</h2>
+  <p class="muted">Активный — за 30 дней хоть раз пришёл на тренировку или открыл клуб в приложении. Тренеры и администраторы бесплатно.</p>
+  <table>
+    <tr><th>Ступень</th><th>Активных учеников</th><th class="r">В месяц</th><th class="r">≈ на ученика</th></tr>
+    <tr><td>Старт</td><td>до 50</td><td class="r">2 990 ₽</td><td class="r">от 60 ₽</td></tr>
+    <tr><td>Клуб</td><td>до 100</td><td class="r">5 990 ₽</td><td class="r">от 60 ₽</td></tr>
+    <tr><td>Про</td><td>до 200</td><td class="r">9 990 ₽</td><td class="r">от 50 ₽</td></tr>
+    <tr><td>Бизнес</td><td>до 400</td><td class="r">16 990 ₽</td><td class="r">от 42 ₽</td></tr>
+    <tr><td>Сеть</td><td>400+</td><td class="r">16 990 ₽ + 35 ₽ за каждого сверх 400</td><td class="r">≈ 40 ₽</td></tr>
+  </table>
+  <h2>Модули по желанию</h2>
+  <div class="grid4" style="grid-template-columns: repeat(3, 1fr)">
+    <div class="card"><b>Видео · 990 ₽/мес</b>Видеотека и курсы по поясу и группе. 20 ГБ и 100 часов просмотра в месяц.</div>
+    <div class="card"><b>Онлайн-оплата · 490 ₽/мес</b>Ученик оплачивает абонемент в приложении через ЮKassa клуба. Без процента.</div>
+    <div class="card"><b>Своё приложение · 2 990 ₽/мес</b>Название и значок клуба в App Store и Google Play.</div>
+  </div>
+  <p class="muted" style="margin-top:8px">30 дней бесплатно со всеми модулями. Подключение 4 990 ₽ — один раз, с первым платежом. Оплата за год — скидка 15%.</p>
+
+  <div class="offer">
+    <b>Для первых клубов:</b> 30 дней пробного периода + ещё 2 месяца бесплатно, подключение бесплатно — перенесём вашу базу из Excel,
+    заведём расписание, тарифы и пояса, напечатаем QR-постер для ресепшена. Взамен — короткий созвон раз в 2 недели о том, что улучшить.
+  </div>
+
+  <h2>Как начать</h2>
+  <div class="grid4">
+    <div class="card"><b>1. Показ</b>15 минут на телефоне на примере клуба, похожего на ваш.</div>
+    <div class="card"><b>2. Перенос</b>Присылаете выгрузку из Excel — загружаем за вечер.</div>
+    <div class="card"><b>3. Тренеры</b>30 минут: как отмечать занятия и аттестации.</div>
+    <div class="card"><b>4. Ученики</b>QR на ресепшене и ссылка в чат клуба — вступают сами.</div>
+  </div>
+
+  <div class="contacts">
+    <div><b>Илья</b> · основатель ClubSpace</div>
+    <div>Telegram: @________</div>
+    <div>Телефон: +7 ___ ___-__-__</div>
+    <div>Сайт: ____________</div>
+  </div>
+</body>
+</html>
