@@ -28,6 +28,7 @@ import {
 import {
   getMyGroups,
   getWorkspaceSchedule,
+  listEvents,
   type ScheduleEvent,
   type ScheduleSession,
   type WorkspaceSchedule,
@@ -69,6 +70,7 @@ import {
   scheduleGyms,
 } from "./club-schedule-buckets"
 import { spotsLine, withMyBooking } from "./class-booking-helpers"
+import { eventOfferLine } from "./event-helpers"
 import { DayStrip } from "./DayStrip"
 import { rsvpStateFor, type RsvpState } from "./drop-in-helpers"
 import { loadGymFilter, saveGymFilter } from "./gym-filter-store"
@@ -278,6 +280,21 @@ export function ClubScheduleScreen() {
     workspace ? `me:${workspace.workspaceId}` : null,
     useCallback(async () => await fetchMe(), []),
   )
+  // Same key as the Events screen. Lends the schedule's master classes their
+  // places taken (the schedule carries only price and limit); best-effort.
+  const eventsOn = isFeatureEnabled(workspace, "events")
+  const listedEvents = useCachedResource<ScheduleEvent[]>(
+    workspace && eventsOn ? `events:${workspace.workspaceId}` : null,
+    useCallback(
+      async () =>
+        (await listEvents({ workspaceId: workspace!.workspaceId })).data,
+      [workspace],
+    ),
+  )
+  const listedById = useMemo(
+    () => new Map((listedEvents.data ?? []).map((e) => [e.id, e])),
+    [listedEvents.data],
+  )
 
   // The gym chip last picked in this club; a gym that has since left the
   // schedule falls back to «Все залы» (see resolveGymFilter) without
@@ -439,8 +456,8 @@ export function ClubScheduleScreen() {
             groupName: s.group.name,
           })
       : undefined
-  const openEvents = isFeatureEnabled(workspace, "events")
-    ? () => navigation.navigate("Events")
+  const openEvent = eventsOn
+    ? (eventId: string) => navigation.navigate("Events", { eventId })
     : undefined
   const openPersonal = (pt: PersonalTraining) =>
     navigation.navigate("PersonalTraining", { requestId: pt.id })
@@ -493,6 +510,7 @@ export function ClubScheduleScreen() {
     }
     if (item.kind === "event") {
       const e = item.event
+      const offer = eventOfferLine(e, listedById.get(e.id))
       return {
         kind: "event",
         start,
@@ -500,7 +518,7 @@ export function ClubScheduleScreen() {
         title: e.title,
         gym: e.gym?.name ?? null,
         person: e.coach ? shortPersonName(e.coach) : null,
-        state: null,
+        state: offer ? { text: offer, tone: "normal" } : null,
         color: e.direction?.color ?? null,
         past,
         cancelled: false,
@@ -508,8 +526,9 @@ export function ClubScheduleScreen() {
           `Событие, ${day}, ${start}–${end}`,
           e.title,
           e.gym?.name ?? null,
+          offer,
         ]),
-        onPress: openEvents,
+        onPress: openEvent && (() => openEvent(e.id)),
       }
     }
     const pt = item.personal
@@ -608,7 +627,12 @@ export function ClubScheduleScreen() {
             onPress={() => openPersonal(item.personal)}
           />
         ) : (
-          <EventRow key={item.key} event={item.event} onPress={openEvents} />
+          <EventRow
+            key={item.key}
+            event={item.event}
+            offer={eventOfferLine(item.event, listedById.get(item.event.id))}
+            onPress={openEvent && (() => openEvent(item.event.id))}
+          />
         ),
       )}
     </View>
@@ -703,7 +727,10 @@ export function ClubScheduleScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={refetch}
+            onRefresh={() => {
+              refetch()
+              listedEvents.refetch()
+            }}
             tintColor={theme.colors.accent}
           />
         }
@@ -1076,9 +1103,12 @@ function PersonalRow({
 
 function EventRow({
   event,
+  offer,
   onPress,
 }: {
   event: ScheduleEvent
+  // «1 500 ₽ · Свободно 3 из 10»; null for an open event.
+  offer: string | null
   onPress?: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
@@ -1099,6 +1129,7 @@ function EventRow({
             {event.gym.name} · {event.gym.address}
           </Text>
         )}
+        {offer && <Text style={styles.rowSpots}>{offer}</Text>}
         <Text style={styles.rowMetaTz}>
           {formatTimezoneLabel(event.timezone)}
         </Text>
