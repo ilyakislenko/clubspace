@@ -8,16 +8,25 @@ import {
   fetchPlatformDemoClub,
   resetPlatformDemoClub,
   type PlatformDemoClub as DemoClub,
+  type PlatformDemoClubId,
 } from "../../shared/api/platform"
 import { errorMessage } from "../../shared/lib/error-message"
 import { formatShortDate } from "../billing/billing-view"
 
-// The in-person demo club (docs/demo.md): who to sign in as on the Mac and the
-// phones, the fixed code, and «Сбросить демо» — wipes ONLY the demo club and
-// builds it again with dates shifted to today. Loads itself.
+const ABOUT: Record<PlatformDemoClubId, string> = {
+  academy: "«ACADEMY» — клуб единоборств (Томск + Северск)",
+  ritm: "«Ритм» — танцевальная студия: занятия, педагоги, мастер-классы с записью",
+}
+
+// One in-person demo club (docs/demo.md): who to sign in as on the Mac and the
+// phones, the fixed code, and «Сбросить демо» — wipes ONLY this demo club and
+// builds it again with dates shifted to today; the other demo club and every
+// real club stay as they are. Loads itself.
 export function PlatformDemoClub({
+  club,
   onChanged,
 }: {
+  club: PlatformDemoClubId
   onChanged: (notice: string) => Promise<void> | void
 }) {
   const [demo, setDemo] = useState<DemoClub | null>(null)
@@ -26,12 +35,12 @@ export function PlatformDemoClub({
 
   const load = useCallback(async () => {
     try {
-      setDemo(await fetchPlatformDemoClub())
+      setDemo(await fetchPlatformDemoClub(club))
       setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить демо-клуб."))
     }
-  }, [])
+  }, [club])
 
   useEffect(() => {
     void load()
@@ -40,7 +49,7 @@ export function PlatformDemoClub({
   const reset = async () => {
     if (
       !window.confirm(
-        "Сбросить демо-клуб? Все изменения в нём пропадут, клуб будет создан заново с сегодняшними датами. Другие клубы не затрагиваются.",
+        `Сбросить демо-клуб ${demo?.name ?? ""}? Все изменения в нём пропадут, клуб будет создан заново с сегодняшними датами. Другие клубы, в том числе второй демо-клуб, не затрагиваются.`,
       )
     ) {
       return
@@ -48,10 +57,10 @@ export function PlatformDemoClub({
     setBusy(true)
     setError(null)
     try {
-      const r = await resetPlatformDemoClub()
+      const r = await resetPlatformDemoClub(club)
       await load()
       await onChanged(
-        `Демо-клуб пересоздан за ${(r.durationMs / 1000).toFixed(1)} с: ${r.counts.members} участников, ${r.counts.groups} групп, ${r.counts.visits} посещений, ${r.counts.subscriptions} абонементов.`,
+        `${demo?.name ?? "Демо-клуб"} пересоздан за ${(r.durationMs / 1000).toFixed(1)} с: ${r.counts.members} участников, ${r.counts.groups} групп, ${r.counts.visits} посещений, ${r.counts.subscriptions} абонементов.`,
       )
     } catch (e) {
       setError(errorMessage(e, "Не удалось сбросить демо-клуб."))
@@ -64,10 +73,9 @@ export function PlatformDemoClub({
     <section className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold">Демо-клуб</h2>
+          <h2 className="text-lg font-semibold">Демо-клуб {demo?.name ?? ""}</h2>
           <p className="text-sm text-muted-foreground">
-            «ACADEMY» (Томск + Северск) для показов: сценарий и подготовка — в
-            docs/demo.md. Сбросьте перед каждой встречей.
+            {ABOUT[club]}. Сценарий и подготовка — в docs/demo.md. Сбросьте перед каждой встречей.
           </p>
         </div>
         <Button disabled={busy || !demo?.enabled} onClick={() => void reset()}>

@@ -17,6 +17,8 @@ const fetchMock = fetchPlatformDemoClub as jest.MockedFunction<typeof fetchPlatf
 const resetMock = resetPlatformDemoClub as jest.MockedFunction<typeof resetPlatformDemoClub>
 
 const demo = (over: Partial<DemoClub> = {}): DemoClub => ({
+  club: "academy",
+  name: "ACADEMY",
   enabled: true,
   workspaceKey: "academy-demo",
   loginCode: "730592",
@@ -37,41 +39,53 @@ describe("PlatformDemoClub", () => {
 
   it("lists the accounts with the fixed code and the join code", async () => {
     fetchMock.mockResolvedValue(demo())
-    render(<PlatformDemoClub onChanged={jest.fn()} />)
+    render(<PlatformDemoClub club="academy" onChanged={jest.fn()} />)
     expect(await screen.findByText("owner@academy.demo")).toBeTruthy()
     expect(screen.getByText("730592")).toBeTruthy()
     expect(screen.getByText("ACADEMY7")).toBeTruthy()
     expect(screen.getByText("через parent@academy.demo → «Я / ребёнок»")).toBeTruthy()
+    expect(fetchMock).toHaveBeenCalledWith("academy")
   })
 
   it("explains how to switch demo mode on and disables the reset", async () => {
     fetchMock.mockResolvedValue(demo({ enabled: false, loginCode: null, workspace: null }))
-    render(<PlatformDemoClub onChanged={jest.fn()} />)
+    render(<PlatformDemoClub club="academy" onChanged={jest.fn()} />)
     expect(await screen.findByText(/Демо-режим выключен/)).toBeTruthy()
     expect(screen.getByText("Сбросить демо").closest("button")?.disabled).toBe(true)
   })
 
-  it("resets after a confirmation and reports what was built", async () => {
-    fetchMock.mockResolvedValue(demo())
+  it("resets only its own club after a confirmation and reports what was built", async () => {
+    fetchMock.mockResolvedValue(
+      demo({
+        club: "ritm",
+        name: "Студия танца «Ритм»",
+        workspaceKey: "ritm-demo",
+        accounts: [{ email: "owner@ritm.demo", name: "Марина Белова", roleLabel: "Владелица студии", summary: "Обзор", via: null }],
+      }),
+    )
     resetMock.mockResolvedValue({
-      workspaceId: "w1",
+      club: "ritm",
+      workspaceId: "w2",
       durationMs: 2400,
-      counts: { members: 133, groups: 11, sessions: 390, visits: 3200, subscriptions: 860 },
+      counts: { members: 76, groups: 6, sessions: 225, visits: 1500, subscriptions: 288 },
     })
     const onChanged = jest.fn()
     jest.spyOn(window, "confirm").mockReturnValue(true)
-    render(<PlatformDemoClub onChanged={onChanged} />)
-    await screen.findByText("owner@academy.demo")
+    render(<PlatformDemoClub club="ritm" onChanged={onChanged} />)
+    await screen.findByText("owner@ritm.demo")
+    expect(screen.getByText(/танцевальная студия/)).toBeTruthy()
     fireEvent.click(screen.getByText("Сбросить демо"))
     await waitFor(() => expect(onChanged).toHaveBeenCalled())
     expect(onChanged.mock.calls[0][0]).toContain("за 2.4 с")
+    expect(onChanged.mock.calls[0][0]).toContain("«Ритм»")
     expect(resetMock).toHaveBeenCalledTimes(1)
+    expect(resetMock).toHaveBeenCalledWith("ritm")
   })
 
   it("does nothing when the confirmation is declined", async () => {
     fetchMock.mockResolvedValue(demo())
     jest.spyOn(window, "confirm").mockReturnValue(false)
-    render(<PlatformDemoClub onChanged={jest.fn()} />)
+    render(<PlatformDemoClub club="academy" onChanged={jest.fn()} />)
     await screen.findByText("owner@academy.demo")
     fireEvent.click(screen.getByText("Сбросить демо"))
     expect(resetMock).not.toHaveBeenCalled()
@@ -79,7 +93,7 @@ describe("PlatformDemoClub", () => {
 
   it("reports a failed load", async () => {
     fetchMock.mockRejectedValue(new Error("network"))
-    render(<PlatformDemoClub onChanged={jest.fn()} />)
+    render(<PlatformDemoClub club="academy" onChanged={jest.fn()} />)
     expect(await screen.findByText(/Не удалось загрузить демо-клуб|network/)).toBeTruthy()
   })
 })

@@ -1,7 +1,5 @@
-import {
-    DEMO_ACCOUNT_EMAILS,
-    DEMO_CLUB_KEY,
-} from '../../domains/demo/demo-accounts'
+import { DEMO_CLUB_KEY } from '../../domains/demo/demo-accounts'
+import { DEMO_ACCOUNT_EMAILS } from '../../domains/demo/demo-clubs'
 import { environment } from '../../environments/environment'
 import { fixedCodeEquals, isTrivialCode } from './store-review.util'
 
@@ -12,7 +10,9 @@ export type DemoModeConfig = { workspaceKey: string; code: string }
 // Validates DEMO_MODE. Null when off; throws (the server refuses to boot) when
 // it is on but does not name the generated demo club, or the fixed code is
 // missing or guessable. Naming the key is the interlock: the operator states
-// which club the kit may wipe, and it can only ever be the demo one.
+// which club the kit may wipe, and it can only ever be the demo one. The second
+// demo club («Ритм», ritm-demo) rides on the same switch with its fixed key —
+// no extra variable (demo-clubs.ts).
 export const resolveDemoMode = (env: DemoModeEnv): DemoModeConfig | null => {
     if (!env.enabled) return null
     const workspaceKey = env.workspaceKey?.trim()
@@ -46,7 +46,8 @@ const current = (): DemoModeConfig | null => {
 
 export const isDemoModeOn = (): boolean => current() !== null
 
-// One of the fixed demo accounts, and only while demo mode is on.
+// One of the fixed demo accounts (of any demo club), and only while demo mode
+// is on. isDemoOnlyAccount then pins the account to its own demo club.
 export const isDemoAccountEmail = (email: string | null): boolean =>
     email !== null &&
     isDemoModeOn() &&

@@ -60,6 +60,12 @@ describe('demo mode at runtime', () => {
         expect(isDemoModeOn()).toBe(true)
         expect(isDemoAccountEmail(' Owner@Academy.demo ')).toBe(true)
         expect(isDemoAccountEmail('someone@academy.demo')).toBe(false)
+        // The dance studio's fixed accounts ride on the same switch and key.
+        for (const email of ['owner@ritm.demo', 'pedagog@ritm.demo', 'student@ritm.demo', 'parent@ritm.demo']) {
+            expect(isDemoAccountEmail(email)).toBe(true)
+        }
+        expect(isDemoAccountEmail('coach@ritm.demo')).toBe(false)
+        expect(isDemoAccountEmail('daria.mironova.1@ritm.demo')).toBe(false)
         expect(isDemoAccountEmail(null)).toBe(false)
         expect(demoCodeMatches('730592')).toBe(true)
         expect(demoCodeMatches('730593')).toBe(false)

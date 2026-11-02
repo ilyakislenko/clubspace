@@ -98,7 +98,3 @@ export const demoAccount = (key: DemoAccountKey): DemoAccount =>
 
 export const demoAccountName = (a: { firstname: string | null; lastname: string }): string =>
     a.firstname ? `${a.firstname} ${a.lastname}` : a.lastname
-
-export const DEMO_ACCOUNT_EMAILS: ReadonlySet<string> = new Set(
-    DEMO_ACCOUNTS.map((a) => a.email),
-)

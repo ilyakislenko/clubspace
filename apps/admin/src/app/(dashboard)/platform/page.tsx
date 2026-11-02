@@ -438,12 +438,16 @@ export default function PlatformConsolePage() {
 
       <PlatformDemoRequests />
 
-      <PlatformDemoClub
-        onChanged={async (text) => {
-          setNotice(text)
-          await load()
-        }}
-      />
+      {(["academy", "ritm"] as const).map((club) => (
+        <PlatformDemoClub
+          key={club}
+          club={club}
+          onChanged={async (text) => {
+            setNotice(text)
+            await load()
+          }}
+        />
+      ))}
 
       <PlatformOnboardingRequests
         onShowClub={(workspaceName) => {

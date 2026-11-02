@@ -35,13 +35,13 @@ describe('GetPlatformDemoClubHandler', () => {
 
     it('refuses a caller who is not a platform admin', async () => {
         const { handler, prisma } = buildGet(null)
-        await expect(handler.execute(new GetPlatformDemoClubFeature('u', false))).rejects.toBeInstanceOf(ForbiddenError)
+        await expect(handler.execute(new GetPlatformDemoClubFeature('u', false, 'academy'))).rejects.toBeInstanceOf(ForbiddenError)
         expect(prisma.workspace.findFirst).not.toHaveBeenCalled()
     })
 
     it('lists the accounts and hides the code while demo mode is off', async () => {
         const { handler } = buildGet(null)
-        const res = await handler.execute(new GetPlatformDemoClubFeature('u', true))
+        const res = await handler.execute(new GetPlatformDemoClubFeature('u', true, 'academy'))
         expect(res).toMatchObject({ enabled: false, loginCode: null, workspace: null, workspaceKey: 'academy-demo' })
         expect(res.accounts.map((a) => a.email)).toContain('owner@academy.demo')
         expect(res.accounts.filter((a) => a.email === null).every((a) => a.via === 'parent@academy.demo')).toBe(true)
@@ -50,13 +50,28 @@ describe('GetPlatformDemoClubHandler', () => {
     it('shows the club, its join code, the last reset and the code when on', async () => {
         environment.demo = ON
         const { handler } = buildGet({ id: 'w-demo', name: 'ACADEMY' })
-        const res = await handler.execute(new GetPlatformDemoClubFeature('u', true))
+        const res = await handler.execute(new GetPlatformDemoClubFeature('u', true, 'academy'))
         expect(res).toMatchObject({
             enabled: true,
             loginCode: '730592',
             workspace: { id: 'w-demo', joinCode: 'ACADEMY7' },
             lastResetAt: '2026-11-01T08:00:00.000Z',
         })
+    })
+
+    it('shows the studio with its own accounts, children and last reset', async () => {
+        environment.demo = ON
+        const { handler, prisma } = buildGet({ id: 'w-ritm', name: 'Студия танца «Ритм»' })
+        const res = await handler.execute(new GetPlatformDemoClubFeature('u', true, 'ritm'))
+        expect(res).toMatchObject({ club: 'ritm', workspaceKey: 'ritm-demo', loginCode: '730592' })
+        expect(prisma.workspace.findFirst.mock.calls[0][0].where).toEqual({ key: 'ritm-demo', isDemo: true })
+        expect(prisma.auditEvent.findFirst.mock.calls[0][0].where).toEqual({ action: 'workspace.demoReset', targetId: 'w-ritm' })
+        const emails = res.accounts.map((a) => a.email)
+        expect(emails).toEqual(expect.arrayContaining(['owner@ritm.demo', 'pedagog@ritm.demo', 'student@ritm.demo', 'parent@ritm.demo']))
+        expect(emails.some((e) => e?.endsWith('@academy.demo'))).toBe(false)
+        const kids = res.accounts.filter((a) => a.email === null)
+        expect(kids.map((k) => k.name)).toEqual(['Соня Лебедева', 'Вика Лебедева'])
+        expect(kids.every((k) => k.via === 'parent@ritm.demo' && !/пояс/.test(k.summary))).toBe(true)
     })
 })
 
@@ -72,14 +87,14 @@ describe('ResetPlatformDemoClubHandler', () => {
 
     it('refuses a caller who is not a platform admin', async () => {
         const { handler, demoClub } = build()
-        await expect(handler.execute(new ResetPlatformDemoClubFeature('u', false))).rejects.toBeInstanceOf(ForbiddenError)
+        await expect(handler.execute(new ResetPlatformDemoClubFeature('u', false, 'academy'))).rejects.toBeInstanceOf(ForbiddenError)
         expect(demoClub.reset).not.toHaveBeenCalled()
     })
 
     it('resets as the caller and tells the phones to refetch', async () => {
         const { handler, demoClub, leaderboard, realtime, result } = build()
-        await expect(handler.execute(new ResetPlatformDemoClubFeature('admin-1', true))).resolves.toEqual(result)
-        expect(demoClub.reset).toHaveBeenCalledWith({ actorId: 'admin-1' })
+        await expect(handler.execute(new ResetPlatformDemoClubFeature('admin-1', true, 'ritm'))).resolves.toEqual(result)
+        expect(demoClub.reset).toHaveBeenCalledWith({ club: 'ritm', actorId: 'admin-1' })
         expect(leaderboard.invalidate).toHaveBeenCalledWith('w-demo')
         expect(realtime.invalidate.mock.calls[0][0]).toBe('w-demo')
         expect(realtime.invalidate.mock.calls[0][1]).toContain('leaderboard')

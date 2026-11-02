@@ -869,6 +869,8 @@ export type ListPlatformDemoRequestsOutputOutput = {
 };
 
 export type GetPlatformDemoClubOutputOutput = {
+    club: 'academy' | 'ritm';
+    name: string;
     enabled: boolean;
     workspaceKey: string;
     loginCode: string | null;
@@ -888,6 +890,7 @@ export type GetPlatformDemoClubOutputOutput = {
 };
 
 export type ResetPlatformDemoClubOutputOutput = {
+    club: 'academy' | 'ritm';
     workspaceId: string;
     durationMs: number;
     counts: {
@@ -8038,7 +8041,9 @@ export type ListPlatformDemoRequestsResponse = ListPlatformDemoRequestsResponses
 export type GetPlatformDemoClubData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        club?: 'academy' | 'ritm';
+    };
     url: '/platform/demo-club';
 };
 
@@ -8051,7 +8056,9 @@ export type GetPlatformDemoClubResponse = GetPlatformDemoClubResponses[keyof Get
 export type ResetPlatformDemoClubData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        club?: 'academy' | 'ritm';
+    };
     url: '/platform/demo-club/reset';
 };
 

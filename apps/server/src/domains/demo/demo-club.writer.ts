@@ -122,6 +122,7 @@ export const writeDemoClubPlan = async (
     await tx.rankGradingCandidate.createMany({ data: plan.gradingCandidates })
 
     await tx.workspaceEvent.createMany({ data: plan.events })
+    await tx.eventRegistration.createMany({ data: plan.eventRegistrations })
     await inChunks(plan.subscriptions, (data) => tx.subscription.createMany({ data }))
     await inChunks(plan.subscriptionDirections, (data) =>
         tx.subscriptionDirection.createMany({ data }),

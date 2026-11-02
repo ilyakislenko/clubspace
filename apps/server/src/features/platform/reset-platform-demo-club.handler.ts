@@ -25,9 +25,10 @@ const DEMO_RESOURCES = [
     'subscription',
 ]
 
-// «Сбросить демо»: wipes ONLY the demo club and generates it again with dates
-// relative to today. DemoClubService refuses unless DEMO_MODE is on and the
-// club holding the demo key was generated as a demo.
+// «Сбросить демо»: wipes ONLY the chosen demo club (ACADEMY or «Ритм») and
+// generates it again with dates relative to today; the other one stays as it
+// is. DemoClubService refuses unless DEMO_MODE is on and the club holding that
+// demo key was generated as a demo.
 @Feature(ResetPlatformDemoClubFeature)
 export class ResetPlatformDemoClubHandler
     implements
@@ -41,7 +42,7 @@ export class ResetPlatformDemoClubHandler
 
     async execute(f: ResetPlatformDemoClubFeature): Promise<ResetPlatformDemoClubFeatureResponse> {
         assertPlatformAdmin(f.isSuperAdmin)
-        const result = await this.demoClub.reset({ actorId: f.invokerUserId })
+        const result = await this.demoClub.reset({ club: f.club, actorId: f.invokerUserId })
         await this.leaderboardCache.invalidate(result.workspaceId)
         this.realtime.invalidate(result.workspaceId, DEMO_RESOURCES)
         return result
