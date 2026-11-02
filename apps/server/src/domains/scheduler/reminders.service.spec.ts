@@ -520,6 +520,7 @@ describe('RemindersService scheduled announcements', () => {
             color: string | null
             icon: string | null
         } | null,
+        groups: [] as { groupId: string | null; group: null }[],
         publishedAt: new Date(baseNow.getTime() - 60_000),
         createdAt: baseNow,
         updatedAt: baseNow,

@@ -25,7 +25,7 @@ import {
 } from "../../../../../features/settings/app-sections"
 import { TimezoneSelect } from "../../../../../features/settings/TimezoneSelect"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
-import { agree, cap } from "@clubspace/ui-kit/brand"
+import { cap } from "@clubspace/ui-kit/brand"
 
 type AppSectionKey = `${AppSectionFeature}Enabled`
 
@@ -449,7 +449,6 @@ function BookingSettings({
   onSave: (patch: WorkspaceSettingsPatch) => void | Promise<void>
 }) {
   const session = useVocabulary().session
-  const one = agree(session, "одну", "одно")
   const [windowDays, setWindowDays] = useState(String(settings.bookingWindowDays))
   const [cancelHours, setCancelHours] = useState(
     String(settings.bookingCancelHours),
@@ -473,7 +472,7 @@ function BookingSettings({
       <p className="mt-1 text-xs text-muted-foreground">
         Правила для групп в режиме «Запись на {session.acc}»: когда открывается
         запись, до какого момента можно отменить без последствий и списывать
-        ли {session.acc} с абонемента. Окно записи и срок отмены можно переопределить
+        ли занятие с абонемента. Окно записи и срок отмены можно переопределить
         в карточке группы.
       </p>
 
@@ -530,34 +529,34 @@ function BookingSettings({
         <li className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0">
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium">
-              Списывать {session.acc} при поздней отмене
+              Списывать занятие при поздней отмене
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Отмена позже срока бесплатной отмены забирает {one} {session.acc} из
+              Отмена позже срока бесплатной отмены забирает одно занятие из
               абонемента.
             </p>
           </div>
           <SettingSwitch
             checked={settings.bookingLateCancelBurn}
             disabled={saving}
-            label={`Списывать ${session.acc} при поздней отмене`}
+            label="Списывать занятие при поздней отмене"
             onChange={(next) => void onSave({ bookingLateCancelBurn: next })}
           />
         </li>
         <li className="flex flex-wrap items-start justify-between gap-3 py-3 last:pb-0">
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium">
-              Списывать {session.acc} при неявке
+              Списывать занятие при неявке
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Записался, но не пришёл и не отменил — {session.nom} списывается с
+              Записался, но не пришёл и не отменил — занятие списывается с
               абонемента.
             </p>
           </div>
           <SettingSwitch
             checked={settings.bookingNoShowBurn}
             disabled={saving}
-            label={`Списывать ${session.acc} при неявке`}
+            label="Списывать занятие при неявке"
             onChange={(next) => void onSave({ bookingNoShowBurn: next })}
           />
         </li>

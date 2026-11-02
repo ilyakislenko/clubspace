@@ -174,6 +174,7 @@ export type DemoClubPlan = {
     // end date and access window move exactly as for a club freeze.
     liveFreezes: DemoLiveFreeze[]
     announcements: Prisma.AnnouncementCreateManyInput[]
+    announcementGroups: Prisma.AnnouncementGroupCreateManyInput[]
     achievements: Prisma.AchievementCreateManyInput[]
     videos: Prisma.VideoCreateManyInput[]
     courses: Prisma.CourseCreateManyInput[]
@@ -342,6 +343,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         freezeRequests: [],
         liveFreezes: [],
         announcements: [],
+        announcementGroups: [],
         achievements: [],
         videos: [],
         courses: [],
@@ -2057,9 +2059,11 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         title: string,
         body: string,
         daysAgo: number | null,
-        extra: { pinned?: boolean; dir?: DirKey; expiring?: boolean } = {},
-    ) =>
+        extra: { pinned?: boolean; dir?: DirKey; groups?: GroupKey[]; expiring?: boolean } = {},
+    ) => {
+        const id = demoUuid(`announcement:${plan.announcements.length}`)
         plan.announcements.push({
+            id,
             workspaceId,
             authorId: staffId(by),
             title,
@@ -2070,12 +2074,19 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             publishedAt: daysAgo === null ? null : at(ago(daysAgo), '10:00'),
             createdAt: at(ago(daysAgo ?? 0), '09:30'),
         })
+        for (const key of extra.groups ?? []) {
+            plan.announcementGroups.push({ announcementId: id, groupId: groupId(key) })
+        }
+    }
     announce('owner', 'Тайский бокс теперь и в Северске', 'Группа «Тайский бокс Взрослые» в СК «Центр тайского бокса», ул. Транспортная, 32. Персональные тренировки — по записи в приложении.', 20, { pinned: true })
     announce('admin', 'Заморозка — в приложении', 'Заявку на заморозку абонемента можно отправить прямо в приложении: Профиль → «Мой абонемент». Рассмотрим в течение дня. Продлить абонемент можно у тренера или на ресепшене.', 6)
     announce('admin', 'Ваш абонемент скоро закончится', 'Продлите абонемент до конца недели — и следующая неделя тренировок пройдёт без перерыва. Скидка 5% при продлении в день окончания.', 2, { expiring: true })
-    // Not pinned: a direction is the narrowest audience an announcement has,
-    // and the BJJ kids (Миша) would see the adults' grading on top of home.
-    announce('reshetyuk', `Аттестация взрослых на синие пояса — ${nextGradingYmd.split('-').reverse().slice(0, 2).join('.')}`, 'Кто допущен и сколько тренировок осталось до готовности — в «Прогресс» → «Мой ранг». Готовность считается по посещениям.', 3, { dir: 'bjj' })
+    // Only the adult BJJ groups: the kids (Миша) never see the adults' grading,
+    // so it can stay pinned on top of the adults' home.
+    announce('reshetyuk', `Аттестация взрослых на синие пояса — ${nextGradingYmd.split('-').reverse().slice(0, 2).join('.')}`, 'Кто допущен и сколько тренировок осталось до готовности — в «Прогресс» → «Мой ранг». Готовность считается по посещениям.', 3, {
+        pinned: true,
+        groups: GROUPS.filter((g) => g.dir === 'bjj' && g.kind === 'adult').map((g) => g.key),
+    })
     announce('savelyev', 'Open mat по субботам', 'Каждую субботу в 17:00 во «Дворце спорта» — свободные спарринги для всех залов. Приводите друзей: первое занятие бесплатно.', 12, { dir: 'bjj' })
     announce('starokorov', 'Спарринг-день в «Белой рыси»', 'Нужны перчатки 16 oz, капа и бинты. Новичкам — только технические раунды.', 1, { dir: 'mma' })
     announce('savelyev', 'Северск: купите бинты и капу', 'С 1 числа без бинтов и капы к парным работам не допускаем.', 8, { dir: 'muay' })

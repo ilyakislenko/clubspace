@@ -6019,6 +6019,7 @@ export type CreateAnnouncementInput = {
     pinned?: boolean;
     audience?: 'ALL' | 'EXPIRING';
     directionId?: string | null;
+    groupIds?: Array<string>;
     publish?: boolean;
     publishAt?: string;
 };
@@ -6035,6 +6036,12 @@ export type AnnouncementOutputDtoOutput = {
         color: string | null;
         icon: string | null;
     } | null;
+    groups: Array<{
+        id: string;
+        name: string;
+        gymName: string | null;
+        directionId: string | null;
+    }>;
     publishedAt: string | null;
     authorName: string;
     createdAt: string;
@@ -6054,6 +6061,12 @@ export type AnnouncementListOutputOutput = {
             color: string | null;
             icon: string | null;
         } | null;
+        groups: Array<{
+            id: string;
+            name: string;
+            gymName: string | null;
+            directionId: string | null;
+        }>;
         publishedAt: string | null;
         authorName: string;
         createdAt: string;
@@ -6077,6 +6090,12 @@ export type AnnouncementFeedOutputOutput = {
             color: string | null;
             icon: string | null;
         } | null;
+        groups: Array<{
+            id: string;
+            name: string;
+            gymName: string | null;
+            directionId: string | null;
+        }>;
         publishedAt: string | null;
         authorName: string;
         createdAt: string;
@@ -6093,6 +6112,7 @@ export type UpdateAnnouncementInput = {
     pinned?: boolean;
     audience?: 'ALL' | 'EXPIRING';
     directionId?: string | null;
+    groupIds?: Array<string>;
     publish?: boolean;
     publishAt?: string;
 };
@@ -6109,6 +6129,12 @@ export type UpdateAnnouncementOutputOutput = {
         color: string | null;
         icon: string | null;
     } | null;
+    groups: Array<{
+        id: string;
+        name: string;
+        gymName: string | null;
+        directionId: string | null;
+    }>;
     publishedAt: string | null;
     authorName: string;
     createdAt: string;

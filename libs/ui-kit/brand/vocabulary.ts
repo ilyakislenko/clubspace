@@ -7,6 +7,11 @@
  * «тренировка/тренер». Screens shown before a club is picked use neutral
  * wording rather than any club's vocabulary.
  *
+ * The unit an abonement counts is not a class word: it is «занятие» in every
+ * club, as in tariffs («8 занятий»), «Осталось N занятий» and what a visit, a
+ * late cancel or a no-show takes from it («спишется занятие», «Списывать
+ * занятие при неявке»). The admin vocabulary guard lists those strings.
+ *
  * The server keeps a mirror (`apps/server/src/shared/vocabulary/club-vocabulary.ts`)
  * for pushes, e-mails and default achievements; a server spec pins both to the
  * same words.

@@ -632,6 +632,7 @@ model Group {
   slots      GroupScheduleSlot[]
   exceptions ScheduleException[]
   courseAudiences CourseAudience[]
+  announcementTargets AnnouncementGroup[]
 
   attendanceSessions AttendanceSession[]
   dropInBookings     DropInBooking[]
@@ -2282,9 +2283,12 @@ model Announcement {
   audience AnnouncementAudience @default(ALL)
 
   // Only members of this direction (and the staff) see it and get the push;
-  // AND-ed with `audience`. null = the whole club.
+  // AND-ed with `audience`. null = the whole club (unless addressed to groups).
   directionId String?    @db.Uuid
   direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
+
+  // Addressed to these groups instead (never together with a direction).
+  groups AnnouncementGroup[]
 
   // Null = draft (not shown in the member feed).
   publishedAt DateTime?
@@ -2299,6 +2303,23 @@ model Announcement {
 enum AnnouncementAudience {
   ALL
   EXPIRING
+}
+
+// One target group of an announcement addressed to groups. Rows are OR-ed:
+// the students of any of the groups (a child's guardians through act-as and
+// notification routing) and their coaches see it, plus the staff. Deleting a
+// group (SetNull) leaves a row that matches nobody, so the announcement stays
+// closed instead of opening to the whole club (as CourseAudience).
+model AnnouncementGroup {
+  id             String       @id @default(uuid()) @db.Uuid
+  announcementId String       @db.Uuid
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  groupId String? @db.Uuid
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([announcementId])
+  @@index([groupId])
 }
 
 // A member's private training journal — their own notes after a session

@@ -287,6 +287,28 @@ describe('buildDemoClubPlan', () => {
         expect(plan.promotions.some((p) => p.stripes === 3 && p.userId === plan.accountUserIds.student)).toBe(true)
     })
 
+    it('addresses the adults’ grading to the adult BJJ groups: student@ sees it, Миша does not', () => {
+        const grading = plan.announcements.find((a) => a.title.startsWith('Аттестация взрослых'))
+        expect(grading?.pinned).toBe(true)
+        expect(grading?.directionId).toBeNull()
+        const targets = new Set(
+            plan.announcementGroups
+                .filter((t) => t.announcementId === grading?.id)
+                .map((t) => t.groupId),
+        )
+        expect([...targets].sort()).toEqual(
+            GROUPS.filter((g) => g.dir === 'bjj' && g.kind === 'adult')
+                .map((g) => demoUuid(`group:${g.key}`))
+                .sort(),
+        )
+        const groupsOf = (userId: string) =>
+            plan.groupMembers.filter((m) => m.userId === userId).map((m) => m.groupId)
+        expect(groupsOf(plan.accountUserIds.student).some((g) => targets.has(g))).toBe(true)
+        const misha = groupsOf(demoUuid('child:misha'))
+        expect(misha.length).toBeGreaterThan(0)
+        expect(misha.some((g) => targets.has(g))).toBe(false)
+    })
+
     it('fills events, announcements, courses, personal trainings and drop-ins', () => {
         expect(plan.events.length).toBeGreaterThanOrEqual(5)
         expect(plan.announcements.some((a) => a.directionId === null)).toBe(true)

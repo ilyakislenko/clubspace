@@ -12,6 +12,7 @@ import {
   updateAnnouncement,
   type Announcement,
 } from "../../../../../shared/api/announcements"
+import { listGroups, type GroupSummary } from "../../../../../shared/api/groups"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { inputClsFull } from "../../../../../shared/lib/input-class"
@@ -20,25 +21,21 @@ import {
   ALL_DIRECTIONS,
   DirectionFilter,
   directionFilterParam,
-  matchesDirectionFilter,
 } from "../../../../../features/directions/DirectionFilter"
-import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
 import { useDirections } from "../../../../../features/directions/use-directions"
+import { AnnouncementTargetPicker } from "../../../../../features/announcements/AnnouncementTargetPicker"
+import {
+  groupsLabel,
+  initialTarget,
+  isTargetComplete,
+  matchesTargetFilter,
+  publishConfirmText,
+  targetOf,
+  targetPayload,
+  type AnnouncementTarget,
+} from "../../../../../features/announcements/announcement-target"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
-
-const publishConfirmText = (
-  audience: string,
-  directionName?: string | null,
-): string => {
-  const who =
-    audience === "EXPIRING"
-      ? "участникам с истекающим абонементом"
-      : "всем участникам"
-  return directionName
-    ? `Опубликовать и отправить уведомление ${who} направления «${directionName}»?`
-    : `Опубликовать и отправить уведомление ${who}?`
-}
 
 export default function WorkspaceAnnouncementsPage() {
   const vocabulary = useVocabulary()
@@ -60,14 +57,36 @@ export default function WorkspaceAnnouncementsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState("")
   const [editBody, setEditBody] = useState("")
-  const [directionId, setDirectionId] = useState<string | null>(
-    scope.defaultDirectionId,
+  const [target, setTarget] = useState<AnnouncementTarget>(() =>
+    initialTarget(scope.defaultDirectionId),
   )
-  const [editDirectionId, setEditDirectionId] = useState<string | null>(null)
+  const [editTarget, setEditTarget] = useState<AnnouncementTarget>(() =>
+    initialTarget(null),
+  )
   const { directions } = useDirections(workspaceId)
+  const [groups, setGroups] = useState<GroupSummary[]>([])
   const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
   const directionName = (id: string | null) =>
     directions.find((d) => d.id === id)?.name ?? null
+  // The chosen groups in the shape of an announcement's `groups`.
+  const targetGroups = (t: AnnouncementTarget): Announcement["groups"] =>
+    t.kind === "groups"
+      ? groups
+          .filter((g) => t.groupIds.includes(g.id))
+          .map((g) => ({
+            id: g.id,
+            name: g.name,
+            gymName: g.gym?.name ?? null,
+            directionId: g.direction?.id ?? null,
+          }))
+      : []
+
+  useEffect(() => {
+    if (!workspaceId) return
+    listGroups({ workspaceId })
+      .then((res) => setGroups(res.data))
+      .catch(() => setGroups([]))
+  }, [workspaceId])
 
   const load = useCallback(async () => {
     if (!workspaceId) return
@@ -77,11 +96,7 @@ export default function WorkspaceAnnouncementsPage() {
         directionId: directionFilterParam(directionFilter),
       })
       // «Только для всего клуба» has no server filter — narrow client-side.
-      setItems(
-        res.data.filter((a) =>
-          matchesDirectionFilter(directionFilter, a.direction?.id),
-        ),
-      )
+      setItems(res.data.filter((a) => matchesTargetFilter(directionFilter, a)))
       setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить объявления"))
@@ -107,7 +122,7 @@ export default function WorkspaceAnnouncementsPage() {
           body: body.trim(),
           pinned,
           audience,
-          directionId,
+          ...targetPayload(target),
           ...(opts.publish ? { publish: true } : {}),
           ...(opts.publishAt ? { publishAt: opts.publishAt } : {}),
         },
@@ -116,7 +131,7 @@ export default function WorkspaceAnnouncementsPage() {
       setBody("")
       setPinned(false)
       setAudience("ALL")
-      setDirectionId(scope.defaultDirectionId)
+      setTarget(initialTarget(scope.defaultDirectionId))
       setScheduleAt("")
       await load()
     } catch (e) {
@@ -146,7 +161,7 @@ export default function WorkspaceAnnouncementsPage() {
         data: {
           title: editTitle.trim(),
           body: editBody.trim(),
-          directionId: editDirectionId,
+          ...targetPayload(editTarget),
         },
       })
       setEditingId(null)
@@ -167,6 +182,8 @@ export default function WorkspaceAnnouncementsPage() {
           только персонал. Закреплённые всплывают наверх.
           {directions.length > 0 &&
             ` Объявление направления получат только его ученики и ${vocabulary.coach.nomPl}.`}
+          {groups.length > 0 &&
+            ` Объявление для групп — только ученики этих групп (за детей — родители), их ${vocabulary.coach.nomPl} и персонал.`}
         </p>
       </div>
 
@@ -188,6 +205,14 @@ export default function WorkspaceAnnouncementsPage() {
           placeholder="Текст объявления"
           value={body}
           onChange={(e) => setBody(e.target.value)}
+        />
+        <AnnouncementTargetPicker
+          id="announcement-target"
+          value={target}
+          onChange={setTarget}
+          directions={directions}
+          groups={groups}
+          scope={scope}
         />
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm">
@@ -211,20 +236,6 @@ export default function WorkspaceAnnouncementsPage() {
               <option value="EXPIRING">Только на продление</option>
             </select>
           </label>
-          {directions.length > 0 && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Направление:</span>
-              <DirectionSelect
-                id="announcement-direction"
-                label=""
-                directions={directions}
-                value={directionId}
-                onChange={setDirectionId}
-                allowedIds={scope.allowedDirectionIds}
-                triggerClassName="h-8 w-48"
-              />
-            </div>
-          )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <input
               type="datetime-local"
@@ -236,7 +247,11 @@ export default function WorkspaceAnnouncementsPage() {
             <Button
               variant="outline"
               disabled={
-                busy || !title.trim() || !body.trim() || !scheduleAt
+                busy ||
+                !title.trim() ||
+                !body.trim() ||
+                !scheduleAt ||
+                !isTargetComplete(target)
               }
               onClick={() =>
                 void submit({
@@ -248,17 +263,27 @@ export default function WorkspaceAnnouncementsPage() {
             </Button>
             <Button
               variant="outline"
-              disabled={busy || !title.trim() || !body.trim()}
+              disabled={
+                busy || !title.trim() || !body.trim() || !isTargetComplete(target)
+              }
               onClick={() => void submit({})}
             >
               В черновик
             </Button>
             <Button
-              disabled={busy || !title.trim() || !body.trim()}
+              disabled={
+                busy || !title.trim() || !body.trim() || !isTargetComplete(target)
+              }
               onClick={() => {
                 if (
                   window.confirm(
-                    publishConfirmText(audience, directionName(directionId)),
+                    publishConfirmText(audience, {
+                      directionName:
+                        target.kind === "direction"
+                          ? directionName(target.directionId)
+                          : null,
+                      groups: targetGroups(target),
+                    }),
                   )
                 )
                   void submit({ publish: true })
@@ -307,13 +332,13 @@ export default function WorkspaceAnnouncementsPage() {
                     value={editBody}
                     onChange={(e) => setEditBody(e.target.value)}
                   />
-                  <DirectionSelect
-                    id={`announcement-direction-${a.id}`}
+                  <AnnouncementTargetPicker
+                    id={`announcement-target-${a.id}`}
+                    value={editTarget}
+                    onChange={setEditTarget}
                     directions={directions}
-                    value={editDirectionId}
-                    onChange={setEditDirectionId}
-                    allowedIds={scope.allowedDirectionIds}
-                    triggerClassName="h-9"
+                    groups={groups}
+                    scope={scope}
                   />
                   {a.publishedAt && new Date(a.publishedAt) <= new Date() && (
                     <p className="text-xs text-muted-foreground">
@@ -324,7 +349,12 @@ export default function WorkspaceAnnouncementsPage() {
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      disabled={busy || !editTitle.trim() || !editBody.trim()}
+                      disabled={
+                        busy ||
+                        !editTitle.trim() ||
+                        !editBody.trim() ||
+                        !isTargetComplete(editTarget)
+                      }
                       onClick={() => void saveEdit(a)}
                     >
                       Сохранить
@@ -344,6 +374,12 @@ export default function WorkspaceAnnouncementsPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{a.title}</span>
                     <DirectionChip direction={a.direction} />
+                    {a.groups.length > 0 && (
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                        {a.groups.length === 1 ? "Группа" : "Группы"}:{" "}
+                        {groupsLabel(a.groups)}
+                      </span>
+                    )}
                     {a.pinned && (
                       <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
                         Закреплено
@@ -398,7 +434,7 @@ export default function WorkspaceAnnouncementsPage() {
                     setEditingId(a.id)
                     setEditTitle(a.title)
                     setEditBody(a.body)
-                    setEditDirectionId(a.direction?.id ?? null)
+                    setEditTarget(targetOf(a))
                   }}
                 >
                   Изменить
@@ -410,7 +446,10 @@ export default function WorkspaceAnnouncementsPage() {
                     if (
                       !a.publishedAt &&
                       !window.confirm(
-                        publishConfirmText(a.audience, a.direction?.name),
+                        publishConfirmText(a.audience, {
+                          directionName: a.direction?.name ?? null,
+                          groups: a.groups,
+                        }),
                       )
                     )
                       return

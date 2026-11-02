@@ -14,11 +14,13 @@ import {
 } from './get-feed.feature'
 import { isExpiringMember, lowestClassesRemaining } from './renewal-segment'
 import { ANNOUNCEMENT_INCLUDE, serializeAnnouncement } from './schemas'
+import { loadMemberGroupIds, visibleToMemberWhere } from './target'
 
 // Member-facing feed: published only, pinned first then newest. Any workspace
 // member may read it (the WorkspaceMemberGuard on the route is the gate). A
-// direction announcement shows only to members of that direction — the owner
-// and staff see every one.
+// direction announcement shows only to members of that direction, a group one
+// only to the students and coaches of its groups (a guardian reads it acting
+// as the child) — the owner and staff see every one.
 @Feature(GetAnnouncementFeedFeature)
 export class GetAnnouncementFeedHandler
     implements
@@ -62,21 +64,17 @@ export class GetAnnouncementFeedHandler
         const isStaff =
             workspace?.ownerId === f.userId ||
             STAFF_ROLES.includes(member?.role?.name as RoleName)
-        const myDirections = isStaff
-            ? null
-            : await loadMemberDirectionIds(
-                  this.prisma,
-                  f.workspaceId,
-                  f.userId,
+        const visibleWhere: Prisma.AnnouncementWhereInput = isStaff
+            ? {}
+            : await Promise.all([
+                  loadMemberDirectionIds(this.prisma, f.workspaceId, f.userId),
+                  loadMemberGroupIds(this.prisma, f.workspaceId, f.userId),
+              ]).then(([directionIds, groupIds]) =>
+                  visibleToMemberWhere({
+                      directionIds: [...directionIds],
+                      groupIds,
+                  }),
               )
-        const directionWhere: Prisma.AnnouncementWhereInput = myDirections
-            ? {
-                  OR: [
-                      { directionId: null },
-                      { directionId: { in: [...myDirections] } },
-                  ],
-              }
-            : {}
         // Over all of the member's current abonements: the lowest pack
         // balance, and pending if any of them still waits for a first visit.
         const inSegment = member
@@ -97,7 +95,7 @@ export class GetAnnouncementFeedHandler
             workspaceId: f.workspaceId,
             publishedAt: { lte: now },
             ...(inSegment ? {} : { audience: 'ALL' as const }),
-            ...directionWhere,
+            ...visibleWhere,
         }
 
         const [rows, total] = await Promise.all([

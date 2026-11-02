@@ -40,7 +40,7 @@ have no direction.
 |---|---|
 | Achievements | A direction achievement counts only visits to that direction's sessions (value, streak, date). Club-wide ones count everything. The app shows a section per direction the member belongs to or has trained in. `seed-defaults` can seed the default ladder per direction. |
 | Leaderboard | `?directionId=` ranks only that direction's visits (and the caller's streak). |
-| Announcements | A direction announcement (AND-ed with `audience` ALL/EXPIRING) appears in the feed and is pushed only to that direction's members and to the staff. Its live update is a refetch signal, not a broadcast of the item. |
+| Announcements | A direction announcement (AND-ed with `audience` ALL/EXPIRING) appears in the feed and is pushed only to that direction's members and to the staff. Instead of a direction it may name groups (`AnnouncementGroup`, never both): only their students (a child through its guardians — act-as feed, routed push), their coaches and the staff; a direction manager may name only groups of the directions they run. A deleted target group leaves a row matching nobody. Its live update is a refetch signal, not a broadcast of the item. |
 | Course audience | `DIRECTION` rows work like `GROUP`: the course is hidden from students outside the listed directions. |
 | Schedule | `GET schedule?directionId=` returns only that direction's classes and events; agenda items carry `direction` for the app filter. |
 | Ranks | Ladders carry a direction; promotions expose it so the app shows the direction name and color. |
