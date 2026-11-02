@@ -3171,7 +3171,7 @@ export type ListEventsOutputOutput = {
                 status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
                 waitlistPosition: number | null;
                 isPaid: boolean;
-                paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
+                paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
                 promotedAt: string | null;
                 cancelledAt: string | null;
                 createdAt: string;
@@ -3921,7 +3921,7 @@ export type EventRegistrationOutputOutput = {
     status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
     waitlistPosition: number | null;
     isPaid: boolean;
-    paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
+    paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
     promotedAt: string | null;
     cancelledAt: string | null;
     createdAt: string;
@@ -3933,7 +3933,7 @@ export type CancelEventRegistrationOutputOutput = {
     status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
     waitlistPosition: number | null;
     isPaid: boolean;
-    paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
+    paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
     promotedAt: string | null;
     cancelledAt: string | null;
     createdAt: string;
@@ -3980,7 +3980,7 @@ export type EventRegistrationsOutputOutput = {
         paidAt: string | null;
         amountPaid: number | null;
         currency: string | null;
-        paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         promotedAt: string | null;
         cancelledAt: string | null;
         createdAt: string;
@@ -3988,7 +3988,7 @@ export type EventRegistrationsOutputOutput = {
 };
 
 export type MarkEventRegistrationPaidInput = {
-    method: 'CASH' | 'TRANSFER';
+    method: 'CASH' | 'TRANSFER' | 'CARD';
 };
 
 export type MarkEventRegistrationPaidOutputOutput = {
@@ -4002,7 +4002,7 @@ export type MarkEventRegistrationPaidOutputOutput = {
     paidAt: string | null;
     amountPaid: number | null;
     currency: string | null;
-    paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
+    paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
     promotedAt: string | null;
     cancelledAt: string | null;
     createdAt: string;
@@ -4019,7 +4019,7 @@ export type UnmarkEventRegistrationPaidOutputOutput = {
     paidAt: string | null;
     amountPaid: number | null;
     currency: string | null;
-    paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
+    paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
     promotedAt: string | null;
     cancelledAt: string | null;
     createdAt: string;
@@ -4833,6 +4833,7 @@ export type AssignSubscriptionInput = {
     startDate?: string;
     amountPaid?: number;
     paid?: boolean;
+    paymentMethod?: 'CASH' | 'TRANSFER' | 'CARD';
 };
 
 export type AssignSubscriptionOutputOutput = {
@@ -4849,6 +4850,7 @@ export type AssignSubscriptionOutputOutput = {
         currency: string;
         isPaid: boolean;
         paidAt: string | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -4878,6 +4880,7 @@ export type MemberSubscriptionsOutputOutput = {
         currency: string;
         isPaid: boolean;
         paidAt: string | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -4917,6 +4920,7 @@ export type MemberSubscriptionsOutputOutput = {
         currency: string;
         isPaid: boolean;
         paidAt: string | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -4958,6 +4962,7 @@ export type CancelSubscriptionOutputOutput = {
     currency: string;
     isPaid: boolean;
     paidAt: string | null;
+    paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
     classesTotal: number | null;
     classesRemaining: number | null;
     source: string;
@@ -4972,6 +4977,7 @@ export type CancelSubscriptionOutputOutput = {
 
 export type MarkSubscriptionPaidInput = {
     amount?: number;
+    method?: 'CASH' | 'TRANSFER' | 'CARD';
 };
 
 export type MarkSubscriptionPaidOutputOutput = {
@@ -4988,6 +4994,7 @@ export type MarkSubscriptionPaidOutputOutput = {
         currency: string;
         isPaid: boolean;
         paidAt: string | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -5015,6 +5022,7 @@ export type UnmarkSubscriptionPaidOutputOutput = {
         currency: string;
         isPaid: boolean;
         paidAt: string | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -5058,6 +5066,7 @@ export type FreezeSubscriptionOutputOutput = {
         currency: string;
         isPaid: boolean;
         paidAt: string | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -5097,6 +5106,7 @@ export type EndSubscriptionFreezeOutputOutput = {
         currency: string;
         isPaid: boolean;
         paidAt: string | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -5125,6 +5135,7 @@ export type MySubscriptionOutputOutput = {
         currency: string;
         isPaid: boolean;
         paidAt: string | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -5179,6 +5190,7 @@ export type MySubscriptionOutputOutput = {
         currency: string;
         isPaid: boolean;
         paidAt: string | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;

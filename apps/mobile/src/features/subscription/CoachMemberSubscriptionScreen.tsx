@@ -57,6 +57,12 @@ import {
   sellablePlans,
 } from "./coach-subscription-actions"
 import {
+  CLUB_PAYMENT_METHODS,
+  PAYMENT_METHOD_LABEL,
+  type ClubPaymentMethod,
+} from "./payment-method"
+import { loadPaymentMethod, savePaymentMethod } from "./payment-method-store"
+import {
   approvalStartYmd,
   DECLINE_COMMENT_MAX,
   requestSummary,
@@ -137,6 +143,9 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   const [planId, setPlanId] = useState<string | null>(null)
   const [amountText, setAmountText] = useState("")
   const [paid, setPaid] = useState(true)
+  // How a payment at the club was taken: kept across the forms of this
+  // screen, starting from the last pick on this device.
+  const [method, setMethod] = useState<ClubPaymentMethod>("CASH")
   const [daysText, setDaysText] = useState(String(DEFAULT_FREEZE_DAYS))
   const [reason, setReason] = useState("")
   const [approveDaysText, setApproveDaysText] = useState("")
@@ -168,6 +177,10 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    void loadPaymentMethod().then(setMethod)
+  }, [])
 
   useEffect(() => {
     if (!workspaceId) return
@@ -322,8 +335,8 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
           workspaceId: workspace.workspaceId,
           userId,
           subscriptionId: payFor.id,
-          data: { amount: payAmount },
-        }),
+          data: { amount: payAmount, method },
+        }).then(() => savePaymentMethod(method)),
       "Оплата отмечена",
       "Не удалось отметить оплату",
     )
@@ -340,10 +353,11 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
             planId,
             amountPaid: sellAmount,
             paid,
+            ...(paid ? { paymentMethod: method } : {}),
             // A renewal starts the day the renewed abonement ends.
             ...(renewFromYmd ? { startDate: renewFromYmd } : {}),
           },
-        }),
+        }).then(() => (paid ? savePaymentMethod(method) : undefined)),
       renewFromYmd ? "Абонемент продлён" : "Абонемент оформлен",
       renewFromYmd
         ? "Не удалось продлить абонемент"
@@ -490,6 +504,25 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
 
   const closeButton = button("Отмена", () => setMode(null))
 
+  const methodPicker = (
+    <View style={styles.row} accessibilityRole="radiogroup" accessibilityLabel="Способ оплаты">
+      {CLUB_PAYMENT_METHODS.map((m) => (
+        <Pressable
+          key={m}
+          onPress={() => setMethod(m)}
+          disabled={busy}
+          accessibilityRole="radio"
+          accessibilityState={{ checked: method === m }}
+          style={[styles.methodChip, method === m && styles.methodChipOn]}
+        >
+          <Text style={method === m ? styles.primaryText : styles.secondaryText}>
+            {PAYMENT_METHOD_LABEL[m]}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  )
+
   const debtsCard =
     debts.length > 0 ? (
       <View style={styles.card}>
@@ -581,6 +614,8 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
           {payAmount === null && (
             <Text style={styles.invalid}>Введите сумму от 0 до 10 000 000</Text>
           )}
+          <Text style={styles.label}>Способ оплаты</Text>
+          {methodPicker}
           <View style={styles.row}>
             {button(
               busy ? "Сохраняю…" : "Оплачено",
@@ -660,6 +695,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
                   }}
                 />
               </View>
+              {paid && methodPicker}
             </>
           )}
           <View style={styles.row}>
@@ -912,4 +948,11 @@ const makeStyles = (theme: Theme) =>
       fontWeight: "600",
     },
     disabled: { opacity: 0.5 },
+    methodChip: {
+      paddingHorizontal: theme.spacing(3),
+      paddingVertical: theme.spacing(2),
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.surfaceMuted,
+    },
+    methodChipOn: { backgroundColor: theme.colors.accent },
   })

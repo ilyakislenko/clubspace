@@ -15,16 +15,11 @@ import {
 } from "../../shared/api/events"
 import { errorMessage } from "../../shared/lib/error-message"
 import { useWorkspaceRealtime } from "../../shared/realtime/useWorkspaceRealtime"
+import {
+  CLUB_PAYMENT_METHODS,
+  PAYMENT_METHOD_LABEL,
+} from "../subscriptions/payment-method"
 import { formatAmount } from "../subscriptions/subscription-display"
-
-const METHOD_LABEL: Record<
-  NonNullable<EventRegistrant["paymentMethod"]>,
-  string
-> = {
-  CASH: "наличные",
-  TRANSFER: "перевод",
-  ONLINE: "онлайн",
-}
 
 const statusLabel = (r: EventRegistrant): string =>
   r.status === "BOOKED"
@@ -157,7 +152,7 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
                         ? ` ${formatAmount(r.amountPaid, r.currency)}`
                         : ""}
                       {r.paymentMethod
-                        ? ` · ${METHOD_LABEL[r.paymentMethod]}`
+                        ? ` · ${PAYMENT_METHOD_LABEL[r.paymentMethod].toLowerCase()}`
                         : ""}
                     </span>
                     {r.status === "CANCELLED" && (
@@ -193,24 +188,18 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
                     <span className="text-xs text-muted-foreground">
                       Оплата на месте:
                     </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      disabled={busyId === r.id}
-                      onClick={() => void markPaid(r, "CASH")}
-                    >
-                      Наличные
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      disabled={busyId === r.id}
-                      onClick={() => void markPaid(r, "TRANSFER")}
-                    >
-                      Перевод
-                    </Button>
+                    {CLUB_PAYMENT_METHODS.map((m) => (
+                      <Button
+                        key={m}
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={busyId === r.id}
+                        onClick={() => void markPaid(r, m)}
+                      >
+                        {PAYMENT_METHOD_LABEL[m]}
+                      </Button>
+                    ))}
                   </div>
                 ) : null)}
             </li>

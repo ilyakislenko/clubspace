@@ -962,12 +962,17 @@ enum EventRegistrationStatus {
   CANCELLED  // given up by the member (a paid one stays as the money's record)
 }
 
-// How a ticket was paid: at the club (cash / transfer, marked by staff) or
-// online through the club's payment provider (marked by the Payment webhook).
-enum EventPaymentMethod {
+// How a sale was paid — an event ticket or an abonement: at the club (cash,
+// a transfer, a card on the club's terminal — marked by staff) or online
+// through the club's payment provider (set by the Payment webhook only).
+// Mapped to its first name, from when only tickets had it.
+enum PaymentMethod {
   CASH
   TRANSFER
+  CARD
   ONLINE
+
+  @@map("EventPaymentMethod")
 }
 
 // A member's place in an event with a price or a limit of places. Rows are
@@ -1001,7 +1006,7 @@ model EventRegistration {
   paidAt         DateTime?
   amountPaid     Int?
   currency       String?             @db.Char(3)
-  paymentMethod  EventPaymentMethod?
+  paymentMethod  PaymentMethod?
   // Display only, survives the actor's removal.
   markedPaidById String?             @db.Uuid
 
@@ -1683,6 +1688,10 @@ model Subscription {
   // When the payment was recorded; null while unpaid and on legacy rows (their
   // revenue date falls back to createdAt).
   paidAt     DateTime?
+  // How it was paid: ONLINE for a checkout sale, what staff picked when they
+  // recorded the payment; null while unpaid, on rows from before it was
+  // recorded and on imported ones («не указано»).
+  paymentMethod PaymentMethod?
 
   // Class-pack balance (null for time-only tariffs). classesTotal is what the
   // tariff granted; classesRemaining is decremented on attendance check-in

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { ClubPaymentMethodSchema } from '../../shared/utils/payment-method'
 import { AssignSubscriptionOutputSchema } from './schemas'
 
 export const AssignSubscriptionInputSchema = z.object({
@@ -13,6 +14,9 @@ export const AssignSubscriptionInputSchema = z.object({
     amountPaid: z.number().int().min(0).max(10_000_000).optional(),
     // false = sold, payment to be marked later. Defaults to paid.
     paid: z.boolean().optional(),
+    // How a sale recorded as paid was paid (cash / transfer / the club's
+    // terminal); ignored on credit, omitted = not recorded («не указано»).
+    paymentMethod: ClubPaymentMethodSchema.optional(),
 })
 export const AssignSubscriptionFeatureOutputSchema =
     AssignSubscriptionOutputSchema

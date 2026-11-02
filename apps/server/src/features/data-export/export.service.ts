@@ -7,6 +7,7 @@ import {
 import { localDateInTz, wallClockToUtc } from '../attendance/attendance-utils'
 import { PrismaService } from '../../infrastructure/prisma'
 import { toCsv } from '../../shared/utils/csv'
+import { PAYMENT_METHOD_LABELS } from '../../shared/utils/payment-method'
 import {
     paidInRangeWhere,
     paidOn,
@@ -31,12 +32,6 @@ const joinCells = (values: ReadonlyArray<string | number | null>) =>
 // the UTC day (a Novosibirsk payment at 04:30 is that day, not the day before).
 const day = (d: Date | null | undefined, tz: string) =>
     d ? localDateInTz(d, tz) : ''
-
-const PAYMENT_METHOD_LABELS = {
-    CASH: 'Наличные',
-    TRANSFER: 'Перевод',
-    ONLINE: 'Онлайн',
-} as const
 
 // Who recorded the abonement sale: staff by hand, or the club's online checkout.
 const SUBSCRIPTION_SOURCE_LABELS = {
@@ -214,6 +209,7 @@ export class ExportService {
                     amountPaid: true,
                     currency: true,
                     source: true,
+                    paymentMethod: true,
                     classesTotal: true,
                     plan: { select: { name: true } },
                     user: { select: { firstname: true, lastname: true, email: true } },
@@ -248,6 +244,11 @@ export class ExportService {
         const rows = [
             ...subs.map((s) => {
                 const user = s.user ?? s.workspaceMember?.user
+                // A checkout sale from before the method was stored is still
+                // ONLINE; a hand-recorded one without it (sold before, or
+                // imported) is left empty.
+                const method =
+                    s.paymentMethod ?? (s.source === 'GATEWAY' ? 'ONLINE' : null)
                 return {
                     on: paidOn(s),
                     cells: [
@@ -259,9 +260,7 @@ export class ExportService {
                         SUBSCRIPTION_SOURCE_LABELS[s.source],
                         s.classesTotal ?? '',
                         'Абонемент',
-                        // Paid through the checkout — online; a sale staff
-                        // recorded by hand does not store cash vs transfer.
-                        s.source === 'GATEWAY' ? PAYMENT_METHOD_LABELS.ONLINE : '',
+                        method ? PAYMENT_METHOD_LABELS[method] : '',
                     ],
                 }
             }),

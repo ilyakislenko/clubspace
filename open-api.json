@@ -27993,6 +27993,7 @@
                           "enum": [
                             "CASH",
                             "TRANSFER",
+                            "CARD",
                             "ONLINE",
                             null
                           ],
@@ -31770,6 +31771,7 @@
             "enum": [
               "CASH",
               "TRANSFER",
+              "CARD",
               "ONLINE",
               null
             ],
@@ -31841,6 +31843,7 @@
             "enum": [
               "CASH",
               "TRANSFER",
+              "CARD",
               "ONLINE",
               null
             ],
@@ -32094,6 +32097,7 @@
                   "enum": [
                     "CASH",
                     "TRANSFER",
+                    "CARD",
                     "ONLINE",
                     null
                   ],
@@ -32156,7 +32160,8 @@
             "type": "string",
             "enum": [
               "CASH",
-              "TRANSFER"
+              "TRANSFER",
+              "CARD"
             ]
           }
         },
@@ -32221,6 +32226,7 @@
             "enum": [
               "CASH",
               "TRANSFER",
+              "CARD",
               "ONLINE",
               null
             ],
@@ -32319,6 +32325,7 @@
             "enum": [
               "CASH",
               "TRANSFER",
+              "CARD",
               "ONLINE",
               null
             ],
@@ -36484,6 +36491,14 @@
           },
           "paid": {
             "type": "boolean"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "TRANSFER",
+              "CARD"
+            ]
           }
         },
         "required": [
@@ -36548,6 +36563,17 @@
                 "type": "string",
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "nullable": true
+              },
+              "paymentMethod": {
+                "type": "string",
+                "enum": [
+                  "CASH",
+                  "TRANSFER",
+                  "CARD",
+                  "ONLINE",
+                  null
+                ],
                 "nullable": true
               },
               "classesTotal": {
@@ -36615,6 +36641,7 @@
               "currency",
               "isPaid",
               "paidAt",
+              "paymentMethod",
               "classesTotal",
               "classesRemaining",
               "source",
@@ -36699,6 +36726,17 @@
                   "type": "string",
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                  "nullable": true
+                },
+                "paymentMethod": {
+                  "type": "string",
+                  "enum": [
+                    "CASH",
+                    "TRANSFER",
+                    "CARD",
+                    "ONLINE",
+                    null
+                  ],
                   "nullable": true
                 },
                 "classesTotal": {
@@ -36854,6 +36892,7 @@
                 "currency",
                 "isPaid",
                 "paidAt",
+                "paymentMethod",
                 "classesTotal",
                 "classesRemaining",
                 "source",
@@ -36924,6 +36963,17 @@
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                   "nullable": true
                 },
+                "paymentMethod": {
+                  "type": "string",
+                  "enum": [
+                    "CASH",
+                    "TRANSFER",
+                    "CARD",
+                    "ONLINE",
+                    null
+                  ],
+                  "nullable": true
+                },
                 "classesTotal": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -36989,6 +37039,7 @@
                 "currency",
                 "isPaid",
                 "paidAt",
+                "paymentMethod",
                 "classesTotal",
                 "classesRemaining",
                 "source",
@@ -37144,6 +37195,17 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "nullable": true
           },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "TRANSFER",
+              "CARD",
+              "ONLINE",
+              null
+            ],
+            "nullable": true
+          },
           "classesTotal": {
             "type": "integer",
             "minimum": -9007199254740991,
@@ -37209,6 +37271,7 @@
           "currency",
           "isPaid",
           "paidAt",
+          "paymentMethod",
           "classesTotal",
           "classesRemaining",
           "source",
@@ -37224,6 +37287,14 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 10000000
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "TRANSFER",
+              "CARD"
+            ]
           }
         }
       },
@@ -37285,6 +37356,17 @@
                 "type": "string",
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "nullable": true
+              },
+              "paymentMethod": {
+                "type": "string",
+                "enum": [
+                  "CASH",
+                  "TRANSFER",
+                  "CARD",
+                  "ONLINE",
+                  null
+                ],
                 "nullable": true
               },
               "classesTotal": {
@@ -37352,6 +37434,7 @@
               "currency",
               "isPaid",
               "paidAt",
+              "paymentMethod",
               "classesTotal",
               "classesRemaining",
               "source",
@@ -37426,6 +37509,17 @@
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                 "nullable": true
               },
+              "paymentMethod": {
+                "type": "string",
+                "enum": [
+                  "CASH",
+                  "TRANSFER",
+                  "CARD",
+                  "ONLINE",
+                  null
+                ],
+                "nullable": true
+              },
               "classesTotal": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -37491,6 +37585,7 @@
               "currency",
               "isPaid",
               "paidAt",
+              "paymentMethod",
               "classesTotal",
               "classesRemaining",
               "source",
@@ -37643,6 +37738,17 @@
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                 "nullable": true
               },
+              "paymentMethod": {
+                "type": "string",
+                "enum": [
+                  "CASH",
+                  "TRANSFER",
+                  "CARD",
+                  "ONLINE",
+                  null
+                ],
+                "nullable": true
+              },
               "classesTotal": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -37708,6 +37814,7 @@
               "currency",
               "isPaid",
               "paidAt",
+              "paymentMethod",
               "classesTotal",
               "classesRemaining",
               "source",
@@ -37852,6 +37959,17 @@
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                 "nullable": true
               },
+              "paymentMethod": {
+                "type": "string",
+                "enum": [
+                  "CASH",
+                  "TRANSFER",
+                  "CARD",
+                  "ONLINE",
+                  null
+                ],
+                "nullable": true
+              },
               "classesTotal": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -37917,6 +38035,7 @@
               "currency",
               "isPaid",
               "paidAt",
+              "paymentMethod",
               "classesTotal",
               "classesRemaining",
               "source",
@@ -38000,6 +38119,17 @@
                   "type": "string",
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                  "nullable": true
+                },
+                "paymentMethod": {
+                  "type": "string",
+                  "enum": [
+                    "CASH",
+                    "TRANSFER",
+                    "CARD",
+                    "ONLINE",
+                    null
+                  ],
                   "nullable": true
                 },
                 "classesTotal": {
@@ -38239,6 +38369,7 @@
                 "currency",
                 "isPaid",
                 "paidAt",
+                "paymentMethod",
                 "classesTotal",
                 "classesRemaining",
                 "source",
@@ -38310,6 +38441,17 @@
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                   "nullable": true
                 },
+                "paymentMethod": {
+                  "type": "string",
+                  "enum": [
+                    "CASH",
+                    "TRANSFER",
+                    "CARD",
+                    "ONLINE",
+                    null
+                  ],
+                  "nullable": true
+                },
                 "classesTotal": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -38375,6 +38517,7 @@
                 "currency",
                 "isPaid",
                 "paidAt",
+                "paymentMethod",
                 "classesTotal",
                 "classesRemaining",
                 "source",

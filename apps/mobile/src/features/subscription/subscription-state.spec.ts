@@ -386,6 +386,20 @@ describe("paymentLine", () => {
       tone: "muted",
     })
   })
+
+  it("names how it was paid, when that was recorded", () => {
+    expect(
+      paymentLine({
+        ...base,
+        isPaid: true,
+        paidAt: "2026-10-22T12:00:00Z",
+        paymentMethod: "TRANSFER",
+      }),
+    ).toEqual({
+      text: "Оплачено: 5\u202F000\u00A0₽ · Перевод · 22 октября 2026 г.",
+      tone: "muted",
+    })
+  })
 })
 
 describe("mySubscriptionState", () => {

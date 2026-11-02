@@ -185,6 +185,46 @@ describe('ExportService.revenueCsv', () => {
         )
     })
 
+    it('prints the stored payment method of an abonement, empty when not recorded', async () => {
+        const sale = (paymentMethod: string | null, source = 'MANUAL') => ({
+            createdAt: new Date('2026-07-01T00:00:00Z'),
+            amountPaid: 4000,
+            currency: 'RUB',
+            source,
+            paymentMethod,
+            classesTotal: null,
+            plan: { name: 'Месяц' },
+            user: { firstname: 'Иван', lastname: null, email: 'ivan@x' },
+        })
+        const prisma = {
+            subscription: {
+                findMany: jest.fn().mockResolvedValue([
+                    sale('CASH'),
+                    sale('TRANSFER'),
+                    sale('CARD'),
+                    sale('ONLINE', 'GATEWAY'),
+                    // A checkout sale from before the method was stored.
+                    sale(null, 'GATEWAY'),
+                    // Sold by hand before it was stored, or imported.
+                    sale(null),
+                ]),
+            },
+        }
+        const csv = await svc(prisma).revenueCsv('w1')
+        const methods = csv
+            .split(/\r?\n/)
+            .filter((l) => l.startsWith('2026-'))
+            .map((l) => l.split(';').at(-1))
+        expect(methods).toEqual([
+            'Наличные',
+            'Перевод',
+            'Карта в клубе',
+            'Онлайн',
+            'Онлайн',
+            '',
+        ])
+    })
+
     it('prints the payment day in the club timezone', async () => {
         const prisma = {
             workspace: {

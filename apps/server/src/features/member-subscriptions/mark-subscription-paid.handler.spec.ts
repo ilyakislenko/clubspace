@@ -126,6 +126,14 @@ describe('MarkSubscriptionPaidHandler', () => {
         })
     })
 
+    it('passes the payment method picked through', async () => {
+        const { handler, subscriptions } = build()
+        await handler.execute(
+            new MarkSubscriptionPaidFeature({ method: 'CASH' }, 'w1', 'u1', 's1', 'inv', 'admin', false),
+        )
+        expect(subscriptions.markPaid.mock.calls[0][0].paymentMethod).toBe('CASH')
+    })
+
     it('passes an overriding amount through', async () => {
         const { handler, subscriptions } = build()
         await handler.execute(feature(4500))

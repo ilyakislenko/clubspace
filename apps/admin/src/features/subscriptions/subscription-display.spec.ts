@@ -95,6 +95,7 @@ describe("paymentLabel", () => {
         paymentLabel({
           isPaid: false,
           paidAt: null,
+          paymentMethod: null,
           amountPaid: 5000,
           currency: "RUB",
         }),
@@ -108,6 +109,7 @@ describe("paymentLabel", () => {
         paymentLabel({
           isPaid: true,
           paidAt: new Date(2026, 9, 22, 12).toISOString(),
+          paymentMethod: null,
           amountPaid: 5000,
           currency: "RUB",
         }),
@@ -121,11 +123,37 @@ describe("paymentLabel", () => {
         paymentLabel({
           isPaid: true,
           paidAt: null,
+          paymentMethod: null,
           amountPaid: 4000,
           currency: "RUB",
         }),
       ),
     ).toBe("Оплачено 4 000 ₽")
+  })
+
+  it("names how it was paid, when that was recorded", () => {
+    expect(
+      plain(
+        paymentLabel({
+          isPaid: true,
+          paidAt: new Date(2026, 9, 22, 12).toISOString(),
+          paymentMethod: "CARD",
+          amountPaid: 5000,
+          currency: "RUB",
+        }),
+      ),
+    ).toBe("Оплачено 5 000 ₽ · Карта в клубе · 22.10.2026")
+    expect(
+      plain(
+        paymentLabel({
+          isPaid: true,
+          paidAt: null,
+          paymentMethod: "ONLINE",
+          amountPaid: 4000,
+          currency: "RUB",
+        }),
+      ),
+    ).toBe("Оплачено 4 000 ₽ · Онлайн")
   })
 })
 
