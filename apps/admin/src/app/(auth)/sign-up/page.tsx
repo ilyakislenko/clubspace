@@ -16,7 +16,7 @@ import {
   getAuthApi,
   storeAuthTokens,
 } from "../../../shared/api/client"
-import { errorMessage } from "../../../shared/lib/error-message"
+import { errorMessage, retryAfterSeconds } from "../../../shared/lib/error-message"
 import { inputClsFull } from "../../../shared/lib/input-class"
 import { pluralRu } from "../../../shared/lib/plural-ru"
 import { setActiveWorkspaceId } from "../../../shared/workspace/storage"
@@ -65,6 +65,9 @@ export default function SignUp() {
   const [email, setEmail] = useState("")
   const [code, setCode] = useState("")
   const [resendIn, setResendIn] = useState(0)
+  // The server refused a code inside its resend cooldown: the notice counts
+  // down with the button instead of freezing on the first number.
+  const [cooldownRefused, setCooldownRefused] = useState(false)
   const [name, setName] = useState("")
   const [type, setType] = useState<string>("GRAPPLING")
   const [timezone, setTimezone] = useState("Europe/Moscow")
@@ -109,9 +112,18 @@ export default function SignUp() {
 
   const sendCode = (event?: FormEvent) => {
     event?.preventDefault()
-    if (resendIn > 0 && step === "code") return
+    if (resendIn > 0) return
+    setCooldownRefused(false)
     void run(async () => {
-      await getAuthApi().sendAuthCode({ email, language: "RU" })
+      try {
+        await getAuthApi().sendAuthCode({ email, language: "RU" })
+      } catch (e) {
+        const wait = retryAfterSeconds(e)
+        if (!wait) throw e
+        setResendIn(wait)
+        setCooldownRefused(true)
+        return
+      }
       setStep("code")
       setResendIn(RESEND_COOLDOWN_SECONDS)
     }, "Не удалось отправить код. Проверьте email и попробуйте ещё раз.")
@@ -196,12 +208,17 @@ export default function SignUp() {
                 placeholder="you@example.com"
                 className={inputClsFull}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  // The cooldown belongs to the address it was asked for.
+                  setResendIn(0)
+                  setCooldownRefused(false)
+                }}
                 required
               />
             </label>
-            <Button type="submit" disabled={busy}>
-              Получить код
+            <Button type="submit" disabled={busy || resendIn > 0}>
+              {resendIn > 0 ? `Получить код через ${resendIn} с` : "Получить код"}
             </Button>
             <p className="text-center text-xs text-muted-foreground">
               Уже есть клуб?{" "}
@@ -313,10 +330,16 @@ export default function SignUp() {
           </ConsentGate>
         )}
 
-        {error && (
+        {cooldownRefused && resendIn > 0 ? (
           <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
+            Новый код можно запросить через {resendIn} с
           </p>
+        ) : (
+          error && (
+            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          )
         )}
       </div>
     </div>

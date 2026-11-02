@@ -208,7 +208,32 @@ describe('sign-in (email OTP)', () => {
             .post('/send-auth-code')
             .send({ email: 'impatient@example.com' })
 
-        expect(res.status).toBeGreaterThanOrEqual(400)
+        expect(res.status).toBe(400)
+        expect(res.body.code).toBe('USER_COMPLETE_CODE_TOO_EARLY')
+        // The apps count the button down from this.
+        const left = res.body.metadata.retryAfterSeconds
+        expect(left).toBeGreaterThan(0)
+        expect(left).toBeLessThanOrEqual(60)
+        expect(res.body.message).toBe(`Новый код можно запросить через ${left} с`)
+    })
+
+    // Regression: the cooldown outlived the sign-in, so sign in → sign out →
+    // «Получить код» within the minute answered «чуть позже».
+    it('lets a signed-out account ask for a new code right away', async () => {
+        // The first sign-in creates the account; the second is an existing
+        // account's code, the one whose cooldown used to linger.
+        await signIn(ctx, 'member@example.com')
+        ctx.mail.clear()
+        const actor = await signIn(ctx, 'member@example.com')
+        await ctx.http().post('/sign-out').send({ refreshToken: actor.refreshToken }).expect(201)
+        ctx.mail.clear()
+
+        await ctx
+            .http()
+            .post('/send-auth-code')
+            .send({ email: 'member@example.com' })
+            .expect(201)
+        await ctx.mail.waitForCodeTo('member@example.com')
     })
 
     it('issues a fresh code once the cooldown is cleared, and the old one dies', async () => {

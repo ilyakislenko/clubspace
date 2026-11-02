@@ -263,6 +263,19 @@ describe('demo kit', () => {
         expect((await fixedCodeSignIn(OWNER)).status).toBe(201)
     })
 
+    // One demo account is opened on the presenter's tablet and phone within
+    // the same minute; nothing is mailed, so there is no resend cooldown.
+    it('lets two devices ask for one demo account\'s code back to back', async () => {
+        const admin = await signIn(ctx, PLATFORM_OWNER)
+        await reset(admin).expect(201)
+        await ctx.http().post('/send-auth-code').send({ email: STUDENT }).expect(201)
+        await ctx.http().post('/send-auth-code').send({ email: STUDENT }).expect(201)
+        await ctx.http().post('/sign-in').send({ email: STUDENT, code: DEMO_CODE }).expect(201)
+        // Signed out and back in at once: the code is asked for again.
+        await ctx.http().post('/send-auth-code').send({ email: STUDENT }).expect(201)
+        await ctx.http().post('/sign-in').send({ email: STUDENT, code: DEMO_CODE }).expect(201)
+    })
+
     it('keeps the demo accounts signed in across a reset', async () => {
         const admin = await signIn(ctx, PLATFORM_OWNER)
         await reset(admin).expect(201)

@@ -1,11 +1,9 @@
 import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { UserCompleteCodeTooEarlyError } from '../../domains/users/errors/users.errors'
 import { MailHealthService } from '../../domains/notifications/services/mail-health.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { environment } from '../../environments/environment'
 import { isDemoAccountEmail } from '../../shared/utils/demo-mode.util'
 import { isStoreReviewEmail } from '../../shared/utils/store-review.util'
 import {
@@ -35,9 +33,10 @@ export class SendAuthCodeHandler
 
         // Fixed-code accounts (store review; demo accounts while DEMO_MODE is
         // on) sign in with a fixed code: no mail, no code, no user and no
-        // membership are created. It still stamps the issue/cooldown fields
-        // like a normal send, so sign-in and a too-early repeat behave the same
-        // as for any account.
+        // membership are created. It still stamps the issue time like a normal
+        // send, so sign-in needs a request first. No resend cooldown: nothing
+        // is mailed, and one demo account is opened on several devices at once
+        // (the presenter's tablet and phone) — the per-IP route throttle stays.
         if (isStoreReviewEmail(email) || isDemoAccountEmail(email)) {
             this.logger.warn('Auth code requested for a fixed-code account')
             await this.stampFixedCodeRequest(email)
@@ -102,21 +101,9 @@ export class SendAuthCodeHandler
             return
         }
 
-        if (
-            user.completeCodeNextResendAt &&
-            user.completeCodeNextResendAt > new Date()
-        ) {
-            throw new UserCompleteCodeTooEarlyError()
-        }
-
         await this.prisma.user.update({
             where: { id: user.id },
-            data: {
-                completeCodeIssuedAt: new Date(),
-                completeCodeNextResendAt: new Date(
-                    Date.now() + environment.completeCodeTimeout,
-                ),
-            },
+            data: { completeCodeIssuedAt: new Date() },
         })
     }
 }

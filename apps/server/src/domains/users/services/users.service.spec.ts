@@ -49,9 +49,13 @@ describe('UsersService.createCompleteCode', () => {
             completeCode: 'old',
             completeCodeNextResendAt: new Date(Date.now() + 30_000),
         })
-        await expect(
-            service.createCompleteCode({ userId: 'u1' }),
-        ).rejects.toBeInstanceOf(UserCompleteCodeTooEarlyError)
+        const error = await service
+            .createCompleteCode({ userId: 'u1' })
+            .catch((e: unknown) => e)
+        expect(error).toBeInstanceOf(UserCompleteCodeTooEarlyError)
+        expect((error as UserCompleteCodeTooEarlyError).metadata).toEqual({
+            retryAfterSeconds: 30,
+        })
         expect(prisma.user.update).not.toHaveBeenCalled()
     })
 

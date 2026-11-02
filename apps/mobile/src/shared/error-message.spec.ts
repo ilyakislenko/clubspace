@@ -1,4 +1,4 @@
-import { errorMessage } from "./error-message"
+import { errorMessage, retryAfterSeconds } from "./error-message"
 
 const axiosError = (over: Record<string, unknown>) =>
   Object.assign(new Error("Request failed with status code 400"), over)
@@ -71,5 +71,27 @@ describe("errorMessage", () => {
 
   it("falls back for a bare 'Network Error' without a code", () => {
     expect(errorMessage(new Error("Network Error"), "fb")).toBe("fb")
+  })
+})
+
+describe("retryAfterSeconds", () => {
+  it("reads the resend cooldown from the response body", () => {
+    const e = axiosError({
+      response: {
+        status: 400,
+        data: {
+          code: "USER_COMPLETE_CODE_TOO_EARLY",
+          message: "Новый код можно запросить через 42 с",
+          metadata: { retryAfterSeconds: 42 },
+        },
+      },
+    })
+    expect(retryAfterSeconds(e)).toBe(42)
+  })
+
+  it("is null for any other error", () => {
+    expect(retryAfterSeconds(axiosError({ response: { status: 400, data: { metadata: {} } } }))).toBeNull()
+    expect(retryAfterSeconds(new Error("boom"))).toBeNull()
+    expect(retryAfterSeconds(null)).toBeNull()
   })
 })

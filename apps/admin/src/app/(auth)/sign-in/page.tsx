@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { getAuthApi, storeAuthTokens } from "../../../shared/api/client";
-import { errorMessage } from "../../../shared/lib/error-message";
+import { errorMessage, retryAfterSeconds } from "../../../shared/lib/error-message";
 import { CreateClubLink } from "../../../features/billing/CreateClubLink";
 
 // Matches the server's resend cooldown (COMPLETE_CODE_TIMEOUT, 60s).
@@ -20,6 +20,9 @@ export default function SignIn() {
   const [notice, setNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  // The server refused a code inside its resend cooldown: the notice counts
+  // down with the button instead of freezing on the first number.
+  const [cooldownRefused, setCooldownRefused] = useState(false);
   const router = useRouter();
 
   // The owner welcome e-mail links here with ?email= so the address is already
@@ -36,16 +39,28 @@ export default function SignIn() {
     return () => clearTimeout(timer);
   }, [resendIn]);
 
+  // A refusal inside the server's resend cooldown starts the countdown.
+  const refusedForCooldown = (err: unknown) => {
+    const wait = retryAfterSeconds(err);
+    if (!wait) return false;
+    setResendIn(wait);
+    setCooldownRefused(true);
+    return true;
+  };
+
   const handleSendCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (resendIn > 0) return;
     setError(null);
     setNotice(null);
+    setCooldownRefused(false);
     setIsLoading(true);
     try {
       await getAuthApi().sendAuthCode({ email, language: "RU" });
       setStep("code");
       setResendIn(RESEND_COOLDOWN_SECONDS);
     } catch (err) {
+      if (refusedForCooldown(err)) return;
       setError(errorMessage(err, "Не удалось отправить код. Проверьте email и попробуйте ещё раз."));
     } finally {
       setIsLoading(false);
@@ -73,12 +88,14 @@ export default function SignIn() {
     if (resendIn > 0) return;
     setError(null);
     setNotice(null);
+    setCooldownRefused(false);
     setIsLoading(true);
     try {
       await getAuthApi().sendAuthCode({ email, language: "RU" });
       setResendIn(RESEND_COOLDOWN_SECONDS);
       setNotice("Новый код отправлен — проверьте почту.");
     } catch (err) {
+      if (refusedForCooldown(err)) return;
       setError(errorMessage(err, "Не удалось отправить код ещё раз. Попробуйте позже."));
     } finally {
       setIsLoading(false);
@@ -87,7 +104,7 @@ export default function SignIn() {
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10">
-      <div className="w-full max-w-sm md:max-w-3xl">
+      <div className="w-full max-w-sm">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2 text-center">
             <span aria-hidden className="text-3xl">{platformBrand.emoji}</span>
@@ -112,7 +129,12 @@ export default function SignIn() {
                     placeholder="you@example.com"
                     autoComplete="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      // The cooldown belongs to the address it was asked for.
+                      setResendIn(0);
+                      setCooldownRefused(false);
+                    }}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                     required
                   />
@@ -120,9 +142,9 @@ export default function SignIn() {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={isLoading}
+                  disabled={isLoading || resendIn > 0}
                 >
-                  Получить код
+                  {resendIn > 0 ? `Получить код через ${resendIn} с` : "Получить код"}
                 </Button>
               </form>
 
@@ -224,7 +246,11 @@ export default function SignIn() {
             </p>
           ) : null}
 
-          {error ? (
+          {cooldownRefused && resendIn > 0 ? (
+            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              Новый код можно запросить через {resendIn} с
+            </p>
+          ) : error ? (
             <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
             </p>

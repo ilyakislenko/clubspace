@@ -8,7 +8,7 @@
 // the trouble to write ("Free trial already used", "Cannot set access window
 // for workspace owner") and showed HTTP noise instead. Body first, Error second.
 type ApiErrorShape = {
-  response?: { data?: { message?: unknown; error?: unknown } }
+  response?: { data?: { message?: unknown; error?: unknown; metadata?: unknown } }
 }
 
 const readServerMessage = (error: unknown): string | null => {
@@ -46,4 +46,18 @@ export const errorMessage = (
     return error.message
   }
   return fallback
+}
+
+/**
+ * Seconds the server asks to wait before the next sign-in code (the resend
+ * cooldown, `metadata.retryAfterSeconds`), or null for any other error.
+ */
+export const retryAfterSeconds = (error: unknown): number | null => {
+  if (typeof error !== "object" || error === null) return null
+  const metadata = (error as ApiErrorShape).response?.data?.metadata
+  const raw =
+    typeof metadata === "object" && metadata !== null
+      ? (metadata as { retryAfterSeconds?: unknown }).retryAfterSeconds
+      : undefined
+  return typeof raw === "number" && raw > 0 ? Math.ceil(raw) : null
 }

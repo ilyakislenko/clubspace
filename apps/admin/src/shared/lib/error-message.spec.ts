@@ -1,4 +1,4 @@
-import { errorMessage } from "./error-message"
+import { errorMessage, retryAfterSeconds } from "./error-message"
 
 // Shape of what axios rejects with: an Error carrying transport boilerplate,
 // plus the server's real explanation on `response.data`.
@@ -48,5 +48,25 @@ describe("errorMessage", () => {
 
   it("uses the fallback for null", () => {
     expect(errorMessage(null, "запасной")).toBe("запасной")
+  })
+})
+
+describe("retryAfterSeconds", () => {
+  it("reads the resend cooldown from the response body", () => {
+    const e = axiosError(
+      {
+        code: "USER_COMPLETE_CODE_TOO_EARLY",
+        message: "Новый код можно запросить через 42 с",
+        metadata: { retryAfterSeconds: 42 },
+      },
+      400,
+    )
+    expect(retryAfterSeconds(e)).toBe(42)
+  })
+
+  it("is null for any other error", () => {
+    expect(retryAfterSeconds(axiosError({ metadata: {} }, 400))).toBeNull()
+    expect(retryAfterSeconds(new Error("boom"))).toBeNull()
+    expect(retryAfterSeconds(null)).toBeNull()
   })
 })
