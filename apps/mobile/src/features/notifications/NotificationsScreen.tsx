@@ -29,6 +29,7 @@ import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { switchableDependents } from "../children/children-helpers"
 import {
   openNotification,
@@ -61,6 +62,7 @@ export function NotificationsScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles)
   const { workspace, workspaces, switchWorkspace, actingAs, dependents } =
     useAuth()
+  const vocabulary = useVocabulary()
   const actingAsId = actingAs?.id ?? null
   const switchableIds = useMemo(
     () => switchableDependents(dependents).map((d) => d.id),
@@ -144,7 +146,7 @@ export function NotificationsScreen({ navigation }: Props) {
               <>
                 <Text style={styles.emptyTitle}>Пока пусто</Text>
                 <Text style={styles.emptyText}>
-                  Уведомления о тренировках, событиях и новых видео появятся
+                  Уведомления о {vocabulary.session.prepPl}, событиях и новых видео появятся
                   здесь.
                 </Text>
               </>

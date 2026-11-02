@@ -65,6 +65,7 @@ const makePrisma = (row = makeRow()) => {
         },
         attendanceRecord: { count: jest.fn().mockResolvedValue(0) },
         attendanceSession: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+        workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
     }
     p.$transaction = jest.fn(async (fn: (t: unknown) => unknown) => fn(p))
     return p

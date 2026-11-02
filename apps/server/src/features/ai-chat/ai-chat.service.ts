@@ -29,6 +29,7 @@ import {
     NotFoundError,
     QuotaExceededError,
 } from '../../shared/errors/shared.errors'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { localDateInTz, wallClockToUtc } from '../attendance/attendance-utils'
 import { displayName } from '../attendance/schemas'
 import { GetWorkspaceScheduleHandler } from '../get-workspace-schedule/get-workspace-schedule.handler'
@@ -403,7 +404,11 @@ export class AiChatService {
             }),
             t.now,
         )
-        const system = buildSystemPrompt(access, localDateInTz(t.now, access.timezone))
+        const system = buildSystemPrompt(
+            access,
+            localDateInTz(t.now, access.timezone),
+            await loadClubVocabulary(this.prisma, access.workspaceId),
+        )
         const messages: LlmMessage[] = buildModelMessages(system, [...t.history, userMessage])
         const added: StoredChatMessage[] = [userMessage]
         const usage = { inputTokens: 0, outputTokens: 0 }

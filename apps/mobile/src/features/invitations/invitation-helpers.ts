@@ -1,10 +1,15 @@
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+
 import type { Invitation } from "../../shared/api/invitations"
 import { MONTHS_OF_RU, pluralRu } from "../../shared/format-ru"
 
-// «Приглашает вас как ученика/тренера» — the role the club offers.
-export const invitationRoleLine = (roleName: Invitation["roleName"]): string =>
-  roleName === "coach"
-    ? "Приглашает вас как тренера"
+// «Приглашает вас как ученика/тренера» — the role the club offers, in the
+// inviting club's words («как педагога» from a dance studio).
+export const invitationRoleLine = (
+  inv: Pick<Invitation, "roleName" | "workspaceType">,
+): string =>
+  inv.roleName === "coach"
+    ? `Приглашает вас как ${vocabularyForWorkspaceType(inv.workspaceType).coach.gen}`
     : "Приглашает вас как ученика"
 
 // «30 октября» in the device's zone; the year only when it isn't this year's.

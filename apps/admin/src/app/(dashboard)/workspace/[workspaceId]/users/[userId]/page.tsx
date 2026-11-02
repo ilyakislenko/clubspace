@@ -41,6 +41,7 @@ import {
 import { memberStatusLabel } from "../../../../../../shared/lib/member-status"
 import { formatPhone } from "../../../../../../shared/lib/phone"
 import { formatRoleName } from "../../../../../../shared/lib/role-labels"
+import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
 import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
 import { GuardianContacts } from "../../../../../../features/users/GuardianContacts"
 import { ProfileEditForm } from "../../../../../../features/users/ProfileEditForm"
@@ -74,6 +75,7 @@ const formatAccessLabel = (iso: string | null): string => {
 
 export default function MemberProgressPage() {
   const params = useParams<{ workspaceId: string; userId: string }>()
+  const vocabulary = useVocabulary()
   const workspaceId = params?.workspaceId
   const userId = params?.userId
   const myMembership = useMyMembership(workspaceId)
@@ -181,7 +183,7 @@ export default function MemberProgressPage() {
     const newRole = roles.find((r) => r.id === newRoleId)
     if (
       !window.confirm(
-        `Назначить роль «${formatRoleName(newRole?.name ?? "")}»? Это изменит доступ участника к админке.`,
+        `Назначить роль «${formatRoleName(newRole?.name ?? "", vocabulary)}»? Это изменит доступ участника к админке.`,
       )
     )
       return
@@ -285,7 +287,7 @@ export default function MemberProgressPage() {
           )}
           <span>{memberStatusLabel(member.status)}</span>
           <span>·</span>
-          <span>{formatRoleName(member.roleName)}</span>
+          <span>{formatRoleName(member.roleName, vocabulary)}</span>
           <span>·</span>
           <span
             className={
@@ -417,8 +419,8 @@ export default function MemberProgressPage() {
             <div className="font-medium">Роль в клубе</div>
             <div className="text-xs text-muted-foreground">
               Определяет доступ к админке: ученик — только мобильное
-              приложение, тренер — свои группы, главный тренер и
-              администратор — всё.
+              приложение, {vocabulary.coach.nom} — свои группы,{" "}
+              {vocabulary.headCoach.nom} и администратор — всё.
             </div>
           </div>
           <div className="ml-auto w-56">
@@ -433,7 +435,7 @@ export default function MemberProgressPage() {
               <SelectContent>
                 {roles.map((r) => (
                   <SelectItem key={r.id} value={r.id}>
-                    {formatRoleName(r.name)}
+                    {formatRoleName(r.name, vocabulary)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -465,7 +467,7 @@ export default function MemberProgressPage() {
                   {g.gym?.name ?? "без зала"}
                 </span>
                 {g.role === "coach" && (
-                  <span className="text-[11px] font-semibold">тренер</span>
+                  <span className="text-[11px] font-semibold">{vocabulary.coach.nom}</span>
                 )}
               </Link>
             ))}

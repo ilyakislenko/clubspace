@@ -60,6 +60,7 @@ const build = (
                 }),
             ),
         },
+        workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const notifications = { notifyUser: jest.fn().mockResolvedValue(true) }

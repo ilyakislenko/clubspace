@@ -113,7 +113,7 @@ export function InvitationList({
                 <Text style={styles.club} numberOfLines={2}>
                   {inv.workspaceName}
                 </Text>
-                <Text style={styles.role}>{invitationRoleLine(inv.roleName)}</Text>
+                <Text style={styles.role}>{invitationRoleLine(inv)}</Text>
                 {meta !== "" && <Text style={styles.meta}>{meta}</Text>}
               </View>
             </View>

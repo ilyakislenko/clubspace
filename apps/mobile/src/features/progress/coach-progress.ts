@@ -1,3 +1,5 @@
+import { countForm, type ClubVocabulary } from "@clubspace/ui-kit/brand"
+
 import type { AttendanceOverview } from "../../shared/api/attendance"
 import type { RankReadinessEntry } from "../../shared/api/rank-readiness"
 import { pluralRu } from "../../shared/format-ru"
@@ -53,9 +55,9 @@ export const readinessDigest = (
 }
 
 /** «12 тренировок · 148 отметок · 37 учеников» over the overview's window. */
-export const overviewLine = (o: AttendanceOverview): string =>
+export const overviewLine = (o: AttendanceOverview, vocabulary: ClubVocabulary): string =>
   [
-    `${o.sessionsHeld} ${pluralRu(o.sessionsHeld, "тренировка", "тренировки", "тренировок")}`,
+    `${o.sessionsHeld} ${countForm(o.sessionsHeld, vocabulary.session, pluralRu)}`,
     `${o.totalCheckIns} ${pluralRu(o.totalCheckIns, "отметка", "отметки", "отметок")}`,
     `${o.distinctAttendees} ${pluralRu(o.distinctAttendees, "ученик", "ученика", "учеников")}`,
   ].join(" · ")

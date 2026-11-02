@@ -1,3 +1,4 @@
+import { cap } from "@clubspace/ui-kit/brand"
 import { useIsFocused } from "@react-navigation/native"
 import React, { useCallback, useRef, useState } from "react"
 import {
@@ -24,6 +25,7 @@ import {
 import { formatPhone } from "../../shared/format-ru"
 import { dialPhone } from "../../shared/open-link"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
@@ -68,6 +70,7 @@ export function MySubscriptionScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace, actingAs } = useAuth()
+  const vocabulary = useVocabulary()
   const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
 
@@ -104,7 +107,7 @@ export function MySubscriptionScreen() {
     )
   }
 
-  const banner = data ? mySubscriptionState(data) : null
+  const banner = data ? mySubscriptionState(data, vocabulary) : null
   const abonements = data ? currentAbonements(data) : []
   // «Весь клуб» only contrasts a club-wide abonement with scoped neighbours.
   const showClubWide = abonements.length > 1 && hasScoped(abonements)
@@ -179,7 +182,7 @@ export function MySubscriptionScreen() {
 
         {data?.coach ? (
           <Text style={styles.meta}>
-            Тренер группы: {data.coach.name}
+            {cap(vocabulary.coach.nom)} группы: {data.coach.name}
             {data.coach.phone ? " · " : ""}
             {data.coach.phone ? (
               <Text
@@ -194,8 +197,8 @@ export function MySubscriptionScreen() {
 
         <Text style={styles.hint}>
           {hasFreezeAsk
-            ? "По вопросам оплаты и продления обращайтесь к тренеру вашей группы или администратору клуба."
-            : "По вопросам оплаты, продления и заморозки обращайтесь к тренеру вашей группы или администратору клуба."}
+            ? `По вопросам оплаты и продления обращайтесь к ${vocabulary.coach.dat} вашей группы или администратору клуба.`
+            : `По вопросам оплаты, продления и заморозки обращайтесь к ${vocabulary.coach.dat} вашей группы или администратору клуба.`}
         </Text>
 
         {data && data.history.length > 0 && (
@@ -208,7 +211,7 @@ export function MySubscriptionScreen() {
                     {s.planName}
                   </Text>
                   <Text style={styles.rowMeta}>
-                    {periodText(s)} ·{" "}
+                    {periodText(s, vocabulary)} ·{" "}
                     {frozenIds.has(s.id)
                       ? "заморожен"
                       : statusLabelFor(s)}
@@ -237,6 +240,7 @@ function AbonementCard({
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   const freezeText = freezeLine(a.freeze)
   const payment = paymentLine(a)
   return (
@@ -255,7 +259,7 @@ function AbonementCard({
       <Text style={styles.meta}>
         Статус: {frozenNow ? "заморожен" : statusLabelFor(a)}
       </Text>
-      <Text style={styles.meta}>Период: {periodText(a)}</Text>
+      <Text style={styles.meta}>Период: {periodText(a, vocabulary)}</Text>
       {a.freeze && freezeText && (
         <>
           <Text style={styles.freeze}>{freezeText}</Text>
@@ -269,7 +273,7 @@ function AbonementCard({
       </Text>
       {a.isPaid === false && (
         <Text style={styles.meta}>
-          Если вы уже оплатили — напомните тренеру отметить оплату
+          Если вы уже оплатили — напомните {vocabulary.coach.dat} отметить оплату
         </Text>
       )}
     </View>

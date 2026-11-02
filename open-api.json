@@ -24704,6 +24704,16 @@
           "name": {
             "type": "string"
           },
+          "type": {
+            "type": "string",
+            "enum": [
+              "GRAPPLING",
+              "FITNESS",
+              "YOGA",
+              "DANCE",
+              "CUSTOM"
+            ]
+          },
           "coachSeesAllGroups": {
             "type": "boolean"
           },
@@ -24815,6 +24825,7 @@
         "required": [
           "id",
           "name",
+          "type",
           "coachSeesAllGroups",
           "coachesMarkAnyClass",
           "timezone",

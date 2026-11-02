@@ -1,3 +1,4 @@
+import { cap } from "@clubspace/ui-kit/brand"
 import { useNavigation } from "@react-navigation/native"
 import React, { useCallback, useState } from "react"
 import {
@@ -18,6 +19,7 @@ import {
   type PersonalTrainingList,
 } from "../../shared/api/personal-trainings"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import {
   CenteredColumn,
@@ -45,6 +47,7 @@ export function PersonalTrainingsScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const { coach, personalSession } = useVocabulary()
   const workspaceId = workspace?.workspaceId
   const [toggling, setToggling] = useState(false)
   const [toggleError, setToggleError] = useState<string | null>(null)
@@ -126,10 +129,10 @@ export function PersonalTrainingsScreen() {
         <View style={styles.card}>
           <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>
-              Провожу персональные тренировки
+              Провожу {personalSession.nomPl}
             </Text>
             <Switch
-              accessibilityLabel="Провожу персональные тренировки"
+              accessibilityLabel={`Провожу ${personalSession.nomPl}`}
               value={offersPersonalTraining}
               disabled={toggling}
               onValueChange={(v) => void toggleOffer(v)}
@@ -142,7 +145,7 @@ export function PersonalTrainingsScreen() {
           <Text style={styles.muted}>
             {offersPersonalTraining
               ? "Ученики видят вас в списке и могут предложить время."
-              : "Включите, чтобы ученики могли записываться к вам на персональные тренировки."}
+              : `Включите, чтобы ученики могли записываться к вам на ${personalSession.nomPl}.`}
           </Text>
           {toggleError && <Text style={styles.danger}>{toggleError}</Text>}
         </View>
@@ -153,11 +156,11 @@ export function PersonalTrainingsScreen() {
           accessibilityRole="button"
           style={styles.cta}
         >
-          <Text style={styles.ctaText}>Записаться на персональную тренировку</Text>
+          <Text style={styles.ctaText}>Записаться на {personalSession.acc}</Text>
         </Pressable>
       ) : (
         <Text style={styles.muted}>
-          Пока никто из тренеров не проводит персональные тренировки.
+          Пока никто из {coach.genPl} не проводит {personalSession.nomPl}.
         </Text>
       )}
     </>
@@ -166,7 +169,7 @@ export function PersonalTrainingsScreen() {
   const main = isEmpty ? (
     <View style={styles.empty}>
       <Text style={styles.emptyText}>
-        Здесь появятся ваши заявки на персональные тренировки.
+        Здесь появятся ваши заявки на {personalSession.nomPl}.
       </Text>
     </View>
   ) : (
@@ -234,10 +237,11 @@ function RequestRow({
   onPress: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
+  const { coach } = useVocabulary()
   const viewer = viewerRole(pt, meId)
   const title =
     viewer === "member"
-      ? `Тренер: ${pt.coach.displayName}`
+      ? `${cap(coach.nom)}: ${pt.coach.displayName}`
       : viewer === "coach"
         ? pt.member.displayName
         : `${pt.member.displayName} · ${pt.coach.displayName}`

@@ -6,6 +6,7 @@ import { Pressable } from "../../shared/components/Pressable"
 import { kvGet, kvSet } from "../../shared/kv"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { IOS_INSTALL_HINT, useWebPush } from "./useWebPush"
 
 // Dismissed once → never again on this browser; Settings still has the switch.
@@ -20,6 +21,7 @@ const DISMISSED_KEY = "clubspace.webPushBannerDismissed"
 export function WebPushBanner() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   const { state, busy, enable } = useWebPush()
   const [dismissed, setDismissed] = useState<boolean | null>(null)
 
@@ -52,7 +54,7 @@ export function WebPushBanner() {
         <Text style={styles.hint}>
           {ios
             ? IOS_INSTALL_HINT
-            : "Сообщим о переносе тренировки, объявлениях клуба и абонементе."}
+            : `Сообщим о переносе ${vocabulary.session.gen}, объявлениях клуба и абонементе.`}
         </Text>
         {!ios && (
           <Pressable

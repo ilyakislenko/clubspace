@@ -1,3 +1,5 @@
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+
 import {
   addMonths,
   attendedDays,
@@ -130,9 +132,10 @@ describe("tenureSummary", () => {
     avgPerMonth: 5,
     completedSubscriptions: 11,
   }
+  const vocabulary = vocabularyForWorkspaceType("GRAPPLING")
 
   it("builds the title and detail with abonements", () => {
-    expect(tenureSummary(stats, 50, { showSubscriptions: true })).toEqual({
+    expect(tenureSummary(stats, 50, { showSubscriptions: true, vocabulary })).toEqual({
       title: "10 мес. · с 16 декабря 2025",
       detail: "50 тренировок · ~5 в месяц · пройдено 11 абонементов",
     })
@@ -140,34 +143,44 @@ describe("tenureSummary", () => {
 
   it("agrees plurals and uses a decimal comma", () => {
     const one = { ...stats, avgPerMonth: 1.5, completedSubscriptions: 1 }
-    expect(tenureSummary(one, 1, { showSubscriptions: true })?.detail).toBe(
+    expect(tenureSummary(one, 1, { showSubscriptions: true, vocabulary })?.detail).toBe(
       "1 тренировка · ~1,5 в месяц · пройден 1 абонемент",
     )
     const few = { ...stats, completedSubscriptions: 3 }
-    expect(tenureSummary(few, 22, { showSubscriptions: true })?.detail).toBe(
+    expect(tenureSummary(few, 22, { showSubscriptions: true, vocabulary })?.detail).toBe(
       "22 тренировки · ~5 в месяц · пройдено 3 абонемента",
     )
   })
 
   it("omits abonements when off or zero", () => {
-    expect(tenureSummary(stats, 50, { showSubscriptions: false })?.detail).toBe(
+    expect(tenureSummary(stats, 50, { showSubscriptions: false, vocabulary })?.detail).toBe(
       "50 тренировок · ~5 в месяц",
     )
     const none = { ...stats, completedSubscriptions: 0 }
-    expect(tenureSummary(none, 50, { showSubscriptions: true })?.detail).toBe(
+    expect(tenureSummary(none, 50, { showSubscriptions: true, vocabulary })?.detail).toBe(
       "50 тренировок · ~5 в месяц",
     )
   })
 
   it("is null before the first class", () => {
     const empty = { ...stats, firstTrainingDate: null }
-    expect(tenureSummary(empty, 0, { showSubscriptions: true })).toBeNull()
+    expect(tenureSummary(empty, 0, { showSubscriptions: true, vocabulary })).toBeNull()
   })
 
   it("hides the monthly average in the first month", () => {
     const fresh = { ...stats, monthsTraining: 0, completedSubscriptions: 0 }
-    expect(tenureSummary(fresh, 3, { showSubscriptions: true })?.detail).toBe(
+    expect(tenureSummary(fresh, 3, { showSubscriptions: true, vocabulary })?.detail).toBe(
       "3 тренировки",
     )
+  })
+
+  it("counts a dance studio's classes as «занятия»", () => {
+    const dance = vocabularyForWorkspaceType("DANCE")
+    const fresh = { ...stats, monthsTraining: 0, completedSubscriptions: 0 }
+    expect(
+      [1, 3, 21].map(
+        (n) => tenureSummary(fresh, n, { showSubscriptions: false, vocabulary: dance })?.detail,
+      ),
+    ).toEqual(["1 занятие", "3 занятия", "21 занятие"])
   })
 })

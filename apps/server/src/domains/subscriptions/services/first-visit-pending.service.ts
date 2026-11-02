@@ -3,6 +3,10 @@ import { Injectable, Logger } from '@nestjs/common'
 
 import { MemberStatus, PrismaService } from '../../../infrastructure/prisma'
 import { formatRuDate } from '../../../shared/utils/format-ru-date'
+import {
+    fromFirstSession,
+    vocabularyForWorkspaceType,
+} from '../../../shared/utils/club-vocabulary'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { heldSubscriptionWhere } from '../current-subscriptions'
 import {
@@ -114,7 +118,7 @@ export class FirstVisitPendingService {
                 createdAt: true,
                 classesTotal: true,
                 plan: { select: { name: true } },
-                workspace: { select: { timezone: true } },
+                workspace: { select: { timezone: true, type: true } },
                 workspaceMember: { select: { userId: true } },
             },
         })
@@ -142,7 +146,7 @@ export class FirstVisitPendingService {
                 kind: 'subscription.first_visit_pending',
                 refId: `${s.id}:${n}`,
                 topic: 'Абонемент ждёт вас',
-                message: `Абонемент «${s.plan.name}» начнётся с первой тренировки — приходите! Если не придёте, он начнётся автоматически ${formatRuDate(autoStart, tz)}.`,
+                message: `Абонемент «${s.plan.name}» начнётся ${fromFirstSession(vocabularyForWorkspaceType(s.workspace.type))} — приходите! Если не придёте, он начнётся автоматически ${formatRuDate(autoStart, tz)}.`,
                 metadata: { subscriptionId: s.id },
                 // Rides the «Истечение доступа» preference, like the pack alerts.
                 category: 'accessExpiringEnabled',

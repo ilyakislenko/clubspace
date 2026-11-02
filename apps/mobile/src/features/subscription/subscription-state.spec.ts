@@ -1,8 +1,10 @@
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+
 import {
-  abonementShortLine,
+  abonementShortLine as abonementShortLineIn,
   accessStatus,
   currentAbonements,
-  mySubscriptionState,
+  mySubscriptionState as mySubscriptionStateIn,
   soonestEndingId,
   freezeExtendsText,
   freezeLine,
@@ -10,10 +12,25 @@ import {
   localYmd,
   packGuidance,
   paymentLine,
-  periodText,
-  subscriptionState,
+  periodText as periodTextIn,
+  subscriptionState as subscriptionStateIn,
   toneColor,
 } from "./subscription-state"
+
+// The academy's words («тренировка»); a dance studio's are checked at the end.
+const SPORT = vocabularyForWorkspaceType("GRAPPLING")
+const DANCE = vocabularyForWorkspaceType("DANCE")
+const subscriptionState = (
+  input: Parameters<typeof subscriptionStateIn>[0],
+  now?: Date,
+) => subscriptionStateIn(input, SPORT, now)
+const mySubscriptionState = (
+  data: Parameters<typeof mySubscriptionStateIn>[0],
+  now?: Date,
+) => mySubscriptionStateIn(data, SPORT, now)
+const periodText = (s: Parameters<typeof periodTextIn>[0]) => periodTextIn(s, SPORT)
+const abonementShortLine = (a: Parameters<typeof abonementShortLineIn>[0]) =>
+  abonementShortLineIn(a, SPORT)
 
 const NOW = new Date("2026-10-24T10:00:00Z")
 const future = "2026-12-24T00:00:00Z"
@@ -449,5 +466,26 @@ describe("abonementShortLine", () => {
   })
   it("falls back to «без ограничения» for an open time-only one", () => {
     expect(abonementShortLine(base)).toBe("без ограничения по времени")
+  })
+})
+
+describe("first-visit wording in a dance studio", () => {
+  const pending = { startDate: null, endDate: null }
+  it("starts «с первого занятия» everywhere the academy says «с первой тренировки»", () => {
+    expect(periodTextIn(pending, DANCE)).toBe("С первого занятия")
+    expect(
+      abonementShortLineIn({ ...pending, classesRemaining: null, classesTotal: null }, DANCE),
+    ).toBe("С первого занятия")
+    expect(
+      subscriptionStateIn(
+        {
+          accessUntil: future,
+          history: [],
+          current: { classesRemaining: 8, status: "ACTIVE", startDate: null },
+        },
+        DANCE,
+        NOW,
+      ).text,
+    ).toBe("Начнётся с первого занятия · 8 занятий")
   })
 })

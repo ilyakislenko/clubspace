@@ -128,3 +128,5 @@ export const getInstanceBrand = (): Brand => {
   return envValue.trim() === "" ? platformBrand : brandFromWorkspaceType(envValue)
 }
 
+
+export * from "./vocabulary"

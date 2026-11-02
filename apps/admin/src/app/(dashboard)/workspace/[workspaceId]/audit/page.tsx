@@ -23,8 +23,10 @@ import {
   targetTypeLabel,
   TONE_CLASS,
 } from "../../../../../features/audit/audit-meta"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 
 export default function WorkspaceAuditPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
 
@@ -135,7 +137,7 @@ export default function WorkspaceAuditPage() {
           <Activity className="mx-auto mb-3 size-8 text-muted-foreground" />
           <p className="text-sm font-medium">Событий пока нет</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Здесь появятся записи когда тренер начнёт что-то делать в клубе.
+            Здесь появятся записи когда {vocabulary.coach.nom} начнёт что-то делать в клубе.
           </p>
         </div>
       )}

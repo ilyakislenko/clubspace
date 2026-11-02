@@ -33,8 +33,10 @@ import {
   AnalyticsSkeleton,
   formatMoney,
 } from "../analytics-toolbar"
+import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
 
 export default function ChurnPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
 
@@ -207,7 +209,7 @@ export default function ChurnPage() {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Кому позвонить сегодня</h1>
         <p className="text-sm text-muted-foreground">
-          Ученики, которые могут уйти, — по убыванию риска. Звонок тренера
+          Ученики, которые могут уйти, — по убыванию риска. Звонок {vocabulary.coach.gen}
           заметно продлевает членство.
         </p>
         <AnalyticsFreshness

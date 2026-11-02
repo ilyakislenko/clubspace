@@ -1,3 +1,4 @@
+import { agree, cap } from "@clubspace/ui-kit/brand"
 import { useNavigation } from "@react-navigation/native"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useRef, useState } from "react"
@@ -23,6 +24,7 @@ import {
 } from "../../shared/api/personal-trainings"
 import { showAlert } from "../../shared/alert"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn, READABLE_WIDTH } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
@@ -60,6 +62,7 @@ export function PersonalTrainingScreen({ route }: Props) {
   const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const { workspace } = useAuth()
+  const { coach, session, personalSession } = useVocabulary()
   const { showToast } = useToast()
   const workspaceId = workspace?.workspaceId
 
@@ -125,7 +128,7 @@ export function PersonalTrainingScreen({ route }: Props) {
       ? pt.coach.displayName
       : viewer === "coach"
         ? pt.member.displayName
-        : "Ученик и тренер"
+        : `Ученик и ${coach.nom}`
 
   const run = async (
     action: () => Promise<PersonalTraining>,
@@ -162,7 +165,7 @@ export function PersonalTrainingScreen({ route }: Props) {
           optionId,
         }),
       "Не удалось подтвердить",
-      "Тренировка подтверждена",
+      `${cap(session.nom)} ${agree(session, "подтверждена", "подтверждено")}`,
     )
 
   const propose = () => {
@@ -202,7 +205,7 @@ export function PersonalTrainingScreen({ route }: Props) {
     )
 
   const confirmCancelSession = () =>
-    showAlert("Отменить тренировку?", `${counterpart} получит уведомление.`, [
+    showAlert(`Отменить ${session.acc}?`, `${counterpart} получит уведомление.`, [
       { text: "Нет", style: "cancel" },
       {
         text: "Отменить",
@@ -312,9 +315,11 @@ export function PersonalTrainingScreen({ route }: Props) {
 
             <View style={styles.header}>
               <PtStatusPill status={status} />
-              <Text style={styles.title}>Персональная тренировка</Text>
+              <Text style={styles.title}>{cap(personalSession.nom)}</Text>
               {viewer !== "coach" && (
-                <Text style={styles.meta}>Тренер: {pt.coach.displayName}</Text>
+                <Text style={styles.meta}>
+                  {cap(coach.nom)}: {pt.coach.displayName}
+                </Text>
               )}
               {viewer !== "member" && (
                 <Text style={styles.meta}>Ученик: {pt.member.displayName}</Text>
@@ -393,7 +398,7 @@ export function PersonalTrainingScreen({ route }: Props) {
                     </Text>
                   ))}
                 </View>
-                <Text style={styles.muted}>Ждём ответа тренера</Text>
+                <Text style={styles.muted}>Ждём ответа {coach.gen}</Text>
                 {cancelRequest}
               </>
             )}
@@ -401,7 +406,7 @@ export function PersonalTrainingScreen({ route }: Props) {
             {status === "PENDING_MEMBER" && !coachSide && coachOption && (
               <>
                 <View style={styles.block}>
-                  <Text style={styles.label}>Тренер предлагает:</Text>
+                  <Text style={styles.label}>{cap(coach.nom)} предлагает:</Text>
                   <Text style={styles.optionText}>{time(coachOption)}</Text>
                   {pt.coachComment && (
                     <Text style={styles.meta}>{pt.coachComment}</Text>
@@ -433,7 +438,7 @@ export function PersonalTrainingScreen({ route }: Props) {
               <>
                 {markAttendance}
                 <Button
-                  label="Отменить тренировку"
+                  label={`Отменить ${session.acc}`}
                   onPress={confirmCancelSession}
                   kind="secondary"
                   disabled={busy}
@@ -447,7 +452,7 @@ export function PersonalTrainingScreen({ route }: Props) {
               <View style={styles.block}>
                 <Text style={styles.optionText}>
                   {status === "DECLINED" ? "Отклонена" : "Отменена"}{" "}
-                  {pt.closedByRole === "coach" ? "тренером" : "учеником"}
+                  {pt.closedByRole === "coach" ? coach.ins : "учеником"}
                 </Text>
                 {pt.closeComment && (
                   <Text style={styles.meta}>Комментарий: {pt.closeComment}</Text>

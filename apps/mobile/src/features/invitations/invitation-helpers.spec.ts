@@ -26,8 +26,15 @@ const inv = (over: Partial<Invitation> = {}): Invitation => ({
 
 describe("invitationRoleLine", () => {
   it("names the offered role", () => {
-    expect(invitationRoleLine("user")).toBe("Приглашает вас как ученика")
-    expect(invitationRoleLine("coach")).toBe("Приглашает вас как тренера")
+    expect(invitationRoleLine({ roleName: "user", workspaceType: "GRAPPLING" })).toBe(
+      "Приглашает вас как ученика",
+    )
+    expect(invitationRoleLine({ roleName: "coach", workspaceType: "GRAPPLING" })).toBe(
+      "Приглашает вас как тренера",
+    )
+    expect(invitationRoleLine({ roleName: "coach", workspaceType: "DANCE" })).toBe(
+      "Приглашает вас как педагога",
+    )
   })
 })
 

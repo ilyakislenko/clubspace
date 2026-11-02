@@ -20,13 +20,12 @@ import {
 } from "../../shared/api/invites"
 import { errorMessage } from "../../shared/lib/error-message"
 import { groupOptionLabel } from "../../shared/lib/group-label"
+import { formatRoleName } from "../../shared/lib/role-labels"
+import { useVocabulary } from "../../shared/lib/vocabulary"
 
 type Role = "user" | "coach"
 
-const ROLE_LABELS: Record<Role, string> = {
-  user: "Ученик",
-  coach: "Тренер",
-}
+const ROLES: Role[] = ["user", "coach"]
 
 const NO_GROUP = "none"
 
@@ -52,6 +51,7 @@ export function InviteMemberForm({
   workspaceId: string
   onInvited: () => void
 }) {
+  const vocabulary = useVocabulary()
   const [email, setEmail] = useState("")
   const [firstname, setFirstname] = useState("")
   const [lastname, setLastname] = useState("")
@@ -148,12 +148,12 @@ export function InviteMemberForm({
             onValueChange={(value) => setRole(value as Role)}
           >
             <SelectTrigger disabled={submitting}>
-              <SelectValue>{ROLE_LABELS[role]}</SelectValue>
+              <SelectValue>{formatRoleName(role, vocabulary)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {(Object.keys(ROLE_LABELS) as Role[]).map((key) => (
+              {ROLES.map((key) => (
                 <SelectItem key={key} value={key}>
-                  {ROLE_LABELS[key]}
+                  {formatRoleName(key, vocabulary)}
                 </SelectItem>
               ))}
             </SelectContent>

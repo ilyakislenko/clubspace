@@ -24,6 +24,7 @@ import { THEME_KEYS, THEMES } from "@clubspace/ui-kit/util"
 
 import { exportMyData } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
@@ -73,6 +74,7 @@ export function SettingsScreen(_props: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { signOut, workspace, actingAs } = useAuth()
+  const vocabulary = useVocabulary()
   const offlineDownloads = useOfflineDownloadsAllowed()
   const { showToast } = useToast()
   const [prefs, setPrefs] = useState<Preferences | null>(null)
@@ -376,10 +378,10 @@ export function SettingsScreen(_props: Props) {
           {isFeatureEnabled(workspace, "attendance") && (
             <Row
               label="Напоминания о пропусках"
-              description="«Давно вас не было» — если вы перестали отмечаться на тренировках."
+              description={`«Давно вас не было» — если вы перестали отмечаться на ${vocabulary.session.prepPl}.`}
               right={
                 <Switch
-                  accessibilityLabel="Напоминания о пропусках тренировок"
+                  accessibilityLabel={`Напоминания о пропусках ${vocabulary.session.genPl}`}
                   disabled={!notif}
                   value={notif?.inactivityEnabled ?? true}
                   onValueChange={(v) => updateNotif({ inactivityEnabled: v })}

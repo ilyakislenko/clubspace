@@ -2,7 +2,8 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
 import { loadDropInEligibility } from './drop-in-eligibility'
-import { DROP_IN_BLOCK_MESSAGES } from './drop-in-utils'
+import { dropInBlockMessage } from './drop-in-utils'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     GetMyDropInsFeature,
     GetMyDropInsFeatureResponse,
@@ -27,7 +28,10 @@ export class GetMyDropInsHandler
         return {
             canBook: eligibility.reason === null,
             blockedReason: eligibility.reason
-                ? DROP_IN_BLOCK_MESSAGES[eligibility.reason]
+                ? dropInBlockMessage(
+                      eligibility.reason,
+                      await loadClubVocabulary(this.prisma, workspaceId),
+                  )
                 : null,
             bookings: eligibility.upcoming.map(({ b, occ }) =>
                 serializeDropInBooking(b, occ),

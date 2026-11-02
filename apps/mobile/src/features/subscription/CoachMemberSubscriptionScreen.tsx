@@ -1,3 +1,4 @@
+import { fromFirstSession, type ClubVocabulary } from "@clubspace/ui-kit/brand"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
@@ -28,6 +29,7 @@ import {
   type Plan,
 } from "../../shared/api/member-subscriptions"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { subscribeInvalidation } from "../../shared/cache/cache-events"
 import {
   CenteredColumn,
@@ -85,13 +87,13 @@ const STATUS_LABEL: Record<string, string> = {
   SUSPENDED: "приостановлен",
 }
 
-const planLine = (p: Plan): string =>
+const planLine = (p: Plan, vocabulary: ClubVocabulary): string =>
   [
     `${p.durationDays} дн.`,
     p.classCount != null
       ? `${p.classCount} ${classesWord(p.classCount)}`
       : "безлимит",
-    p.startsOnFirstVisit ? "с первой тренировки" : null,
+    p.startsOnFirstVisit ? fromFirstSession(vocabulary) : null,
     p.isFreeTrial ? "пробный, один раз" : null,
   ]
     .filter(Boolean)
@@ -109,6 +111,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
   const { showToast } = useToast()
   const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
@@ -436,7 +439,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
           Статус:{" "}
           {frozenNow ? "заморожен" : (STATUS_LABEL[a.status] ?? a.status)}
         </Text>
-        <Text style={styles.meta}>Период: {periodText(a)}</Text>
+        <Text style={styles.meta}>Период: {periodText(a, vocabulary)}</Text>
         {openFreeze && freezeText && (
           <>
             <Text style={styles.freeze}>{freezeText}</Text>
@@ -494,7 +497,8 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         {debts.map((d) => (
           <View key={d.id} style={styles.debt}>
             <Text style={styles.meta}>
-              {d.planName} · {periodText(d)} · {formatMoney(d.amountPaid, d.currency)}
+              {d.planName} · {periodText(d, vocabulary)} ·{" "}
+              {formatMoney(d.amountPaid, d.currency)}
             </Text>
             {data?.permissions.canManage &&
               button("Отметить оплату", () => openPay(d))}
@@ -540,8 +544,8 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
 
   const actionsPanel = !data ? null : !canManage ? (
     <Text style={styles.hint}>
-      Этот ученик не из ваших групп — управлять его абонементом может тренер
-      группы или администратор клуба.
+      Этот ученик не из ваших групп — управлять его абонементом может{" "}
+      {vocabulary.coach.nom} группы или администратор клуба.
     </Text>
   ) : (
     <View style={styles.panel}>
@@ -618,7 +622,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
                   <Text style={styles.planPrice}>
                     {formatMoney(p.price, p.currency)}
                   </Text>
-                  <Text style={styles.caption}>{planLine(p)}</Text>
+                  <Text style={styles.caption}>{planLine(p, vocabulary)}</Text>
                   <AbonementScopeChips
                     directions={p.directions}
                     showClubWide={hasScoped(formPlans)}
@@ -714,7 +718,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
           <TextInput
             value={declineComment}
             onChangeText={setDeclineComment}
-            placeholder="Например: приходите на тренировки, обсудим"
+            placeholder={`Например: приходите на ${vocabulary.session.nomPl}, обсудим`}
             placeholderTextColor={theme.colors.muted}
             maxLength={DECLINE_COMMENT_MAX}
             accessibilityLabel="Комментарий к отказу"

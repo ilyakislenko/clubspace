@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react"
 
 import { Button, Input, Label } from "@clubspace/ui-kit/ui"
+import { useVocabulary } from "../../shared/lib/vocabulary"
 
 type Props = {
   // phone is optional: the self-edit card doesn't show it, the staff view does.
@@ -29,6 +30,7 @@ export function ProfileEditForm({
   onCancel,
   onSubmit,
 }: Props) {
+  const vocabulary = useVocabulary()
   const [firstname, setFirstname] = useState(initial.firstname)
   const [lastname, setLastname] = useState(initial.lastname)
   const [email, setEmail] = useState(initial.email ?? "")
@@ -104,7 +106,7 @@ export function ProfileEditForm({
             placeholder="+7 900 000-00-00"
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            По нему тренер звонит в списке «Кто пропадает».
+            По нему {vocabulary.coach.nom} звонит в списке «Кто пропадает».
           </p>
         </div>
       )}

@@ -4,6 +4,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     BadRequestError,
     NotFoundError,
@@ -48,16 +49,17 @@ export class RequestPersonalTrainingHandler
         workspaceId,
         invokerUserId,
     }: RequestPersonalTrainingFeature) {
+        const v = await loadClubVocabulary(this.prisma, workspaceId)
         if (payload.coachId === invokerUserId) {
             throw new BadRequestError({
                 message:
-                    'Нельзя записаться на персональную тренировку к самому себе',
+                    `Нельзя записаться на ${v.personalSession.acc} к самому себе`,
             })
         }
         const coaches = await loadOfferingCoaches(this.prisma, workspaceId)
         if (!coaches.some((c) => c.userId === payload.coachId)) {
             throw new NotFoundError({
-                message: 'Этот тренер сейчас не проводит персональные тренировки',
+                message: `Этот ${v.coach.nom} сейчас не проводит ${v.personalSession.nomPl}`,
             })
         }
 
@@ -133,7 +135,7 @@ export class RequestPersonalTrainingHandler
             recipients: [request.coachId],
             workspaceId,
             requestId: request.id,
-            topic: () => 'Новая заявка на персональную тренировку',
+            topic: () => `Новая заявка на ${v.personalSession.acc}`,
             message: () =>
                 `${displayName(request.member)} предлагает: ${formatLocalDateTimeRu(instants[0], timezone)}${more}`,
         })

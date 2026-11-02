@@ -2,6 +2,11 @@
 // level, what is the next level, and how far are they from its rule. No I/O —
 // the handlers feed it rows.
 import { pluralRu } from '../../shared/utils/plural-ru'
+import {
+    countNoun,
+    type SessionNoun,
+    vocabularyForWorkspaceType,
+} from '../../shared/utils/club-vocabulary'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -59,10 +64,12 @@ export const nextLevelAfter = <T extends LadderLevelRule>(
 export const describeRemaining = (
     remainingVisits: number,
     remainingWeeks: number,
+    // The club's class noun; a club of unknown type says «тренировка».
+    session: SessionNoun = vocabularyForWorkspaceType(null).session,
 ): string | null => {
     const visits =
         remainingVisits > 0
-            ? `${remainingVisits} ${pluralRu(remainingVisits, 'тренировка', 'тренировки', 'тренировок')}`
+            ? countNoun(remainingVisits, session)
             : null
     const weeks =
         remainingWeeks > 0
@@ -88,6 +95,7 @@ export const evaluateReadiness = (p: {
     reachedAt: Date
     visitsSince: number
     now: Date
+    session?: SessionNoun
 }): Readiness => {
     const minVisits = p.nextLevel.minVisits ?? null
     const minWeeks = p.nextLevel.minWeeks ?? null
@@ -110,6 +118,6 @@ export const evaluateReadiness = (p: {
         remainingText:
             rule === null || ready
                 ? null
-                : describeRemaining(remainingVisits, remainingWeeks),
+                : describeRemaining(remainingVisits, remainingWeeks, p.session),
     }
 }

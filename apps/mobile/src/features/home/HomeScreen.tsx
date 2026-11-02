@@ -15,6 +15,7 @@ import { listPersonalTrainings } from "../../shared/api/personal-trainings"
 import { listAtRiskMembers } from "../../shared/api/retention"
 import { getMySubscription } from "../../shared/api/subscriptions"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import {
   CenteredColumn,
@@ -79,6 +80,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace, workspaces, actingAs } = useAuth()
+  const vocabulary = useVocabulary()
   const { sizeClass } = useResponsive()
   // The desktop web sidebar already shows whose profile this is.
   const shellShowsProfile = useContext(ShellInsetContext) > 0
@@ -306,7 +308,9 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
         size={22}
         color={theme.colors.accentText}
       />
-      <Text style={styles.primaryCtaText}>Отметиться на тренировке</Text>
+      <Text style={styles.primaryCtaText}>
+        Отметиться на {vocabulary.session.prep}
+      </Text>
     </Pressable>
   )
 

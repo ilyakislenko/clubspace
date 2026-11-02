@@ -11,6 +11,7 @@ import {
 } from "../../shared/api/invitations"
 import { errorMessage } from "../../shared/lib/error-message"
 import { formatRoleName } from "../../shared/lib/role-labels"
+import { useVocabulary } from "../../shared/lib/vocabulary"
 import { useWorkspaceRealtime } from "../../shared/realtime/useWorkspaceRealtime"
 
 // «Ожидают принятия»: people with an existing account the club invited. They
@@ -24,6 +25,7 @@ export function PendingInvitationsPanel({
   workspaceId: string
   refreshKey: number
 }) {
+  const vocabulary = useVocabulary()
   const [items, setItems] = useState<WorkspaceInvitation[]>([])
   const [error, setError] = useState<string | null>(null)
   const [revokingId, setRevokingId] = useState<string | null>(null)
@@ -82,7 +84,7 @@ export function PendingInvitationsPanel({
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{item.email}</p>
               <p className="text-xs text-muted-foreground">
-                {formatRoleName(item.roleName)} · ожидает принятия с{" "}
+                {formatRoleName(item.roleName, vocabulary)} · ожидает принятия с{" "}
                 {new Date(item.invitedAt).toLocaleDateString("ru-RU", {
                   day: "numeric",
                   month: "long",

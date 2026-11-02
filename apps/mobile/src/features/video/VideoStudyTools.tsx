@@ -4,6 +4,7 @@ import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import type { Theme } from "../../shared/theme"
 import { formatPosition } from "./format-position"
 
@@ -40,6 +41,7 @@ export function VideoStudyTools({
 }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
 
@@ -162,7 +164,7 @@ export function VideoStudyTools({
         <TextInput
           value={note}
           onChangeText={onNoteChange}
-          placeholder="Например: попробовал на тренировке, получается не с первого раза"
+          placeholder={`Например: попробовал на ${vocabulary.session.prep}, получается не с первого раза`}
           placeholderTextColor={theme.colors.muted}
           multiline
           style={styles.noteInput}

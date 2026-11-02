@@ -35,6 +35,7 @@ import { SplitLayout } from "../../shared/components/SplitLayout"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { useOfflineDownloadsAllowed } from "../../shared/use-offline-downloads"
 import { formatRoleName } from "../../shared/role-labels"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { useResponsive } from "../../shared/useResponsive"
@@ -101,16 +102,18 @@ export function ProfileScreen({ navigation }: Props) {
 
   // A member's role is the default and says nothing; staff roles are worth
   // showing (and the owner, who has no member row, reads as "Владелец").
+  const vocabulary = useVocabulary()
   const roleLabel = membership?.isOwner
     ? "Владелец"
     : membership?.role && membership.role !== "user"
-      ? formatRoleName(membership.role)
+      ? formatRoleName(membership.role, vocabulary)
       : null
 
   const access = accessStatus(membership?.accessUntil)
 
   const sections = visibleSections(
     PROFILE_SECTIONS,
+    vocabulary,
     (key) => isFeatureEnabled(workspace, key),
     offlineDownloads,
     // Inviting people is staff work, never a child profile's.

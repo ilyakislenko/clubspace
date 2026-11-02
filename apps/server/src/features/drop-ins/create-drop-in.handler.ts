@@ -25,16 +25,22 @@ import {
 } from './create-drop-in.feature'
 import { loadDropInEligibility } from './drop-in-eligibility'
 import {
-    DROP_IN_BLOCK_MESSAGES,
     DROP_IN_COUNT_REASONS,
-    DROP_IN_ENDS_BEFORE_CLASS_MESSAGE,
     DROP_IN_FORBIDDEN_REASONS,
-    DROP_IN_NOT_COVERED_MESSAGE,
+    dropInBlockMessage,
     dropInClassBlock,
+    dropInEndsBeforeClassMessage,
+    dropInNotCoveredMessage,
     type DropInBlockReason,
     type DropInClassBlock,
 } from './drop-in-utils'
 import { serializeDropInBooking } from './schemas'
+import {
+    agree,
+    cap,
+    type ClubVocabulary,
+    loadClubVocabulary,
+} from '../../shared/utils/club-vocabulary'
 
 const isP2002 = (e: unknown): boolean =>
     typeof e === 'object' &&
@@ -65,22 +71,22 @@ export class CreateDropInHandler
         return null
     }
 
-    private blocked(reason: DropInBlockReason) {
-        const message = DROP_IN_BLOCK_MESSAGES[reason]
+    private blocked(reason: DropInBlockReason, v: ClubVocabulary) {
+        const message = dropInBlockMessage(reason, v)
         return DROP_IN_FORBIDDEN_REASONS.has(reason)
             ? new ForbiddenError({ message })
             : new BadRequestError({ message })
     }
 
-    private classBlocked(block: DropInClassBlock) {
+    private classBlocked(block: DropInClassBlock, v: ClubVocabulary) {
         switch (block.kind) {
             case 'not_covered':
                 return new BadRequestError({
-                    message: DROP_IN_NOT_COVERED_MESSAGE,
+                    message: dropInNotCoveredMessage(v),
                 })
             case 'ends_before':
                 return new BadRequestError({
-                    message: DROP_IN_ENDS_BEFORE_CLASS_MESSAGE,
+                    message: dropInEndsBeforeClassMessage(v),
                 })
             case 'frozen':
                 return new BadRequestError({
@@ -88,7 +94,7 @@ export class CreateDropInHandler
                 })
             case 'no_classes':
             case 'classes_allocated':
-                return this.blocked(block.kind)
+                return this.blocked(block.kind, v)
         }
     }
 
@@ -104,10 +110,12 @@ export class CreateDropInHandler
             invokerUserId,
             now,
         )
+        const v = await loadClubVocabulary(this.prisma, workspaceId)
+        const s = v.session
         // Count-based refusals wait until we know the class isn't already
         // booked: re-sending an existing booking must stay a no-op.
         if (eligibility.reason && !DROP_IN_COUNT_REASONS.has(eligibility.reason)) {
-            throw this.blocked(eligibility.reason)
+            throw this.blocked(eligibility.reason, v)
         }
 
         const slot = await this.prisma.groupScheduleSlot.findFirst({
@@ -139,7 +147,11 @@ export class CreateDropInHandler
                 },
             },
         })
-        if (!slot) throw new NotFoundError({ message: 'Тренировка не найдена' })
+        if (!slot) {
+            throw new NotFoundError({
+                message: `${cap(s.nom)} не ${agree(s, 'найдена', 'найдено')}`,
+            })
+        }
         const group = slot.group
         // A «Запись на занятие» class is booked through class-bookings (places,
         // waitlist), never as a drop-in.
@@ -151,7 +163,7 @@ export class CreateDropInHandler
 
         const isCoach = group.coaches.some((c) => c.userId === invokerUserId)
         if (isCoach) {
-            throw new BadRequestError({ message: 'Вы тренер этой группы' })
+            throw new BadRequestError({ message: `Вы ${v.coach.nom} этой группы` })
         }
         const inGroup = await this.prisma.groupMember.findFirst({
             where: { groupId: group.id, userId: invokerUserId },
@@ -186,15 +198,17 @@ export class CreateDropInHandler
         })
         if (!occ.scheduled) {
             throw new BadRequestError({
-                message: 'В эту дату тренировки по расписанию нет',
+                message: `В эту дату ${s.gen} по расписанию нет`,
             })
         }
         if (occ.cancelled) {
-            throw new BadRequestError({ message: 'Эта тренировка отменена' })
+            throw new BadRequestError({
+                message: `${agree(s, 'Эта', 'Это')} ${s.nom} ${agree(s, 'отменена', 'отменено')}`,
+            })
         }
         if (occ.startAt.getTime() <= now.getTime()) {
             throw new BadRequestError({
-                message: 'Запись закрыта — тренировка уже началась',
+                message: `Запись закрыта — ${s.nom} уже ${agree(s, 'началась', 'началось')}`,
             })
         }
         if (
@@ -202,7 +216,7 @@ export class CreateDropInHandler
             addDaysYmd(localDateInTz(now, occ.timezone), BOOKING_HORIZON_DAYS)
         ) {
             throw new BadRequestError({
-                message: `Записаться можно не раньше чем за ${BOOKING_HORIZON_DAYS} дней до тренировки`,
+                message: `Записаться можно не раньше чем за ${BOOKING_HORIZON_DAYS} дней до ${s.gen}`,
             })
         }
 
@@ -245,15 +259,15 @@ export class CreateDropInHandler
         // A frozen abonement is paused: no booking for a day it covers — also
         // in a club that doesn't require abonements, and for a re-sent booking.
         if (!alreadyBooked) {
-            if (eligibility.reason) throw this.blocked(eligibility.reason)
+            if (eligibility.reason) throw this.blocked(eligibility.reason, v)
             if (
                 block &&
                 (eligibility.subscriptionRequired || block.kind === 'frozen')
             ) {
-                throw this.classBlocked(block)
+                throw this.classBlocked(block, v)
             }
         } else if (block?.kind === 'frozen') {
-            throw this.classBlocked(block)
+            throw this.classBlocked(block, v)
         }
 
         let booking
@@ -302,7 +316,7 @@ export class CreateDropInHandler
                         userId: coach.userId,
                         kind: 'dropin.booked',
                         refId: `${booking.id}:${coach.userId}`,
-                        topic: 'Гость на тренировке',
+                        topic: `Гость на ${s.prep}`,
                         message: `${displayName(member)} придёт на «${group.name}» ${when}`,
                         metadata: {
                             bookingId: booking.id,

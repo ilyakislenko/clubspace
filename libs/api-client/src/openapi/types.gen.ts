@@ -2513,6 +2513,7 @@ export type UpdateMemberProfileOutputOutput = {
 export type GetWorkspaceSettingsOutputOutput = {
     id: string;
     name: string;
+    type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
     coachSeesAllGroups: boolean;
     coachesMarkAnyClass: boolean;
     timezone: string;

@@ -1,3 +1,4 @@
+import { cap } from "@clubspace/ui-kit/brand"
 import React from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 
@@ -7,6 +8,7 @@ import type { PersonalTraining } from "../../shared/api/personal-trainings"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useThemedStyles } from "../../shared/theme-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useResponsive } from "../../shared/useResponsive"
 import { viewerRole } from "../personal-training/personal-training-helpers"
 import { Pill } from "./OccurrenceSheet"
@@ -44,6 +46,7 @@ export function MyBookingsPanel({
   onOpenPersonal: (pt: PersonalTraining) => void
 }) {
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   const { sizeClass } = useResponsive()
   const cardWidth = sizeClass === "compact" ? CARD_WIDTH : CARD_WIDTH_WIDE
   // Guest bookings and class bookings, soonest first, as the same cards.
@@ -75,10 +78,10 @@ export function MyBookingsPanel({
       when: formatUpcomingLabel(new Date(pt.confirmedStartAt!), pt.timezone, now),
       title:
         meId && viewerRole(pt, meId) === "member"
-          ? `Тренер: ${pt.coach.displayName}`
+          ? `${cap(vocabulary.coach.nom)}: ${pt.coach.displayName}`
           : `Ученик: ${pt.member.displayName}`,
       meta: pt.gym ? pt.gym.name : "Зал не выбран",
-      pill: "персональная",
+      pill: vocabulary.personalTag,
       onPress: () => onOpenPersonal(pt),
     })),
   ].sort((a, b) => a.startAt.localeCompare(b.startAt))

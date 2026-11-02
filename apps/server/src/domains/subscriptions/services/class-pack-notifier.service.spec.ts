@@ -17,6 +17,7 @@ const row = (classesRemaining: number, current = 1) => ({
     id: 'sub1',
     classesRemaining,
     plan: { name: 'БЖЖ 12 занятий' },
+    workspace: { type: 'GRAPPLING' },
     workspaceMember: {
         userId: 'u1',
         _count: { subscriptions: current },
@@ -82,6 +83,14 @@ describe('ClassPackNotifierService', () => {
         await out.svc.notifyLowOrExhausted(['sub1'], 'w1')
         expect(out.notifications.notifyUser.mock.calls[0][0].message).toBe(
             'Абонемент «БЖЖ 12 занятий» израсходован. Оформите новый, чтобы продолжить ходить на тренировки.',
+        )
+    })
+
+    it('says «занятия» in a dance studio', async () => {
+        const { notifications, svc } = make([{ ...row(0), workspace: { type: 'DANCE' } }])
+        await svc.notifyLowOrExhausted(['sub1'], 'w1')
+        expect(notifications.notifyUser.mock.calls[0][0].message).toBe(
+            'Абонемент израсходован. Оформите новый, чтобы продолжить ходить на занятия.',
         )
     })
 

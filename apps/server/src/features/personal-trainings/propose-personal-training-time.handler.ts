@@ -4,6 +4,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     BadRequestError,
     ConflictError,
@@ -98,6 +99,7 @@ export class ProposePersonalTrainingTimeHandler
             ['personal-trainings'],
         )
         const when = formatLocalDateTimeRu(instant, request.timezone)
+        const v = await loadClubVocabulary(this.prisma, f.workspaceId)
         await sendPersonalTrainingNotice(this.notifications, this.logger, {
             kind: 'personal.proposed',
             refBase: option.id,
@@ -111,7 +113,7 @@ export class ProposePersonalTrainingTimeHandler
             // An admin acting for the coach is named as such, not as the coach.
             topic: (userId) =>
                 f.invokerUserId === request.coachId
-                    ? 'Тренер предложил другое время'
+                    ? `${cap(v.coach.nom)} предложил другое время`
                     : userId === request.memberId
                       ? 'Клуб предложил другое время'
                       : 'Администратор предложил другое время',

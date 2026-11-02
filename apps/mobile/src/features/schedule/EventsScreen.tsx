@@ -20,6 +20,7 @@ import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 
 import { listEvents, type ScheduleEvent } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
@@ -68,6 +69,7 @@ export function EventsScreen({ navigation: _ }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
   const {
     data: events,
     error,
@@ -128,7 +130,7 @@ export function EventsScreen({ navigation: _ }: Props) {
         }
       >
         <Text style={styles.subtitle}>
-          Семинары, открытые тренировки и спец-классы. Можно заглянуть в другой
+          Семинары, открытые {vocabulary.session.nomPl} и спец-классы. Можно заглянуть в другой
           зал, если есть желание.
         </Text>
 
@@ -140,7 +142,7 @@ export function EventsScreen({ navigation: _ }: Props) {
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Событий пока нет</Text>
             <Text style={styles.emptyText}>
-              Когда тренер опубликует семинар или открытый ковёр — он
+              Когда {vocabulary.coach.nom} опубликует семинар или открытый ковёр — он
               появится здесь.
             </Text>
           </View>

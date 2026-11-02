@@ -1,3 +1,4 @@
+import { countForm } from "@clubspace/ui-kit/brand"
 import React, { useCallback, useState } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 
@@ -28,6 +29,7 @@ import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { MONTHS_IN_RU, pluralRu } from "../../shared/format-ru"
 import { useOfflineDownloadsAllowed } from "../../shared/use-offline-downloads"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useResponsive } from "../../shared/useResponsive"
@@ -47,6 +49,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
   const offlineDownloads = useOfflineDownloadsAllowed()
   const { sizeClass } = useResponsive()
   const workspaceId = workspace?.workspaceId
@@ -134,6 +137,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   // The attendance hero opens MyAttendance, so it gets no row of its own.
   const sections = visibleSections(
     PROGRESS_SECTIONS,
+    vocabulary,
     (key) => isFeatureEnabled(workspace, key),
     offlineDownloads,
   ).filter((s) => s.route !== "MyAttendance")
@@ -172,6 +176,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
     attendanceOn && stats
       ? tenureSummary(stats, achievements.data?.totalCheckIns ?? 0, {
           showSubscriptions: subscriptionOn,
+          vocabulary,
         })
       : null
   const currentRanks = ranksOn ? (ranks.data?.current ?? []) : []
@@ -218,7 +223,9 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
                     <Text style={styles.cardTitle}>
                       За {overview.data.days} дней
                     </Text>
-                    <Text style={styles.strong}>{overviewLine(overview.data)}</Text>
+                    <Text style={styles.strong}>
+                      {overviewLine(overview.data, vocabulary)}
+                    </Text>
                   </View>
                 </View>
               )}
@@ -232,7 +239,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
 
           {staff && ownShown && (
             <Text style={styles.sectionTitle} accessibilityRole="header">
-              Мои тренировки
+              Мои {vocabulary.session.nomPl}
             </Text>
           )}
 
@@ -249,7 +256,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
               <View style={styles.heroCount}>
                 <Text style={styles.heroNumber}>{count ?? "—"}</Text>
                 <Text style={styles.heroUnit}>
-                  {pluralRu(count ?? 0, "тренировка", "тренировки", "тренировок")} в{" "}
+                  {countForm(count ?? 0, vocabulary.session, pluralRu)} в{" "}
                   {MONTHS_IN_RU[month]}
                 </Text>
               </View>
@@ -261,7 +268,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
                 <Text style={streak > 0 ? styles.line : styles.muted}>
                   {streak > 0
                     ? `🔥 ${streak} ${pluralRu(streak, "неделя", "недели", "недель")} подряд`
-                    : "Тренируйтесь раз в неделю — начнётся серия"}
+                    : `${vocabulary.practiceImperative} раз в неделю — начнётся серия`}
                 </Text>
               )}
             </Pressable>
@@ -294,7 +301,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
                         ещё {remaining}{" "}
                         {next.metric === "streak"
                           ? `${pluralRu(remaining, "неделя", "недели", "недель")} серии`
-                          : pluralRu(remaining, "тренировка", "тренировки", "тренировок")}
+                          : countForm(remaining, vocabulary.session, pluralRu)}
                       </Text>
                     </>
                   ) : badges.some((a) => !a.unlocked) ? (
@@ -337,7 +344,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
 
           {ownShown && ranksOn && ranks.data && currentRanks.length === 0 && (
             <Text style={styles.noRank}>
-              Ранг пока не присвоен — его назначает тренер.
+              Ранг пока не присвоен — его назначает {vocabulary.coach.nom}.
             </Text>
           )}
 

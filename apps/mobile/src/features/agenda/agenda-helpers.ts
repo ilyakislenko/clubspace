@@ -1,3 +1,5 @@
+import { cap, type ClubVocabulary } from "@clubspace/ui-kit/brand"
+
 import type { AgendaItem, AgendaKind } from "../../shared/api/agenda"
 import { formatRuDay } from "../../shared/format-ru"
 import { formatTimeInTz } from "../schedule/club-schedule-buckets"
@@ -37,14 +39,18 @@ export const agendaCacheKey = (range: DateRange): string =>
 
 export const showAgendaCard = (clubCount: number): boolean => clubCount > 1
 
-const KIND_LABEL: Record<AgendaKind, string> = {
-  class: "Тренировка",
+const KIND_LABEL: Record<Exclude<AgendaKind, "class" | "personalTraining">, string> = {
   event: "Событие",
   dropIn: "Гостевое посещение",
-  personalTraining: "Персональная",
 }
 
-export const agendaKindLabel = (kind: AgendaKind): string => KIND_LABEL[kind]
+// In the words of the item's own club («Тренировка» / «Занятие»).
+export const agendaKindLabel = (kind: AgendaKind, vocabulary: ClubVocabulary): string =>
+  kind === "class"
+    ? cap(vocabulary.session.nom)
+    : kind === "personalTraining"
+      ? cap(vocabulary.personalTag)
+      : KIND_LABEL[kind]
 
 // Nominative, capitalised for a section header; index = Date#getUTCDay.
 const WEEKDAY_RU = [

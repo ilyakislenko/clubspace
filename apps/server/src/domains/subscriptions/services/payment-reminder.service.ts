@@ -14,6 +14,7 @@ import {
     paymentReminderIndex,
     paymentReminderText,
 } from '../payment-reminder'
+import { vocabularyForWorkspaceType } from '../../../shared/utils/club-vocabulary'
 import { findFreezeOn } from './subscription-freeze.service'
 
 const KIND = 'subscription.payment_due'
@@ -58,7 +59,7 @@ export class PaymentReminderService {
                 plan: { select: { name: true } },
                 // The abonement's own scope snapshot (empty = whole club).
                 ...subscriptionScopeIdsSelect,
-                workspace: { select: { timezone: true } },
+                workspace: { select: { timezone: true, type: true } },
                 workspaceMember: { select: { userId: true } },
             },
         })
@@ -164,6 +165,7 @@ export class PaymentReminderService {
                     timezone: tz,
                     coach,
                     visits: records.map((r) => r.session.startAt),
+                    vocabulary: vocabularyForWorkspaceType(sub.workspace.type),
                 }),
                 metadata: {
                     subscriptionId: sub.id,

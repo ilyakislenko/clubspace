@@ -1,3 +1,5 @@
+import type { ClubVocabulary } from "@clubspace/ui-kit/brand"
+
 import type { RankProgressEntry } from "../../shared/api/rank-progress"
 import { formatRuDay } from "../../shared/format-ru"
 
@@ -10,6 +12,7 @@ export const rankProgressLine = (
     RankProgressEntry,
     "upcomingGrading" | "ready" | "rule" | "remainingText" | "nextLevel"
   >,
+  vocabulary: ClubVocabulary,
 ): RankProgressLine | null => {
   const next = entry.nextLevel?.name
   if (entry.upcomingGrading) {
@@ -20,7 +23,7 @@ export const rankProgressLine = (
   }
   if (entry.ready && next) {
     return {
-      title: `Готовы к аттестации на «${next}» — скажите тренеру`,
+      title: `Готовы к аттестации на «${next}» — скажите ${vocabulary.coach.dat}`,
       caption: null,
     }
   }

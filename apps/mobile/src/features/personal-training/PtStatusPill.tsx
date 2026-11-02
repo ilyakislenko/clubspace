@@ -3,8 +3,9 @@ import { StyleSheet, Text } from "react-native"
 
 import type { Theme } from "../../shared/theme"
 import { useThemedStyles } from "../../shared/theme-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import {
-  PT_STATUS_LABEL,
+  ptStatusLabel,
   ptStatusTone,
   type PtDisplayStatus,
 } from "./personal-training-helpers"
@@ -12,9 +13,10 @@ import {
 // The request's status as a small tinted tag.
 export function PtStatusPill({ status }: { status: PtDisplayStatus }) {
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   const tone = ptStatusTone(status)
   return (
-    <Text style={[styles.pill, styles[tone]]}>{PT_STATUS_LABEL[status]}</Text>
+    <Text style={[styles.pill, styles[tone]]}>{ptStatusLabel(status, vocabulary)}</Text>
   )
 }
 

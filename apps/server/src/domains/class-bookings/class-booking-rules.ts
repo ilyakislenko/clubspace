@@ -3,6 +3,7 @@
 // which of a member's abonements may hold a place. See
 // docs/design/2026-11-01-class-booking.md.
 import { scopeCoversDirection } from '../subscriptions/current-subscriptions'
+import type { ClubVocabulary } from '../../shared/utils/club-vocabulary'
 
 export const LIVE_BOOKING_STATUSES = ['BOOKED', 'WAITLISTED'] as const
 
@@ -66,14 +67,19 @@ export type BookingBlock =
     | 'no_classes'
     | 'classes_allocated'
 
-export const BOOKING_BLOCK_MESSAGES: Record<BookingBlock, string> = {
-    no_abonement:
-        'Нет абонемента, который действует на это занятие — оформите его у тренера',
-    ends_before: 'Абонемент закончится раньше этого занятия',
-    frozen: 'Абонемент заморожен на день занятия — записаться нельзя',
-    no_classes: 'На абонементе не осталось занятий — продлите его у тренера',
-    classes_allocated:
-        'Все занятия абонемента уже распределены по записям. Отмените одну из записей или продлите абонемент',
+export const bookingBlockMessage = (block: BookingBlock, v: ClubVocabulary): string => {
+    switch (block) {
+        case 'no_abonement':
+            return `Нет абонемента, который действует на это занятие — оформите его у ${v.coach.gen}`
+        case 'ends_before':
+            return 'Абонемент закончится раньше этого занятия'
+        case 'frozen':
+            return 'Абонемент заморожен на день занятия — записаться нельзя'
+        case 'no_classes':
+            return `На абонементе не осталось занятий — продлите его у ${v.coach.gen}`
+        case 'classes_allocated':
+            return 'Все занятия абонемента уже распределены по записям. Отмените одну из записей или продлите абонемент'
+    }
 }
 
 export type BookingAbonement = {

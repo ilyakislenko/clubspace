@@ -1,3 +1,4 @@
+import { cap } from "@clubspace/ui-kit/brand"
 import { useNavigation } from "@react-navigation/native"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
@@ -17,6 +18,7 @@ import {
   type PersonalTrainingForm,
 } from "../../shared/api/personal-trainings"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { CenteredColumn, READABLE_WIDTH } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
@@ -45,6 +47,7 @@ export function PersonalTrainingRequestScreen() {
   const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const { workspace } = useAuth()
+  const { coach, session } = useVocabulary()
   const { showToast } = useToast()
 
   const [form, setForm] = useState<PersonalTrainingForm | null>(null)
@@ -97,7 +100,7 @@ export function PersonalTrainingRequestScreen() {
   const submit = async () => {
     if (busy) return
     if (!coachId) {
-      setError("Выберите тренера")
+      setError(`Выберите ${coach.acc}`)
       return
     }
     const wallClocks = options.map(wallClockOf)
@@ -125,7 +128,7 @@ export function PersonalTrainingRequestScreen() {
         },
       })
       haptics.success()
-      showToast("Заявка отправлена — тренер получит уведомление", "success")
+      showToast(`Заявка отправлена — ${coach.nom} получит уведомление`, "success")
       navigation.replace("PersonalTraining", { requestId: created.id })
     } catch (e) {
       setError(errorMessage(e, "Не удалось отправить заявку"))
@@ -144,12 +147,12 @@ export function PersonalTrainingRequestScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <Text style={styles.intro}>
-              Выберите тренера и предложите до трёх вариантов времени. Тренер
-              подтвердит один из них или предложит своё.
+              Выберите {coach.acc} и предложите до трёх вариантов времени.{" "}
+              {cap(coach.nom)} подтвердит один из них или предложит своё.
             </Text>
 
             <View style={styles.block}>
-              <Text style={styles.label}>Тренер</Text>
+              <Text style={styles.label}>{cap(coach.nom)}</Text>
               {form.coaches.map((c) => {
                 const selected = c.userId === coachId
                 return (
@@ -245,12 +248,12 @@ export function PersonalTrainingRequestScreen() {
 
             <View style={styles.block}>
               <Text style={styles.label}>
-                Комментарий для тренера (необязательно)
+                Комментарий для {coach.gen} (необязательно)
               </Text>
               <TextInput
                 value={comment}
                 onChangeText={setComment}
-                placeholder="Например: цель тренировки или пожелания"
+                placeholder={`Например: цель ${session.gen} или пожелания`}
                 placeholderTextColor={theme.colors.muted}
                 multiline
                 maxLength={500}

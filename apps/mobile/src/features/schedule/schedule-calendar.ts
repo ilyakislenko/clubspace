@@ -411,7 +411,7 @@ export const personName = (p: {
 }): string =>
   [p.firstname, p.lastname].filter(Boolean).join(" ").trim() ||
   p.email ||
-  "Тренер"
+  "Без имени"
 
 // «Р. Савельев»; the email when the coach has no name.
 export const shortPersonName = (p: {
@@ -422,7 +422,7 @@ export const shortPersonName = (p: {
   const first = p.firstname?.trim()
   const last = p.lastname?.trim()
   if (first && last) return `${first.charAt(0)}. ${last}`
-  return first || last || p.email || "Тренер"
+  return first || last || p.email || "Без имени"
 }
 
 /**

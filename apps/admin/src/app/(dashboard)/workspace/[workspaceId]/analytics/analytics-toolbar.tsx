@@ -28,6 +28,8 @@ import {
   type AnalyticsFilter,
 } from "../../../../../shared/lib/analytics"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
@@ -64,6 +66,7 @@ export function AnalyticsFilters({
   // Extra page-specific controls rendered at the end of the bar.
   children?: ReactNode
 }) {
+  const vocabulary = useVocabulary()
   const scope = useDirectionScope(workspaceId)
   const { directions } = useDirections(workspaceId)
   const [gyms, setGyms] = useState<Gym[]>([])
@@ -135,11 +138,11 @@ export function AnalyticsFilters({
             value={value.coachId}
             onValueChange={(v) => narrow({ coachId: v })}
           >
-            <SelectTrigger aria-label="Тренер">
-              <SelectValue placeholder="Тренер" />
+            <SelectTrigger aria-label={cap(vocabulary.coach.nom)}>
+              <SelectValue placeholder={cap(vocabulary.coach.nom)} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANALYTICS_ALL}>Все тренеры</SelectItem>
+              <SelectItem value={ANALYTICS_ALL}>Все {vocabulary.coach.nomPl}</SelectItem>
               {coaches.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}

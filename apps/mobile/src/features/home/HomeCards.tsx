@@ -1,3 +1,4 @@
+import { agree, cap } from "@clubspace/ui-kit/brand"
 import React, { type ReactNode } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
@@ -12,6 +13,7 @@ import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { formatRuDayRange, pluralRu } from "../../shared/format-ru"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useResponsive } from "../../shared/useResponsive"
 import {
   findNextAcrossGroups,
@@ -121,6 +123,8 @@ export function NextClassCard({
 }) {
   const styles = useThemedStyles(makeStyles)
   const { sizeClass } = useResponsive()
+  const vocabulary = useVocabulary()
+  const title = `${agree(vocabulary.session, "Ближайшая", "Ближайшее")} ${vocabulary.session.nom}`
   const now = new Date()
   const found = pickNextTraining(
     findNextAcrossGroups(groups, now),
@@ -132,17 +136,19 @@ export function NextClassCard({
   if (!found) {
     if (groups.length === 0) {
       return (
-        <HomeCard title="Ближайшая тренировка">
+        <HomeCard title={title}>
           <Text style={styles.muted}>
-            Вас пока не добавили в группу — это делает тренер или администратор
+            Вас пока не добавили в группу — это делает {vocabulary.coach.nom} или администратор
             клуба.
           </Text>
         </HomeCard>
       )
     }
     return (
-      <HomeCard title="Ближайшая тренировка" onPress={onPress}>
-        <Text style={styles.muted}>В ближайшие две недели тренировок нет.</Text>
+      <HomeCard title={title} onPress={onPress}>
+        <Text style={styles.muted}>
+          В ближайшие две недели {vocabulary.session.genPl} нет.
+        </Text>
       </HomeCard>
     )
   }
@@ -151,18 +157,18 @@ export function NextClassCard({
     const label = formatUpcomingLabel(found.startAt, training.timezone, now)
     return (
       <HomeCard
-        title="Ближайшая тренировка"
+        title={title}
         onPress={onPress}
-        accessibilityLabel={`Ближайшая тренировка: ${label}, персональная тренировка`}
+        accessibilityLabel={`${title}: ${label}, ${vocabulary.personalSession.nom}`}
       >
         <Text
           style={sizeClass === "expanded" ? styles.strongLarge : styles.strong}
         >
           {label}
         </Text>
-        <Text style={styles.line}>Персональная тренировка</Text>
+        <Text style={styles.line}>{cap(vocabulary.personalSession.nom)}</Text>
         <Text style={styles.muted}>
-          Тренер: {training.coach.displayName}
+          {cap(vocabulary.coach.nom)}: {training.coach.displayName}
           {training.gym ? ` · ${training.gym.name}` : ""}
         </Text>
       </HomeCard>
@@ -173,9 +179,9 @@ export function NextClassCard({
     const label = formatUpcomingLabel(found.startAt, booking.timezone, now)
     return (
       <HomeCard
-        title="Ближайшая тренировка"
+        title={title}
         onPress={onPress}
-        accessibilityLabel={`Ближайшая тренировка: ${label}, ${booking.groupName}, гостевой визит`}
+        accessibilityLabel={`${title}: ${label}, ${booking.groupName}, гостевой визит`}
       >
         <Text
           style={sizeClass === "expanded" ? styles.strongLarge : styles.strong}
@@ -194,9 +200,9 @@ export function NextClassCard({
   const { next, group } = found
   return (
     <HomeCard
-      title="Ближайшая тренировка"
+      title={title}
       onPress={onPress}
-      accessibilityLabel={`Ближайшая тренировка: ${formatNextSessionLabel(next)}, ${group.name}`}
+      accessibilityLabel={`${title}: ${formatNextSessionLabel(next)}, ${group.name}`}
     >
       <Text
         style={sizeClass === "expanded" ? styles.strongLarge : styles.strong}
@@ -327,7 +333,8 @@ export function SubscriptionCard({
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const state = mySubscriptionState(data)
+  const vocabulary = useVocabulary()
+  const state = mySubscriptionState(data, vocabulary)
   const abonements = currentAbonements(data)
   if (abonements.length > 1) {
     const soonest = soonestEndingId(abonements)
@@ -357,7 +364,7 @@ export function SubscriptionCard({
                 ]}
               >
                 {[
-                  abonementShortLine(a),
+                  abonementShortLine(a, vocabulary),
                   frozen ? "заморожен" : null,
                   a.isPaid === false ? "ожидает оплаты" : null,
                 ]
@@ -490,10 +497,11 @@ export function ContinueRow({
 /** Shown when the club has switched off everything else Home could show. */
 export function HomeFallback({ onPress }: { onPress: () => void }) {
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   return (
     <View style={styles.fallback}>
       <Text style={styles.fallbackText}>
-        Здесь появятся ваши тренировки, абонемент и новости клуба.
+        Здесь появятся ваши {vocabulary.session.nomPl}, абонемент и новости клуба.
       </Text>
       <Pressable onPress={onPress} accessibilityRole="button" style={styles.fallbackButton}>
         <Text style={styles.fallbackButtonText}>Смотреть видео</Text>

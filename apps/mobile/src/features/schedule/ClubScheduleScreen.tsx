@@ -1,3 +1,4 @@
+import { cap } from "@clubspace/ui-kit/brand"
 import { useNavigation } from "@react-navigation/native"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
@@ -40,6 +41,7 @@ import {
 } from "../../shared/api/personal-trainings"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
@@ -125,6 +127,7 @@ export function ClubScheduleScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
   const { width, height } = useResponsive()
   const wide = width >= CALENDAR_WIDE_MIN
 
@@ -391,7 +394,7 @@ export function ClubScheduleScreen() {
         ? `В этом зале ${period} ничего нет.`
         : directionId
           ? `В этом направлении ${period} ничего нет.`
-          : `В эти две недели нет ни тренировок, ни событий.`
+          : `В эти две недели нет ни ${vocabulary.session.genPl}, ни событий.`
 
   const bookings = dropIns.data?.bookings ?? []
   const upcomingBookings = bookings.filter(
@@ -477,7 +480,7 @@ export function ClubScheduleScreen() {
           s.group.name,
           s.group.direction?.name ?? null,
           s.group.gym?.name ?? null,
-          `тренер ${personName(s.group.coach)}`,
+          `${vocabulary.coach.nom} ${personName(s.group.coach)}`,
           substitutionLine(s, isStaff),
           memberGroupIds.has(s.groupId) && "ваша группа",
           // «11/12» reads badly aloud: the places in words instead.
@@ -512,7 +515,7 @@ export function ClubScheduleScreen() {
     const pt = item.personal
     const who =
       meId && viewerRole(pt, meId) === "member"
-        ? `Тренер: ${pt.coach.displayName}`
+        ? `${cap(vocabulary.coach.nom)}: ${pt.coach.displayName}`
         : `Ученик: ${pt.member.displayName}`
     return {
       kind: "personal",
@@ -526,7 +529,7 @@ export function ClubScheduleScreen() {
       past,
       cancelled: false,
       accessibilityLabel: label([
-        `Персональная тренировка, ${day}, ${start}–${end}`,
+        `${cap(vocabulary.personalSession.nom)}, ${day}, ${start}–${end}`,
         who,
         pt.gym?.name ?? null,
       ]),
@@ -761,7 +764,7 @@ export function ClubScheduleScreen() {
                 style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
               >
                 <Text style={styles.personalLinkText}>
-                  Персональная тренировка с тренером →
+                  {cap(vocabulary.personalSession.nom)} с {vocabulary.coach.ins} →
                 </Text>
               </Pressable>
             )}
@@ -798,8 +801,8 @@ export function ClubScheduleScreen() {
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Расписание пока не опубликовано</Text>
             <Text style={styles.emptyText}>
-              В ближайшие две недели нет ни тренировок, ни событий. Уточните
-              расписание у тренера или администратора клуба.
+              В ближайшие две недели нет ни {vocabulary.session.genPl}, ни событий. Уточните
+              расписание у {vocabulary.coach.gen} или администратора клуба.
             </Text>
             {isFeatureEnabled(workspace, "groups") && (
               <Pressable
@@ -938,6 +941,7 @@ function SessionRow({
   onOpen: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   // Render hour/minute in the SESSION's tz so a Tomsk-gym session shows
   // 19:00 even when a Moscow user opens the app.
   const { hourMinute } = formatTimeInTz(session.startAt, session.timezone)
@@ -983,7 +987,7 @@ function SessionRow({
             : "Зал не указан"}
         </Text>
         <Text style={styles.rowMeta} numberOfLines={1}>
-          Тренер: {coachName}
+          {cap(vocabulary.coach.nom)}: {coachName}
         </Text>
         {substitution && (
           <Text style={styles.rowSpots} numberOfLines={1}>
@@ -1037,10 +1041,11 @@ function PersonalRow({
   onPress: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   const { hourMinute } = formatTimeInTz(pt.confirmedStartAt!, pt.timezone)
   const who =
     meId && viewerRole(pt, meId) === "member"
-      ? `Тренер: ${pt.coach.displayName}`
+      ? `${cap(vocabulary.coach.nom)}: ${pt.coach.displayName}`
       : `Ученик: ${pt.member.displayName}`
   return (
     <Pressable
@@ -1054,8 +1059,8 @@ function PersonalRow({
       <Text style={styles.rowTime}>{hourMinute}</Text>
       <View style={styles.rowBody}>
         <View style={styles.rowTitleLine}>
-          <Text style={styles.rowTitle}>Персональная тренировка</Text>
-          <Pill label="Персональная" />
+          <Text style={styles.rowTitle}>{cap(vocabulary.personalSession.nom)}</Text>
+          <Pill label={cap(vocabulary.personalTag)} />
         </View>
         <Text style={styles.rowMeta} numberOfLines={1}>
           {who}

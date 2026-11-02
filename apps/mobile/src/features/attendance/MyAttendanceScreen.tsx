@@ -1,3 +1,4 @@
+import { cap, countForm } from "@clubspace/ui-kit/brand"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
@@ -16,6 +17,7 @@ import { Pressable } from "../../shared/components/Pressable"
 
 import type { AttendanceSession, MyAttendance } from "../../shared/api/attendance"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
@@ -38,8 +40,6 @@ import { DAY_SHORT } from "../schedule/schedule-helpers"
 import { fetchMonthAttendance, monthAttendanceKey } from "./month-attendance"
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7].map((d) => DAY_SHORT[d])
-const trainings = (n: number) =>
-  pluralRu(n, "тренировка", "тренировки", "тренировок")
 
 const formatDate = (iso: string, tz: string): string =>
   new Intl.DateTimeFormat("ru-RU", {
@@ -54,6 +54,8 @@ export function MyAttendanceScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
+  const trainings = (n: number) => countForm(n, vocabulary.session, pluralRu)
   // Pages after the first. The cached resource owns page 1 (so offline and
   // realtime refreshes keep working). A background refresh of page 1 keeps
   // these (merged + deduped at render); a workspace or month switch drops
@@ -186,8 +188,8 @@ export function MyAttendanceScreen() {
                   {sessions.length > 0
                     ? `${sessions.length} ${trainings(sessions.length)} в ${monthIn}`
                     : isCurrent
-                      ? `В ${monthIn} пока нет тренировок`
-                      : `В ${monthIn} тренировок нет`}
+                      ? `В ${monthIn} пока нет ${vocabulary.session.genPl}`
+                      : `В ${monthIn} ${vocabulary.session.genPl} нет`}
                 </Text>
                 <Text style={styles.subtitle}>
                   Всего за всё время: {data.total}
@@ -243,7 +245,7 @@ export function MyAttendanceScreen() {
                   ))}
                 </View>
                 {sessions.length > 0 && (
-                  <Text style={styles.sectionTitle}>Тренировки</Text>
+                  <Text style={styles.sectionTitle}>{cap(vocabulary.session.nomPl)}</Text>
                 )}
               </>
             )}

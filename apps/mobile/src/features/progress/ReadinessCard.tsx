@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native"
 import type { RankReadiness } from "../../shared/api/rank-readiness"
 import { Pressable } from "../../shared/components/Pressable"
 import { formatRuDay, pluralRu } from "../../shared/format-ru"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { formatLevelWithStripes, swatchBlendsIn } from "../ranks/rank-format"
@@ -26,6 +27,7 @@ export function ReadinessCard({
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   const digest = readinessDigest(data.data, SHOWN)
 
   return (
@@ -103,7 +105,7 @@ export function ReadinessCard({
 
       {digest.soon > 0 && (
         <Text style={styles.muted}>
-          На подходе: {digest.soon} — им ещё не хватает тренировок или недель.
+          На подходе: {digest.soon} — им ещё не хватает {vocabulary.session.genPl} или недель.
         </Text>
       )}
     </View>

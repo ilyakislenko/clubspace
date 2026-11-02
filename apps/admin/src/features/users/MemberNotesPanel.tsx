@@ -6,6 +6,7 @@ import { Button } from "@clubspace/ui-kit/ui"
 
 import { updateMemberNotes } from "../../shared/api/members"
 import { errorMessage } from "../../shared/lib/error-message"
+import { useVocabulary } from "../../shared/lib/vocabulary"
 
 export function MemberNotesPanel({
   workspaceId,
@@ -16,6 +17,7 @@ export function MemberNotesPanel({
   userId: string
   initialNotes: string | null
 }) {
+  const vocabulary = useVocabulary()
   const [notes, setNotes] = useState(initialNotes ?? "")
   const [saved, setSaved] = useState(initialNotes ?? "")
   const [saving, setSaving] = useState(false)
@@ -46,7 +48,7 @@ export function MemberNotesPanel({
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="font-medium">Заметки о участнике</div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Видны только тренерам и администраторам — сам участник их не видит.
+        Видны только {vocabulary.coach.datPl} и администраторам — сам участник их не видит.
         Травмы, цели, договорённости по оплате.
       </p>
 

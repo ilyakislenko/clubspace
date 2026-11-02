@@ -15,6 +15,7 @@ import {
   type SubstituteCandidate,
 } from "../../shared/api/class-substitutions"
 import { errorMessage } from "../../shared/lib/error-message"
+import { useVocabulary } from "../../shared/lib/vocabulary"
 
 const personName = (p: {
   firstname: string | null
@@ -37,6 +38,7 @@ export function ClassSubstitutionPanel({
   sessionDate: string
   onChanged: () => void
 }) {
+  const vocabulary = useVocabulary()
   const [row, setRow] = useState<ClassSubstitution | null>(null)
   const [candidates, setCandidates] = useState<SubstituteCandidate[]>([])
   const [pick, setPick] = useState("")
@@ -108,8 +110,8 @@ export function ClassSubstitutionPanel({
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Ведёт тренер группы. Назначьте замену, если занятие проведёт другой
-          тренер — он сможет отметить посещаемость.
+          Ведёт {vocabulary.coach.nom} группы. Назначьте замену, если занятие проведёт другой
+          {" "}{vocabulary.coach.nom} — он сможет отметить посещаемость.
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
@@ -160,7 +162,7 @@ export function ClassSubstitutionPanel({
               value={pick}
               onChange={(e) => setPick(e.target.value)}
             >
-              <option value="">Выберите тренера…</option>
+              <option value="">Выберите {vocabulary.coach.acc}…</option>
               {pickable.map((c) => (
                 <option key={c.id} value={c.id}>
                   {personName(c)}

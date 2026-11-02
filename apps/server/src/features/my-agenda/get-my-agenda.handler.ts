@@ -2,6 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { appFeatureSelect, toAppFeatureFlags } from '../../domains/workspace/feature-flags'
+import { cap, vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { addDays, daysBetween, parseDateOnly } from '../get-workspace-schedule/date-utils'
@@ -67,6 +68,7 @@ export class GetMyAgendaHandler
                             id: true,
                             name: true,
                             timezone: true,
+                            type: true,
                             ownerId: true,
                             ...appFeatureSelect,
                         },
@@ -299,7 +301,7 @@ export class GetMyAgendaHandler
                 kind: 'personalTraining',
                 workspaceId: c.id,
                 workspaceName: c.name,
-                title: 'Персональная тренировка',
+                title: cap(vocabularyForWorkspaceType(c.type).personalSession.nom),
                 subtitle: personName(asMember ? t.coach : t.member),
                 startAt: start.toISOString(),
                 endAt: end.toISOString(),

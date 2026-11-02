@@ -1,3 +1,4 @@
+import { cap } from "@clubspace/ui-kit/brand"
 import { useNavigation } from "@react-navigation/native"
 import React, { useCallback } from "react"
 import {
@@ -18,6 +19,7 @@ import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 
 import { getMyGroups, type MyGroup } from "../../shared/api/groups"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
@@ -31,7 +33,7 @@ import type { AppNavigation } from "../../app/navigation"
 
 const formatCoach = (c: MyGroup["coach"]): string => {
   const name = [c.firstname, c.lastname].filter(Boolean).join(" ").trim()
-  return name || c.email || "Тренер"
+  return name || c.email || "Без имени"
 }
 
 // Both the Schedule tab (when the club hides its schedule) and a pushed screen.
@@ -42,6 +44,8 @@ export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
+  const coachTitle = cap(vocabulary.coach.nom)
 
   const { data, error, loading, stale, refetch } = useCachedResource<MyGroup[]>(
     workspace ? `groups:${workspace.workspaceId}` : null,
@@ -67,7 +71,7 @@ export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
       <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.subtitle}>
-          Группы, в которых вы состоите как ученик или ведёте как тренер.
+          Группы, в которых вы состоите как ученик или ведёте как {vocabulary.coach.nom}.
         </Text>
 
         {stale && data ? <OfflineNotice /> : null}
@@ -80,7 +84,7 @@ export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
               Вас пока ни в одну группу не добавили
             </Text>
             <Text style={styles.emptyText}>
-              Спросите тренера или администратора клуба — они добавляют учеников
+              Спросите {vocabulary.coach.acc} или администратора клуба — они добавляют учеников
               в группы из админ-панели.
             </Text>
           </View>
@@ -103,7 +107,7 @@ export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
                         g.role === "coach" && styles.rolePillTextCoach,
                       ]}
                     >
-                      {g.role === "coach" ? "Тренер" : "Ученик"}
+                      {g.role === "coach" ? coachTitle : "Ученик"}
                     </Text>
                   </View>
                 </View>
@@ -118,7 +122,7 @@ export function MyGroupsScreen({ asTab = false }: { asTab?: boolean }) {
 
                 {g.role === "student" && (
                   <Text style={styles.cardLine}>
-                    Тренер: {formatCoach(g.coach)}
+                    {coachTitle}: {formatCoach(g.coach)}
                     {g.coach.phone ? " · " : ""}
                     {g.coach.phone ? (
                       <Text

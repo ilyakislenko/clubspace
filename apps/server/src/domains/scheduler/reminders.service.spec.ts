@@ -18,7 +18,7 @@ type Slot = {
         id: string
         name: string
         workspaceId: string
-        workspace: { timezone: string }
+        workspace: { timezone: string; type?: string }
         gym: { timezone: string | null; name: string } | null
     }
 }
@@ -30,6 +30,7 @@ const slot = (
         dayOfWeek: number
         tz: string
         gymTz: string | null
+        type: string
         noGym: boolean
     }> = {},
 ): Slot => ({
@@ -43,7 +44,7 @@ const slot = (
         id: 'g-1',
         name: 'Утренняя',
         workspaceId: 'ws-1',
-        workspace: { timezone: extras.tz ?? 'UTC' },
+        workspace: { timezone: extras.tz ?? 'UTC', type: extras.type ?? 'GRAPPLING' },
         gym: extras.noGym
             ? null
             : { timezone: extras.gymTz ?? null, name: 'Сибиряк' },
@@ -187,6 +188,15 @@ describe('RemindersService session reminders', () => {
             skipDuplicates: true,
             select: { refId: true },
         })
+    })
+
+    it('says «занятие» for a dance studio and «тренировка» for grappling', async () => {
+        const dance = build(buildPrisma({ slots: [slot('13:00', { type: 'DANCE' })] }))
+        await dance.svc.run(baseNow)
+        expect(dance.rows[0].topic).toBe('Через час занятие')
+        const bjj = build(buildPrisma({ slots: [slot('13:00', { type: 'GRAPPLING' })] }))
+        await bjj.svc.run(baseNow)
+        expect(bjj.rows[0].topic).toBe('Через час тренировка')
     })
 
     it('also reminds the approved substitute of that class', async () => {
@@ -405,6 +415,7 @@ describe('RemindersService cancellation notices', () => {
         reason: 'Отпуск',
         group: {
             workspaceId: 'ws-1',
+            workspace: { type: 'GRAPPLING' },
             name: 'Утренняя',
             coaches: [{ userId: 'coach-1' }],
             members: [{ userId: 'stu-1' }, { userId: 'stu-2' }],
@@ -423,6 +434,16 @@ describe('RemindersService cancellation notices', () => {
             message: 'Утренняя: 8 мая (вся группа) — Отпуск',
             metadata: { kind: 'exception.notify', workspaceId: 'ws-1' },
         })
+    })
+
+    it('says «Занятие отменено» for a dance studio', async () => {
+        const base = exception()
+        const prisma = buildPrisma({
+            exceptions: [exception({ group: { ...base.group, workspace: { type: 'DANCE' } } })],
+        })
+        const { svc, rows } = build(prisma)
+        await svc.run(baseNow)
+        expect(rows[0].topic).toBe('Занятие отменено')
     })
 
     it('includes drop-in bookers of the cancelled class and names a multi-day slot range', async () => {

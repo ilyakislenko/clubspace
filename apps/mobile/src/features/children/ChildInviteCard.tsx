@@ -87,7 +87,7 @@ export function ChildInviteCard({
           ? ` Дата рождения: ${formatBirthDate(invite.dateOfBirth)}.`
           : ""}{" "}
         Подтвердите, чтобы видеть его расписание, абонемент и отмечать на
-        тренировках.
+        занятиях.
       </Text>
       <RelationPicker value={relation} onChange={setRelation} />
       <ConsentCheckbox checked={consent} onChange={setConsent} />

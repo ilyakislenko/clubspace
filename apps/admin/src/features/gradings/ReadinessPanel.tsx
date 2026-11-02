@@ -20,6 +20,8 @@ import { formatYmd } from "../../shared/lib/format-ymd"
 import { inputCls } from "../../shared/lib/input-class"
 import { RankChip } from "../ranks/RankChip"
 import { groupOptionLabel } from "../../shared/lib/group-label"
+import { useVocabulary } from "../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 const memberName = (e: ReadinessEntry) =>
   [e.firstname, e.lastname].filter(Boolean).join(" ") || e.email
@@ -44,6 +46,7 @@ export function ReadinessPanel({
   // for them (their directions).
   ownLaddersOnly: boolean
 }) {
+  const vocabulary = useVocabulary()
   const [data, setData] = useState<RankReadiness | null>(null)
   const [ladderId, setLadderId] = useState<string | undefined>()
   const [groupId, setGroupId] = useState("")
@@ -254,7 +257,7 @@ export function ReadinessPanel({
                 {gradable && <th className="p-3" />}
                 <th className="p-3">Участник</th>
                 <th className="p-3">Сейчас → Следующий</th>
-                <th className="p-3">Тренировок</th>
+                <th className="p-3">{cap(vocabulary.session.genPl)}</th>
                 <th className="p-3">Недель</th>
                 <th className="p-3">Статус</th>
               </tr>

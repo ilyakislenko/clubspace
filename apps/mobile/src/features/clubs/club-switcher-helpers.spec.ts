@@ -48,6 +48,13 @@ describe("labels", () => {
     expect(clubRoleLabel(club({ roleName: "user" }))).toBe("Ученик")
   })
 
+  it("names a staff role in each club's own words", () => {
+    expect(clubRoleLabel(club({ roleName: "coach", type: "DANCE" }))).toBe("Педагог")
+    expect(clubRoleLabel(club({ roleName: "head_coach", type: "YOGA" }))).toBe(
+      "Главный преподаватель",
+    )
+  })
+
   it("flags an expired access only", () => {
     expect(clubStatusLabel(club())).toBeNull()
     expect(clubStatusLabel(club({ accessExpired: true }))).toBe("доступ истёк")

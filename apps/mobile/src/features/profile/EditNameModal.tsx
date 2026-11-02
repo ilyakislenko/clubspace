@@ -82,7 +82,7 @@ export function EditNameModal({
           >
             <Text style={styles.title}>Как вас зовут?</Text>
             <Text style={styles.hint}>
-              Имя одно на все ваши клубы: его видят тренеры и участники — в
+              Имя одно на все ваши клубы: его видят в каждом из них — в
               группах и рейтинге.
             </Text>
 

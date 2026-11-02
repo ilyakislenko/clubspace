@@ -1,3 +1,4 @@
+import { cap } from "@clubspace/ui-kit/brand"
 import React, { useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 
@@ -12,6 +13,7 @@ import {
 import type { ScheduleSession } from "../../shared/api/groups"
 import { showAlert } from "../../shared/alert"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { Pressable } from "../../shared/components/Pressable"
 import { useToast } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
@@ -43,6 +45,7 @@ export function StaffClassActions({
   // «Отмена» below a landscape window.
   const twoUp = useResponsive().sizeClass !== "compact"
   const { workspace } = useAuth()
+  const { coach } = useVocabulary()
   const { showToast } = useToast()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -83,7 +86,7 @@ export function StaffClassActions({
     try {
       setCandidates(await listSubstituteCandidates({ workspaceId }))
     } catch (e) {
-      setError(errorMessage(e, "Не удалось загрузить тренеров"))
+      setError(errorMessage(e, `Не удалось загрузить ${coach.genPl}`))
     }
   }
 
@@ -103,7 +106,7 @@ export function StaffClassActions({
   const take = () =>
     showAlert(
       "Взять занятие?",
-      "Тренер группы получит запрос. Отмечать посещаемость можно будет, когда он даст добро.",
+      `${cap(coach.nom)} группы получит запрос. Отмечать посещаемость можно будет, когда он даст добро.`,
       [
         { text: "Нет", style: "cancel" },
         {
@@ -116,7 +119,7 @@ export function StaffClassActions({
                   slotId: session.slotId,
                   sessionDate,
                 }),
-              "Запрос отправлен тренеру группы",
+              `Запрос отправлен ${coach.dat} группы`,
               "Не удалось отправить запрос",
             ),
         },
@@ -129,7 +132,7 @@ export function StaffClassActions({
   const confirmCancel = () =>
     showAlert(
       "Отменить замену?",
-      "Занятие снова проведёт тренер группы; записавшиеся получат уведомление.",
+      `Занятие снова проведёт ${coach.nom} группы; записавшиеся получат уведомление.`,
       [
         { text: "Нет", style: "cancel" },
         {
@@ -190,7 +193,7 @@ export function StaffClassActions({
       )}
       {sub?.status === "PENDING" && actions.includes("withdraw") && (
         <Text style={styles.muted}>
-          Запрос отправлен — ждём, когда тренер группы даст добро.
+          Запрос отправлен — ждём, когда {coach.nom} группы даст добро.
         </Text>
       )}
       {error && <Text style={styles.danger}>{error}</Text>}
@@ -243,7 +246,7 @@ export function StaffClassActions({
             <ActivityIndicator color={theme.colors.accent} />
           )}
           {candidates !== null && pickable.length === 0 && (
-            <Text style={styles.muted}>Других тренеров в клубе нет.</Text>
+            <Text style={styles.muted}>Других {coach.genPl} в клубе нет.</Text>
           )}
           <View style={twoUp && styles.pickerGrid}>
             {pickable.map((c) => (

@@ -40,6 +40,7 @@ import { formatPhone } from "../../../../../shared/lib/phone"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
 import { groupOptionLabel } from "../../../../../shared/lib/group-label"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 
 const ALL = "all"
 
@@ -55,6 +56,7 @@ const memberName = (m: AtRiskMember) =>
   [m.firstname, m.lastname].filter(Boolean).join(" ") || m.email || "—"
 
 export default function RetentionPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
 
@@ -150,7 +152,7 @@ export default function RetentionPage() {
       <div>
         <h1 className="text-2xl font-semibold">Кто пропадает</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Ученики, которые могут уйти. Один звонок тренера заметно продлевает
+          Ученики, которые могут уйти. Один звонок {vocabulary.coach.gen} заметно продлевает
           членство.
         </p>
       </div>

@@ -25,6 +25,7 @@ import {
 import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
 import { useDirections } from "../../../../../features/directions/use-directions"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 
 const publishConfirmText = (
   audience: string,
@@ -40,6 +41,7 @@ const publishConfirmText = (
 }
 
 export default function WorkspaceAnnouncementsPage() {
+  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
   // A direction manager gets only their directions' announcements and may
@@ -164,7 +166,7 @@ export default function WorkspaceAnnouncementsPage() {
           Лента клуба. Опубликованные объявления видят все участники; черновики —
           только персонал. Закреплённые всплывают наверх.
           {directions.length > 0 &&
-            " Объявление направления получат только его ученики и тренеры."}
+            ` Объявление направления получат только его ученики и ${vocabulary.coach.nomPl}.`}
         </p>
       </div>
 

@@ -31,6 +31,10 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { formatRuDate } from '../../shared/utils/format-ru-date'
+import {
+    loadClubVocabulary,
+    vocabularyForWorkspaceType,
+} from '../../shared/utils/club-vocabulary'
 import { NotificationProducerService } from '../notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../realtime/realtime-emitter.service'
 import {
@@ -43,7 +47,7 @@ import {
     rankVisitAbonements,
 } from '../subscriptions/visit-abonement'
 import {
-    BOOKING_BLOCK_MESSAGES,
+    bookingBlockMessage,
     bookingBlock,
     bookingSettings,
     cancelDeadline,
@@ -102,6 +106,7 @@ const classSelect = {
 
 const workspaceSelect = {
     timezone: true,
+    type: true,
     subscriptionEnabled: true,
     bookingWindowDays: true,
     bookingCancelHours: true,
@@ -356,7 +361,7 @@ export class ClassBookingService {
         }
         if (member.status !== 'ACTIVE') {
             throw new ForbiddenError({
-                message: 'Ваше участие в клубе приостановлено — обратитесь к тренеру',
+                message: `Ваше участие в клубе приостановлено — обратитесь к ${(await loadClubVocabulary(this.prisma, workspaceId)).coach.dat}`,
             })
         }
     }
@@ -411,7 +416,9 @@ export class ClassBookingService {
                 ...dropIns.map((d) => d.group.directionId),
             ],
         })
-        return block ? BOOKING_BLOCK_MESSAGES[block] : null
+        return block
+            ? bookingBlockMessage(block, vocabularyForWorkspaceType(cls.workspace.type))
+            : null
     }
 
     // Books a place (or a waitlist place when full) for `userId`. Re-sending
@@ -428,7 +435,9 @@ export class ClassBookingService {
         const cls = await this.loadClass(p.workspaceId, p.slotId, p.sessionDate)
         this.assertOpenForBooking(cls, now)
         if (cls.group.coaches.some((c) => c.userId === p.userId)) {
-            throw new BadRequestError({ message: 'Вы тренер этой группы' })
+            throw new BadRequestError({
+                message: `Вы ${vocabularyForWorkspaceType(cls.workspace.type).coach.nom} этой группы`,
+            })
         }
         await this.assertActiveMember(p.workspaceId, p.userId)
 

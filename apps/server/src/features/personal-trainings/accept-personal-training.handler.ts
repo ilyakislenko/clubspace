@@ -4,6 +4,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { agree, cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     ConflictError,
     NotFoundError,
@@ -57,6 +58,7 @@ export class AcceptPersonalTrainingHandler
     ) {}
 
     async execute(f: AcceptPersonalTrainingFeature) {
+        const v = await loadClubVocabulary(this.prisma, f.workspaceId)
         const request = await loadRequestOrThrow(
             this.prisma,
             f.workspaceId,
@@ -98,7 +100,7 @@ export class AcceptPersonalTrainingHandler
                             `${localDateInTz(option.startAt, request.timezone)}T00:00:00Z`,
                         ),
                         occurrenceKey: personalOccurrenceKey(request.id),
-                        title: 'Персональная тренировка',
+                        title: cap(v.personalSession.nom),
                         startAt: option.startAt,
                         timezone: request.timezone,
                         checkInCode: null,
@@ -148,7 +150,8 @@ export class AcceptPersonalTrainingHandler
             ),
             workspaceId: f.workspaceId,
             requestId: request.id,
-            topic: () => 'Персональная тренировка подтверждена',
+            topic: () =>
+                `${cap(v.personalSession.nom)} ${agree(v.personalSession, 'подтверждена', 'подтверждено')}`,
             message: (userId) =>
                 `${counterpartName(request, userId)} · ${when}${request.gym ? ` · ${request.gym.name}` : ''}`,
         })

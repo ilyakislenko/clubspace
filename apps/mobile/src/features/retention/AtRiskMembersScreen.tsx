@@ -8,6 +8,7 @@ import {
   type AtRiskReason,
 } from "../../shared/api/retention"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import {
   CenteredColumn,
@@ -35,6 +36,7 @@ export function AtRiskMembersScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
   const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const [reason, setReason] = useState<AtRiskReason | null>(null)
@@ -59,7 +61,7 @@ export function AtRiskMembersScreen() {
   if (!staff) {
     return (
       <SafeAreaView style={styles.root} edges={["bottom"]}>
-        <Text style={styles.empty}>Этот раздел — для тренеров клуба.</Text>
+        <Text style={styles.empty}>Этот раздел — для {vocabulary.coach.genPl} клуба.</Text>
       </SafeAreaView>
     )
   }

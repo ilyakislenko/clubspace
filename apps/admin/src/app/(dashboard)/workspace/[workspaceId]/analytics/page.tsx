@@ -11,10 +11,13 @@ import {
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
-import { ANALYTICS_SECTIONS } from "./sections"
+import { analyticsSections } from "./sections"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 
 export default function AnalyticsOverviewPage() {
   const params = useParams<{ workspaceId: string }>()
+  const vocabulary = useVocabulary()
   const workspaceId = params?.workspaceId
   const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
 
@@ -24,14 +27,14 @@ export default function AnalyticsOverviewPage() {
         <h1 className="text-2xl font-semibold">Аналитика</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Кто может уйти, как держатся новички, где пустые залы и чего ждать по
-          деньгам. Тренеры видят цифры только по своим группам.
+          деньгам. {cap(vocabulary.coach.nomPl)} видят цифры только по своим группам.
         </p>
       </div>
 
       {canAdmin && <DigestToggle />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {ANALYTICS_SECTIONS.map((s) => (
+        {analyticsSections(vocabulary).map((s) => (
           <Link
             key={s.path}
             href={`/workspace/${workspaceId}/analytics/${s.path}`}

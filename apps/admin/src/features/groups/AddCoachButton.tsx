@@ -12,6 +12,7 @@ import {
   isCoachCapable,
   matchesMemberQuery,
 } from "./helpers"
+import { useVocabulary } from "../../shared/lib/vocabulary"
 
 type Props = {
   workspaceId: string
@@ -30,6 +31,7 @@ export function AddCoachButton({
   onAdded,
   onError,
 }: Props) {
+  const vocabulary = useVocabulary()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState("")
@@ -90,7 +92,7 @@ export function AddCoachButton({
         {filtered.length === 0 && (
           <li className="px-2 py-1 text-xs text-muted-foreground">
             {candidates.length === 0
-              ? "Нет подходящих тренеров"
+              ? `Нет подходящих ${vocabulary.coach.genPl}`
               : "Никого не найдено"}
           </li>
         )}

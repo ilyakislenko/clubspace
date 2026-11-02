@@ -1,3 +1,5 @@
+import { cap, fromFirstSession, type ClubVocabulary } from "@clubspace/ui-kit/brand"
+
 import {
   formatMoney,
   formatRuDay,
@@ -42,17 +44,19 @@ export const classesWord = (n: number): string =>
 // The abonement's period line: «С первой тренировки (не позже 5 ноября) · 30 дн.»
 // while it waits for the first visit, otherwise «{start} → {end}» (just the
 // start for an open-ended pack).
-export const periodText = (s: {
-  startDate: string | null
-  endDate: string | null
-  durationDays?: number | null
-  createdAt?: string
-}): string => {
+export const periodText = (
+  s: {
+    startDate: string | null
+    endDate: string | null
+    durationDays?: number | null
+    createdAt?: string
+  },
+  vocabulary: ClubVocabulary,
+): string => {
   if (s.startDate === null) {
     const latest = autoStartText(s.createdAt)
-    const base = latest
-      ? `С первой тренировки (не позже ${latest})`
-      : "С первой тренировки"
+    const first = cap(fromFirstSession(vocabulary))
+    const base = latest ? `${first} (не позже ${latest})` : first
     return s.durationDays != null ? `${base} · ${s.durationDays} дн.` : base
   }
   return s.endDate
@@ -157,6 +161,7 @@ type Input = {
 // alone; visits left are reported next to it, never instead of it.
 export const subscriptionState = (
   { accessUntil, history, current, freeze }: Input,
+  vocabulary: ClubVocabulary,
   now: Date = new Date(),
 ): SubscriptionState => {
   const until = accessUntil ? new Date(accessUntil) : null
@@ -166,9 +171,8 @@ export const subscriptionState = (
   // and only while the server says the abonement is ACTIVE.
   if (current && current.status === "ACTIVE" && current.startDate === null) {
     const latest = autoStartText(current.createdAt)
-    const base = latest
-      ? `Начнётся с первой тренировки · не позже ${latest}`
-      : "Начнётся с первой тренировки"
+    const first = `Начнётся ${fromFirstSession(vocabulary)}`
+    const base = latest ? `${first} · не позже ${latest}` : first
     return {
       text:
         current.classesRemaining !== null
@@ -255,6 +259,7 @@ export const mySubscriptionState = (
     history: unknown[]
     abonements?: readonly CurrentLike[]
   },
+  vocabulary: ClubVocabulary,
   now: Date = new Date(),
 ): SubscriptionState => {
   const list = currentAbonements(data)
@@ -267,6 +272,7 @@ export const mySubscriptionState = (
         current,
         freeze: current?.freeze ?? null,
       },
+      vocabulary,
       now,
     )
   }
@@ -305,12 +311,15 @@ export const soonestEndingId = (
  * A compact «what is left» for one abonement in a list: «5 из 12 занятий · до
  * 5 мая», «до 5 мая», «С первой тренировки», «без ограничения по времени».
  */
-export const abonementShortLine = (a: {
-  classesRemaining: number | null
-  classesTotal: number | null
-  startDate: string | null
-  endDate: string | null
-}): string => {
+export const abonementShortLine = (
+  a: {
+    classesRemaining: number | null
+    classesTotal: number | null
+    startDate: string | null
+    endDate: string | null
+  },
+  vocabulary: ClubVocabulary,
+): string => {
   const parts: string[] = []
   if (a.classesRemaining !== null) {
     parts.push(
@@ -319,7 +328,7 @@ export const abonementShortLine = (a: {
         : `${a.classesRemaining} ${classesWord(a.classesRemaining)}`,
     )
   }
-  if (a.startDate === null) parts.push("с первой тренировки")
+  if (a.startDate === null) parts.push(fromFirstSession(vocabulary))
   else if (a.endDate) parts.push(`до ${fmtDate(a.endDate)}`)
   if (parts.length === 0) return "без ограничения по времени"
   const line = parts.join(" · ")

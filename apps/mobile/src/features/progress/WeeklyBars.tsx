@@ -1,19 +1,22 @@
+import { cap } from "@clubspace/ui-kit/brand"
 import React from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import type { Theme } from "../../shared/theme"
 import { useThemedStyles } from "../../shared/theme-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 
 const BAR_AREA = 56
 
 /** Check-ins per week as a row of bars, oldest first; the last bar is the current week. */
 export function WeeklyBars({ counts }: { counts: number[] }) {
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   const max = Math.max(1, ...counts)
   return (
     <View
       accessible
-      accessibilityLabel={`Тренировки по неделям: ${counts.join(", ")}`}
+      accessibilityLabel={`${cap(vocabulary.session.nomPl)} по неделям: ${counts.join(", ")}`}
       style={styles.wrap}
     >
       <View style={styles.bars}>

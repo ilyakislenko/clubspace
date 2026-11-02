@@ -19,6 +19,7 @@ import { dayMonth, DOW_SHORT, formatRange, isoDow, type Conflict } from "./calen
 import type { CalendarItem, ClassItem } from "./calendar-items"
 import { ConflictList } from "./ConflictList"
 import type { DragTarget } from "./use-grid-drag"
+import { useVocabulary } from "../../../shared/lib/vocabulary"
 
 export type MoveScope = "one" | "following"
 
@@ -36,6 +37,7 @@ type Props = {
  * for that date) or change the weekly slot from this date on.
  */
 export function MoveDialog({ move, conflicts, busy, error, onCancel, onConfirm }: Props) {
+  const vocabulary = useVocabulary()
   const [notify, setNotify] = useState(true)
   useEffect(() => {
     if (move) setNotify(true)
@@ -100,7 +102,7 @@ export function MoveDialog({ move, conflicts, busy, error, onCancel, onConfirm }
             checked={notify}
             onChange={(e) => setNotify(e.target.checked)}
           />
-          Уведомить учеников и тренера
+          Уведомить учеников и {vocabulary.coach.acc}
         </label>
 
         {error && (

@@ -4,6 +4,7 @@ import { NotificationProducerService } from '../../domains/notifications/service
 import { claimDispatch } from '../../domains/scheduler/dispatch-claims'
 import { PrismaService } from '../../infrastructure/prisma'
 import { formatRuDate } from '../../shared/utils/format-ru-date'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import { displayName } from '../attendance/schemas'
 import { type ClassSubstitutionRow, substitutionWhen } from './schemas'
 
@@ -106,7 +107,7 @@ export const notifyClassSubstitution = async (
             `${label} — проведёт ${substitute}`,
         )
         audience = {
-            topic: 'Замена тренера',
+            topic: `Замена ${(await loadClubVocabulary(prisma, row.workspaceId)).coach.gen}`,
             message: `${label} — проведёт ${substitute}`,
         }
     } else if (event === 'requested') {

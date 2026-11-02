@@ -24,6 +24,7 @@ import {
   type LeaderboardPeriod,
 } from "../../shared/api/leaderboard"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { useToast } from "../../shared/components/Toast"
@@ -50,6 +51,7 @@ export function LeaderboardScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
+  const vocabulary = useVocabulary()
   const { showToast } = useToast()
 
   const [period, setPeriod] = useState<LeaderboardPeriod>("month")
@@ -181,7 +183,7 @@ export function LeaderboardScreen() {
               <View style={styles.meDivider} />
               <View style={styles.meStat}>
                 <Text style={styles.meValue}>{data.me.checkins}</Text>
-                <Text style={styles.meLabel}>тренировок</Text>
+                <Text style={styles.meLabel}>{vocabulary.session.genPl}</Text>
               </View>
               <View style={styles.meDivider} />
               <View style={styles.meStat}>

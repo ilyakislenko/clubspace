@@ -30,6 +30,7 @@ import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { pluralRu } from "../../shared/lib/plural-ru"
 import { formatMinutes } from "../../shared/lib/format-minutes"
 import { formatYmd } from "../../shared/lib/format-ymd"
+import { useVocabulary } from "../../shared/lib/vocabulary"
 
 const DAY_LABELS: Record<number, string> = {
   1: "Пн",
@@ -526,6 +527,7 @@ function ExceptionForm({
   onCreated: () => void | Promise<void>
   onError: (msg: string) => void
 }) {
+  const vocabulary = useVocabulary()
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const [fromDate, setFromDate] = useState<Date | null>(today)
@@ -603,7 +605,7 @@ function ExceptionForm({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">
-              Вся группа (например, отпуск тренера)
+              Вся группа (например, отпуск {vocabulary.coach.gen})
             </SelectItem>
             {slots.map((s) => (
               <SelectItem key={s.id} value={s.id}>
