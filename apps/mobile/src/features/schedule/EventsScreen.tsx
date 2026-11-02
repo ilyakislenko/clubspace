@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useState } from "react"
+import React, { useCallback, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Linking,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ScrollViewInstance,
 } from "react-native"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { Pressable } from "../../shared/components/Pressable"
@@ -237,7 +238,7 @@ function EventRegistrationBlock({
   )
 }
 
-export function EventsScreen({ navigation }: Props) {
+export function EventsScreen({ navigation, route }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
@@ -247,6 +248,27 @@ export function EventsScreen({ navigation }: Props) {
     useCallback(async () => await fetchMe(), []),
   )
   const meId = me.data?.id ?? null
+  // Opened on one event (Home's «Ближайшее событие»): scroll to its card
+  // once both it and the list are laid out, and mark it.
+  const focusId = route.params?.eventId ?? null
+  const scrollRef = useRef<ScrollViewInstance>(null)
+  const listRef = useRef<React.ComponentRef<typeof View>>(null)
+  const focusRef = useRef<React.ComponentRef<typeof View>>(null)
+  const listY = useRef<number | null>(null)
+  const scrolledTo = useRef<string | null>(null)
+  const scrollToFocus = () => {
+    const card = focusRef.current
+    const list = listRef.current
+    if (!card || !list || listY.current === null) return
+    if (scrolledTo.current === focusId) return
+    card.measureLayout(list, (_x, y) => {
+      scrolledTo.current = focusId
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, listY.current! + y - theme.spacing(3)),
+        animated: true,
+      })
+    })
+  }
   const {
     data: events,
     error,
@@ -299,6 +321,7 @@ export function EventsScreen({ navigation }: Props) {
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn maxWidth={DASHBOARD_WIDTH}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.body}
         refreshControl={
           <RefreshControl
@@ -326,10 +349,22 @@ export function EventsScreen({ navigation }: Props) {
             </Text>
           </View>
         ) : (
-          <View style={styles.list}>
+          <View
+            ref={listRef}
+            style={styles.list}
+            onLayout={(e) => {
+              listY.current = e.nativeEvent.layout.y
+              scrollToFocus()
+            }}
+          >
             <ResponsiveGrid>
             {events?.map((event) => (
-              <View key={event.id} style={styles.card}>
+              <View
+                key={event.id}
+                ref={event.id === focusId ? focusRef : undefined}
+                onLayout={event.id === focusId ? scrollToFocus : undefined}
+                style={[styles.card, event.id === focusId && styles.cardFocused]}
+              >
                 <Text style={styles.cardTitle}>{event.title}</Text>
                 <Text style={styles.cardWhen}>
                   {formatRangeInTz(
@@ -461,6 +496,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     ...theme.shadows.sm,
+  },
+  cardFocused: {
+    borderWidth: 2,
+    borderColor: theme.colors.accent,
   },
   cardTitle: {
     ...theme.typography.subheading,

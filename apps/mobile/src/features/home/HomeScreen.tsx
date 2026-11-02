@@ -7,7 +7,7 @@ import type { TabScreenProps } from "../../app/navigation"
 import { getAnnouncementFeed } from "../../shared/api/announcements"
 import { listClassSubstitutions } from "../../shared/api/class-substitutions"
 import { getMyDropIns } from "../../shared/api/drop-ins"
-import { getMyGroups } from "../../shared/api/groups"
+import { getMyGroups, listEvents } from "../../shared/api/groups"
 import { fetchMe } from "../../shared/api/me"
 import { fetchMyMembership } from "../../shared/api/memberships"
 import { listPendingFreezeRequests } from "../../shared/api/member-subscriptions"
@@ -50,12 +50,14 @@ import {
   FreezeRequestsCard,
   HomeFallback,
   NextClassCard,
+  NextEventCard,
   PersonalRequestsCard,
   SubscriptionCard,
 } from "./HomeCards"
 import {
   greetingName,
   pickCoachClassesToday,
+  pickNextEvent,
   showCheckInButton,
   showHomeFallback,
   showSubscriptionCard,
@@ -94,6 +96,10 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   // with guest visits off so existing bookings still show.
   const dropInsOn =
     isFeatureEnabled(workspace, "schedule") && !workspace?.isOwner
+  // Members (and a parent acting for a child) sign up for events; the staff
+  // run them instead.
+  const eventsOn =
+    isFeatureEnabled(workspace, "events") && !isStaffWorkspace(workspace)
   const [editingName, setEditingName] = useState(false)
   const [recents, setRecents] = useState<RecentEntry[]>([])
 
@@ -154,6 +160,14 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     useCallback(
       async () =>
         await getAnnouncementFeed({ workspaceId: workspaceId!, perPage: 1 }),
+      [workspaceId],
+    ),
+  )
+  // Same key as the Events screen, so each paints the other's data.
+  const events = useCachedResource(
+    workspaceId && eventsOn ? `events:${workspaceId}` : null,
+    useCallback(
+      async () => (await listEvents({ workspaceId: workspaceId! })).data,
       [workspaceId],
     ),
   )
@@ -223,6 +237,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     personal,
     subscription,
     announcements,
+    events,
     atRisk,
     freezeRequests,
     agenda,
@@ -239,6 +254,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       r !== atRisk &&
       r !== freezeRequests &&
       r !== agenda &&
+      r !== events &&
       r !== substitutions &&
       r.error &&
       !r.data,
@@ -272,6 +288,16 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       bookings={bookings}
       personal={myPersonal}
       onPress={() => navigation.navigate("Schedule")}
+    />
+  )
+
+  const nextEvent = pickNextEvent(events.data ?? [], new Date())
+  const nextEventCard = nextEvent && (
+    <NextEventCard
+      next={nextEvent}
+      onPress={() =>
+        navigation.navigate("Events", { eventId: nextEvent.event.id })
+      }
     />
   )
 
@@ -415,6 +441,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       {coachToday}
       {!staffSide && callList}
       {nextClass}
+      {nextEventCard}
       {!staffSide && coachRequests}
       {!staffSide && freezeRequestsCard}
       {checkIn}
@@ -500,6 +527,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               {coachToday}
               {callList}
               {nextClass}
+              {nextEventCard}
               {coachRequests}
               {freezeRequestsCard}
               {checkIn}
@@ -516,6 +544,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               <ResponsiveGrid fill>
                 {callList}
                 {nextClass}
+                {nextEventCard}
                 {subscriptionCard}
               </ResponsiveGrid>
               <ResponsiveGrid fill>
@@ -546,7 +575,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             />
           )}
 
-          {!failed && showHomeFallback({
+          {!failed && !nextEvent && showHomeFallback({
             groupsOn:
               groupsOn || bookings.length > 0 || myPersonal.length > 0,
             attendanceOn,

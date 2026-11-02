@@ -39,7 +39,8 @@ export type RootStackParamList = {
   Favorites: undefined
   MyGroups: undefined
   Gyms: undefined
-  Events: undefined
+  // `eventId`: scroll to and mark that event (Home's «Ближайшее событие»).
+  Events: { eventId?: string } | undefined
   ClubAbout: undefined
   SessionAttendance: {
     slotId: string

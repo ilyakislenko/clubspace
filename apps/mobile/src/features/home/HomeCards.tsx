@@ -22,7 +22,13 @@ import {
   formatUpcomingLabel,
 } from "../schedule/schedule-helpers"
 import type { RecentEntry } from "../profile/preferences-store"
-import { pickNextTraining, type CoachClassToday } from "./home-helpers"
+import {
+  eventStatusLine,
+  formatEventWhen,
+  pickNextTraining,
+  type CoachClassToday,
+  type MyNextEvent,
+} from "./home-helpers"
 import {
   abonementShortLine,
   currentAbonements,
@@ -214,6 +220,42 @@ export function NextClassCard({
         {[group.gym?.name, formatDuration(next.slot.durationMin)]
           .filter(Boolean)
           .join(" · ")}
+      </Text>
+    </HomeCard>
+  )
+}
+
+/** The soonest event the member signed up for or waits on; tap opens it. */
+export function NextEventCard({
+  next,
+  onPress,
+  grow,
+}: {
+  next: MyNextEvent
+  onPress: () => void
+  grow?: boolean
+}) {
+  const styles = useThemedStyles(makeStyles)
+  const { sizeClass } = useResponsive()
+  const { event, mine } = next
+  const title = "Ближайшее событие"
+  const when = formatEventWhen(new Date(event.startAt), event.timezone, new Date())
+  const status = eventStatusLine(mine, event.price)
+  return (
+    <HomeCard
+      title={title}
+      onPress={onPress}
+      grow={grow}
+      accessibilityLabel={`${title}: ${event.title}, ${when}, ${status}`}
+    >
+      <Text
+        style={sizeClass === "expanded" ? styles.strongLarge : styles.strong}
+      >
+        {when}
+      </Text>
+      <Text style={styles.line}>{event.title}</Text>
+      <Text style={styles.muted}>
+        {[status, event.gym?.name].filter(Boolean).join(" · ")}
       </Text>
     </HomeCard>
   )

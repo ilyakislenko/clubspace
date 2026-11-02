@@ -1,11 +1,16 @@
+import type { ScheduleEvent } from "../../shared/api/groups"
 import {
+  eventStatusLine,
+  formatEventWhen,
   greetingName,
   isCoachView,
   pickCoachClassesToday,
+  pickNextEvent,
   pickNextTraining,
   showCheckInButton,
   showHomeFallback,
   showSubscriptionCard,
+  type MyEventRegistration,
 } from "./home-helpers"
 
 describe("greetingName", () => {
@@ -446,5 +451,125 @@ describe("pickCoachClassesToday with substitutions", () => {
     ])
     // Without a known viewer nothing is theirs.
     expect(pickCoachClassesToday([], now, [], null, [sub({})])).toEqual([])
+  })
+})
+
+describe("pickNextEvent", () => {
+  const now = new Date("2026-11-03T12:00:00Z")
+  const mine = (
+    over: Partial<MyEventRegistration> = {},
+  ): MyEventRegistration => ({
+    id: "r",
+    eventId: "e",
+    status: "BOOKED",
+    waitlistPosition: null,
+    isPaid: false,
+    promotedAt: null,
+    cancelledAt: null,
+    createdAt: "2026-11-01T00:00:00Z",
+    ...over,
+  })
+  const event = (
+    id: string,
+    startAt: string,
+    my: MyEventRegistration | null,
+    endAt = new Date(new Date(startAt).getTime() + 2 * 3_600_000).toISOString(),
+  ): ScheduleEvent => ({
+    id,
+    workspaceId: "w",
+    title: `Мастер-класс ${id}`,
+    description: null,
+    link: null,
+    startAt,
+    endAt,
+    timezone: "Asia/Tomsk",
+    gym: null,
+    coach: null,
+    createdById: "u",
+    price: 1500,
+    capacity: 10,
+    registration: { booked: 1, waitlist: 0, mine: my },
+  })
+
+  it("takes the soonest upcoming event the member signed up for", () => {
+    const picked = pickNextEvent(
+      [
+        event("later", "2026-11-20T10:00:00Z", mine()),
+        event("sooner", "2026-11-10T10:00:00Z", mine({ status: "WAITLISTED" })),
+        event("not-mine", "2026-11-05T10:00:00Z", null),
+      ],
+      now,
+    )
+    expect(picked?.event.id).toBe("sooner")
+    expect(picked?.mine.status).toBe("WAITLISTED")
+  })
+
+  it("skips finished events and cancelled registrations", () => {
+    const picked = pickNextEvent(
+      [
+        event("past", "2026-11-01T10:00:00Z", mine()),
+        event("cancelled", "2026-11-04T10:00:00Z", mine({ status: "CANCELLED" })),
+        event("next", "2026-11-12T10:00:00Z", mine({ isPaid: true })),
+      ],
+      now,
+    )
+    expect(picked?.event.id).toBe("next")
+  })
+
+  it("keeps an event under way", () => {
+    const picked = pickNextEvent(
+      [event("now", "2026-11-03T11:00:00Z", mine())],
+      now,
+    )
+    expect(picked?.event.id).toBe("now")
+  })
+
+  it("is null without a registration (an open event has none)", () => {
+    const open = { ...event("open", "2026-11-05T10:00:00Z", null), registration: null }
+    expect(pickNextEvent([open], now)).toBeNull()
+    expect(pickNextEvent([], now)).toBeNull()
+  })
+})
+
+describe("eventStatusLine", () => {
+  const base = {
+    id: "r",
+    eventId: "e",
+    status: "BOOKED" as const,
+    waitlistPosition: null,
+    isPaid: false,
+    promotedAt: null,
+    cancelledAt: null,
+    createdAt: "2026-11-01T00:00:00Z",
+  }
+
+  it("tells booked unpaid, paid and free apart", () => {
+    expect(eventStatusLine(base, 1500)).toBe("Вы записаны · оплата в клубе")
+    expect(eventStatusLine({ ...base, isPaid: true }, 1500)).toBe("Оплачено")
+    expect(eventStatusLine(base, null)).toBe("Вы записаны")
+  })
+
+  it("shows the waitlist position when known", () => {
+    const waiting = { ...base, status: "WAITLISTED" as const }
+    expect(eventStatusLine({ ...waiting, waitlistPosition: 2 }, 1500)).toBe(
+      "В листе ожидания, 2-я",
+    )
+    expect(eventStatusLine(waiting, 1500)).toBe("В листе ожидания")
+  })
+})
+
+describe("formatEventWhen", () => {
+  const now = new Date("2026-11-03T05:00:00Z") // 12:00 in Tomsk
+
+  it("reads today, tomorrow or a date in the event's zone", () => {
+    expect(formatEventWhen(new Date("2026-11-03T12:00:00Z"), "Asia/Tomsk", now)).toBe(
+      "Сегодня в 19:00",
+    )
+    expect(formatEventWhen(new Date("2026-11-04T12:00:00Z"), "Asia/Tomsk", now)).toBe(
+      "Завтра в 19:00",
+    )
+    expect(formatEventWhen(new Date("2026-11-14T12:00:00Z"), "Asia/Tomsk", now)).toBe(
+      "14 ноября в 19:00",
+    )
   })
 })

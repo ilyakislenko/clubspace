@@ -1,6 +1,10 @@
 import type { ClassSubstitution } from "../../shared/api/class-substitutions"
 import type { DropInBooking } from "../../shared/api/drop-ins"
-import type { MyGroup } from "../../shared/api/groups"
+import type {
+  EventRegistrationSummary,
+  MyGroup,
+  ScheduleEvent,
+} from "../../shared/api/groups"
 import type { PersonalTraining } from "../../shared/api/personal-trainings"
 import {
   upcomingConfirmed,
@@ -85,6 +89,68 @@ export const pickNextTraining = (
     }
   }
   return best
+}
+
+export type MyEventRegistration = NonNullable<EventRegistrationSummary["mine"]>
+export type MyNextEvent = { event: ScheduleEvent; mine: MyEventRegistration }
+
+/**
+ * The soonest event the viewer is signed up for or queued on: finished ones
+ * and cancelled registrations don't count, an event under way still does.
+ */
+export const pickNextEvent = (
+  events: readonly ScheduleEvent[],
+  now: Date,
+): MyNextEvent | null => {
+  let best: MyNextEvent | null = null
+  for (const event of events) {
+    const mine = event.registration?.mine
+    if (!mine || mine.status === "CANCELLED") continue
+    if (new Date(event.endAt) <= now) continue
+    if (!best || new Date(event.startAt) < new Date(best.event.startAt)) {
+      best = { event, mine }
+    }
+  }
+  return best
+}
+
+// «Вы записаны · оплата в клубе» / «Оплачено» / «В листе ожидания, 2-я».
+export const eventStatusLine = (
+  mine: MyEventRegistration,
+  price: number | null | undefined,
+): string => {
+  if (mine.status === "WAITLISTED") {
+    return mine.waitlistPosition
+      ? `В листе ожидания, ${mine.waitlistPosition}-я`
+      : "В листе ожидания"
+  }
+  if (mine.isPaid) return "Оплачено"
+  return price ? "Вы записаны · оплата в клубе" : "Вы записаны"
+}
+
+// «Сегодня в 19:00» / «Завтра в 19:00» / «14 ноября в 19:00», in the event's
+// own zone: a master class can be weeks away, so no bare weekday.
+export const formatEventWhen = (
+  startAt: Date,
+  timeZone: string,
+  now: Date,
+): string => {
+  const p = zonedParts(startAt, timeZone)
+  const today = zonedParts(now, timeZone)
+  const daysAhead = Math.round(
+    (Date.UTC(p.year, p.month - 1, p.day) -
+      Date.UTC(today.year, today.month - 1, today.day)) /
+      86_400_000,
+  )
+  const time = `${pad2(p.hour)}:${pad2(p.minute)}`
+  if (daysAhead <= 0) return `Сегодня в ${time}`
+  if (daysAhead === 1) return `Завтра в ${time}`
+  const day = new Intl.DateTimeFormat("ru-RU", {
+    timeZone,
+    day: "numeric",
+    month: "long",
+  }).format(startAt)
+  return `${day} в ${time}`
 }
 
 // Workspace roles that run classes. A plain «user» member only trains.
