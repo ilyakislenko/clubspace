@@ -32,7 +32,7 @@ import { haptics } from "../../shared/haptics"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import { spotsLine } from "./class-booking-helpers"
 import { formatTimezoneLabel } from "./club-schedule-buckets"
-import { bookedLine, eventViewer } from "./event-helpers"
+import { bookedLine, eventViewer, priceLabel } from "./event-helpers"
 import { fetchMe } from "../../shared/api/me"
 import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
@@ -77,14 +77,6 @@ const formatRangeInTz = (
   }
   return `${dateFmt.format(start)}, ${timeFmt.format(start)} – ${dateFmt.format(end)}, ${timeFmt.format(end)}`
 }
-
-const moneyFmt = new Intl.NumberFormat("ru-RU")
-
-// «1 500 ₽» / «Бесплатно».
-const priceLabel = (price: number | null, currency: string): string =>
-  price === null
-    ? "Бесплатно"
-    : `${moneyFmt.format(price)} ${currency === "RUB" ? "₽" : currency}`
 
 // A master class: price, places and the member's own registration, with
 // register / waitlist / cancel. A guardian acting for a child acts for it.
