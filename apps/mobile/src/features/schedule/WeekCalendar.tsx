@@ -165,27 +165,33 @@ export function WeekCalendar({
   }
 
   const nowTop = nowOffset(nowMinute, axis, size.hour)
+  const showNow = page === 0 && nowTop !== null
   // Lines at every hour from the first to the last, the last closing the grid.
   const hourMarks = Array.from({ length: hours + 1 }, (_, i) => axis.startHour + i)
+  // An hour label the «сейчас» label would sit on top of gives way to it.
+  const coveredByNow = (i: number) =>
+    showNow && Math.abs(i * size.hour - nowTop) < LABEL_HALF * 2
   const pageKeys = (p: number) =>
     dayKeys.slice(p * WEEK_DAYS, p * WEEK_DAYS + WEEK_DAYS)
 
   const grid = (
     <View style={styles.row}>
       <View style={{ width: size.axis, height: gridHeight }}>
-        {hourMarks.map((h, i) => (
-          <Text
-            key={h}
-            style={[
-              styles.hourLabel,
-              compact && styles.hourLabelCompact,
-              { top: EDGE + i * size.hour - LABEL_HALF },
-            ]}
-          >
-            {hhmm(h)}
-          </Text>
-        ))}
-        {page === 0 && nowTop !== null && (
+        {hourMarks.map((h, i) =>
+          coveredByNow(i) ? null : (
+            <Text
+              key={h}
+              style={[
+                styles.hourLabel,
+                compact && styles.hourLabelCompact,
+                { top: EDGE + i * size.hour - LABEL_HALF },
+              ]}
+            >
+              {hhmm(h)}
+            </Text>
+          ),
+        )}
+        {showNow && (
           <Text
             style={[styles.nowLabel, { top: EDGE + nowTop - LABEL_HALF }]}
             accessibilityLabel="Сейчас"
