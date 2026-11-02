@@ -31,6 +31,7 @@ import {
   useWorkspaceFeatures,
 } from "../../../../shared/lib/use-workspace-features"
 import { useVocabulary } from "../../../../shared/lib/vocabulary"
+import { cap } from "@clubspace/ui-kit/brand"
 import { formatAmount } from "../../../../features/subscriptions/subscription-display"
 import { OnboardingChecklist } from "../../../../features/billing/OnboardingChecklist"
 
@@ -313,7 +314,7 @@ export default function WorkspaceOverviewPage() {
           <h2 className="text-sm font-medium">Сегодня</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              label="Занятий сегодня по расписанию"
+              label={`${cap(vocabulary.session.genPl)} сегодня по расписанию`}
               value={stats.today.sessions}
               loading={loading}
             />
@@ -375,7 +376,7 @@ export default function WorkspaceOverviewPage() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
-            label="Занятия за неделю"
+            label={`${cap(vocabulary.session.nomPl)} за неделю`}
             value={stats?.attendance.sessions7d}
             subtitle={
               stats ? `${stats.attendance.sessions30d} за месяц` : undefined

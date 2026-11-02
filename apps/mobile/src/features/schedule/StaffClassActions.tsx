@@ -1,4 +1,4 @@
-import { cap } from "@clubspace/ui-kit/brand"
+import { agree, cap } from "@clubspace/ui-kit/brand"
 import React, { useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 
@@ -45,7 +45,7 @@ export function StaffClassActions({
   // «Отмена» below a landscape window.
   const twoUp = useResponsive().sizeClass !== "compact"
   const { workspace } = useAuth()
-  const { coach } = useVocabulary()
+  const { coach, session: sessionNoun } = useVocabulary()
   const { showToast } = useToast()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -187,7 +187,8 @@ export function StaffClassActions({
     <View style={styles.wrap}>
       {sub?.status === "PENDING" && actions.includes("approve") && (
         <Text style={styles.muted}>
-          {personName(sub.substitute)} хочет провести это занятие. Пока вы не
+          {personName(sub.substitute)} хочет провести{" "}
+          {agree(sessionNoun, "эту", "это")} {sessionNoun.acc}. Пока вы не
           дадите добро, отмечать посещаемость он не может.
         </Text>
       )}

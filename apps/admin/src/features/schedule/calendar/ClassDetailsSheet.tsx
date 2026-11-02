@@ -4,6 +4,8 @@ import { CalendarClock, MapPin, Repeat2, UserRound, UserRoundCog, Users } from "
 import Link from "next/link"
 import { useEffect, useState } from "react"
 
+import { cap } from "@clubspace/ui-kit/brand"
+
 import {
   Button,
   DatePicker,
@@ -26,6 +28,7 @@ import {
 } from "../../../shared/api/groups"
 import { errorMessage } from "../../../shared/lib/error-message"
 import { pluralRu } from "../../../shared/lib/plural-ru"
+import { useVocabulary } from "../../../shared/lib/vocabulary"
 import { DirectionChip } from "../../directions/DirectionChip"
 import { ClassAttendancePanel } from "../ClassAttendancePanel"
 import { ClassBookingPanel } from "../ClassBookingPanel"
@@ -104,6 +107,7 @@ function ClassDetails({
   canManage,
 }: Props & { item: ClassItem }) {
   const s = item.session
+  const vocabulary = useVocabulary()
   const [date, setDate] = useState(item.date)
   const [time, setTime] = useState(formatHm(item.startMin))
   const [duration, setDuration] = useState(String(item.endMin - item.startMin))
@@ -307,7 +311,7 @@ function ClassDetails({
             Перенести…
           </Button>
           <p className="text-xs text-muted-foreground">
-            Занятие можно и просто перетащить в календаре, а длительность — потянуть за нижний край.
+            {cap(vocabulary.session.acc)} можно и просто перетащить в календаре, а длительность — потянуть за нижний край.
           </p>
         </div>
       )}
@@ -324,12 +328,12 @@ function ClassDetails({
             />
             {s.booking && (
               <p className="text-xs text-muted-foreground">
-                Записи на занятие отменятся без списания, ученики получат уведомление.
+                Записи на {vocabulary.session.acc} отменятся без списания, ученики получат уведомление.
               </p>
             )}
             <div className="flex gap-2">
               <Button variant="destructive" disabled={busy} onClick={() => void cancelClass()}>
-                {busy ? "…" : "Отменить занятие"}
+                {busy ? "…" : `Отменить ${vocabulary.session.acc}`}
               </Button>
               <Button variant="ghost" disabled={busy} onClick={() => setCancelOpen(false)}>
                 Не отменять
@@ -338,14 +342,14 @@ function ClassDetails({
           </div>
         ) : (
           <Button variant="destructive" onClick={() => setCancelOpen(true)}>
-            Отменить занятие
+            Отменить {vocabulary.session.acc}
           </Button>
         ))}
 
       {s.cancelled && group && canManage && (
         restorable ? (
           <Button variant="outline" disabled={busy} onClick={() => void restoreClass()}>
-            Вернуть занятие
+            Вернуть {vocabulary.session.acc}
           </Button>
         ) : (
           cancellation && (

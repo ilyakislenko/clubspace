@@ -68,6 +68,7 @@ type Props = {
 }
 
 export function GroupScheduleBlock({ workspaceId, group, onChanged }: Props) {
+  const vocabulary = useVocabulary()
   const bookingMode = group.bookingMode === "BOOKING"
   const [showSlotForm, setShowSlotForm] = useState(false)
   const [showExceptionForm, setShowExceptionForm] = useState(false)
@@ -221,7 +222,7 @@ export function GroupScheduleBlock({ workspaceId, group, onChanged }: Props) {
               variant="outline"
               onClick={() => setShowExceptionForm(true)}
             >
-              + Отменить занятия
+              + Отменить {vocabulary.session.nomPl}
             </Button>
           )}
         </div>

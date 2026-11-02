@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 
+import { agree, cap } from "@clubspace/ui-kit/brand"
 import { Button } from "@clubspace/ui-kit/ui"
 
 import {
@@ -98,19 +99,20 @@ export function ClassSubstitutionPanel({
         <p className="text-sm">
           {row.status === "APPROVED" ? (
             <>
-              Занятие проведёт <b>{personName(row.substitute)}</b> вместо{" "}
+              {cap(vocabulary.session.acc)} проведёт <b>{personName(row.substitute)}</b> вместо{" "}
               {personName(row.regularCoach)}.
             </>
           ) : (
             <>
-              <b>{personName(row.substitute)}</b> просит провести это занятие —
+              <b>{personName(row.substitute)}</b> просит провести{" "}
+              {agree(vocabulary.session, "эту", "это")} {vocabulary.session.acc} —
               отмечать посещаемость сможет после одобрения.
             </>
           )}
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Ведёт {vocabulary.coach.nom} группы. Назначьте замену, если занятие проведёт другой
+          Ведёт {vocabulary.coach.nom} группы. Назначьте замену, если {vocabulary.session.acc} проведёт другой
           {" "}{vocabulary.coach.nom} — он сможет отметить посещаемость.
         </p>
       )}
@@ -157,7 +159,7 @@ export function ClassSubstitutionPanel({
         {(!row || row.canDecide) && (
           <>
             <select
-              aria-label="Кто проведёт занятие"
+              aria-label={`Кто проведёт ${vocabulary.session.acc}`}
               className="h-8 rounded-md border border-border bg-background px-2 text-sm"
               value={pick}
               onChange={(e) => setPick(e.target.value)}

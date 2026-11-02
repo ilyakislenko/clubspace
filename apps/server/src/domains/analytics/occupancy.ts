@@ -5,6 +5,8 @@
 // wall-clock in the gym's (or club's) timezone, so weekday/hour need no
 // conversion.
 
+import type { ClubVocabulary } from '../../shared/utils/club-vocabulary'
+
 export const OCCUPANCY_RULES = {
     // Average attendance at or above this share of capacity = demand exceeds
     // what the slot can take.
@@ -177,6 +179,7 @@ const where = (n: SlotNames): string =>
 export const suggestOccupancyActions = (
     slots: ReadonlyArray<SlotStat>,
     names: ReadonlyMap<string, SlotNames>,
+    vocabulary: ClubVocabulary,
 ): OccupancySuggestion[] => {
     const out: OccupancySuggestion[] = []
     for (const s of judged(slots)
@@ -188,7 +191,7 @@ export const suggestOccupancyActions = (
         out.push({
             kind: 'add_class',
             slotId: s.slotId,
-            text: `${slotLabel(s)} ${where(n)}: в среднем ${String(s.avgAttendance).replace('.', ',')} из ${s.capacity} (${Math.round(s.fill * 100)}%). Спрос выше вместимости — добавьте занятие в соседний час или параллельную группу.`,
+            text: `${slotLabel(s)} ${where(n)}: в среднем ${String(s.avgAttendance).replace('.', ',')} из ${s.capacity} (${Math.round(s.fill * 100)}%). Спрос выше вместимости — добавьте ${vocabulary.session.acc} в соседний час или параллельную группу.`,
         })
     }
     for (const s of weakestSlots(slots)) {

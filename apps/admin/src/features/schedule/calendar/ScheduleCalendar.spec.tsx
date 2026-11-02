@@ -118,7 +118,7 @@ describe("ScheduleCalendar", () => {
     await screen.findByRole("button", { name: /Группа g1, 19:00–20:30/ })
     expect(scheduleMock).toHaveBeenCalledWith({ workspaceId: "w1", from: "2026-11-02", to: "2026-11-08" })
     expect(screen.getByText("2–8 ноября 2026")).toBeTruthy()
-    expect(screen.getByText(/1 занятие/)).toBeTruthy()
+    expect(screen.getByText(/1 тренировка/)).toBeTruthy()
   })
 
   it("moves only this class and offers to undo it", async () => {
@@ -220,7 +220,7 @@ describe("ScheduleCalendar", () => {
       await screen.findByRole("button", { name: /Группа g1, 19:00–20:30/ })
       await waitFor(() => expect(hallNames()).toEqual(["Зал gym1", "Зал gym2"]))
       expect(screen.getByRole("button", { name: /По залам/ }).getAttribute("aria-pressed")).toBe("true")
-      fireEvent.click(screen.getByRole("button", { name: "Новое занятие 18:45, Зал gym2" }))
+      fireEvent.click(screen.getByRole("button", { name: "Новая тренировка 18:45, Зал gym2" }))
       expect(await screen.findByText(/Зал: Зал gym2/)).toBeTruthy()
     })
 

@@ -7,6 +7,7 @@ import {
     summarizeSlots,
     weakestSlots,
 } from './occupancy'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 
 const row = (over: Partial<OccurrenceRow>): OccurrenceRow => ({
     groupId: 'g1',
@@ -106,11 +107,11 @@ describe('heatmap and rankings', () => {
             ['mon19', { groupName: 'BJJ вечер', gymName: 'Юпитер' }],
             ['sat9', { groupName: 'Утро', gymName: null }],
         ])
-        expect(suggestOccupancyActions(slots, names)).toEqual([
+        expect(suggestOccupancyActions(slots, names, vocabularyForWorkspaceType('GRAPPLING'))).toEqual([
             {
                 kind: 'add_class',
                 slotId: 'mon19',
-                text: 'Пн 19:00 «BJJ вечер», Юпитер: в среднем 19 из 20 (95%). Спрос выше вместимости — добавьте занятие в соседний час или параллельную группу.',
+                text: 'Пн 19:00 «BJJ вечер», Юпитер: в среднем 19 из 20 (95%). Спрос выше вместимости — добавьте тренировку в соседний час или параллельную группу.',
             },
             {
                 kind: 'rethink_slot',
@@ -118,6 +119,9 @@ describe('heatmap and rankings', () => {
                 text: 'Сб 09:00 «Утро»: в среднем 2 из 20 (10%). Подумайте о переносе времени или объединении с другой группой.',
             },
         ])
+        expect(suggestOccupancyActions(slots, names, vocabularyForWorkspaceType('DANCE'))[0].text).toContain(
+            'добавьте занятие в соседний час',
+        )
     })
 
     it('labels slots with the Russian weekday', () => {

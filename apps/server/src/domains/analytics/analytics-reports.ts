@@ -9,6 +9,7 @@ import {
     serializeMemberGuardians,
 } from '../../features/dependents/schemas'
 import type { PrismaService } from '../../infrastructure/prisma'
+import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { addDaysYmd, DAY_MS, dbDateToYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
 import {
     CHURN_REASON_CODES,
@@ -289,7 +290,7 @@ export const loadOccupancyReport = async (
         loadRun(prisma, p.workspaceId),
         prisma.workspace.findUniqueOrThrow({
             where: { id: p.workspaceId },
-            select: { timezone: true },
+            select: { timezone: true, type: true },
         }),
     ])
     const fromYmd = addDaysYmd(localDateInTz(p.now, ws.timezone), -weeks * 7)
@@ -322,7 +323,7 @@ export const loadOccupancyReport = async (
         })),
         weakest: weakestSlots(slots),
         strongest: strongestSlots(slots),
-        suggestions: suggestOccupancyActions(slots, bySlot),
+        suggestions: suggestOccupancyActions(slots, bySlot, vocabularyForWorkspaceType(ws.type)),
     }
 }
 

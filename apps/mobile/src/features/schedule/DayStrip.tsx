@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from "rea
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useThemedStyles } from "../../shared/theme-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { dayOfMonth, formatDayLong, weekdayShort } from "./schedule-calendar"
 
 const CHIP_WIDTH = 48
@@ -29,6 +30,7 @@ export function DayStrip({
   busyDays: ReadonlySet<string>
 }) {
   const styles = useThemedStyles(makeStyles)
+  const { session } = useVocabulary()
   const scrollRef = useRef<ScrollViewInstance>(null)
 
   // Keep the picked day in view (a «Сегодня» tap or a ‹ › step moves it).
@@ -57,7 +59,7 @@ export function DayStrip({
             onPress={() => onSelect(i)}
             accessibilityRole="button"
             accessibilityState={{ selected: isSelected }}
-            accessibilityLabel={`${today ? "Сегодня, " : ""}${weekdayShort(key)}, ${formatDayLong(key)}${busyDays.has(key) ? ", есть занятия" : ""}`}
+            accessibilityLabel={`${today ? "Сегодня, " : ""}${weekdayShort(key)}, ${formatDayLong(key)}${busyDays.has(key) ? `, есть ${session.nomPl}` : ""}`}
             style={[
               styles.chip,
               today && styles.chipToday,

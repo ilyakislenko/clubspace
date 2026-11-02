@@ -29,6 +29,8 @@ import {
   slotLabel,
 } from "../../../../../../shared/lib/analytics"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
+import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
+import { agree } from "@clubspace/ui-kit/brand"
 import {
   AnalyticsError,
   AnalyticsFilters,
@@ -41,6 +43,7 @@ const WEEK_OPTIONS = [4, 8, 12, 26]
 export default function OccupancyPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  const vocabulary = useVocabulary()
 
   const [filter, setFilter] = useState(EMPTY_ANALYTICS_FILTER)
   const [weeks, setWeeks] = useState(8)
@@ -76,8 +79,9 @@ export default function OccupancyPage() {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Загрузка расписания</h1>
         <p className="text-sm text-muted-foreground">
-          Сколько в среднем приходит на каждое занятие относительно состава
-          группы — по отметкам посещаемости.
+          Сколько в среднем приходит на {agree(vocabulary.session, "каждую", "каждое")}{" "}
+          {vocabulary.session.acc} относительно состава группы — по отметкам
+          посещаемости.
         </p>
         <AnalyticsFreshness
           workspaceId={workspaceId}
@@ -116,7 +120,7 @@ export default function OccupancyPage() {
         <AnalyticsSkeleton />
       ) : !data || data.slots.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          В расписании пока нет занятий с отметками посещаемости.
+          В расписании пока нет {vocabulary.session.genPl} с отметками посещаемости.
         </p>
       ) : (
         <>

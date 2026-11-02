@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { cn } from "@clubspace/ui-kit/util"
 
+import { agree, countForm } from "@clubspace/ui-kit/brand"
+
 import { pluralRu } from "../../../shared/lib/plural-ru"
+import { useVocabulary } from "../../../shared/lib/vocabulary"
 import {
   blockFit,
   DOW_SHORT,
@@ -75,6 +78,9 @@ export function TimeGridView({
   onOpenDay,
 }: Props) {
   const detailed = days.length === 1
+  const vocabulary = useVocabulary()
+  const countLabel = (n: number) => `${n} ${countForm(n, vocabulary.session, pluralRu)}`
+  const newSession = `${agree(vocabulary.session, "Новая", "Новое")} ${vocabulary.session.nom}`
   const byHall = detailed && !!halls && halls.length > 0
   const columns = useMemo<Column[]>(
     () =>
@@ -221,7 +227,7 @@ export function TimeGridView({
                     <div className="sticky left-[4.5rem] flex max-w-full flex-col">
                       <span className="truncate text-sm font-semibold text-foreground">{col.hall.name}</span>
                       <span>
-                        {count > 0 ? `${count} ${pluralRu(count, "занятие", "занятия", "занятий")}` : "нет занятий"}
+                        {count > 0 ? countLabel(count) : `нет ${vocabulary.session.genPl}`}
                       </span>
                     </div>
                   </div>
@@ -316,7 +322,7 @@ export function TimeGridView({
                             key={q}
                             type="button"
                             tabIndex={-1}
-                            aria-label={`Новое занятие ${formatHm(hour * 60 + q)}${col.hall ? `, ${col.hall.name}` : ""}`}
+                            aria-label={`${newSession} ${formatHm(hour * 60 + q)}${col.hall ? `, ${col.hall.name}` : ""}`}
                             data-calendar-cell={`${col.date} ${formatHm(hour * 60 + q)}`}
                             className="absolute inset-x-0 cursor-cell transition-colors hover:bg-accent/70"
                             style={{
