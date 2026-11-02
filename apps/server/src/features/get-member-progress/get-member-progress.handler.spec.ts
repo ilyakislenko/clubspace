@@ -1,4 +1,5 @@
 import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
+import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import { GetMemberProgressFeature } from './get-member-progress.feature'
 import { GetMemberProgressHandler } from './get-member-progress.handler'
 
@@ -54,13 +55,20 @@ const makePrisma = () => ({
     rankPromotion: { findMany: jest.fn().mockResolvedValue([]) },
 })
 
-const rbac = {
-    resolveCoachScope: jest.fn().mockResolvedValue({
-        scope: 'admin',
-        userId: 'admin1',
-        workspaceId: 'w1',
+// The real member-read rule over the Prisma double; only the role lookup is
+// stubbed.
+const rbacFor = (
+    prisma: ReturnType<typeof makePrisma>,
+    scope: 'admin' | 'coach_read_all' | 'coach_own_only' = 'admin',
+) => {
+    const rbac = new RbacService(prisma as never)
+    jest.spyOn(rbac, 'resolveCoachScope').mockImplementation(async (p) => ({
+        scope,
+        userId: p.userId,
+        workspaceId: p.workspaceId,
         workspaceOwnerId: 'owner',
-    }),
+    }))
+    return rbac
 }
 
 describe('getMemberProgress — attendance summary', () => {
@@ -68,7 +76,7 @@ describe('getMemberProgress — attendance summary', () => {
         const prisma = makePrisma()
         const out = await new GetMemberProgressHandler(
             prisma as any,
-            rbac as any,
+            rbacFor(prisma),
         ).execute(
             new GetMemberProgressFeature('w1', 'member', 'admin1', 'admin', false),
         )
@@ -85,22 +93,43 @@ describe('getMemberProgress — attendance summary', () => {
 })
 
 describe('getMemberProgress — access and abonements', () => {
-    const run = (prisma: ReturnType<typeof makePrisma>, r: unknown = rbac) =>
-        new GetMemberProgressHandler(prisma as any, r as any).execute(
-            new GetMemberProgressFeature('w1', 'member', 'coach1', 'coach', false),
+    const run = (
+        prisma: ReturnType<typeof makePrisma>,
+        scope: 'admin' | 'coach_read_all' | 'coach_own_only' = 'admin',
+        target = 'member',
+    ) =>
+        new GetMemberProgressHandler(prisma as any, rbacFor(prisma, scope)).execute(
+            new GetMemberProgressFeature('w1', target, 'coach1', 'coach', false),
         )
 
     it('refuses a coach looking at a student outside their groups', async () => {
         const prisma = makePrisma()
         prisma.groupMember.findFirst.mockResolvedValue(null)
-        const coach = {
-            resolveCoachScope: jest.fn().mockResolvedValue({
-                scope: 'coach_own_only',
-                workspaceOwnerId: 'owner',
-            }),
-        }
-        await expect(run(prisma, coach)).rejects.toThrow(ForbiddenError)
+        await expect(run(prisma, 'coach_own_only')).rejects.toThrow(ForbiddenError)
+        // Own groups = coached (primary or assistant) or of a managed direction.
+        expect(prisma.groupMember.findFirst).toHaveBeenCalledWith({
+            where: {
+                userId: 'member',
+                group: { workspaceId: 'w1', ...ownGroupsWhere('coach1') },
+            },
+            select: { groupId: true },
+        })
         expect(prisma.workspaceMember.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('lets a coach open a student of an own group, a direction one included', async () => {
+        const prisma = makePrisma()
+        prisma.groupMember.findFirst.mockResolvedValue({ groupId: 'g-bjj-b' })
+        await expect(run(prisma, 'coach_own_only')).resolves.toBeDefined()
+    })
+
+    it('lets a coach open their own profile and read-all scope anyone, unchecked', async () => {
+        const own = makePrisma()
+        await run(own, 'coach_own_only', 'coach1')
+        const all = makePrisma()
+        await run(all, 'coach_read_all')
+        expect(own.groupMember.findFirst).not.toHaveBeenCalled()
+        expect(all.groupMember.findFirst).not.toHaveBeenCalled()
     })
 
     it('404s an unknown member', async () => {
@@ -115,6 +144,7 @@ describe('getMemberProgress — access and abonements', () => {
         const { subscriptions } =
             prisma.workspaceMember.findFirst.mock.calls[0][0].include
         expect(subscriptions.where).toEqual({
+            NOT: { workspaceMemberId: null },
             status: 'ACTIVE',
             OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
         })

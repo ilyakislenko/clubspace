@@ -158,6 +158,7 @@ describe('syncFirstVisitStartInTx', () => {
         const args = tx.workspaceMember.findFirst.mock.calls[0][0]
         expect(args.where).toEqual({ workspaceId: 'w1', userId: 'u1' })
         expect(args.select.subscriptions.where).toEqual({
+            NOT: { workspaceMemberId: null },
             status: 'ACTIVE',
             OR: [{ endDate: null }, { endDate: { gt: NOW } }],
             startsOnFirstVisit: true,

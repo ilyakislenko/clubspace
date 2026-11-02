@@ -1,3 +1,4 @@
+import { ownGroupsWhere } from '../../shared/services/rbac.service'
 import { ListSessionsFeature } from './list-sessions.feature'
 import { ListSessionsHandler } from './list-sessions.handler'
 
@@ -70,15 +71,13 @@ describe('listSessions', () => {
         expect(out.data[0]).toMatchObject({ id: 'sess1', attendeeCount: 3 })
     })
 
-    it('restricts a non-see-all coach to their own groups', async () => {
+    it('restricts a non-see-all coach to their own groups, managed directions included', async () => {
         const prisma = makePrisma()
         await run(prisma, makeRbac('coach_own_only'), {
             from: '2026-07-01',
             to: '2026-07-31',
         })
         const where = prisma.attendanceSession.findMany.mock.calls[0][0].where
-        expect(where.group).toEqual({
-            coaches: { some: { userId: 'u1' } },
-        })
+        expect(where.group).toEqual(ownGroupsWhere('u1'))
     })
 })

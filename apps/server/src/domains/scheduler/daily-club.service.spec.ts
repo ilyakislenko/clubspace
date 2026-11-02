@@ -209,7 +209,11 @@ describe('DailyClubService', () => {
             })
             // Only current abonements decide "awaiting the first visit".
             expect(prisma.workspaceMember.findMany.mock.calls[1][0].select.subscriptions).toEqual({
-                where: { status: 'ACTIVE', OR: [{ endDate: null }, { endDate: { gt: NOW } }] },
+                where: {
+                    NOT: { workspaceMemberId: null },
+                    status: 'ACTIVE',
+                    OR: [{ endDate: null }, { endDate: { gt: NOW } }],
+                },
                 select: { status: true, startDate: true },
             })
             expect(rows[0]).toMatchObject({

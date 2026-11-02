@@ -52,7 +52,12 @@ announcements, a member's rank history) go through
 directions' rows, a coach managing nothing is refused as before. Staff reads
 (groups, schedule, tariffs, events) are unchanged; in a `coachSeesAllGroups =
 false` club a manager's group list also includes their directions' groups, and
-member reads/writes cover members of those groups.
+member reads/writes cover members of those groups. «Own groups» is one rule,
+`ownGroupsWhere` (groups coached as primary or assistant + every group of a
+managed direction): `assertCanReadMember` / `canWriteMember` and every
+coach-narrowed list — members, dashboard stats, audit feed, at-risk, attendance
+sessions/overview/roster card flags, pending freeze requests, rank readiness,
+analytics — go through it (`RbacService.ownGroupIds` / `ownGroupMemberIds`).
 
 Two static specs keep it that way:
 `shared/access/direction-scope-source.spec.ts` (every direction-owned write

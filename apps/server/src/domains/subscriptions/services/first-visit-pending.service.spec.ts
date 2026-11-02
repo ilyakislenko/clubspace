@@ -46,6 +46,7 @@ describe('FirstVisitPendingService auto-start', () => {
         const { svc, prisma } = make([], [])
         await svc.run(now)
         expect(prisma.subscription.findMany.mock.calls[0][0].where).toEqual({
+            NOT: { workspaceMemberId: null },
             status: 'ACTIVE',
             startsOnFirstVisit: true,
             startDate: null,

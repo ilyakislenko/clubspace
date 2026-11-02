@@ -1,7 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
-import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListAuditEventsFeature,
@@ -15,7 +14,6 @@ export class ListAuditEventsHandler
 {
     constructor(
         private readonly audit: AuditService,
-        private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
     ) {}
 
@@ -36,26 +34,16 @@ export class ListAuditEventsHandler
         // Admin / read_all see the whole feed. Coach in own_only mode is
         // narrowed to events relevant to them: own actions, anything
         // about content (videos/courses are shared), and member/group
-        // events touching only their own students or groups.
+        // events touching only their own students or groups (ownGroupsWhere:
+        // coached or of a direction they run).
         let extraOr:
             | Array<Record<string, unknown>>
             | undefined
-        if (ctx.scope === 'coach_own_only') {
-            const ownGroups = await this.prisma.group.findMany({
-                where: { workspaceId, coachId: invokerUserId },
-                select: {
-                    id: true,
-                    members: { select: { userId: true } },
-                },
-            })
-            const groupIds = ownGroups.map((g) => g.id)
-            const studentIds = Array.from(
-                new Set(
-                    ownGroups.flatMap((g) =>
-                        g.members.map((m) => m.userId),
-                    ),
-                ),
-            )
+        if (!this.rbac.canSeeAllGroups(ctx)) {
+            const [groupIds, studentIds] = await Promise.all([
+                this.rbac.ownGroupIds(ctx),
+                this.rbac.ownGroupMemberIds(ctx),
+            ])
 
             // The '__none__' sentinels keep the OR branch from
             // collapsing to "all rows" when the coach happens to have

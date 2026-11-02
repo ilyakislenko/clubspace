@@ -11,7 +11,11 @@ import { COACHING_ROLES } from '../../shared/decorators/roles.decorator'
 import { effectiveCapacity } from '../class-bookings/class-booking-rules'
 import { isFrozenNow } from '../retention/risk-signals'
 import { localHourInTz } from '../scheduler/clubs-due'
-import { scopeDirectionIds, subscriptionScopeIdsSelect } from '../subscriptions/current-subscriptions'
+import {
+    heldSubscriptionWhere,
+    scopeDirectionIds,
+    subscriptionScopeIdsSelect,
+} from '../subscriptions/current-subscriptions'
 import { addDaysYmd, DAY_MS, dbDateToYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
 import { isSubscriptionUsable } from '../subscriptions/subscription-status'
 import { CHURN_RULES, computeChurnScore, monthlySpend } from './churn-score'
@@ -353,6 +357,8 @@ export class AnalyticsSnapshotService {
                     ...U,
                     fromDate: { lte: ymdToDbDate(addDaysYmd(todayYmd, FREEZE_LOOKAHEAD_DAYS)) },
                     untilDate: { gte: ymdToDbDate(addDaysYmd(todayYmd, -CHURN_RULES.windowDays)) },
+                    // Same freezes as «Кто пропадает» (load-workspace-risk.ts).
+                    subscription: heldSubscriptionWhere,
                 },
                 select: {
                     userId: true,
@@ -496,9 +502,11 @@ export class AnalyticsSnapshotService {
             }
         })
 
-        const due = computed.reduce((sum, c) => sum + c.renewals.due, 0)
-        const done = computed.reduce((sum, c) => sum + c.renewals.done, 0)
-        const club = clubRenewalRate(due, done)
+        // The club's share is over every abonement it sold, the ones of
+        // members who have left included — the active students alone would
+        // only show the ones who stayed.
+        const history = await this.clubRenewalHistory(workspaceId, now, subsSince)
+        const club = clubRenewalRate(history.due, history.done)
 
         const rows: Prisma.AnalyticsMemberSnapshotCreateManyInput[] = computed.map((c) => {
             const p = memberRenewalProbability(club.effective, c.churn.score)
@@ -526,16 +534,109 @@ export class AnalyticsSnapshotService {
         await this.prisma.$transaction([
             this.prisma.analyticsMemberSnapshot.deleteMany({ where: { workspaceId } }),
             this.prisma.analyticsMemberSnapshot.createMany({ data: rows }),
+            this.prisma.analyticsFormerMember.deleteMany({ where: { workspaceId } }),
+            this.prisma.analyticsFormerMember.createMany({ data: history.former }),
             this.prisma.analyticsRun.upsert({
                 where: { workspaceId },
                 create: {
                     workspaceId,
                     riskComputedAt: now,
                     clubRenewalRate: club.rate,
-                    renewalSample: due,
+                    renewalSample: history.due,
                 },
-                update: { riskComputedAt: now, clubRenewalRate: club.rate, renewalSample: due },
+                update: { riskComputedAt: now, clubRenewalRate: club.rate, renewalSample: history.due },
             }),
         ])
+    }
+
+    // Renewals over every abonement of the club, per person (a membership
+    // removed keeps its rows with Subscription.userId and no member), and the
+    // AnalyticsFormerMember rows: a former student's own renewals and trial,
+    // in the groups they attended, so a scope's share counts its leavers too.
+    private async clubRenewalHistory(
+        workspaceId: string,
+        now: Date,
+        subsSince: Date,
+    ): Promise<{ due: number; done: number; former: Prisma.AnalyticsFormerMemberCreateManyInput[] }> {
+        const subs = await this.prisma.subscription.findMany({
+            where: {
+                workspaceId,
+                OR: [{ createdAt: { gte: subsSince } }, { endDate: { gte: subsSince } }],
+            },
+            select: {
+                id: true,
+                status: true,
+                startDate: true,
+                endDate: true,
+                createdAt: true,
+                amountPaid: true,
+                durationDays: true,
+                userId: true,
+                workspaceMemberId: true,
+                workspaceMember: { select: { userId: true } },
+                plan: { select: { isFreeTrial: true, durationDays: true } },
+                ...subscriptionScopeIdsSelect,
+            },
+        })
+        const byPerson = new Map<string, { subs: ForecastSubscription[]; kept: Set<string> }>()
+        for (const s of subs) {
+            // A legacy row of a former member without userId has no person.
+            const person = s.workspaceMember?.userId ?? s.userId
+            if (!person) continue
+            const entry = byPerson.get(person) ?? { subs: [], kept: new Set<string>() }
+            entry.subs.push({
+                id: s.id,
+                status: s.status,
+                startDate: s.startDate,
+                endDate: s.endDate,
+                createdAt: s.createdAt,
+                durationDays: s.durationDays ?? s.plan.durationDays,
+                amountPaid: s.amountPaid,
+                isTrial: s.plan.isFreeTrial,
+                directionIds: scopeDirectionIds(s).sort(),
+            })
+            if (s.workspaceMemberId === null) entry.kept.add(s.id)
+            byPerson.set(person, entry)
+        }
+
+        const formerIds = [...byPerson].filter(([, e]) => e.kept.size > 0).map(([userId]) => userId)
+        const visited = formerIds.length
+            ? await this.prisma.analyticsMemberGroupStat.findMany({
+                  where: { workspaceId, userId: { in: formerIds }, groupId: { not: null } },
+                  select: { userId: true, groupId: true },
+              })
+            : []
+        const groupsByUser = new Map<string, Set<string>>()
+        for (const v of visited) {
+            const set = groupsByUser.get(v.userId) ?? new Set<string>()
+            set.add(v.groupId!)
+            groupsByUser.set(v.userId, set)
+        }
+
+        let due = 0
+        let done = 0
+        const former: Prisma.AnalyticsFormerMemberCreateManyInput[] = []
+        for (const [userId, e] of byPerson) {
+            const all = renewalHistory(now, e.subs)
+            due += all.due
+            done += all.done
+            if (e.kept.size === 0) continue
+            const own = renewalHistory(now, e.subs, e.kept)
+            // Only a kept trial counts here (a current member's own trial is
+            // on their snapshot); any later purchase converts it.
+            const trial = trialFacts(e.subs.filter((s) => !s.isTrial || e.kept.has(s.id)))
+            if (own.due === 0 && !trial.trialStartedAt) continue
+            former.push({
+                workspaceId,
+                userId,
+                groupIds: [...(groupsByUser.get(userId) ?? [])],
+                renewalsDue: own.due,
+                renewalsDone: own.done,
+                trialStartedAt: trial.trialStartedAt,
+                trialConvertedAt: trial.trialConvertedAt,
+                computedAt: now,
+            })
+        }
+        return { due, done, former }
     }
 }

@@ -1,3 +1,4 @@
+import { ownGroupsWhere } from '../../shared/services/rbac.service'
 import { buildRoster } from './roster'
 
 const ALL = { userId: 'coach1', seesAllGroups: true }
@@ -400,6 +401,7 @@ describe('buildRoster — frozen abonement badge', () => {
                 fromDate: { lte: new Date('2026-10-25T00:00:00Z') },
                 untilDate: { gte: new Date('2026-10-25T00:00:00Z') },
                 subscription: {
+                    NOT: { workspaceMemberId: null },
                     status: 'ACTIVE',
                     OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
                 },
@@ -528,6 +530,7 @@ describe('buildRoster — payment and card flags', () => {
             workspaceId: 'w1',
             isPaid: false,
             status: { in: ['ACTIVE', 'EXPIRED'] },
+            NOT: { workspaceMemberId: null },
             workspaceMember: {
                 userId: { in: ['unpaid', 'paid', 'expiredDebt', 'owner'] },
             },
@@ -538,7 +541,7 @@ describe('buildRoster — payment and card flags', () => {
         })
     })
 
-    it('lets an own-groups-only coach open the card only for their own students', async () => {
+    it('lets an own-groups-only coach open the card only for their own students (coached or of a managed direction)', async () => {
         const p = makePrisma()
         p.attendanceRecord.findMany.mockResolvedValue([])
         p.groupMember.findMany
@@ -557,10 +560,7 @@ describe('buildRoster — payment and card flags', () => {
         ).toEqual({ mine: true, other: false, owner: false })
         expect(p.groupMember.findMany.mock.calls[1][0].where).toEqual({
             userId: { in: ['mine', 'other', 'owner'] },
-            group: {
-                workspaceId: 'w1',
-                coaches: { some: { userId: 'coach1' } },
-            },
+            group: { workspaceId: 'w1', ...ownGroupsWhere('coach1') },
         })
     })
 

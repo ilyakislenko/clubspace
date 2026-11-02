@@ -169,6 +169,7 @@ describe('listRenewalCandidates', () => {
         expect(args.where).toEqual({ workspaceId: 'w1', status: 'ACTIVE' });
         const or = args.select.subscriptions.where.OR;
         expect(or[0]).toEqual({
+            NOT: { workspaceMemberId: null },
             status: 'ACTIVE',
             OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
         });

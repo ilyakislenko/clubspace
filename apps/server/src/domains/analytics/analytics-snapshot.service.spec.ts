@@ -28,9 +28,15 @@ const makePrisma = () => {
             findFirst: jest.fn().mockResolvedValue({ id: 'r' }),
         },
         subscriptionFreeze: { findMany: jest.fn().mockResolvedValue([]) },
-        analyticsMemberGroupStat: { deleteMany: jest.fn(), createMany: jest.fn() },
+        subscription: { findMany: jest.fn().mockResolvedValue([]) },
+        analyticsMemberGroupStat: {
+            deleteMany: jest.fn(),
+            createMany: jest.fn(),
+            findMany: jest.fn().mockResolvedValue([]),
+        },
         analyticsSlotOccurrence: { deleteMany: jest.fn(), createMany: jest.fn() },
         analyticsMemberSnapshot: { deleteMany: jest.fn(), createMany: jest.fn() },
+        analyticsFormerMember: { deleteMany: jest.fn(), createMany: jest.fn() },
         analyticsRun: { upsert: jest.fn() },
         $transaction: jest.fn().mockResolvedValue([]),
     }
@@ -231,6 +237,84 @@ describe('AnalyticsSnapshotService.refreshRisk', () => {
                 update: { riskComputedAt: NOW, clubRenewalRate: null, renewalSample: 0 },
             }),
         )
+    })
+
+    it('takes the club’s renewal share over every abonement, the ones of members who left included', async () => {
+        const prisma = makePrisma()
+        prisma.workspaceMember.findMany.mockResolvedValue([])
+        const clubSub = (
+            id: string,
+            holder: { member?: string; userId?: string | null },
+            createdDaysAgo: number,
+            endedDaysAgo: number,
+            over: Record<string, unknown> = {},
+        ) => ({
+            ...subRow({ id, createdAt: ago(createdDaysAgo), startDate: ago(createdDaysAgo), endDate: ago(endedDaysAgo) }),
+            userId: holder.userId ?? null,
+            workspaceMemberId: holder.member ? `m-${holder.member}` : null,
+            workspaceMember: holder.member ? { userId: holder.member } : null,
+            ...over,
+        })
+        prisma.subscription.findMany.mockResolvedValue([
+            // A current member: two judged, both renewed.
+            clubSub('s1', { member: 'stay' }, 90, 60),
+            clubSub('s2', { member: 'stay' }, 62, 30),
+            clubSub('s3', { member: 'stay' }, 31, -5),
+            // Removed from the club: a kept trial, one renewed, the last not.
+            clubSub('t', { userId: 'left' }, 110, 96, {
+                amountPaid: 0,
+                plan: { name: 'Пробное', isFreeTrial: true, durationDays: 14 },
+            }),
+            clubSub('k1', { userId: 'left' }, 100, 70),
+            clubSub('k2', { userId: 'left' }, 72, 40),
+            // Left and came back: the kept one is renewed by the new membership's sale.
+            clubSub('b1', { userId: 'back' }, 80, 50),
+            clubSub('b2', { member: 'back', userId: 'back' }, 45, -15),
+            // A legacy row detached before userId existed has no person.
+            clubSub('x', {}, 100, 60),
+        ])
+        prisma.analyticsMemberGroupStat.findMany.mockResolvedValue([
+            { userId: 'left', groupId: 'g1' },
+            { userId: 'back', groupId: 'g2' },
+        ])
+
+        await new AnalyticsSnapshotService(prisma as never).refreshRisk('ws', NOW)
+
+        expect(prisma.subscription.findMany.mock.calls[0][0].where).toMatchObject({ workspaceId: 'ws' })
+        expect(prisma.analyticsMemberGroupStat.findMany.mock.calls[0][0].where).toEqual({
+            workspaceId: 'ws',
+            userId: { in: ['left', 'back'] },
+            groupId: { not: null },
+        })
+        // stay 2/2, left 2/1, back 1/1 — under the 10-abonement minimum.
+        expect(prisma.analyticsRun.upsert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                update: { riskComputedAt: NOW, clubRenewalRate: null, renewalSample: 5 },
+            }),
+        )
+        expect(prisma.analyticsFormerMember.createMany.mock.calls[0][0].data).toEqual([
+            {
+                workspaceId: 'ws',
+                userId: 'left',
+                groupIds: ['g1'],
+                renewalsDue: 2,
+                renewalsDone: 1,
+                trialStartedAt: ago(110),
+                trialConvertedAt: ago(100),
+                computedAt: NOW,
+            },
+            {
+                workspaceId: 'ws',
+                userId: 'back',
+                groupIds: ['g2'],
+                renewalsDue: 1,
+                renewalsDone: 1,
+                trialStartedAt: null,
+                trialConvertedAt: null,
+                computedAt: NOW,
+            },
+        ])
+        expect(prisma.analyticsFormerMember.deleteMany).toHaveBeenCalledWith({ where: { workspaceId: 'ws' } })
     })
 
     it('does nothing for an unknown club', async () => {

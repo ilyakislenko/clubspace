@@ -158,7 +158,8 @@ export class ExportService {
     // Revenue: every PAID subscription, newest payment first — for accounting.
     // Filtered, sorted and printed by the payment date (paidOn: paidAt, or the
     // sale date on rows from before payment tracking); unpaid sales are a
-    // receivable, not revenue, and stay out.
+    // receivable, not revenue, and stay out. Sales to members who have since
+    // left stay in, under the buyer's name (Subscription.user).
     async revenueCsv(workspaceId: string, range?: DateRange): Promise<string> {
         const paidRange = rangeFilter(range)
         const subs = await this.prisma.subscription.findMany({
@@ -171,6 +172,8 @@ export class ExportService {
                 source: true,
                 classesTotal: true,
                 plan: { select: { name: true } },
+                user: { select: { firstname: true, lastname: true, email: true } },
+                // Rows sold before Subscription.userId existed.
                 workspaceMember: {
                     select: {
                         user: {
@@ -187,7 +190,7 @@ export class ExportService {
         subs.sort((a, b) => paidOn(b).getTime() - paidOn(a).getTime())
 
         const rows = subs.map((s) => {
-            const user = s.workspaceMember?.user
+            const user = s.user ?? s.workspaceMember?.user
             return [
                 day(paidOn(s)),
                 user ? fullName(user) : '',

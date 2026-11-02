@@ -53,23 +53,15 @@ export class ListAtRiskMembersHandler
             if (!group) throw new NotFoundError({ message: 'Группа не найдена' })
         }
 
-        // The junction table (not Group.coachId) so assistant coaches count.
+        // Own groups = coached (primary or assistant) or of a direction the
+        // caller runs (ownGroupsWhere), so «mine» and «can contact» match
+        // canWriteMember.
         const ownOnly =
             !this.rbac.canSeeAllGroups(ctx) || payload.scope === 'mine'
         const canWriteAll = this.rbac.canWriteAllGroups(ctx)
         const coachGroupIds =
             ownOnly || !canWriteAll
-                ? new Set(
-                      (
-                          await this.prisma.groupCoach.findMany({
-                              where: {
-                                  userId: ctx.userId,
-                                  group: { workspaceId },
-                              },
-                              select: { groupId: true },
-                          })
-                      ).map((g) => g.groupId),
-                  )
+                ? new Set(await this.rbac.ownGroupIds(ctx))
                 : null
         const ownGroupIds = ownOnly ? coachGroupIds : null
 

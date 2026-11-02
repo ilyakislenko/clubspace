@@ -170,7 +170,11 @@ describe('getMySubscription', () => {
         const currentQuery = prisma.subscription.findMany.mock.calls.find(
             ([args]) => 'OR' in args.where,
         )?.[0] as unknown as { include: Row; where: Row }
-        expect(currentQuery.where).toMatchObject({ workspaceMemberId: 'wm1' })
+        // The member scope survives the "held" filter (NOT key, not an overwrite).
+        expect(currentQuery.where).toMatchObject({
+            workspaceMemberId: 'wm1',
+            NOT: { workspaceMemberId: null },
+        })
         expect(currentQuery.include).toHaveProperty('freezes')
         expect(currentQuery.include).toHaveProperty('freezeRequests')
     })

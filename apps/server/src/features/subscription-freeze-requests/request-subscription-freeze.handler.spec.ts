@@ -120,6 +120,7 @@ describe('RequestSubscriptionFreezeHandler', () => {
         expect(prisma.subscription.findMany.mock.calls[0][0].where).toMatchObject({
             workspaceId: 'w1',
             workspaceMemberId: 'wm1',
+            NOT: { workspaceMemberId: null },
             status: 'ACTIVE',
         })
     })

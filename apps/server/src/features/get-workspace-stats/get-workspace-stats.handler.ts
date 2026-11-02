@@ -64,24 +64,21 @@ export class GetWorkspaceStatsHandler
         // see revenue.
         const canSeeRevenue = this.rbac.canWriteAllGroups(ctx)
 
-        // For coach_own_only: pre-compute the visible userId set (own
-        // students + coach themselves). Activity stats and top videos
+        // For coach_own_only: pre-compute the visible userId set (students of
+        // their own groups — coached or of a direction they run, ownGroupsWhere
+        // — plus the coach themselves). Activity stats and top videos
         // get filtered by this set; member count narrows to it; content
         // counts (videos, courses) stay workspace-wide because the
         // content library is shared by design.
         let scopedUserIds: string[] | null = null
         let scopedGroupIds: string[] | null = null
-        if (ctx.scope === 'coach_own_only') {
-            const ownGroups = await this.prisma.group.findMany({
-                where: { workspaceId, coachId: invokerUserId },
-                select: { id: true, members: { select: { userId: true } } },
-            })
-            const ids = new Set<string>([
-                invokerUserId,
-                ...ownGroups.flatMap((g) => g.members.map((m) => m.userId)),
+        if (!this.rbac.canSeeAllGroups(ctx)) {
+            const [groupIds, memberIds] = await Promise.all([
+                this.rbac.ownGroupIds(ctx),
+                this.rbac.ownGroupMemberIds(ctx),
             ])
-            scopedUserIds = [...ids]
-            scopedGroupIds = ownGroups.map((g) => g.id)
+            scopedUserIds = [...new Set([invokerUserId, ...memberIds])]
+            scopedGroupIds = groupIds
         }
 
         const userScope =

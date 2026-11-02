@@ -9,7 +9,7 @@ import {
 import { countVisitsSince } from '../../domains/ranks/visits-since'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
-import { RbacService } from '../../shared/services/rbac.service'
+import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import { localDateInTz } from '../attendance/attendance-utils'
 import {
     GetRankReadinessFeature,
@@ -119,18 +119,12 @@ export class GetRankReadinessHandler
             // A coach sees the groups they coach; a direction manager also every
             // group of the directions they run — the candidates of their own
             // gradings train in groups other coaches lead.
-            const managed = canSeeAll ? [] : ((await this.rbac.managedDirectionIds(ctx)) ?? [])
-            const ownCoach = { coaches: { some: { userId: ctx.userId } } }
             const inGroups = await this.prisma.groupMember.findMany({
                 where: {
                     group: {
                         workspaceId: f.workspaceId,
                         ...(f.payload.groupId ? { id: f.payload.groupId } : {}),
-                        ...(canSeeAll
-                            ? {}
-                            : managed.length > 0
-                              ? { OR: [ownCoach, { directionId: { in: managed } }] }
-                              : ownCoach),
+                        ...(canSeeAll ? {} : ownGroupsWhere(ctx.userId)),
                     },
                 },
                 select: { userId: true },

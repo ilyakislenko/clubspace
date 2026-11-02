@@ -18,6 +18,7 @@ import {
 import {
     currentSubscriptionOrderBy,
     currentSubscriptionWhere,
+    heldSubscriptionWhere,
     scopeDirectionIds,
     subscriptionScopeIdsSelect,
 } from '../subscriptions/current-subscriptions'
@@ -179,6 +180,8 @@ export const loadWorkspaceRisk = async (
                             addDaysYmd(todayYmd, -RISK_RULES.windowDays),
                         ),
                     },
+                    // Not a kept abonement of an earlier membership.
+                    subscription: heldSubscriptionWhere,
                 },
                 select: {
                     userId: true,

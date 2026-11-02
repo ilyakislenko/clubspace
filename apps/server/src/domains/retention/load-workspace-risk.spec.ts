@@ -254,7 +254,11 @@ describe('loadWorkspaceRisk', () => {
         const subs = prisma.workspaceMember.findMany.mock.calls[0][0].select.subscriptions
         expect(subs.where).toEqual({
             OR: [
-                { status: 'ACTIVE', OR: [{ endDate: null }, { endDate: { gt: NOW } }] },
+                {
+                    NOT: { workspaceMemberId: null },
+                    status: 'ACTIVE',
+                    OR: [{ endDate: null }, { endDate: { gt: NOW } }],
+                },
                 { status: { not: 'CANCELLED' }, endDate: { gt: daysAgo(30), lte: NOW } },
             ],
         })

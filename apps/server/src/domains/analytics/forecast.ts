@@ -63,15 +63,19 @@ const notCancelledPaid = (s: ForecastSubscription): boolean =>
 
 // Abonements of the member that ended 14-180 days ago, and how many of them
 // were followed by a newer purchase no later than 14 days after the end.
+// `judgedIds` limits which abonements are judged (a former member's kept rows)
+// while every purchase still counts as their renewal (one bought after
+// rejoining too).
 export const renewalHistory = (
     now: Date,
     subs: ReadonlyArray<ForecastSubscription>,
+    judgedIds?: ReadonlySet<string>,
 ): { due: number; done: number } => {
     const paid = subs.filter(notCancelledPaid)
     let due = 0
     let done = 0
     for (const e of paid) {
-        if (!e.endDate) continue
+        if (!e.endDate || (judgedIds && !judgedIds.has(e.id))) continue
         const age = now.getTime() - e.endDate.getTime()
         if (
             age < FORECAST_RULES.settleDays * DAY_MS ||

@@ -173,11 +173,15 @@ export class SubscriptionService {
             }
         }
 
-        // The free trial (e.g. the first class free) is once per member.
+        // The free trial (e.g. the first class free) is once per person in
+        // the club — a trial taken before leaving and rejoining counts too.
         if (plan.isFreeTrial) {
             const used = await tx.subscription.findFirst({
                 where: {
-                    workspaceMemberId: member.id,
+                    OR: [
+                        { workspaceMemberId: member.id },
+                        { workspaceId: params.workspaceId, userId: member.userId },
+                    ],
                     plan: { isFreeTrial: true },
                 },
                 select: { id: true },
@@ -210,6 +214,7 @@ export class SubscriptionService {
                 workspaceId: params.workspaceId,
                 planId: plan.id,
                 workspaceMemberId: member.id,
+                userId: member.userId,
                 status: 'ACTIVE',
                 startDate,
                 endDate,

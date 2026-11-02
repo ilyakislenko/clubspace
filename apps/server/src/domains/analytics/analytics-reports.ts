@@ -338,7 +338,7 @@ export const loadCoachReport = async (
     prisma: PrismaService,
     p: { workspaceId: string; scope: AnalyticsScope; now: Date },
 ): Promise<CoachReport> => {
-    const [run, ws, links, stats, members] = await Promise.all([
+    const [run, ws, links, stats, members, formerMembers] = await Promise.all([
         loadRun(prisma, p.workspaceId),
         prisma.workspace.findUniqueOrThrow({
             where: { id: p.workspaceId },
@@ -362,7 +362,21 @@ export const loadCoachReport = async (
             where: { workspaceId: p.workspaceId },
             select: { userId: true, renewalsDue: true, renewalsDone: true },
         }),
+        prisma.analyticsFormerMember.findMany({
+            where: { workspaceId: p.workspaceId },
+            select: { userId: true, renewalsDue: true, renewalsDone: true },
+        }),
     ])
+    // A coach's renewals count the students who have left too; one who left
+    // and came back has both a snapshot and a former row.
+    const renewals = new Map<string, { due: number; done: number }>()
+    for (const r of [...members, ...formerMembers]) {
+        const prev = renewals.get(r.userId)
+        renewals.set(r.userId, {
+            due: (prev?.due ?? 0) + r.renewalsDue,
+            done: (prev?.done ?? 0) + r.renewalsDone,
+        })
+    }
     const fromYmd = addDaysYmd(localDateInTz(p.now, ws.timezone), -COACH_WINDOW_WEEKS * 7)
     const occurrences = await loadOccurrences(prisma, p.workspaceId, p.scope, fromYmd)
     // Classes a substitute ran count for the substitute, not the group's coach.
@@ -397,7 +411,7 @@ export const loadCoachReport = async (
         now: p.now,
         coaches: [...byCoach.entries()].map(([coachId, c]) => ({ coachId, groupIds: c.groupIds })),
         stats,
-        renewals: new Map(members.map((m) => [m.userId, { due: m.renewalsDue, done: m.renewalsDone }])),
+        renewals,
         occurrences,
         fromYmd,
         substitutes: new Map(
@@ -431,7 +445,8 @@ export type ForecastReport = {
     renewal: {
         clubRate: number
         clubSample: number
-        // Over the members in scope; null below the minimum sample.
+        // Over the students in scope, those who have left included; null
+        // below the minimum sample.
         scopeRate: number | null
         scopeSample: number
         usesDefault: boolean
@@ -444,14 +459,19 @@ export const loadForecastReport = async (
     prisma: PrismaService,
     p: { workspaceId: string; scope: AnalyticsScope; now: Date },
 ): Promise<ForecastReport> => {
-    const [run, rows] = await Promise.all([
+    const [run, rows, formerRows] = await Promise.all([
         loadRun(prisma, p.workspaceId),
         prisma.analyticsMemberSnapshot.findMany({ where: { workspaceId: p.workspaceId } }),
+        prisma.analyticsFormerMember.findMany({ where: { workspaceId: p.workspaceId } }),
     ])
     const kept = rows.filter((r) => inScope(p.scope, r.groupIds))
     const sum = (f: (r: (typeof kept)[number]) => number) => kept.reduce((s, r) => s + f(r), 0)
-    const due = sum((r) => r.renewalsDue)
-    const done = sum((r) => r.renewalsDone)
+    // The renewal share and trial conversion also count the students of the
+    // scope who have left (by the groups they attended); money and the
+    // horizons are about the ones still here.
+    const former = formerRows.filter((r) => inScope(p.scope, r.groupIds))
+    const due = sum((r) => r.renewalsDue) + former.reduce((s, r) => s + r.renewalsDue, 0)
+    const done = sum((r) => r.renewalsDone) + former.reduce((s, r) => s + r.renewalsDone, 0)
     const horizon = (days: number, potential: number, expected: number) => ({
         days,
         potential,
@@ -476,6 +496,6 @@ export const loadForecastReport = async (
             usesDefault: run?.clubRenewalRate == null,
         },
         highRiskMoney: sum((r) => (churnLevel(r.score) === 'high' ? r.monthlySpend : 0)),
-        trial: trialConversion(p.now, kept),
+        trial: trialConversion(p.now, [...kept, ...former]),
     }
 }

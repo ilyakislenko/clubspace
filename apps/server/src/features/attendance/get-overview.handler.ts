@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { Prisma, PrismaService } from '../../infrastructure/prisma'
-import { RbacService } from '../../shared/services/rbac.service'
+import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import {
     GetAttendanceOverviewFeature,
     GetAttendanceOverviewFeatureResponse,
@@ -32,8 +32,10 @@ export class GetAttendanceOverviewHandler
         const days = f.payload.days ?? 30
         const now = new Date()
         const since = new Date(now.getTime() - days * DAY)
+        // Own groups = coached or of a direction the caller runs, the same
+        // groups whose sessions they may open.
         const ownGroups = !this.rbac.canSeeAllGroups(ctx)
-            ? { coaches: { some: { userId: ctx.userId } } }
+            ? ownGroupsWhere(ctx.userId)
             : undefined
 
         const sessionWhere: Prisma.AttendanceSessionWhereInput = {

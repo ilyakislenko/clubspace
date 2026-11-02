@@ -2,7 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
-import { RbacService } from '../../shared/services/rbac.service'
+import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import {
     ListGroupsFeature,
     ListGroupsFeatureResponse,
@@ -31,8 +31,9 @@ export class ListGroupsHandler
             isSuperAdmin,
         })
 
-        // Coach-own-only forces the filter to self (plus the groups of the
-        // directions they manage). Coach_read_all should see all groups but
+        // Coach-own-only forces the filter to their own groups (coached,
+        // primary or assistant, plus the groups of the directions they
+        // manage). Coach_read_all should see all groups but
         // is NOT allowed to enumerate another coach's students by passing
         // ?coachId=<other> — that's targeted prying. Only admin scope
         // (head_coach / admin / owner / superuser) gets the discretionary
@@ -41,18 +42,7 @@ export class ListGroupsHandler
             where: {
                 workspaceId,
                 ...(ctx.scope === 'coach_own_only'
-                    ? {
-                          OR: [
-                              { coachId: invokerUserId },
-                              {
-                                  direction: {
-                                      managers: {
-                                          some: { userId: invokerUserId },
-                                      },
-                                  },
-                              },
-                          ],
-                      }
+                    ? ownGroupsWhere(invokerUserId)
                     : ctx.scope === 'admin' && filters.coachId
                       ? { coachId: filters.coachId }
                       : {}),

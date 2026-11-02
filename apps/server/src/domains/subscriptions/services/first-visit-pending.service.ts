@@ -4,6 +4,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { MemberStatus, PrismaService } from '../../../infrastructure/prisma'
 import { formatRuDate } from '../../../shared/utils/format-ru-date'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
+import { heldSubscriptionWhere } from '../current-subscriptions'
 import {
     FIRST_VISIT_AUTO_START_DAYS,
     clubDayStart,
@@ -44,6 +45,8 @@ export class FirstVisitPendingService {
     private async autoStartOverdue(now: Date): Promise<number> {
         const overdue = await this.prisma.subscription.findMany({
             where: {
+                // A former member's waiting abonement is history; nothing starts.
+                ...heldSubscriptionWhere,
                 status: 'ACTIVE',
                 startsOnFirstVisit: true,
                 startDate: null,

@@ -62,6 +62,7 @@ migrate-billing-v2.sql|pre|SELECT EXISTS (SELECT 1 FROM information_schema.colum
 migrate-parallel-abonements.sql|pre|SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND ((table_name = 'Plan' AND column_name = 'directionId') OR (table_name = 'WorkspaceMember' AND column_name = 'subscriptionId')))
 migrate-audit-action-names.sql|pre|SELECT CASE WHEN to_regclass('public."AuditEvent"') IS NULL THEN false ELSE (xpath('/row/x/text()', query_to_xml('SELECT EXISTS (SELECT 1 FROM "AuditEvent" WHERE action IN ($(audit_legacy_actions | sed "s/'/''/g"))) AS x', false, true, '')))[1]::text::boolean END
 backfill-group-coach-junction.sql|post|SELECT CASE WHEN to_regclass('public."GroupCoach"') IS NULL THEN false ELSE (xpath('/row/x/text()', query_to_xml('SELECT EXISTS (SELECT 1 FROM "Group" g WHERE NOT EXISTS (SELECT 1 FROM "GroupCoach" gc WHERE gc."groupId" = g.id AND gc."userId" = g."coachId")) AS x', false, true, '')))[1]::text::boolean END
+backfill-subscription-user.sql|post|SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'Subscription' AND column_name = 'userId') THEN false ELSE (xpath('/row/x/text()', query_to_xml('SELECT EXISTS (SELECT 1 FROM "Subscription" WHERE "userId" IS NULL AND "workspaceMemberId" IS NOT NULL) AS x', false, true, '')))[1]::text::boolean END
 EOF
 }
 

@@ -2,6 +2,7 @@ import { localDateInTz } from '../../features/attendance/attendance-utils'
 import { DEMO_ACCOUNTS, DEMO_CLUB_KEY } from './demo-accounts'
 import { GROUPS } from './demo-club.catalog'
 import { revenueTrend } from '../../features/get-workspace-stats/revenue'
+import { type ForecastSubscription, renewalHistory } from '../analytics/forecast'
 import { buildDemoClubPlan, demoUuid, type DemoClubPlan } from './demo-club.plan'
 import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
 import { pseudonymFor } from '../ai-assistant/pseudonym'
@@ -108,6 +109,44 @@ describe('buildDemoClubPlan', () => {
                 .filter((r) => left.has(r.userId))
                 .every((r) => localDateInTz(r.markedAt as Date, TZ) <= sixWeeks),
         ).toBe(true)
+    })
+
+    it('keeps the abonements of those who left, without a member, and every sale names its buyer', () => {
+        const memberIds = new Set(plan.members.map((m) => m.data.userId))
+        const kept = plan.subscriptions.filter((s) => s.workspaceMemberId === null)
+        expect(new Set(kept.map((s) => s.userId)).size).toBeGreaterThan(100)
+        expect(kept.every((s) => s.userId && !memberIds.has(s.userId))).toBe(true)
+        expect(plan.subscriptions.every((s) => typeof s.userId === 'string')).toBe(true)
+    })
+
+    it('renews like a healthy club once those who left count: about 80%', () => {
+        const trial = new Set(plan.plans.filter((p) => p.isFreeTrial).map((p) => p.id))
+        const byPerson = new Map<string, ForecastSubscription[]>()
+        for (const s of plan.subscriptions) {
+            const list = byPerson.get(s.userId as string) ?? []
+            list.push({
+                id: s.id as string,
+                status: s.status as string,
+                startDate: (s.startDate as Date | null) ?? null,
+                endDate: (s.endDate as Date | null) ?? null,
+                createdAt: s.createdAt as Date,
+                durationDays: s.durationDays ?? null,
+                amountPaid: s.amountPaid,
+                isTrial: trial.has(s.planId),
+                directionIds: [],
+            })
+            byPerson.set(s.userId as string, list)
+        }
+        let due = 0
+        let done = 0
+        for (const subs of byPerson.values()) {
+            const r = renewalHistory(NOW, subs)
+            due += r.due
+            done += r.done
+        }
+        expect(due).toBeGreaterThan(1000)
+        expect(done / due).toBeGreaterThan(0.75)
+        expect(done / due).toBeLessThan(0.85)
     })
 
     it('gives «Загрузка расписания» weak slots and one over its roster', () => {

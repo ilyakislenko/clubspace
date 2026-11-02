@@ -1,6 +1,6 @@
 import { WORKSPACE_ADMINS } from '../decorators/roles.decorator'
 import { ForbiddenError, NotFoundError } from '../errors/shared.errors'
-import { RbacService } from './rbac.service'
+import { ownGroupsWhere, RbacService } from './rbac.service'
 
 // Inline minimal Prisma double — only the methods rbac.service touches
 // in the paths under test. Keeps the test deterministic without a real
@@ -349,6 +349,47 @@ describe('RbacService.assertCanReadMember', () => {
         await expect(no.assertCanReadMember(ctx(), 'student-1')).rejects.toThrow(
             ForbiddenError,
         )
+    })
+})
+
+describe('RbacService.ownGroupIds / ownGroupMemberIds', () => {
+    // Coached (primary or assistant) groups plus every group of a managed
+    // direction, limited to the club — the rule assertCanReadMember uses.
+    const ownGroupsOfClub = {
+        workspaceId: 'ws-1',
+        ...ownGroupsWhere('coach-1'),
+    }
+
+    it('lists the club groups matching ownGroupsWhere', async () => {
+        const findMany = jest.fn().mockResolvedValue([{ id: 'g1' }, { id: 'g2' }])
+        const svc = new RbacService({ group: { findMany } } as never)
+        await expect(svc.ownGroupIds(ctx())).resolves.toEqual(['g1', 'g2'])
+        expect(findMany).toHaveBeenCalledWith({
+            where: ownGroupsOfClub,
+            select: { id: true },
+        })
+    })
+
+    it('lists the distinct students of those groups', async () => {
+        const findMany = jest
+            .fn()
+            .mockResolvedValue([{ userId: 's1' }, { userId: 's2' }])
+        const svc = new RbacService({ groupMember: { findMany } } as never)
+        await expect(svc.ownGroupMemberIds(ctx())).resolves.toEqual(['s1', 's2'])
+        expect(findMany).toHaveBeenCalledWith({
+            where: { group: ownGroupsOfClub },
+            distinct: ['userId'],
+            select: { userId: true },
+        })
+    })
+
+    it('ownGroupsWhere covers the coaches junction and managed directions', () => {
+        expect(ownGroupsWhere('u1')).toEqual({
+            OR: [
+                { coaches: { some: { userId: 'u1' } } },
+                { direction: { managers: { some: { userId: 'u1' } } } },
+            ],
+        })
     })
 })
 

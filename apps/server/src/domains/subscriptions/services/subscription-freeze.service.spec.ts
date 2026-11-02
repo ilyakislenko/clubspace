@@ -179,6 +179,7 @@ describe('SubscriptionFreezeService.create', () => {
             expect(tx.subscription.updateMany.mock.calls[0][0].where.id).toBe('s1')
             expect(tx.subscription.findMany.mock.calls[0][0].where).toMatchObject({
                 workspaceMemberId: 'm1',
+                NOT: { workspaceMemberId: null },
                 id: { not: 's1' },
                 status: 'ACTIVE',
             })

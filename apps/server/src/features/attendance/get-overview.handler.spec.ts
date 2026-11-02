@@ -1,3 +1,4 @@
+import { ownGroupsWhere } from '../../shared/services/rbac.service'
 import { GetAttendanceOverviewFeature } from './get-overview.feature'
 import { GetAttendanceOverviewHandler } from './get-overview.handler'
 
@@ -45,17 +46,13 @@ describe('getAttendanceOverview', () => {
         expect(sessionWhere.startAt.lte).toBeInstanceOf(Date)
     })
 
-    it('scopes a non-see-all coach to their own groups', async () => {
+    it('scopes a non-see-all coach to their own groups, managed directions included', async () => {
         const prisma = makePrisma()
         await run(prisma, makeRbac('coach_own_only'))
         const sessionWhere =
             prisma.attendanceSession.count.mock.calls[0][0].where
-        expect(sessionWhere.group).toEqual({
-            coaches: { some: { userId: 'u1' } },
-        })
+        expect(sessionWhere.group).toEqual(ownGroupsWhere('u1'))
         const recordWhere = prisma.attendanceRecord.count.mock.calls[0][0].where
-        expect(recordWhere.session).toEqual({
-            group: { coaches: { some: { userId: 'u1' } } },
-        })
+        expect(recordWhere.session).toEqual({ group: ownGroupsWhere('u1') })
     })
 })

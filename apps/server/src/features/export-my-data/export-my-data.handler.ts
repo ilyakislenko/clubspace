@@ -111,7 +111,8 @@ export class ExportMyDataHandler
             ),
             collectPages((cursor, take) =>
                 this.prisma.subscription.findMany({
-                    where: { workspaceMember: { userId } },
+                    // Kept abonements of clubs they have left are theirs too.
+                    where: { OR: [{ userId }, { workspaceMember: { userId } }] },
                     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
                     take,
                     ...afterCursor(cursor),

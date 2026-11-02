@@ -1,4 +1,5 @@
 import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
+import { ownGroupsWhere } from '../../shared/services/rbac.service'
 import { GetRankReadinessFeature } from './get-rank-readiness.feature'
 import { GetRankReadinessHandler } from './get-rank-readiness.handler'
 
@@ -32,7 +33,6 @@ const make = (
         pending?: object[]
         group?: object | null
         visits?: Record<string, number>
-        managed?: string[]
     } = {},
 ) => {
     const scope = o.scope ?? 'admin'
@@ -44,7 +44,6 @@ const make = (
             workspaceOwnerId: OWNER,
         }),
         canSeeAllGroups: jest.fn().mockReturnValue(scope !== 'coach_own_only'),
-        managedDirectionIds: jest.fn().mockResolvedValue(o.managed ?? []),
     }
     const prisma = {
         workspace: {
@@ -169,7 +168,7 @@ describe('getRankReadiness', () => {
         expect(where).toMatchObject({ result: 'PENDING', grading: { ladderId: 'l1' } })
     })
 
-    it('limits a coach_own_only coach to the members of their groups', async () => {
+    it('limits a coach_own_only coach to the members of their own groups', async () => {
         const { prisma, run } = make({
             scope: 'coach_own_only',
             members: ['a', 'b'],
@@ -177,32 +176,20 @@ describe('getRankReadiness', () => {
             promotions: [promo('b', 'white', 10)],
         })
         const out = await run()
+        // Coached (primary or assistant) or of a direction they run: the
+        // candidates of a manager's gradings train in other coaches' groups.
         expect(prisma.groupMember.findMany.mock.calls[0][0].where).toEqual({
-            group: {
-                workspaceId: 'w1',
-                coaches: { some: { userId: 'me' } },
-            },
+            group: { workspaceId: 'w1', ...ownGroupsWhere('me') },
         })
         expect(prisma.rankPromotion.findMany.mock.calls[0][0].where.userId.in).toEqual(['b'])
         expect(out.data.map((e) => e.userId)).toEqual(['b'])
     })
 
-    it('lets a direction manager see every group of their directions', async () => {
-        const { prisma, run } = make({
-            scope: 'coach_own_only',
-            managed: ['bjj'],
-            members: ['a', 'b'],
-            groupMembers: ['a', 'b'],
-        })
-        await run()
+    it('keeps the own-groups rule when a scoped coach narrows to a group', async () => {
+        const { prisma, run } = make({ scope: 'coach_own_only', groupMembers: ['a'] })
+        await run({ groupId: 'g1' })
         expect(prisma.groupMember.findMany.mock.calls[0][0].where).toEqual({
-            group: {
-                workspaceId: 'w1',
-                OR: [
-                    { coaches: { some: { userId: 'me' } } },
-                    { directionId: { in: ['bjj'] } },
-                ],
-            },
+            group: { workspaceId: 'w1', id: 'g1', ...ownGroupsWhere('me') },
         })
     })
 

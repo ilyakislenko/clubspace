@@ -2,7 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
-import { RbacService } from '../../shared/services/rbac.service'
+import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import { displayName } from '../attendance/schemas'
 import {
     ListPendingFreezeRequestsFeature,
@@ -42,8 +42,9 @@ export class ListPendingFreezeRequestsHandler
                     ...currentSubscriptionWhere(now),
                     workspaceMember: { status: 'ACTIVE' },
                 },
-                // A coach sees what they may decide: members of their groups,
-                // never their own request.
+                // A coach sees what they may decide (canWriteMember): members
+                // of groups they coach or whose direction they run, never
+                // their own request.
                 ...(this.rbac.canWriteAllGroups(ctx)
                     ? {}
                     : {
@@ -53,9 +54,7 @@ export class ListPendingFreezeRequestsHandler
                                   some: {
                                       group: {
                                           workspaceId: f.workspaceId,
-                                          coaches: {
-                                              some: { userId: ctx.userId },
-                                          },
+                                          ...ownGroupsWhere(ctx.userId),
                                       },
                                   },
                               },

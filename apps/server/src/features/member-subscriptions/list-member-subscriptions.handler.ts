@@ -80,7 +80,13 @@ export class ListMemberSubscriptionsHandler
                 orderBy: currentSubscriptionOrderBy,
             }),
             this.prisma.subscriptionFreeze.findMany({
-                where: { workspaceId: f.workspaceId, userId: f.userId },
+                // This membership's abonements: kept rows of an earlier
+                // membership are history.
+                where: {
+                    workspaceId: f.workspaceId,
+                    userId: f.userId,
+                    subscription: { workspaceMemberId: member.id },
+                },
                 orderBy: { fromDate: 'desc' },
             }),
             this.prisma.workspace.findUnique({

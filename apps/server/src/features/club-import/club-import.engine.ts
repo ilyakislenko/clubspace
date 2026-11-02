@@ -1279,6 +1279,7 @@ export class ClubImportEngine {
                                     workspaceId: ws.id,
                                     planId: op.plan.id,
                                     workspaceMemberId: memberId,
+                                    userId,
                                     status: op.expired ? 'EXPIRED' : 'ACTIVE',
                                     startDate: op.startDate,
                                     endDate: op.endDate,

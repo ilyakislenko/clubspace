@@ -72,6 +72,7 @@ describe('expiringSegmentWhere over several abonements', () => {
         expect(where.OR?.[1]).toEqual({
             subscriptions: {
                 some: {
+                    NOT: { workspaceMemberId: null },
                     status: 'ACTIVE',
                     OR: [{ endDate: null }, { endDate: { gt: now } }],
                     classesRemaining: { lte: 1 },

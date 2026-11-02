@@ -42,6 +42,7 @@ const snapshot = (userId: string, over: Record<string, unknown> = {}) => ({
 const makePrisma = () => ({
     analyticsRun: { findUnique: jest.fn().mockResolvedValue(RUN) },
     analyticsMemberSnapshot: { findMany: jest.fn().mockResolvedValue([]) },
+    analyticsFormerMember: { findMany: jest.fn().mockResolvedValue([]) },
     analyticsMemberGroupStat: { findMany: jest.fn().mockResolvedValue([]) },
     analyticsSlotOccurrence: { findMany: jest.fn().mockResolvedValue([]) },
     workspace: { findUniqueOrThrow: jest.fn().mockResolvedValue({ timezone: 'Asia/Tomsk' }) },
@@ -227,6 +228,27 @@ describe('loadCoachReport', () => {
         expect(r.weeks).toBe(12)
     })
 
+    it('counts the renewals of students who have left in their coach’s groups', async () => {
+        const prisma = makePrisma()
+        prisma.groupCoach.findMany.mockResolvedValue([
+            { groupId: 'g1', userId: 'c1', user: { firstname: 'Яна', lastname: null, email: null } },
+        ])
+        prisma.analyticsMemberGroupStat.findMany.mockResolvedValue([
+            { userId: 'u1', groupId: 'g1', firstVisitAt: ago(200), lastVisitAt: ago(3), visits: 20 },
+            { userId: 'gone', groupId: 'g1', firstVisitAt: ago(170), lastVisitAt: ago(60), visits: 9 },
+        ])
+        prisma.analyticsMemberSnapshot.findMany.mockResolvedValue([
+            { userId: 'u1', renewalsDue: 2, renewalsDone: 2 },
+        ])
+        prisma.analyticsFormerMember.findMany.mockResolvedValue([
+            { userId: 'gone', renewalsDue: 3, renewalsDone: 2 },
+            // Left and came back: both rows add up.
+            { userId: 'u1', renewalsDue: 1, renewalsDone: 0 },
+        ])
+        const r = await loadCoachReport(prisma as never, { workspaceId: 'ws', scope: WHOLE, now: NOW })
+        expect(r.coaches[0].renewals).toEqual({ due: 6, done: 4, rate: 4 / 6 })
+    })
+
     it('counts a class a substitute ran for the substitute, not the group coach', async () => {
         const prisma = makePrisma()
         prisma.groupCoach.findMany.mockResolvedValue([
@@ -278,6 +300,40 @@ describe('loadForecastReport', () => {
             highRiskMoney: 5000,
             trial: { trials: 1, converted: 1, rate: 1, medianDaysToPay: 2 },
         })
+    })
+
+    it('counts the scope’s former students in the renewal share and trials, not in money', async () => {
+        const prisma = makePrisma()
+        prisma.analyticsMemberSnapshot.findMany.mockResolvedValue([
+            snapshot('a', { renewalsDue: 8, renewalsDone: 8 }),
+        ])
+        prisma.analyticsFormerMember.findMany.mockResolvedValue([
+            {
+                workspaceId: 'ws',
+                userId: 'gone',
+                groupIds: ['g1'],
+                renewalsDue: 4,
+                renewalsDone: 1,
+                trialStartedAt: ago(40),
+                trialConvertedAt: null,
+                computedAt: NOW,
+            },
+            {
+                workspaceId: 'ws',
+                userId: 'elsewhere',
+                groupIds: ['g2'],
+                renewalsDue: 9,
+                renewalsDone: 0,
+                trialStartedAt: null,
+                trialConvertedAt: null,
+                computedAt: NOW,
+            },
+        ])
+        const r = await loadForecastReport(prisma as never, { workspaceId: 'ws', scope: ONLY_G1, now: NOW })
+        expect(r.renewal).toMatchObject({ scopeRate: 9 / 12, scopeSample: 12 })
+        expect(r.trial).toMatchObject({ trials: 1, converted: 0 })
+        expect(r.members).toBe(1)
+        expect(r.monthlyRecurring).toBe(5000)
     })
 
     it('falls back to the default rate without a run', async () => {

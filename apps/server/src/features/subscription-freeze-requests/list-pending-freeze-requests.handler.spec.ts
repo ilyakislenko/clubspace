@@ -1,4 +1,5 @@
 import { ForbiddenError } from '../../shared/errors/shared.errors'
+import { ownGroupsWhere } from '../../shared/services/rbac.service'
 import { ListPendingFreezeRequestsFeature } from './list-pending-freeze-requests.feature'
 import { ListPendingFreezeRequestsHandler } from './list-pending-freeze-requests.handler'
 
@@ -62,6 +63,7 @@ describe('ListPendingFreezeRequestsHandler', () => {
             workspaceId: 'w1',
             status: 'PENDING',
             subscription: {
+                NOT: { workspaceMemberId: null },
                 status: 'ACTIVE',
                 OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
                 workspaceMember: { status: 'ACTIVE' },
@@ -79,7 +81,7 @@ describe('ListPendingFreezeRequestsHandler', () => {
         ])
     })
 
-    it('narrows a coach to members of their groups, never themselves', async () => {
+    it('narrows a coach to members of their groups (coached or of a managed direction), never themselves', async () => {
         const { handler, prisma } = build(false)
         await handler.execute(feature('coach'))
         const { where } = whereOf(prisma)
@@ -87,10 +89,7 @@ describe('ListPendingFreezeRequestsHandler', () => {
         expect(where.user).toEqual({
             groupMemberships: {
                 some: {
-                    group: {
-                        workspaceId: 'w1',
-                        coaches: { some: { userId: 'inv' } },
-                    },
+                    group: { workspaceId: 'w1', ...ownGroupsWhere('inv') },
                 },
             },
         })
