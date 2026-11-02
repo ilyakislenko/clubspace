@@ -29,11 +29,17 @@ import {
   isDirectionManagerCandidate,
 } from "../../../../../features/directions/DirectionManagersBlock"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
+import {
+  featureOn,
+  useWorkspaceFeatures,
+} from "../../../../../shared/lib/use-workspace-features"
 
 export default function DirectionsPage() {
   const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  // Ranks are named in the copy only where the club has them switched on.
+  const ranksOn = featureOn(useWorkspaceFeatures(workspaceId), "ranks")
 
   const [directions, setDirections] = useState<Direction[]>([])
   const [loading, setLoading] = useState(true)
@@ -134,16 +140,16 @@ export default function DirectionsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Направления</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Дисциплины внутри клуба — например, БЖЖ и ММА, хип-хоп и
-            контемп или йога и пилатес. Группы,
-            лестницы рангов, достижения, тарифы, события и объявления можно
-            привязать к направлению. Пока направлений нет, всё работает на весь
-            клуб.
+            Дисциплины внутри клуба — например, разные стили или детская и
+            взрослая программы. Группы,
+            {ranksOn ? " лестницы рангов," : ""} достижения, тарифы, события и
+            объявления можно привязать к направлению. Пока направлений нет, всё
+            работает на весь клуб.
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             Руководитель направления — {vocabulary.coach.nom}, который сам ведёт группы,
-            ранги, аттестации, достижения, тарифы, события и объявления своего
-            направления.
+            {ranksOn ? " ранги, аттестации," : ""} достижения, тарифы, события и
+            объявления своего направления.
           </p>
         </div>
         <Button type="button" onClick={openCreate}>

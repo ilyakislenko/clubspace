@@ -218,7 +218,7 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
   const onDisconnect = async () => {
     if (
       !window.confirm(
-        "Отключить онлайн-оплату? Участники не смогут покупать абонементы в приложении, сохранённые ключи будут удалены.",
+        "Отключить онлайн-оплату? Участники не смогут оплачивать абонементы и билеты на события в приложении, сохранённые ключи будут удалены.",
       )
     )
       return
@@ -509,8 +509,8 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
               <code className="rounded bg-muted px-1">{ev}</code>
             </span>
           ))}
-          . Без уведомлений оплаченные абонементы не будут оформляться
-          автоматически.
+          . Без уведомлений оплаченные абонементы и билеты не будут
+          оформляться автоматически.
         </p>
       </div>
 

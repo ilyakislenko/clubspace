@@ -43,6 +43,10 @@ import { formatPhone } from "../../../../../../shared/lib/phone"
 import { formatRoleName } from "../../../../../../shared/lib/role-labels"
 import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
 import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
+import {
+  featureOn,
+  useWorkspaceFeatures,
+} from "../../../../../../shared/lib/use-workspace-features"
 import { GuardianContacts } from "../../../../../../features/users/GuardianContacts"
 import { ProfileEditForm } from "../../../../../../features/users/ProfileEditForm"
 import { MemberNotesPanel } from "../../../../../../features/users/MemberNotesPanel"
@@ -82,7 +86,11 @@ export default function MemberProgressPage() {
   const canManageProfile = isWorkspaceAdmin(myMembership)
   // Direction managers promote on their directions' ladders (the server lists
   // only those ladders and that rank history to them).
-  const canPromote = canManageProfile || isDirectionManager(myMembership)
+  // The ranks block only where the club has ranks switched on.
+  const features = useWorkspaceFeatures(workspaceId)
+  const canPromote =
+    (canManageProfile || isDirectionManager(myMembership)) &&
+    featureOn(features, "ranks")
 
   const [data, setData] = useState<MemberProgress | null>(null)
   const [roles, setRoles] = useState<Role[]>([])

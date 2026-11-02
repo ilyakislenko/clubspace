@@ -18,6 +18,7 @@ import {
 } from "../../shared/api/subscriptions"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
+import { pluralRu } from "../../shared/lib/plural-ru"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { DirectionScopeChips } from "../directions/DirectionScopePicker"
 import { FreezeHistory } from "./FreezeHistory"
@@ -39,7 +40,7 @@ import {
 } from "./subscription-display"
 import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
 import { useVocabulary } from "../../shared/lib/vocabulary"
-import { agree, fromFirstSession } from "@clubspace/ui-kit/brand"
+import { agree, countForm, fromFirstSession } from "@clubspace/ui-kit/brand"
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "Активен",
@@ -363,7 +364,9 @@ export function MemberSubscriptionPanel({
               // hint the second attempt fails with no visible reason.
               <option key={p.id} value={p.id}>
                 {p.name} — {formatAmount(p.price, p.currency)} · {p.durationDays} дн.
-                {p.classCount != null ? ` · ${p.classCount} занятий` : " · безлимит"}
+                {p.classCount != null
+                  ? ` · ${p.classCount} ${countForm(p.classCount, vocabulary.session, pluralRu)}`
+                  : " · безлимит"}
                 {p.isFreeTrial ? " · пробный, один раз" : ""}
                 {p.startsOnFirstVisit ? ` · с 1-${agree(vocabulary.session, "й", "го")} ${vocabulary.session.gen}` : ""}
               </option>

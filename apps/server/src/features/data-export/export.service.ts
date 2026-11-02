@@ -4,6 +4,7 @@ import {
     currentSubscriptionOrderBy,
     currentSubscriptionWhere,
 } from '../../domains/subscriptions/current-subscriptions'
+import { localDateInTz } from '../attendance/attendance-utils'
 import { PrismaService } from '../../infrastructure/prisma'
 import { toCsv } from '../../shared/utils/csv'
 import {
@@ -33,6 +34,12 @@ const TICKET_PAYMENT_LABELS = {
     CASH: 'Наличные',
     TRANSFER: 'Перевод',
     ONLINE: 'Онлайн',
+} as const
+
+// Who recorded the abonement sale: staff by hand, or the club's online checkout.
+const SUBSCRIPTION_SOURCE_LABELS = {
+    MANUAL: 'Вручную',
+    GATEWAY: 'Онлайн-оплата',
 } as const
 
 // Inclusive date bounds (the controller passes from = start-of-day and
@@ -172,7 +179,11 @@ export class ExportService {
     // left stay in, under the buyer's name (Subscription.user).
     async revenueCsv(workspaceId: string, range?: DateRange): Promise<string> {
         const paidRange = rangeFilter(range)
-        const [subs, tickets] = await Promise.all([
+        const [workspace, subs, tickets] = await Promise.all([
+            this.prisma.workspace.findUnique({
+                where: { id: workspaceId },
+                select: { timezone: true },
+            }),
             this.prisma.subscription.findMany({
                 where: { workspaceId, ...paidInRangeWhere(paidRange ?? {}) },
                 select: {
@@ -223,7 +234,7 @@ export class ExportService {
                         s.plan.name,
                         s.amountPaid,
                         s.currency,
-                        s.source,
+                        SUBSCRIPTION_SOURCE_LABELS[s.source],
                         s.classesTotal ?? '',
                         'Абонемент',
                         '',
@@ -260,7 +271,11 @@ export class ExportService {
                 'Вид',
                 'Способ оплаты',
             ],
-            rows.map((r) => [day(r.on), ...r.cells]),
+            // The payment day as the club sees it, not the UTC day.
+            rows.map((r) => [
+                localDateInTz(r.on, workspace?.timezone ?? 'UTC'),
+                ...r.cells,
+            ]),
         )
     }
 

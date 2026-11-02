@@ -171,6 +171,42 @@ describe("pickNextTraining", () => {
     })
   })
 
+  describe("class bookings", () => {
+    const held = (startAt: string, over: Record<string, unknown> = {}) =>
+      ({
+        id: "cb",
+        status: "BOOKED",
+        classCancelled: false,
+        startAt,
+        endAt: new Date(new Date(startAt).getTime() + 3_600_000).toISOString(),
+        ...over,
+      }) as never
+
+    it("counts a held place when the member has no group", () => {
+      const out = pickNextTraining(null, [], now, [], [
+        held("2026-10-28T12:00:00Z"),
+      ])
+      expect(out?.kind).toBe("classBooking")
+      expect(out?.startAt.toISOString()).toBe("2026-10-28T12:00:00.000Z")
+    })
+
+    it("wins over a later group class", () => {
+      const out = pickNextTraining(groupNext("2026-10-29T14:00:00Z"), [], now, [], [
+        held("2026-10-28T12:00:00Z"),
+      ])
+      expect(out?.kind).toBe("classBooking")
+    })
+
+    it("skips the waitlist, cancelled classes and finished ones", () => {
+      const out = pickNextTraining(null, [], now, [], [
+        held("2026-10-28T12:00:00Z", { status: "WAITLISTED" }),
+        held("2026-10-28T12:00:00Z", { classCancelled: true }),
+        held("2026-10-27T06:00:00Z"),
+      ])
+      expect(out).toBeNull()
+    })
+  })
+
   it("picks the earliest booking", () => {
     const out = pickNextTraining(
       null,

@@ -46,7 +46,7 @@ export function MemberNotesPanel({
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <div className="font-medium">Заметки о участнике</div>
+      <div className="font-medium">Заметки об участнике</div>
       <p className="mt-1 text-xs text-muted-foreground">
         Видны только {vocabulary.coach.datPl} и администраторам — сам участник их не видит.
         Травмы, цели, договорённости по оплате.
