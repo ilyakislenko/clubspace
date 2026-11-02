@@ -19,6 +19,7 @@
     "test:coverage": "nx run-many -t test --projects=@clubspace/server,@clubspace/admin,@clubspace/mobile,@clubspace/video-worker --coverage",
     "verify": "bash scripts/verify.sh",
     "demo:reset": "nx run @clubspace/server:demo:reset --skip-sync",
+    "demo:videos": "node scripts/demo-videos.mjs",
     "hooks:install": "git config core.hooksPath .githooks && echo \"pre-push hook installed (core.hooksPath=.githooks)\"",
     "test:admin": "nx test @clubspace/admin",
     "postinstall": "patch-package"

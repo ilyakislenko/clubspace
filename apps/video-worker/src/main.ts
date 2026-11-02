@@ -141,6 +141,12 @@ const worker = new Worker(
                     hlsBucket,
                     hlsMasterKey: masterKey,
                     url: getPublicObjectUrl(hlsBucket, masterKey),
+                    // Lesson lists show it and web playback links are sized
+                    // by it; without it both wait for a first viewer's player
+                    // to report the length.
+                    ...(probe.durationSec !== null && {
+                        duration: Math.round(probe.durationSec),
+                    }),
                 },
             })
 
