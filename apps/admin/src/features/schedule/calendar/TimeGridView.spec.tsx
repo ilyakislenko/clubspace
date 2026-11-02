@@ -161,9 +161,9 @@ describe("TimeGridView", () => {
     it("puts each class into its hall's column at full width", () => {
       render(<TimeGridView {...baseProps()} days={["2026-11-04"]} halls={halls} />)
       expect([...document.querySelectorAll("[data-calendar-hall]")].map((h) => h.textContent)).toEqual([
-        "Зал gym11 занятие",
-        "Зал gym21 занятие",
-        "Зал gym3нет занятий",
+        "Зал gym11 тренировка",
+        "Зал gym21 тренировка",
+        "Зал gym3нет тренировок",
       ])
       // The two classes overlap in time but not in hall: no half-width blocks.
       expect(column("Зал gym1").contains(block("slot-g1:2026-11-04"))).toBe(true)

@@ -55,7 +55,7 @@ import {
 import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { analyticsSections } from "./analytics/sections"
 import { useVocabulary } from "../../../../shared/lib/vocabulary"
-import type { ClubVocabulary } from "@clubspace/ui-kit/brand"
+import { cap, type ClubVocabulary } from "@clubspace/ui-kit/brand"
 
 type NavItem = {
   key: string
@@ -86,7 +86,7 @@ const dailyNavItems: NavItem[] = [
   },
 ]
 
-const manageNavItems: NavItem[] = [
+const manageNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
   {
     key: "users",
     label: "Участники",
@@ -108,7 +108,7 @@ const manageNavItems: NavItem[] = [
   },
   {
     key: "schedule",
-    label: "Занятия",
+    label: cap(vocabulary.session.nomPl),
     icon: CalendarCheck,
     path: "schedule",
   },
@@ -336,7 +336,7 @@ export function WorkspaceSidebar() {
           <SidebarGroupLabel>Управление</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleNavItems(manageNavItems, membership)
+              {visibleNavItems(manageNavItems(vocabulary), membership)
                 .filter(sectionOn)
                 .map(renderNavItem)}
             </SidebarMenu>

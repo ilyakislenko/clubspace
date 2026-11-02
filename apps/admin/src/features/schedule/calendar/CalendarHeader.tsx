@@ -43,7 +43,7 @@ import {
 } from "./calendar-helpers"
 import { activeFilterCount, ALL, EMPTY_FILTERS, type CalendarFilters } from "./calendar-items"
 import { useVocabulary } from "../../../shared/lib/vocabulary"
-import { cap } from "@clubspace/ui-kit/brand"
+import { cap, countForm } from "@clubspace/ui-kit/brand"
 
 const VIEW_OPTIONS: Array<{ view: CalendarView; label: string; icon: typeof List }> = [
   { view: "day", label: "День", icon: CalendarDays },
@@ -113,7 +113,7 @@ export function CalendarHeader(props: Props) {
                 {view === "year" ? anchor.slice(0, 4) : monthTitle(anchor)}
               </span>
               <span className="rounded-md border border-border px-1.5 py-0.5 text-xs text-muted-foreground">
-                {props.classCount} {pluralRu(props.classCount, "занятие", "занятия", "занятий")}
+                {props.classCount} {countForm(props.classCount, vocabulary.session, pluralRu)}
               </span>
             </div>
             <div className="flex items-center gap-2">

@@ -774,7 +774,7 @@ export function ClubScheduleScreen() {
                 accessibilityRole="button"
                 style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
               >
-                <Text style={styles.personalLinkText}>Мои записи на занятия →</Text>
+                <Text style={styles.personalLinkText}>Мои записи на {vocabulary.session.nomPl} →</Text>
               </Pressable>
             )}
           </View>

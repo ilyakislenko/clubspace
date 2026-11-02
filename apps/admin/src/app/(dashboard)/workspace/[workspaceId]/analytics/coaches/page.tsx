@@ -97,8 +97,8 @@ export default function CoachesAnalyticsPage() {
                   <th className="p-3 text-right">Активные ученики</th>
                   <th className="p-3 text-right">Удержание 3 мес</th>
                   <th className="p-3 text-right">Продления</th>
-                  <th className="p-3 text-right">На занятии в среднем</th>
-                  <th className="p-3 text-right">Занятий</th>
+                  <th className="p-3 text-right">На {vocabulary.session.prep} в среднем</th>
+                  <th className="p-3 text-right">{cap(vocabulary.session.genPl)}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -142,9 +142,9 @@ export default function CoachesAnalyticsPage() {
             </table>
           </div>
           <p className="text-xs text-muted-foreground">
-            Активные — были на занятии за последние 30 дней. Удержание — доля
-            учеников, начавших больше 3 месяцев назад, которые ходят и сейчас.
-            Занятия и посещаемость — за {data?.weeks ?? 8} недель. «Лучшее
+            Активные — были на {vocabulary.session.prep} за последние 30 дней. Удержание — доля
+            учеников, начавших больше 3 месяцев назад, которые ходят и сейчас.{" "}
+            {cap(vocabulary.session.nomPl)} и посещаемость — за {data?.weeks ?? 8} недель. «Лучшее
             удержание» отмечаем, когда учеников для оценки не меньше{" "}
             {MIN_COACH_SAMPLE}.
           </p>

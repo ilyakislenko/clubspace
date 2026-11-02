@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useCallback, useEffect, useState } from "react"
+import { Fragment, useCallback, useEffect, useState } from "react"
 
 import {
   Button,
@@ -256,7 +256,8 @@ export default function RetentionPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {rows.map((m) => (
-                <tr key={m.userId} className="align-top">
+                <Fragment key={m.userId}>
+                <tr className="align-top">
                   <td className="p-3">
                     <Link
                       href={`/workspace/${workspaceId}/users/${m.userId}`}
@@ -304,37 +305,7 @@ export default function RetentionPage() {
                       : "—"}
                   </td>
                   <td className="p-3">
-                    {editingId === m.userId ? (
-                      // Stacked, so the note does not push the buttons past the
-                      // table's right edge.
-                      <div className="flex w-60 flex-col gap-2">
-                        <Input
-                          value={note}
-                          onChange={(e) => setNote(e.target.value)}
-                          placeholder="Заметка (необязательно)"
-                          maxLength={500}
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => void save(m)}
-                            disabled={saving}
-                          >
-                            {saving ? "Сохраняю…" : "Сохранить"}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => setEditingId(null)}
-                            disabled={saving}
-                          >
-                            Отмена
-                          </Button>
-                        </div>
-                      </div>
-                    ) : m.canContact ? (
+                    {m.canContact && editingId !== m.userId ? (
                       <Button
                         type="button"
                         size="sm"
@@ -346,6 +317,42 @@ export default function RetentionPage() {
                     ) : null}
                   </td>
                 </tr>
+                {editingId === m.userId && (
+                  // A row of its own: inside the last cell the note pushed the
+                  // table past the right edge on a 1440 screen.
+                  <tr>
+                    <td colSpan={7} className="px-3 pb-3 pt-0">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Input
+                          value={note}
+                          onChange={(e) => setNote(e.target.value)}
+                          placeholder="Заметка (необязательно)"
+                          maxLength={500}
+                          className="max-w-md"
+                          autoFocus
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => void save(m)}
+                          disabled={saving}
+                        >
+                          {saving ? "Сохраняю…" : "Сохранить"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setEditingId(null)}
+                          disabled={saving}
+                        >
+                          Отмена
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

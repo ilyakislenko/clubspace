@@ -209,8 +209,8 @@ export default function ChurnPage() {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Кому позвонить сегодня</h1>
         <p className="text-sm text-muted-foreground">
-          Ученики, которые могут уйти, — по убыванию риска. Звонок {vocabulary.coach.gen}
-          заметно продлевает членство.
+          Ученики, которые могут уйти, — по убыванию риска. Звонок{" "}
+          {vocabulary.coach.gen} заметно продлевает членство.
         </p>
         <AnalyticsFreshness
           workspaceId={workspaceId}

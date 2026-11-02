@@ -474,7 +474,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
 
         {sessionId && (
           <View style={styles.notesCard}>
-            <Text style={styles.notesLabel}>Заметка к занятию</Text>
+            <Text style={styles.notesLabel}>Заметка к {vocabulary.session.dat}</Text>
             <TextInput
               value={notes}
               onChangeText={setNotes}

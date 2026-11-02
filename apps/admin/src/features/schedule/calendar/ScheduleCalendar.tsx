@@ -1,5 +1,6 @@
 "use client"
 
+import { agree, cap } from "@clubspace/ui-kit/brand"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
@@ -18,6 +19,7 @@ import {
   type WorkspaceSchedule,
 } from "../../../shared/api/schedule"
 import { errorMessage } from "../../../shared/lib/error-message"
+import { useVocabulary } from "../../../shared/lib/vocabulary"
 import { useWorkspaceRealtime } from "../../../shared/realtime/useWorkspaceRealtime"
 import { useDirectionScope } from "../../../shared/workspace/use-direction-scope"
 import { useDirections } from "../../directions/use-directions"
@@ -82,6 +84,7 @@ let toastSeq = 0
  * pull its bottom edge to change the duration, click an empty cell to add one.
  */
 export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
+  const vocabulary = useVocabulary()
   const [view, setView] = useState<CalendarView>("week")
   // A day with every hall shown reads best hall by hall: 4–5 classes run at
   // once on a weekday evening, side by side in one column they get too narrow.
@@ -423,10 +426,11 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">Занятия</h1>
+        <h1 className="text-2xl font-semibold">{cap(vocabulary.session.nomPl)}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Расписание всех групп и событий клуба. Перетащите занятие, чтобы перенести его, потяните за
-          нижний край — чтобы изменить длительность, нажмите на пустую клетку — чтобы добавить занятие.
+          Расписание всех групп и событий клуба. Перетащите {vocabulary.session.acc}, чтобы перенести{" "}
+          {agree(vocabulary.session, "её", "его")}, потяните за нижний край — чтобы изменить длительность,
+          нажмите на пустую клетку — чтобы добавить {vocabulary.session.acc}.
         </p>
       </div>
 
