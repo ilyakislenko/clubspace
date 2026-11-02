@@ -31,6 +31,8 @@ import { haptics } from "../../shared/haptics"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import { spotsLine } from "./class-booking-helpers"
 import { formatTimezoneLabel } from "./club-schedule-buckets"
+import { bookedLine, eventViewer } from "./event-helpers"
+import { fetchMe } from "../../shared/api/me"
 import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
@@ -85,11 +87,14 @@ const priceLabel = (price: number | null, currency: string): string =>
 
 // A master class: price, places and the member's own registration, with
 // register / waitlist / cancel. A guardian acting for a child acts for it.
+// Its teacher and the staff run it instead: they see how many signed up.
 function EventRegistrationBlock({
   event,
+  signsUp,
   onChanged,
 }: {
   event: ScheduleEvent
+  signsUp: boolean
   onChanged: () => void
 }) {
   const theme = useTheme()
@@ -104,6 +109,19 @@ function EventRegistrationBlock({
   const capacity = event.capacity ?? null
   const started = new Date(event.startAt).getTime() <= Date.now()
   const full = capacity !== null && reg.booked >= capacity
+
+  if (!signsUp) {
+    return (
+      <View style={styles.regBlock}>
+        <Text style={styles.regPrice}>
+          {priceLabel(event.price ?? null, event.currency ?? "RUB")}
+        </Text>
+        <Text style={styles.regSpots}>
+          {bookedLine({ capacity, booked: reg.booked, waitlist: reg.waitlist })}
+        </Text>
+      </View>
+    )
+  }
 
   const run = async (action: () => Promise<unknown>, done: string) => {
     setBusy(true)
@@ -219,11 +237,16 @@ function EventRegistrationBlock({
   )
 }
 
-export function EventsScreen({ navigation: _ }: Props) {
+export function EventsScreen({ navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
   const vocabulary = useVocabulary()
+  const me = useCachedResource(
+    workspace ? `me:${workspace.workspaceId}` : null,
+    useCallback(async () => await fetchMe(), []),
+  )
+  const meId = me.data?.id ?? null
   const {
     data: events,
     error,
@@ -349,9 +372,36 @@ export function EventsScreen({ navigation: _ }: Props) {
                     </Text>
                   </Pressable>
                 )}
-                {event.registration && (
-                  <EventRegistrationBlock event={event} onChanged={refetch} />
-                )}
+                {(() => {
+                  const viewer = eventViewer(event, meId, workspace!)
+                  return (
+                    <>
+                      {event.registration && (
+                        <EventRegistrationBlock
+                          event={event}
+                          signsUp={viewer.signsUp}
+                          onChanged={refetch}
+                        />
+                      )}
+                      {viewer.marks && (
+                        <Pressable
+                          onPress={() =>
+                            navigation.navigate("EventAttendance", {
+                              eventId: event.id,
+                              title: event.title,
+                            })
+                          }
+                          accessibilityRole="button"
+                          style={[styles.regButton, styles.regButtonSecondary]}
+                        >
+                          <Text style={styles.regButtonSecondaryText}>
+                            Отметить пришедших
+                          </Text>
+                        </Pressable>
+                      )}
+                    </>
+                  )
+                })()}
               </View>
             ))}
             </ResponsiveGrid>

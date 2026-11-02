@@ -36,6 +36,7 @@ export const STACK_PATHS = {
   ClubAbout: "about",
   SessionAttendance: "attendance/:slotId/:sessionDate",
   SessionRoster: "session/:sessionId",
+  EventAttendance: "events/:eventId/attendance",
   PersonalTrainings: "personal-trainings",
   PersonalTrainingRequest: "personal-trainings/new",
   PersonalTraining: "personal-trainings/:requestId",

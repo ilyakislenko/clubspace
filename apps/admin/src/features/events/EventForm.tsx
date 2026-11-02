@@ -29,6 +29,7 @@ import { type WorkspaceMember } from "../../shared/api/members"
 import { useDirectionScope } from "../../shared/workspace/use-direction-scope"
 import { DirectionSelect } from "../directions/DirectionSelect"
 import { TimezoneSelect } from "../settings/TimezoneSelect"
+import { shiftEndWithStart } from "./event-time"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { cap } from "@clubspace/ui-kit/brand"
 
@@ -123,6 +124,21 @@ export function EventForm({
   )
   const [endTime, setEndTime] = useState(endWall?.time ?? "20:30")
   const [timezone, setTimezone] = useState(eventTz)
+  // Moving the start drags the end along by the same amount, so the event
+  // keeps its length instead of stretching to the old end date.
+  const moveStart = (date: Date | null, time: string) => {
+    if (date && startDate && endDate) {
+      const end = shiftEndWithStart(
+        { date: startDate, time: startTime },
+        { date: endDate, time: endTime },
+        { date, time },
+      )
+      setEndDate(end.date)
+      setEndTime(end.time)
+    }
+    setStartDate(date)
+    setStartTime(time)
+  }
   const [gymId, setGymId] = useState<string>(event?.gym?.id ?? "none")
   const [coachId, setCoachId] = useState<string>(event?.coach?.id ?? "none")
   // A master class: a guest host, a ticket price, a limit of places. Blank =
@@ -235,18 +251,13 @@ export function EventForm({
         <div className="flex flex-wrap items-center gap-2">
           <DatePicker
             value={startDate}
-            onChange={(d) => {
-              setStartDate(d)
-              // Bump end date along with start when they were equal —
-              // most events are same-day, this keeps the form sane after
-              // changing the start date alone.
-              if (d && endDate && endDate.getTime() < d.getTime()) {
-                setEndDate(d)
-              }
-            }}
+            onChange={(d) => moveStart(d, startTime)}
             className="flex-1 min-w-[180px]"
           />
-          <TimePicker value={startTime} onChange={setStartTime} />
+          <TimePicker
+            value={startTime}
+            onChange={(t) => moveStart(startDate, t)}
+          />
         </div>
       </div>
 

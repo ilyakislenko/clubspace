@@ -26,6 +26,7 @@ import { ClassAttendancePanel } from "../../../../../features/schedule/ClassAtte
 import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
+import { timezoneLabel } from "../../../../../shared/lib/timezones"
 import { DirectionChip } from "../../../../../features/directions/DirectionChip"
 import {
   ALL_DIRECTIONS,
@@ -235,8 +236,11 @@ export default function EventsPage() {
                         event.startAt,
                         event.endAt,
                         event.timezone,
-                      )}{" "}
-                      <span className="font-mono">({event.timezone})</span>
+                      )}
+                      {/* Times are in the event's own zone; name it only when
+                          it isn't the club's, as "Томск (UTC+7)". */}
+                      {event.timezone !== workspaceTz &&
+                        ` · ${timezoneLabel(event.timezone)}`}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       {event.gym && (

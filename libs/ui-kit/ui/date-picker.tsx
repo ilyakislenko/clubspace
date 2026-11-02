@@ -53,7 +53,6 @@ export function DatePicker({
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="single"
-          locale={ru}
           selected={value ?? undefined}
           onSelect={(date) => {
             onChange(date ?? null)
