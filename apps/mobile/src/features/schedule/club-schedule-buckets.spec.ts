@@ -14,6 +14,15 @@ describe("formatTimezoneLabel", () => {
     expect(formatTimezoneLabel("Europe/Moscow").length).toBeGreaterThan(0)
     expect(formatTimezoneLabel("Not/AZone")).toBe("Not/AZone")
   })
+
+  it("shows the zone's offset from UTC", () => {
+    const now = new Date("2026-11-02T05:00:00Z")
+    expect(formatTimezoneLabel("Asia/Tomsk", now)).toBe("GMT+7")
+    expect(formatTimezoneLabel("Europe/Moscow", now)).toBe("GMT+3")
+    expect(formatTimezoneLabel("UTC", now)).toBe("GMT")
+    expect(formatTimezoneLabel("Asia/Kolkata", now)).toBe("GMT+5:30")
+    expect(formatTimezoneLabel("America/New_York", now)).toBe("GMT-5")
+  })
 })
 
 describe("gym filter", () => {

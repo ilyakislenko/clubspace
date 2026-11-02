@@ -34,17 +34,43 @@ export const formatTimeInTz = (
   return { hourMinute, dateKey, dayLabel }
 }
 
-// «GMT+3» instead of the raw IANA id («Europe/Moscow») — members don't know
-// zone ids. Falls back to the id where the runtime can't format an offset.
-export const formatTimezoneLabel = (timeZone: string): string => {
+// «GMT+7» instead of the raw IANA id («Asia/Tomsk») — members don't know
+// zone ids. The offset is computed from the zone's wall clock rather than
+// `timeZoneName: "shortOffset"`: Hermes on iOS answers plain «GMT» for every
+// zone there. Falls back to the id where the runtime can't resolve the zone.
+export const formatTimezoneLabel = (
+  timeZone: string,
+  now: Date = new Date(),
+): string => {
   try {
-    const part = new Intl.DateTimeFormat("ru-RU", {
-      timeZone,
-      timeZoneName: "shortOffset",
-    })
-      .formatToParts(new Date())
-      .find((p) => p.type === "timeZoneName")
-    return part?.value ?? timeZone
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        hourCycle: "h23",
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "numeric",
+      })
+        .formatToParts(now)
+        .map((p) => [p.type, Number(p.value)] as const),
+    )
+    const wall = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+    )
+    const utc = Math.floor(now.getTime() / 60_000) * 60_000
+    const minutes = Math.round((wall - utc) / 60_000)
+    if (!Number.isFinite(minutes)) return timeZone
+    if (minutes === 0) return "GMT"
+    const abs = Math.abs(minutes)
+    const mm = abs % 60
+    const tail = mm ? `:${String(mm).padStart(2, "0")}` : ""
+    return `GMT${minutes < 0 ? "-" : "+"}${Math.floor(abs / 60)}${tail}`
   } catch {
     return timeZone
   }

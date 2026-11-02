@@ -13,7 +13,11 @@ import { isWeb } from "../platform"
  * The app's TextInput. Import this instead of `react-native`'s — an eslint rule
  * enforces it (see eslint.config.mjs).
  *
- * On native it is React Native's TextInput, unchanged. On web it guarantees a
+ * On native it is React Native's TextInput with an explicit `letterSpacing: 0`
+ * underneath the caller's style: iOS recycles native input views, and a
+ * recycled view keeps the previous field's spacing — after sign-in (the
+ * 8pt-spaced code field) the courses search placeholder read «П о и с к».
+ * On web it guarantees a
  * 16px minimum font size, because **iOS Safari zooms the whole page in when you
  * focus an input smaller than that** — and it does not zoom back out when you
  * leave the field, so the member is left pinching their way back to a usable
@@ -28,7 +32,7 @@ const MIN_WEB_FONT_SIZE = 16
 export const TextInput = forwardRef<TextInputInstance, AppTextInputProps>(
   function AppTextInput({ style, ...rest }, ref) {
     if (!isWeb) {
-      return <RNTextInput ref={ref} style={style} {...rest} />
+      return <RNTextInput ref={ref} style={[styles.native, style]} {...rest} />
     }
 
     // Only raise a size that's too small — a deliberately large field (the
@@ -48,5 +52,6 @@ export const TextInput = forwardRef<TextInputInstance, AppTextInputProps>(
 )
 
 const styles = StyleSheet.create({
+  native: { letterSpacing: 0 },
   minFont: { fontSize: MIN_WEB_FONT_SIZE },
 })

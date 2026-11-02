@@ -194,6 +194,9 @@ export function WeekCalendar({
         {showNow && (
           <Text
             style={[styles.nowLabel, { top: EDGE + nowTop - LABEL_HALF }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
             accessibilityLabel="Сейчас"
           >
             сейчас

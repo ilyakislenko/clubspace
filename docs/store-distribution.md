@@ -326,6 +326,7 @@ STORE_REVIEW_WORKSPACE_KEY=<ключ демо-клуба>
 - [ ] RuStore: способы оплаты задекларированы (или их нет), политика
       конфиденциальности указана.
 - [ ] Свежая PWA собрана с тем же env (`npm run build:pwa`) и выложена.
+- [ ] Вход, расписание, отметка, видео проверены на симуляторе iOS (раздел 9).
 
 Дополнительно для брендового приложения клуба:
 
@@ -334,6 +335,67 @@ STORE_REVIEW_WORKSPACE_KEY=<ключ демо-клуба>
 - [ ] В проекте EAS клуба заданы все переменные из раздела 3; иконки свои.
 - [ ] Bundle ID клуба не `com.clubspace.*`; схема не `clubspace`.
 - [ ] Ссылки `/join/*` заявлены только на собственном хосте клуба.
+
+## 9. Проверка iOS на симуляторе (без окна Simulator)
+
+В Xcode 27 нет `Simulator.app`, приложение проверяется из терминала:
+`xcrun simctl` (установка, запуск, скриншоты) и `idb` (тапы, ввод, дерево
+доступности).
+
+**Сборка.** Нужна ad-hoc подпись: с `CODE_SIGNING_ALLOWED=NO` у приложения
+нет keychain-entitlement, `expo-secure-store` падает с `-34018`, и вход
+сбрасывается при каждом перезапуске. `EXPO_PUBLIC_*` подставляются в бандл
+при сборке, без них приложение зависает на заставке.
+
+```sh
+cd apps/mobile
+export EXPO_PUBLIC_API_URL=http://localhost:3000 EXPO_PUBLIC_BRAND=clubspace \
+  EXPO_PUBLIC_CLUB_PICKER=true EXPO_PUBLIC_WEB_URL=http://localhost:4201
+npx expo prebuild --platform ios --clean --no-install && (cd ios && pod install)
+UDID=$(xcrun simctl list devices | awk -F'[()]' '/iPhone 18 Pro \(/{print $2; exit}')
+xcrun simctl boot "$UDID" 2>/dev/null
+(cd ios && xcodebuild -workspace ClubSpace.xcworkspace -scheme ClubSpace \
+  -configuration Release -sdk iphonesimulator -destination "id=$UDID" \
+  -derivedDataPath /tmp/cs-ios-dd \
+  CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=)
+xcrun simctl install "$UDID" /tmp/cs-ios-dd/Build/Products/Release-iphonesimulator/ClubSpace.app
+xcrun simctl launch "$UDID" com.clubspace.app
+xcrun simctl io "$UDID" screenshot shot.png
+```
+
+Повторная сборка после правок JS — около 20 с. Часовой пояс устройства для
+проверки: `SIMCTL_CHILD_TZ=Europe/Moscow xcrun simctl launch "$UDID" com.clubspace.app`.
+Ссылки: `xcrun simctl openurl "$UDID" clubspace://...`.
+
+**Управление (idb).** `brew install idb-companion`, клиент — `uv tool install fb-idb`.
+`idb_companion` ищет `SimulatorKit.framework` в
+`Contents/Developer/Library/PrivateFrameworks`, а в Xcode 27 он лежит в
+`Contents/SharedFrameworks`. Лечится подставным `DEVELOPER_DIR` из симлинков:
+
+```sh
+X=/Applications/Xcode.app/Contents; F=$HOME/.cache/xcfake/Xcode.app/Contents
+mkdir -p $F/Developer/Library/PrivateFrameworks
+for e in $X/*; do [ "${e##*/}" = Developer ] || ln -sf $e $F/; done
+for e in $X/Developer/*; do [ "${e##*/}" = Library ] || ln -sf $e $F/Developer/; done
+for e in $X/Developer/Library/*; do ln -sf $e $F/Developer/Library/; done
+ln -sf $X/SharedFrameworks/SimulatorKit.framework $F/Developer/Library/PrivateFrameworks/
+DEVELOPER_DIR=$F/Developer idb_companion --udid "$UDID" --grpc-port 10882 &
+idb connect localhost 10882
+idb ui describe-all          # элементы с AXLabel и координатами в точках
+idb ui tap 200 600           # тап в точках (скриншот в 3× пикселях)
+idb ui text "coach@academy.demo"
+idb ui swipe 200 650 200 250 --duration 0.3
+```
+
+- Раскладка клавиатуры симулятора — русская: латиницу вводит только
+  `xcrun simctl spawn "$UDID" defaults write -g AppleKeyboards -array "en_US@sw=QWERTY;hw=Automatic"`
+  и перезапуск приложения.
+- `idb ui text` теряет хвост длинной строки — вводить посимвольно и
+  сверять значение поля через `describe-all`.
+- Подключена аппаратная клавиатура, экранная не появляется: проверка
+  «клавиатура перекрывает поле» так недоступна.
+- Тапать можно только видимое: координаты из `describe-all` у элементов за
+  экраном вне 0–874, сначала прокрутить свайпом.
 
 ## Источники
 
