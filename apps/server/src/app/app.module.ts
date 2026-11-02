@@ -83,6 +83,7 @@ import { CancelEventRegistrationHandler } from '../features/event-registrations/
 import { EventRegistrationsController } from '../features/event-registrations/event-registrations.controller'
 import { ListEventRegistrationsHandler } from '../features/event-registrations/list-event-registrations.handler'
 import { MarkEventRegistrationPaidHandler } from '../features/event-registrations/mark-event-registration-paid.handler'
+import { PayEventRegistrationOnlineHandler } from '../features/event-registrations/pay-event-registration-online.handler'
 import { RegisterForEventHandler } from '../features/event-registrations/register-for-event.handler'
 import { UnmarkEventRegistrationPaidHandler } from '../features/event-registrations/unmark-event-registration-paid.handler'
 import { GetAttendanceSessionHandler } from '../features/attendance/get-session.handler'
@@ -972,6 +973,7 @@ const handlers: ModuleMetadata['providers'] = [
     ListEventRegistrationsHandler,
     MarkEventRegistrationPaidHandler,
     UnmarkEventRegistrationPaidHandler,
+    PayEventRegistrationOnlineHandler,
     CreateClassSubstitutionHandler,
     ApproveClassSubstitutionHandler,
     DeclineClassSubstitutionHandler,

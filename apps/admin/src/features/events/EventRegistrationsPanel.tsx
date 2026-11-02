@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 
 import { Button } from "@clubspace/ui-kit/ui"
@@ -16,9 +17,13 @@ import { errorMessage } from "../../shared/lib/error-message"
 import { useWorkspaceRealtime } from "../../shared/realtime/useWorkspaceRealtime"
 import { formatAmount } from "../subscriptions/subscription-display"
 
-const METHOD_LABEL: Record<EventPaymentMethod, string> = {
+const METHOD_LABEL: Record<
+  NonNullable<EventRegistrant["paymentMethod"]>,
+  string
+> = {
   CASH: "наличные",
   TRANSFER: "перевод",
+  ONLINE: "онлайн",
 }
 
 const statusLabel = (r: EventRegistrant): string =>
@@ -36,8 +41,9 @@ type Props = {
 }
 
 // Who registered for a master class (an event with a price or a limit of
-// places) and who paid at the club — cash or a transfer. Own fetch; refreshes
-// live as members register, cancel and move up from the waitlist.
+// places) and who paid — at the club (cash / a transfer, marked here) or
+// online (marked by the payment; refunded from «Платежи»). Own fetch;
+// refreshes live as members register, cancel and move up from the waitlist.
 export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Props) {
   const [data, setData] = useState<EventRegistrations | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -159,17 +165,27 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
                         запись отменена — верните деньги и снимите отметку
                       </span>
                     )}
-                    {canUnmark && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={busyId === r.id}
-                        onClick={() => unmark(r)}
-                      >
-                        Снять
-                      </Button>
-                    )}
+                    {canUnmark &&
+                      (r.paymentMethod === "ONLINE" ? (
+                        // Paid through the club's provider: the money goes
+                        // back by a refund, which takes the mark back too.
+                        <Link
+                          href={`/workspace/${workspaceId}/payments`}
+                          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                        >
+                          Возврат — в «Платежах»
+                        </Link>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={busyId === r.id}
+                          onClick={() => unmark(r)}
+                        >
+                          Снять
+                        </Button>
+                      ))}
                   </div>
                 ) : r.status === "BOOKED" ? (
                   // Payment is taken for a place: the waitlist pays once moved up.

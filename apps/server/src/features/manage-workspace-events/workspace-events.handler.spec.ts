@@ -252,15 +252,28 @@ describe('workspace events: master class (price, places, guest host)', () => {
             workspaceEvent: {
                 findMany: jest.fn().mockResolvedValue([eventRow(null), paid]),
             },
+            // A connected provider, the module on (no billing row: trial).
+            workspace: {
+                findUnique: jest
+                    .fn()
+                    .mockResolvedValue({ billing: null, moduleEntitlements: [] }),
+            },
+            workspacePaymentSettings: {
+                findUnique: jest.fn().mockResolvedValue({ workspaceId: 'w1' }),
+            },
         }
         const regs = registrations()
-        const summary = { booked: 3, waitlist: 1, mine: null }
+        const summary = { booked: 3, waitlist: 1, mine: null, onlinePayment: true }
         regs.summaries.mockResolvedValue(new Map([['e2', summary]]))
         const out = await new ListWorkspaceEventsHandler(
             prisma as never,
             regs as never,
         ).execute(new ListWorkspaceEventsFeature({}, 'w1', 'viewer'))
-        expect(regs.summaries).toHaveBeenCalledWith([eventRow(null), paid], 'viewer')
+        expect(regs.summaries).toHaveBeenCalledWith(
+            [eventRow(null), paid],
+            'viewer',
+            true,
+        )
         expect(out.data.map((e) => [e.id, e.registration, e.price])).toEqual([
             ['e1', null, null],
             ['e2', summary, 1500],

@@ -26,15 +26,20 @@ export const PaymentStatusSchema = z.enum(PAYMENT_STATUSES)
 export const MyPaymentOutputSchema = z.object({
     id: z.string().uuid(),
     planId: z.string().uuid().nullable(),
+    // The tariff's name — or the event's title for a ticket.
     planName: z.string(),
+    // Set for an event ticket (planId is null then): the registration the
+    // payment marks paid.
+    eventRegistrationId: z.string().uuid().nullable(),
     provider: PaymentProviderSchema,
     status: PaymentStatusSchema,
     amount: z.number().int(),
     currency: z.string(),
-    // The abonement this payment created (null while pending, or when staff
-    // must create it by hand — see activationError).
+    // The abonement this payment created (null while pending, for a ticket,
+    // or when staff must create it by hand — see activationError).
     subscriptionId: z.string().uuid().nullable(),
-    // Paid, but the abonement was not created automatically.
+    // Paid, but the abonement was not created / the ticket not marked paid
+    // automatically (staff decide or refund).
     activationError: z.string().nullable(),
     createdAt: z.iso.datetime(),
     paidAt: z.iso.datetime().nullable(),
@@ -56,6 +61,7 @@ type PaymentRow = {
     id: string
     planId: string | null
     planName: string
+    eventRegistrationId: string | null
     provider: 'YOOKASSA' | 'STRIPE'
     status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED'
     amount: number
@@ -70,6 +76,7 @@ type PaymentRow = {
 export const serializeMyPayment = (p: PaymentRow): MyPaymentOutput => ({
     id: p.id,
     planId: p.planId,
+    eventRegistrationId: p.eventRegistrationId,
     planName: p.planName,
     provider: p.provider,
     status: p.status,

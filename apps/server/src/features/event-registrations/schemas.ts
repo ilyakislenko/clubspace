@@ -11,7 +11,9 @@ export type EventRegistrationStatusValue = z.infer<
     typeof EventRegistrationStatusSchema
 >
 
-export const EventPaymentMethodSchema = z.enum(['CASH', 'TRANSFER'])
+// CASH / TRANSFER — marked by staff at the club; ONLINE — paid through the
+// club's payment provider (only the payment webhook sets it).
+export const EventPaymentMethodSchema = z.enum(['CASH', 'TRANSFER', 'ONLINE'])
 
 // A member's registration for an event, as the member sees it.
 export const EventRegistrationOutputSchema = z.object({
@@ -20,8 +22,10 @@ export const EventRegistrationOutputSchema = z.object({
     status: EventRegistrationStatusSchema,
     // 1-based place in the waitlist; null unless WAITLISTED.
     waitlistPosition: z.number().int().nullable(),
-    // Staff marked the ticket paid.
+    // The ticket is paid (marked by staff, or paid online) and how — a ticket
+    // paid ONLINE is refunded by the club, not cancelled in the app.
     isPaid: z.boolean(),
+    paymentMethod: EventPaymentMethodSchema.nullable(),
     // Got the place from the waitlist at this instant.
     promotedAt: z.iso.datetime().nullable(),
     cancelledAt: z.iso.datetime().nullable(),
@@ -37,6 +41,10 @@ export const EventRegistrationSummarySchema = z.object({
     booked: z.number().int(),
     waitlist: z.number().int(),
     mine: EventRegistrationOutputSchema.nullable(),
+    // The club takes this event's ticket online (its payment provider is
+    // connected and the event is paid): an unpaid place shows «Оплатить
+    // онлайн».
+    onlinePayment: z.boolean(),
 })
 export type EventRegistrationSummary = z.infer<
     typeof EventRegistrationSummarySchema
@@ -103,6 +111,7 @@ export const serializeRegistration = (
         | 'eventId'
         | 'status'
         | 'isPaid'
+        | 'paymentMethod'
         | 'promotedAt'
         | 'cancelledAt'
         | 'createdAt'
@@ -114,6 +123,7 @@ export const serializeRegistration = (
     status: r.status,
     waitlistPosition: r.status === 'WAITLISTED' ? waitlistPosition : null,
     isPaid: r.isPaid,
+    paymentMethod: r.paymentMethod,
     promotedAt: r.promotedAt?.toISOString() ?? null,
     cancelledAt: r.cancelledAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),

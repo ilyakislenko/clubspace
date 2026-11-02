@@ -255,7 +255,7 @@ describe('UnmarkEventRegistrationPaidHandler', () => {
         const { out, audit } = run(p, rbac('admin'))
         expect(await out).toMatchObject({ isPaid: false, amountPaid: null })
         expect(p.eventRegistration.updateMany.mock.calls[0][0]).toEqual({
-            where: { id: 'r1', isPaid: true },
+            where: { id: 'r1', isPaid: true, paymentMethod: { not: 'ONLINE' } },
             data: {
                 isPaid: false,
                 paidAt: null,
@@ -268,5 +268,14 @@ describe('UnmarkEventRegistrationPaidHandler', () => {
         expect(audit.record).toHaveBeenCalledWith(
             expect.objectContaining({ action: 'event.unmarkRegistrationPaid' }),
         )
+    })
+
+    it('a ticket paid online is taken back only by refunding its payment', async () => {
+        const p = prisma()
+        p.eventRegistration.findFirst.mockResolvedValue(
+            reg({ isPaid: true, amountPaid: 1500, currency: 'RUB', paymentMethod: 'ONLINE', event: { id: 'e1', title: 'МК' } }),
+        )
+        await expect(run(p, rbac('admin')).out).rejects.toThrow(/Платежи/)
+        expect(p.eventRegistration.updateMany).not.toHaveBeenCalled()
     })
 })

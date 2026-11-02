@@ -106,7 +106,7 @@
 | Резервные копии вне хоста (если настроены) | **[уточняется]** (в инструкции примеры: Yandex Object Storage, Selectel, Backblaze B2) | `deploy/README.md:603-607` |
 | Почта (коды входа, приглашения, уведомления) | **[уточняется]** — любой SMTP-relay (в инструкции примеры: Resend, Postmark, Brevo, Yandex 360) | `.env.production.example:168`, `deploy/README.md:50-56` |
 | Оплата клубами доступа к платформе | ЮKassa (магазин платформы) | `.env.production.example:304-310`, `deploy/README.md:488-506` |
-| Онлайн-оплата учеников клубу | ЮKassa или Stripe — по договору клуба; передаются сумма, название абонемента, e-mail для чека | `docs/store-distribution.md:136-140`, `apps/server/src/domains/payments/yookassa-api.ts:62`, `apps/server/src/domains/payments/stripe-api.ts:75` |
+| Онлайн-оплата учеников клубу | ЮKassa или Stripe — по договору клуба; передаются сумма, название абонемента или события (билет), e-mail для чека | `docs/store-distribution.md:136-140`, `apps/server/src/domains/payments/yookassa-api.ts:62`, `apps/server/src/domains/payments/stripe-api.ts:75` |
 | Push-уведомления | Expo Push Notification Service → FCM (Google) / APNs (Apple) | `apps/server/src/domains/notifications/services/expo-push.client.ts:11`, `.env.production.example:262-268`, `docs/store-distribution.md:199-200` |
 | Диагностика ошибок (если `SENTRY_DSN` задан) | Sentry; e-mail, телефоны, токены и тела запросов вырезаются | `.env.production.example:250-260`, `apps/server/src/app/sentry-scrub.ts:3-7` |
 

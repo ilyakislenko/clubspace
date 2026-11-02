@@ -21,6 +21,7 @@ import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 
 import {
   cancelEventRegistration,
+  payEventRegistrationOnline,
   registerForEvent,
 } from "../../shared/api/event-registrations"
 import { listEvents, type ScheduleEvent } from "../../shared/api/groups"
@@ -29,10 +30,12 @@ import { useAuth } from "../../shared/auth-context"
 import { useToast } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
 import { haptics } from "../../shared/haptics"
+import { isWeb } from "../../shared/platform"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import { spotsLine } from "./class-booking-helpers"
 import { formatTimezoneLabel } from "./club-schedule-buckets"
 import { bookedLine, eventViewer, priceLabel } from "./event-helpers"
+import { openPaymentPage } from "../payments/open-payment-page"
 import { fetchMe } from "../../shared/api/me"
 import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
@@ -79,16 +82,20 @@ const formatRangeInTz = (
 }
 
 // A master class: price, places and the member's own registration, with
-// register / waitlist / cancel. A guardian acting for a child acts for it.
-// Its teacher and the staff run it instead: they see how many signed up.
+// register / waitlist / cancel, and «Оплатить онлайн» for an unpaid place
+// when the club takes payments online. A guardian acting for a child acts for
+// it. Its teacher and the staff run it instead: they see how many signed up.
 function EventRegistrationBlock({
   event,
   signsUp,
   onChanged,
+  onPaymentStarted,
 }: {
   event: ScheduleEvent
   signsUp: boolean
   onChanged: () => void
+  // The provider's page is open (native: in the browser) — follow the payment.
+  onPaymentStarted: (paymentId: string) => void
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -96,12 +103,16 @@ function EventRegistrationBlock({
   const { showToast } = useToast()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [paying, setPaying] = useState(false)
   const reg = event.registration
   if (!reg || !workspace) return null
   const mine = reg.mine
   const capacity = event.capacity ?? null
   const started = new Date(event.startAt).getTime() <= Date.now()
   const full = capacity !== null && reg.booked >= capacity
+  const paidOnline = !!mine?.isPaid && mine.paymentMethod === "ONLINE"
+  const canPayOnline =
+    mine?.status === "BOOKED" && !mine.isPaid && reg.onlinePayment
 
   if (!signsUp) {
     return (
@@ -169,6 +180,32 @@ function EventRegistrationBlock({
     )
   }
 
+  // Same flow as buying an abonement online: the provider's page, then its
+  // return URL (/payment/<id>) shows how it went.
+  const payOnline = async () => {
+    if (!mine || paying) return
+    setPaying(true)
+    setError(null)
+    try {
+      const { payment, confirmationUrl } = await payEventRegistrationOnline({
+        workspaceId: workspace.workspaceId,
+        registrationId: mine.id,
+      })
+      try {
+        await openPaymentPage(confirmationUrl)
+        onPaymentStarted(payment.id)
+      } catch {
+        showToast("Не удалось открыть страницу оплаты", "error")
+      }
+    } catch (e) {
+      // The server explains why (already paid, no place, no provider, …).
+      setError(errorMessage(e, "Не удалось начать оплату"))
+      onChanged()
+    } finally {
+      setPaying(false)
+    }
+  }
+
   return (
     <View style={styles.regBlock}>
       <Text style={styles.regPrice}>
@@ -182,8 +219,12 @@ function EventRegistrationBlock({
           Вы записаны
           {event.price != null
             ? mine.isPaid
-              ? " · оплачено"
-              : " · оплата в клубе"
+              ? paidOnline
+                ? " · оплачено онлайн"
+                : " · оплачено"
+              : reg.onlinePayment
+                ? " · не оплачено"
+                : " · оплата в клубе"
             : ""}
         </Text>
       )}
@@ -194,7 +235,31 @@ function EventRegistrationBlock({
         </Text>
       )}
       {error && <Text style={styles.regError}>{error}</Text>}
+      {canPayOnline && (
+        <Pressable
+          onPress={() => void payOnline()}
+          disabled={paying || busy}
+          accessibilityRole="button"
+          style={[styles.regButton, styles.regButtonPrimary]}
+        >
+          {paying ? (
+            <ActivityIndicator color={theme.colors.accentText} />
+          ) : (
+            <Text style={styles.regButtonPrimaryText}>
+              Оплатить онлайн ·{" "}
+              {priceLabel(event.price ?? null, event.currency ?? "RUB")}
+            </Text>
+          )}
+        </Pressable>
+      )}
+      {paidOnline && !started && (
+        // The money went through the app: the club refunds it.
+        <Text style={styles.regSpots}>
+          Чтобы отменить запись и вернуть деньги, обратитесь в клуб
+        </Text>
+      )}
       {!started &&
+        !paidOnline &&
         (mine ? (
           <Pressable
             onPress={cancel}
@@ -408,6 +473,14 @@ export function EventsScreen({ navigation, route }: Props) {
                           event={event}
                           signsUp={viewer.signsUp}
                           onChanged={refetch}
+                          // Web: the provider's page has replaced the app and
+                          // its return URL opens the payment screen. Native:
+                          // follow it here while the browser is open.
+                          onPaymentStarted={(paymentId) => {
+                            if (!isWeb) {
+                              navigation.navigate("PaymentReturn", { paymentId })
+                            }
+                          }}
                         />
                       )}
                       {viewer.marks && (

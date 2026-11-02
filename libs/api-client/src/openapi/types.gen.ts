@@ -3168,10 +3168,12 @@ export type ListEventsOutputOutput = {
                 status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
                 waitlistPosition: number | null;
                 isPaid: boolean;
+                paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
                 promotedAt: string | null;
                 cancelledAt: string | null;
                 createdAt: string;
             } | null;
+            onlinePayment: boolean;
         } | null;
     }>;
 };
@@ -3916,6 +3918,7 @@ export type EventRegistrationOutputOutput = {
     status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
     waitlistPosition: number | null;
     isPaid: boolean;
+    paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
     promotedAt: string | null;
     cancelledAt: string | null;
     createdAt: string;
@@ -3927,9 +3930,29 @@ export type CancelEventRegistrationOutputOutput = {
     status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
     waitlistPosition: number | null;
     isPaid: boolean;
+    paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
     promotedAt: string | null;
     cancelledAt: string | null;
     createdAt: string;
+};
+
+export type EventTicketCheckoutOutputOutput = {
+    payment: {
+        id: string;
+        planId: string | null;
+        planName: string;
+        eventRegistrationId: string | null;
+        provider: 'YOOKASSA' | 'STRIPE';
+        status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        amount: number;
+        currency: string;
+        subscriptionId: string | null;
+        activationError: string | null;
+        createdAt: string;
+        paidAt: string | null;
+        refundedAt: string | null;
+    };
+    confirmationUrl: string;
 };
 
 export type EventRegistrationsOutputOutput = {
@@ -3954,7 +3977,7 @@ export type EventRegistrationsOutputOutput = {
         paidAt: string | null;
         amountPaid: number | null;
         currency: string | null;
-        paymentMethod: 'CASH' | 'TRANSFER' | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
         promotedAt: string | null;
         cancelledAt: string | null;
         createdAt: string;
@@ -3976,7 +3999,7 @@ export type MarkEventRegistrationPaidOutputOutput = {
     paidAt: string | null;
     amountPaid: number | null;
     currency: string | null;
-    paymentMethod: 'CASH' | 'TRANSFER' | null;
+    paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
     promotedAt: string | null;
     cancelledAt: string | null;
     createdAt: string;
@@ -3993,7 +4016,7 @@ export type UnmarkEventRegistrationPaidOutputOutput = {
     paidAt: string | null;
     amountPaid: number | null;
     currency: string | null;
-    paymentMethod: 'CASH' | 'TRANSFER' | null;
+    paymentMethod: 'CASH' | 'TRANSFER' | 'ONLINE' | null;
     promotedAt: string | null;
     cancelledAt: string | null;
     createdAt: string;
@@ -7148,6 +7171,7 @@ export type CreatePaymentOutputOutput = {
         id: string;
         planId: string | null;
         planName: string;
+        eventRegistrationId: string | null;
         provider: 'YOOKASSA' | 'STRIPE';
         status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
         amount: number;
@@ -7166,6 +7190,7 @@ export type ListPaymentsOutputOutput = {
         id: string;
         planId: string | null;
         planName: string;
+        eventRegistrationId: string | null;
         provider: 'YOOKASSA' | 'STRIPE';
         status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
         amount: number;
@@ -7190,6 +7215,7 @@ export type RefundPaymentOutputOutput = {
     id: string;
     planId: string | null;
     planName: string;
+    eventRegistrationId: string | null;
     provider: 'YOOKASSA' | 'STRIPE';
     status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
     amount: number;
@@ -7230,6 +7256,7 @@ export type OnlinePurchaseOptionsOutputOutput = {
         id: string;
         planId: string | null;
         planName: string;
+        eventRegistrationId: string | null;
         provider: 'YOOKASSA' | 'STRIPE';
         status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
         amount: number;
@@ -7246,6 +7273,7 @@ export type MyPaymentOutputOutput = {
     id: string;
     planId: string | null;
     planName: string;
+    eventRegistrationId: string | null;
     provider: 'YOOKASSA' | 'STRIPE';
     status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
     amount: number;
@@ -10329,6 +10357,22 @@ export type CancelEventRegistrationResponses = {
 };
 
 export type CancelEventRegistrationResponse = CancelEventRegistrationResponses[keyof CancelEventRegistrationResponses];
+
+export type PayEventRegistrationOnlineData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        registrationId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/event-registrations/{registrationId}/checkout';
+};
+
+export type PayEventRegistrationOnlineResponses = {
+    default: EventTicketCheckoutOutputOutput;
+};
+
+export type PayEventRegistrationOnlineResponse = PayEventRegistrationOnlineResponses[keyof PayEventRegistrationOnlineResponses];
 
 export type UnmarkEventRegistrationPaidData = {
     body?: never;

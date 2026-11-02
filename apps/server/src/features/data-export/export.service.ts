@@ -29,7 +29,11 @@ const joinCells = (values: ReadonlyArray<string | number | null>) =>
 const day = (d: Date | null | undefined) =>
     d ? d.toISOString().slice(0, 10) : ''
 
-const TICKET_PAYMENT_LABELS = { CASH: 'Наличные', TRANSFER: 'Перевод' } as const
+const TICKET_PAYMENT_LABELS = {
+    CASH: 'Наличные',
+    TRANSFER: 'Перевод',
+    ONLINE: 'Онлайн',
+} as const
 
 // Inclusive date bounds (the controller passes from = start-of-day and
 // to = end-of-day). Produces a Prisma filter, or undefined when unbounded.

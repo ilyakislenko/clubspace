@@ -23,6 +23,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "PaymentReturn">
  * Where the provider's page sends the member back (web: /payment/<id>). Waits
  * for the webhook to settle the payment and says how it went; on success the
  * session is refreshed so a member whose access had expired is let back in.
+ * An event ticket's payment leads back to the events instead of the abonement.
  */
 export function PaymentReturnScreen({ route, navigation }: Props) {
   const { paymentId } = route.params
@@ -49,6 +50,7 @@ export function PaymentReturnScreen({ route, navigation }: Props) {
 
   const line = payment ? paymentStatusLine(payment) : null
   const pending = payment?.status === "PENDING"
+  const ticket = !!payment?.eventRegistrationId
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -74,18 +76,23 @@ export function PaymentReturnScreen({ route, navigation }: Props) {
                 </Text>
               </View>
               <Text style={styles.meta}>
-                {payment.planName} · {formatMoney(payment.amount, payment.currency)}
+                {ticket ? `Билет «${payment.planName}»` : payment.planName} ·{" "}
+                {formatMoney(payment.amount, payment.currency)}
               </Text>
               {pending && (
                 <Text style={styles.meta}>
                   {timedOut
-                    ? "Подтверждение задерживается. Если деньги списались, абонемент появится чуть позже — или напишите администратору клуба."
+                    ? ticket
+                      ? "Подтверждение задерживается. Если деньги списались, отметка об оплате появится чуть позже — или напишите администратору клуба."
+                      : "Подтверждение задерживается. Если деньги списались, абонемент появится чуть позже — или напишите администратору клуба."
                     : "Обычно это занимает несколько секунд после оплаты."}
                 </Text>
               )}
               {payment.status === "CANCELED" && (
                 <Text style={styles.meta}>
-                  Деньги не списаны. Оплатить можно ещё раз на экране абонемента.
+                  {ticket
+                    ? "Деньги не списаны. Оплатить можно ещё раз на экране событий."
+                    : "Деньги не списаны. Оплатить можно ещё раз на экране абонемента."}
                 </Text>
               )}
               {pending && timedOut && (
@@ -104,14 +111,20 @@ export function PaymentReturnScreen({ route, navigation }: Props) {
           )}
 
           <Pressable
-            onPress={() => navigation.replace("MySubscription")}
+            onPress={() =>
+              ticket
+                ? navigation.replace("Events")
+                : navigation.replace("MySubscription")
+            }
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.primaryBtn,
               pressed && styles.btnPressed,
             ]}
           >
-            <Text style={styles.primaryBtnText}>К абонементу</Text>
+            <Text style={styles.primaryBtnText}>
+              {ticket ? "К событиям" : "К абонементу"}
+            </Text>
           </Pressable>
         </View>
       </CenteredColumn>

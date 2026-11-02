@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react"
-import { ActivityIndicator, Linking, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 
 import {
   createPayment,
@@ -13,7 +13,6 @@ import { Pressable } from "../../shared/components/Pressable"
 import { useToast, type ToastVariant } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
 import { formatMoney } from "../../shared/format-ru"
-import { isWeb } from "../../shared/platform"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import {
@@ -28,6 +27,7 @@ import {
   planTermsText,
   renewalNote,
 } from "./payment-helpers"
+import { openPaymentPage } from "./open-payment-page"
 import { usePaymentPolling } from "./usePaymentPolling"
 
 type Props = {
@@ -40,17 +40,6 @@ type Props = {
   initialPaymentId?: string | null
   // The payment went through: the host re-reads the abonement / access.
   onPaid: () => void
-}
-
-// On web the provider's page replaces the PWA in the same tab (a window opened
-// after an awaited request is popup-blocked) and its return URL,
-// /payment/<id>, brings the member back. Native hands it to the browser.
-const openPaymentPage = async (url: string) => {
-  if (isWeb) {
-    ;(globalThis as { location?: { assign?: (u: string) => void } }).location?.assign?.(url)
-    return
-  }
-  await Linking.openURL(url)
 }
 
 const toastVariant = (p: MyPayment): ToastVariant =>

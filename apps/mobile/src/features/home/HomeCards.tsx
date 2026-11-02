@@ -240,7 +240,11 @@ export function NextEventCard({
   const { event, mine } = next
   const title = "Ближайшее событие"
   const when = formatEventWhen(new Date(event.startAt), event.timezone, new Date())
-  const status = eventStatusLine(mine, event.price)
+  const status = eventStatusLine(
+    mine,
+    event.price,
+    event.registration?.onlinePayment ?? false,
+  )
   return (
     <HomeCard
       title={title}

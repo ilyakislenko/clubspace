@@ -91,6 +91,8 @@ export class GetOnlinePurchaseOptionsHandler
                     workspaceId: f.workspaceId,
                     userId: f.userId,
                     status: 'PENDING',
+                    // An event ticket is followed on the events screen.
+                    eventRegistrationId: null,
                     providerPaymentId: { not: null },
                     createdAt: { gte: new Date(now.getTime() - PENDING_VISIBLE_MS) },
                 },

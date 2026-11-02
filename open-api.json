@@ -6916,6 +6916,41 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/event-registrations/{registrationId}/checkout": {
+      "post": {
+        "operationId": "payEventRegistrationOnline",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "registrationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventTicketCheckoutOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/event-registrations/{registrationId}/payment": {
       "post": {
         "operationId": "markEventRegistrationPaid",
@@ -27905,6 +27940,16 @@
                         "isPaid": {
                           "type": "boolean"
                         },
+                        "paymentMethod": {
+                          "type": "string",
+                          "enum": [
+                            "CASH",
+                            "TRANSFER",
+                            "ONLINE",
+                            null
+                          ],
+                          "nullable": true
+                        },
                         "promotedAt": {
                           "type": "string",
                           "format": "date-time",
@@ -27929,18 +27974,23 @@
                         "status",
                         "waitlistPosition",
                         "isPaid",
+                        "paymentMethod",
                         "promotedAt",
                         "cancelledAt",
                         "createdAt"
                       ],
                       "additionalProperties": false,
                       "nullable": true
+                    },
+                    "onlinePayment": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "booked",
                     "waitlist",
-                    "mine"
+                    "mine",
+                    "onlinePayment"
                   ],
                   "additionalProperties": false,
                   "nullable": true
@@ -31667,6 +31717,16 @@
           "isPaid": {
             "type": "boolean"
           },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "TRANSFER",
+              "ONLINE",
+              null
+            ],
+            "nullable": true
+          },
           "promotedAt": {
             "type": "string",
             "format": "date-time",
@@ -31691,6 +31751,7 @@
           "status",
           "waitlistPosition",
           "isPaid",
+          "paymentMethod",
           "promotedAt",
           "cancelledAt",
           "createdAt"
@@ -31727,6 +31788,16 @@
           "isPaid": {
             "type": "boolean"
           },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "TRANSFER",
+              "ONLINE",
+              null
+            ],
+            "nullable": true
+          },
           "promotedAt": {
             "type": "string",
             "format": "date-time",
@@ -31751,9 +31822,115 @@
           "status",
           "waitlistPosition",
           "isPaid",
+          "paymentMethod",
           "promotedAt",
           "cancelledAt",
           "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "EventTicketCheckoutOutput_Output": {
+        "type": "object",
+        "properties": {
+          "payment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "planId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "nullable": true
+              },
+              "planName": {
+                "type": "string"
+              },
+              "eventRegistrationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "nullable": true
+              },
+              "provider": {
+                "type": "string",
+                "enum": [
+                  "YOOKASSA",
+                  "STRIPE"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "PENDING",
+                  "SUCCEEDED",
+                  "CANCELED",
+                  "REFUNDED"
+                ]
+              },
+              "amount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "currency": {
+                "type": "string"
+              },
+              "subscriptionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "nullable": true
+              },
+              "activationError": {
+                "type": "string",
+                "nullable": true
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "paidAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "nullable": true
+              },
+              "refundedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "nullable": true
+              }
+            },
+            "required": [
+              "id",
+              "planId",
+              "planName",
+              "eventRegistrationId",
+              "provider",
+              "status",
+              "amount",
+              "currency",
+              "subscriptionId",
+              "activationError",
+              "createdAt",
+              "paidAt",
+              "refundedAt"
+            ],
+            "additionalProperties": false
+          },
+          "confirmationUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "payment",
+          "confirmationUrl"
         ],
         "additionalProperties": false
       },
@@ -31869,6 +32046,7 @@
                   "enum": [
                     "CASH",
                     "TRANSFER",
+                    "ONLINE",
                     null
                   ],
                   "nullable": true
@@ -31995,6 +32173,7 @@
             "enum": [
               "CASH",
               "TRANSFER",
+              "ONLINE",
               null
             ],
             "nullable": true
@@ -32092,6 +32271,7 @@
             "enum": [
               "CASH",
               "TRANSFER",
+              "ONLINE",
               null
             ],
             "nullable": true
@@ -48255,6 +48435,12 @@
               "planName": {
                 "type": "string"
               },
+              "eventRegistrationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "nullable": true
+              },
               "provider": {
                 "type": "string",
                 "enum": [
@@ -48311,6 +48497,7 @@
               "id",
               "planId",
               "planName",
+              "eventRegistrationId",
               "provider",
               "status",
               "amount",
@@ -48354,6 +48541,12 @@
                 },
                 "planName": {
                   "type": "string"
+                },
+                "eventRegistrationId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "nullable": true
                 },
                 "provider": {
                   "type": "string",
@@ -48434,6 +48627,7 @@
                 "id",
                 "planId",
                 "planName",
+                "eventRegistrationId",
                 "provider",
                 "status",
                 "amount",
@@ -48488,6 +48682,12 @@
           },
           "planName": {
             "type": "string"
+          },
+          "eventRegistrationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
           },
           "provider": {
             "type": "string",
@@ -48568,6 +48768,7 @@
           "id",
           "planId",
           "planName",
+          "eventRegistrationId",
           "provider",
           "status",
           "amount",
@@ -48704,6 +48905,12 @@
               "planName": {
                 "type": "string"
               },
+              "eventRegistrationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "nullable": true
+              },
               "provider": {
                 "type": "string",
                 "enum": [
@@ -48760,6 +48967,7 @@
               "id",
               "planId",
               "planName",
+              "eventRegistrationId",
               "provider",
               "status",
               "amount",
@@ -48800,6 +49008,12 @@
           },
           "planName": {
             "type": "string"
+          },
+          "eventRegistrationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
           },
           "provider": {
             "type": "string",
@@ -48857,6 +49071,7 @@
           "id",
           "planId",
           "planName",
+          "eventRegistrationId",
           "provider",
           "status",
           "amount",

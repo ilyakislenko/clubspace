@@ -28,6 +28,7 @@ const row = (over: Record<string, unknown> = {}) => ({
     userId: 'u-1',
     planId: 'plan-1',
     planName: 'Безлимит',
+    eventRegistrationId: null,
     subscriptionId: 'sub-1',
     provider: 'YOOKASSA',
     providerPaymentId: 'yk-1',
@@ -108,7 +109,10 @@ describe('refundPayment', () => {
         casCount?: number
         admin?: boolean
     } = {}) => {
-        const prisma = {
+        const prisma: Record<string, unknown> & {
+            payment: Record<string, jest.Mock>
+            eventRegistration: Record<string, jest.Mock>
+        } = {
             payment: {
                 findFirst: jest
                     .fn()
@@ -118,12 +122,16 @@ describe('refundPayment', () => {
                     row({ status: 'REFUNDED', refundedAt: new Date('2026-11-02T00:00:00Z') }),
                 ),
             },
+            eventRegistration: {
+                updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
             workspacePaymentSettings: {
                 findUnique: jest
                     .fn()
                     .mockResolvedValue(opts.settings === undefined ? settings : opts.settings),
             },
         }
+        prisma.$transaction = jest.fn((fn: (tx: unknown) => unknown) => fn(prisma))
         const gateway = {
             refund: opts.refundError
                 ? jest.fn().mockRejectedValue(opts.refundError)
@@ -192,6 +200,31 @@ describe('refundPayment', () => {
             actorId: 'a-1',
             targetId: 'u-1',
         })
+        expect(s.prisma.eventRegistration.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('a ticket payment takes its «paid ONLINE» mark back with the refund', async () => {
+        const s = setup({
+            payment: row({ planId: null, subscriptionId: null, eventRegistrationId: 'reg-1' }),
+        })
+        await s.run()
+        expect(s.prisma.eventRegistration.updateMany.mock.calls[0][0]).toMatchObject({
+            where: { id: 'reg-1', isPaid: true, paymentMethod: 'ONLINE' },
+            data: { isPaid: false, paidAt: null, amountPaid: null, paymentMethod: null },
+        })
+    })
+
+    it('a ticket payment that never marked the ticket (activationError) leaves it', async () => {
+        const s = setup({
+            payment: row({
+                planId: null,
+                subscriptionId: null,
+                eventRegistrationId: 'reg-1',
+                activationError: 'Билет уже отмечен оплаченным',
+            }),
+        })
+        await s.run()
+        expect(s.prisma.eventRegistration.updateMany).not.toHaveBeenCalled()
     })
 
     it('surfaces the provider refusal and leaves the payment as is', async () => {

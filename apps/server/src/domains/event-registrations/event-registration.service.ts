@@ -8,7 +8,8 @@
 // on (kind, registrationId).
 //
 // No abonement is checked or spent: a paid event is paid for by its ticket,
-// which staff mark paid at the club (features/event-registrations); marking
+// which staff mark paid at the club (features/event-registrations) or the
+// member pays online (markPaidOnlineInTx, from the payment webhook); marking
 // the visit skips abonements (features/attendance/session-visits.ts).
 import { Injectable, Logger } from '@nestjs/common'
 
@@ -107,15 +108,9 @@ export class EventRegistrationService {
     }
 
     // The member-facing view of one registration.
-    async view(r: {
-        id: string
-        eventId: string
-        status: EventRegistrationStatusValue
-        isPaid: boolean
-        promotedAt: Date | null
-        cancelledAt: Date | null
-        createdAt: Date
-    }): Promise<EventRegistrationOutput> {
+    async view(
+        r: Parameters<typeof serializeRegistration>[0],
+    ): Promise<EventRegistrationOutput> {
         if (r.status !== 'WAITLISTED') return serializeRegistration(r, null)
         const queue = await this.prisma.eventRegistration.findMany({
             where: { eventId: r.eventId, status: 'WAITLISTED' },
@@ -204,8 +199,10 @@ export class EventRegistrationService {
     }
 
     // The member gives up their place (or waitlist place); a freed place goes
-    // to the waitlist at once. A paid ticket stays marked paid on the
-    // cancelled row — refunding it is the club's call (staff unmark it).
+    // to the waitlist at once. A ticket paid at the club stays marked paid on
+    // the cancelled row — refunding it is the club's call (staff unmark it).
+    // A ticket paid online is not cancelled by the member: the money went
+    // through the app, so the club refunds it (Платежи → «Вернуть») first.
     async cancelOwn(p: {
         workspaceId: string
         userId: string
@@ -239,6 +236,14 @@ export class EventRegistrationService {
                 if (!LIVE.includes(current.status)) {
                     return { updated: current, promoted: [] as Promoted[] }
                 }
+                // Read under the event lock the payment webhook takes too:
+                // a payment landing now is either seen here or refused there.
+                if (current.isPaid && current.paymentMethod === 'ONLINE') {
+                    throw new BadRequestError({
+                        message:
+                            'Билет оплачен онлайн — чтобы отменить запись и вернуть деньги, обратитесь в клуб',
+                    })
+                }
                 const updated = await tx.eventRegistration.update({
                     where: { id: registration.id },
                     data: { status: 'CANCELLED', cancelledAt: now },
@@ -253,6 +258,62 @@ export class EventRegistrationService {
         this.invalidate(p.workspaceId)
         await this.notifyPromoted(event, promoted)
         return this.view(updated)
+    }
+
+    // ---- online payment ----------------------------------------------------
+
+    // The payment webhook marks the ticket paid ONLINE with the money the
+    // provider took, inside the transaction that claims the Payment. Under
+    // the event lock, like cancelling: the place must still be held (BOOKED)
+    // and unpaid. Otherwise the reason is returned — the money is in, but
+    // the place was given up / the ticket was already paid at the club, so
+    // staff refund it.
+    async markPaidOnlineInTx(
+        tx: Tx,
+        p: {
+            registrationId: string
+            amount: number
+            currency: string
+            now: Date
+        },
+    ): Promise<{ eventId: string; title: string } | { refused: string }> {
+        const registration = await tx.eventRegistration.findUnique({
+            where: { id: p.registrationId },
+            select: { eventId: true },
+        })
+        if (!registration) return { refused: 'Запись на событие удалена' }
+        await this.lock(tx, registration.eventId)
+        const current = await tx.eventRegistration.findUniqueOrThrow({
+            where: { id: p.registrationId },
+            select: {
+                status: true,
+                isPaid: true,
+                event: { select: { id: true, title: true } },
+            },
+        })
+        if (current.status !== 'BOOKED') {
+            return {
+                refused:
+                    current.status === 'WAITLISTED'
+                        ? 'Участник в листе ожидания, места у него нет'
+                        : 'Запись отменена до оплаты',
+            }
+        }
+        if (current.isPaid) {
+            return { refused: 'Билет уже отмечен оплаченным' }
+        }
+        await tx.eventRegistration.update({
+            where: { id: p.registrationId },
+            data: {
+                isPaid: true,
+                paidAt: p.now,
+                amountPaid: p.amount,
+                currency: p.currency,
+                paymentMethod: 'ONLINE',
+                markedPaidById: null,
+            },
+        })
+        return { eventId: current.event.id, title: current.event.title }
     }
 
     // ---- promotion ---------------------------------------------------------
@@ -339,6 +400,8 @@ export class EventRegistrationService {
 
     // Places taken / queued per event and the viewer's own live registration,
     // for the events of `events` members register for. One query.
+    // `onlinePayments`: the club takes payments online (provider connected,
+    // module on) — then a paid event's ticket can be paid in the app.
     async summaries(
         events: ReadonlyArray<{
             id: string
@@ -346,8 +409,10 @@ export class EventRegistrationService {
             capacity: number | null
         }>,
         viewerId: string,
+        onlinePayments: boolean,
     ): Promise<Map<string, EventRegistrationSummary>> {
-        const ids = events.filter(registrationOpen).map((e) => e.id)
+        const open = events.filter(registrationOpen)
+        const ids = open.map((e) => e.id)
         const out = new Map<string, EventRegistrationSummary>()
         if (ids.length === 0) return out
         const rows = await this.prisma.eventRegistration.findMany({
@@ -358,21 +423,23 @@ export class EventRegistrationService {
                 userId: true,
                 status: true,
                 isPaid: true,
+                paymentMethod: true,
                 promotedAt: true,
                 cancelledAt: true,
                 createdAt: true,
             },
         })
-        for (const id of ids) {
-            const ofEvent = rows.filter((r) => r.eventId === id)
+        for (const e of open) {
+            const ofEvent = rows.filter((r) => r.eventId === e.id)
             const positions = waitlistPositions(ofEvent)
             const own = ofEvent.find((r) => r.userId === viewerId)
-            out.set(id, {
+            out.set(e.id, {
                 booked: ofEvent.filter((r) => r.status === 'BOOKED').length,
                 waitlist: positions.size,
                 mine: own
                     ? serializeRegistration(own, positions.get(own.id) ?? null)
                     : null,
+                onlinePayment: onlinePayments && (e.price ?? 0) > 0,
             })
         }
         return out

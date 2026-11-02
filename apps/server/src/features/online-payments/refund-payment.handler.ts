@@ -24,7 +24,9 @@ import { serializePayment } from './schemas'
 // A full refund through the provider, then the Payment is marked REFUNDED. The
 // abonement it created is left as is: whether the member keeps training (a
 // goodwill refund) or loses access is the staff's call, made on the member's
-// card.
+// card. An event ticket this payment marked paid is unmarked with it (it
+// leaves the revenue); the place itself stays — the member cancels it, or
+// keeps it and pays at the club.
 @Feature(RefundPaymentFeature)
 export class RefundPaymentHandler
     implements
@@ -93,12 +95,37 @@ export class RefundPaymentHandler
 
         const refundedAt = new Date()
         // Compare-and-set: two admins pressing at once record one refund (the
-        // provider call itself is idempotent on the key above).
-        const res = await this.prisma.payment.updateMany({
-            where: { id: payment.id, status: 'SUCCEEDED' },
-            data: { status: 'REFUNDED', refundedAt },
+        // provider call itself is idempotent on the key above). A ticket
+        // payment that marked its registration paid (no activationError) takes
+        // the «paid ONLINE» mark back in the same transaction.
+        const ticketMarked =
+            payment.eventRegistrationId !== null && payment.activationError === null
+        const { refunded, unmarked } = await this.prisma.$transaction(async (tx) => {
+            const res = await tx.payment.updateMany({
+                where: { id: payment.id, status: 'SUCCEEDED' },
+                data: { status: 'REFUNDED', refundedAt },
+            })
+            if (res.count !== 1 || !ticketMarked) {
+                return { refunded: res.count === 1, unmarked: 0 }
+            }
+            const ticket = await tx.eventRegistration.updateMany({
+                where: {
+                    id: payment.eventRegistrationId!,
+                    isPaid: true,
+                    paymentMethod: 'ONLINE',
+                },
+                data: {
+                    isPaid: false,
+                    paidAt: null,
+                    amountPaid: null,
+                    currency: null,
+                    paymentMethod: null,
+                    markedPaidById: null,
+                },
+            })
+            return { refunded: true, unmarked: ticket.count }
         })
-        if (res.count !== 1) {
+        if (!refunded) {
             throw new BadRequestError({
                 message: 'Деньги по этому платежу уже возвращены',
             })
@@ -117,9 +144,15 @@ export class RefundPaymentHandler
                 amount: payment.amount,
                 currency: payment.currency,
                 subscriptionId: payment.subscriptionId,
+                ...(payment.eventRegistrationId
+                    ? { eventRegistrationId: payment.eventRegistrationId }
+                    : {}),
             },
         })
-        this.realtime.invalidate(f.workspaceId, ['payments'])
+        this.realtime.invalidate(
+            f.workspaceId,
+            unmarked > 0 ? ['payments', 'events', 'eventregistrations'] : ['payments'],
+        )
 
         const updated = await this.prisma.payment.findUniqueOrThrow({
             where: { id: payment.id },

@@ -41,6 +41,11 @@ import {
     type MarkEventRegistrationPaidFeatureResponse,
 } from './mark-event-registration-paid.feature'
 import {
+    PayEventRegistrationOnlineFeature,
+    PayEventRegistrationOnlineOutputSchema,
+    type PayEventRegistrationOnlineFeatureResponse,
+} from './pay-event-registration-online.feature'
+import {
     RegisterForEventFeature,
     RegisterForEventOutputSchema,
     type RegisterForEventFeatureResponse,
@@ -66,6 +71,9 @@ class MarkEventRegistrationPaidOutput extends createZodDto(
 ) {}
 class UnmarkEventRegistrationPaidOutput extends createZodDto(
     UnmarkEventRegistrationPaidOutputSchema,
+) {}
+class EventTicketCheckoutOutput extends createZodDto(
+    PayEventRegistrationOnlineOutputSchema,
 ) {}
 
 // Registration for events with a price or a limit of places. Member actions
@@ -107,6 +115,28 @@ export class EventRegistrationsController {
             CancelEventRegistrationFeature,
             CancelEventRegistrationFeatureResponse
         >(new CancelEventRegistrationFeature(workspaceId, registrationId, user.userId))
+    }
+
+    // The member pays their own ticket online (a guardian the child's, via
+    // X-Act-As); the app opens the returned provider page.
+    @Post('event-registrations/:registrationId/checkout')
+    @ZodResponse({ type: EventTicketCheckoutOutput })
+    async payEventRegistrationOnline(
+        @Param('workspaceId') workspaceId: string,
+        @Param('registrationId', ParseUUIDPipe) registrationId: string,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            PayEventRegistrationOnlineFeature,
+            PayEventRegistrationOnlineFeatureResponse
+        >(
+            new PayEventRegistrationOnlineFeature(
+                workspaceId,
+                registrationId,
+                user.userId,
+                user.guardianId ?? user.userId,
+            ),
+        )
     }
 
     @Get('events/:eventId/registrations')
