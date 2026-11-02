@@ -17,19 +17,22 @@ import {
 // A club's time zone, picked by city («Томск (UTC+7)») with a search box
 // instead of typing an IANA name. A zone that is not on the list (an older
 // club, a city abroad) still shows as itself, and an exact IANA name typed into
-// the search can be picked too.
+// the search can be picked too. With `emptyLabel` the value "" is a choice of
+// its own (a gym that follows the club's zone).
 export function TimezoneSelect({
   id,
   value,
   onChange,
   disabled,
   className,
+  emptyLabel,
 }: {
   id?: string
   value: string
   onChange: (zone: string) => void
   disabled?: boolean
   className?: string
+  emptyLabel?: string
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -69,7 +72,7 @@ export function TimezoneSelect({
           )}
         >
           <span className="truncate">
-            {value ? timezoneLabel(value) : "Выберите город"}
+            {value ? timezoneLabel(value) : (emptyLabel ?? "Выберите город")}
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
         </button>
@@ -93,6 +96,20 @@ export function TimezoneSelect({
           aria-label="Поиск часового пояса"
         />
         <ul role="listbox" className="mt-2 max-h-64 overflow-y-auto">
+          {emptyLabel && !query.trim() && (
+            <li>
+              <button
+                type="button"
+                role="option"
+                aria-selected={value === ""}
+                onClick={() => pick("")}
+                className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+              >
+                <span>{emptyLabel}</span>
+                {value === "" && <Check className="h-4 w-4 shrink-0" />}
+              </button>
+            </li>
+          )}
           {matches.map((o) => (
             <li key={o.key}>
               <button

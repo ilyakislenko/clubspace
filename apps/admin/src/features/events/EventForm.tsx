@@ -28,6 +28,7 @@ import { type Gym } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
 import { useDirectionScope } from "../../shared/workspace/use-direction-scope"
 import { DirectionSelect } from "../directions/DirectionSelect"
+import { TimezoneSelect } from "../settings/TimezoneSelect"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { cap } from "@clubspace/ui-kit/brand"
 
@@ -37,23 +38,6 @@ const memberLabel = (m: {
   lastname?: string | null
 }): string =>
   [m.firstname, m.lastname].filter(Boolean).join(" ") || m.email || "—"
-
-// IANA zones we surface in the picker. The input is free-text via a
-// datalist, so anything else can still be typed.
-const COMMON_TIMEZONES: Array<{ value: string; label: string }> = [
-  { value: "Europe/Moscow", label: "Москва (MSK, UTC+3)" },
-  { value: "Europe/Kaliningrad", label: "Калининград (UTC+2)" },
-  { value: "Europe/Samara", label: "Самара (UTC+4)" },
-  { value: "Asia/Yekaterinburg", label: "Екатеринбург (UTC+5)" },
-  { value: "Asia/Omsk", label: "Омск (UTC+6)" },
-  { value: "Asia/Novosibirsk", label: "Новосибирск (UTC+7)" },
-  { value: "Asia/Krasnoyarsk", label: "Красноярск / Томск (UTC+7)" },
-  { value: "Asia/Irkutsk", label: "Иркутск (UTC+8)" },
-  { value: "Asia/Yakutsk", label: "Якутск (UTC+9)" },
-  { value: "Asia/Vladivostok", label: "Владивосток (UTC+10)" },
-  { value: "Asia/Sakhalin", label: "Сахалин (UTC+11)" },
-  { value: "Asia/Kamchatka", label: "Камчатка (UTC+12)" },
-]
 
 // Combine a calendar Date with a "HH:MM" string into the wall-clock the API
 // expects. We never look at browser-local TZ here — the wall-clock is
@@ -279,19 +263,12 @@ export function EventForm({
       </div>
 
       <div className="space-y-1">
-        <Label>Часовой пояс события</Label>
-        <Select value={timezone} onValueChange={setTimezone}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {COMMON_TIMEZONES.map((tz) => (
-              <SelectItem key={tz.value} value={tz.value}>
-                {tz.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label htmlFor="event-timezone">Часовой пояс события</Label>
+        <TimezoneSelect
+          id="event-timezone"
+          value={timezone}
+          onChange={setTimezone}
+        />
         <p className="text-xs text-muted-foreground">
           Время события указано по выбранному часовому поясу — участники
           увидят его по местному времени площадки.

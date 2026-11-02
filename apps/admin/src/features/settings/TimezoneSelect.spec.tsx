@@ -27,4 +27,39 @@ describe("TimezoneSelect", () => {
     fireEvent.keyDown(search, { key: "Enter" })
     expect(onChange).toHaveBeenCalledWith("Europe/Minsk")
   })
+
+  it("offers «as the club» as a choice when the zone may stay empty", () => {
+    const onChange = jest.fn()
+    render(
+      <TimezoneSelect
+        value=""
+        onChange={onChange}
+        emptyLabel="Как у клуба (по умолчанию)"
+      />,
+    )
+    const trigger = screen.getByRole("combobox")
+    expect(trigger.textContent).toContain("Как у клуба (по умолчанию)")
+    fireEvent.click(trigger)
+    fireEvent.change(screen.getByLabelText("Поиск часового пояса"), {
+      target: { value: "томск" },
+    })
+    fireEvent.click(screen.getByRole("option", { name: "Томск (UTC+7)" }))
+    expect(onChange).toHaveBeenCalledWith("Asia/Tomsk")
+  })
+
+  it("picks the empty choice back", () => {
+    const onChange = jest.fn()
+    render(
+      <TimezoneSelect
+        value="Asia/Tomsk"
+        onChange={onChange}
+        emptyLabel="Как у клуба (по умолчанию)"
+      />,
+    )
+    fireEvent.click(screen.getByRole("combobox"))
+    fireEvent.click(
+      screen.getByRole("option", { name: "Как у клуба (по умолчанию)" }),
+    )
+    expect(onChange).toHaveBeenCalledWith("")
+  })
 })
