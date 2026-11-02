@@ -7,6 +7,7 @@ import {
   pluralRu,
 } from "../../shared/format-ru"
 import type { Theme } from "../../shared/theme"
+import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "./payment-method"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -65,21 +66,27 @@ export const periodText = (
 }
 
 // The payment line under «Период». `isPaid === undefined` (an old cache from
-// before payment tracking) reads as paid, like a legacy row on the server.
+// before payment tracking) reads as paid, like a legacy row on the server; a
+// method not recorded (or an old cache without it) is left out.
 export const paymentLine = (s: {
   amountPaid: number
   currency: string
   isPaid?: boolean
   paidAt?: string | null
+  paymentMethod?: PaymentMethod | null
 }): SubscriptionState => {
   const amount = formatMoney(s.amountPaid, s.currency)
   if (s.isPaid === false) {
     return { text: `Ожидает оплаты: ${amount}`, tone: "warn" }
   }
   return {
-    text: s.paidAt
-      ? `Оплачено: ${amount} · ${fmtDate(s.paidAt)}`
-      : `Оплачено: ${amount}`,
+    text: [
+      `Оплачено: ${amount}`,
+      s.paymentMethod ? PAYMENT_METHOD_LABEL[s.paymentMethod] : null,
+      s.paidAt ? fmtDate(s.paidAt) : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
     tone: "muted",
   }
 }

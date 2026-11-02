@@ -77,6 +77,37 @@ describe('grantFromPlan', () => {
         const data = tx.subscription.create.mock.calls[0][0].data
         expect(data.isPaid).toBe(true)
         expect(data.paidAt).toEqual(now)
+        // Not picked → not recorded («не указано»).
+        expect(data.paymentMethod).toBeNull()
+    })
+
+    it('stores how a sale recorded as paid was paid', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null, subscriptions: [] })
+        await svcWith(tx).grantFromPlan({
+            workspaceId: 'w1',
+            workspaceMemberId: 'm1',
+            planId: 'p1',
+            startDate: new Date('2026-07-01T00:00:00Z'),
+            paymentMethod: 'CARD',
+        })
+        expect(tx.subscription.create.mock.calls[0][0].data.paymentMethod).toBe('CARD')
+    })
+
+    it('stores an online sale as ONLINE', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null, subscriptions: [] })
+        await svcWith(tx).grantFromPlan({
+            workspaceId: 'w1',
+            workspaceMemberId: 'm1',
+            planId: 'p1',
+            startDate: new Date('2026-07-01T00:00:00Z'),
+            paid: true,
+            source: 'GATEWAY',
+        })
+        expect(tx.subscription.create.mock.calls[0][0].data.paymentMethod).toBe('ONLINE')
     })
 
     it('records an unpaid sale with no paidAt', async () => {
@@ -94,6 +125,7 @@ describe('grantFromPlan', () => {
         expect(data.isPaid).toBe(false)
         expect(data.paidAt).toBeNull()
         expect(data.amountPaid).toBe(5000)
+        expect(data.paymentMethod).toBeNull()
     })
 
     it('clears accessShifted on old freezes when it writes a new access window', async () => {
@@ -768,7 +800,7 @@ describe('markPaid', () => {
         const res = await svcWith(tx).markPaid(params)
         expect(tx.subscription.updateMany).toHaveBeenCalledWith({
             where: { id: 's1', isPaid: false, status: { not: 'CANCELLED' } },
-            data: { isPaid: true, paidAt: now, amountPaid: 5000 },
+            data: { isPaid: true, paidAt: now, amountPaid: 5000, paymentMethod: null },
         })
         expect(res).toEqual({ id: 's1', isPaid: true })
     })
@@ -779,6 +811,14 @@ describe('markPaid', () => {
         tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1' })
         await svcWith(tx).markPaid({ ...params, amount: 0 })
         expect(tx.subscription.updateMany.mock.calls[0][0].data.amountPaid).toBe(0)
+    })
+
+    it('stores the payment method picked', async () => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(unpaid())
+        tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1' })
+        await svcWith(tx).markPaid({ ...params, paymentMethod: 'TRANSFER' })
+        expect(tx.subscription.updateMany.mock.calls[0][0].data.paymentMethod).toBe('TRANSFER')
     })
 
     it('can still be paid after it expired', async () => {
@@ -834,7 +874,7 @@ describe('unmarkPaid', () => {
     })
     const params = { workspaceId: 'w1', userId: 'u1', subscriptionId: 's1' }
 
-    it('puts a paid abonement back to unpaid and keeps the amount', async () => {
+    it('puts a paid abonement back to unpaid, keeps the amount, drops the method', async () => {
         const tx = makeTx()
         tx.subscription.findFirst.mockResolvedValue(paid())
         tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1', isPaid: false })
@@ -846,7 +886,7 @@ describe('unmarkPaid', () => {
         })
         expect(tx.subscription.updateMany).toHaveBeenCalledWith({
             where: { id: 's1', isPaid: true, status: { not: 'CANCELLED' } },
-            data: { isPaid: false, paidAt: null },
+            data: { isPaid: false, paidAt: null, paymentMethod: null },
         })
         expect(res).toEqual({ id: 's1', isPaid: false })
     })

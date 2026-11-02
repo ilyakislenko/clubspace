@@ -401,8 +401,8 @@ export function EventsScreen({ navigation, route }: Props) {
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Событий пока нет</Text>
             <Text style={styles.emptyText}>
-              Когда {vocabulary.coach.nom} опубликует семинар или открытый ковёр — он
-              появится здесь.
+              Когда {vocabulary.coach.nom} опубликует мастер-класс или другое событие клуба —
+              оно появится здесь.
             </Text>
           </View>
         ) : (

@@ -48,6 +48,7 @@ export class MarkSubscriptionPaidHandler
             userId: f.userId,
             subscriptionId: f.subscriptionId,
             amount: f.payload.amount,
+            paymentMethod: f.payload.method,
         })
 
         await this.audit.record({

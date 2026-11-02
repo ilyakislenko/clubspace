@@ -81,6 +81,7 @@ describe('marking an abonement as paid', () => {
         expect(sold.body.subscription).toMatchObject({
             isPaid: false,
             paidAt: null,
+            paymentMethod: null,
             amountPaid: 4500,
         })
 
@@ -107,12 +108,13 @@ describe('marking an abonement as paid', () => {
             workspace.id,
             memberUser.id,
             sold.body.subscription.id,
-            { amount: 4500 },
+            { amount: 4500, method: 'CARD' },
         )
         expect(paid.status).toBe(201)
         expect(paid.body.subscription).toMatchObject({
             isPaid: true,
             amountPaid: 4500,
+            paymentMethod: 'CARD',
         })
         expect(paid.body.subscription.paidAt).not.toBeNull()
 
@@ -172,6 +174,7 @@ describe('marking an abonement as paid', () => {
         const id = sold.body.subscription.id
         await pay(ownerActor.auth, workspace.id, memberUser.id, id, {
             amount: 4000,
+            method: 'TRANSFER',
         }).expect(201)
 
         const undoUrl = `/workspaces/${workspace.id}/members/${memberUser.id}/subscriptions/${id}/payment`
@@ -189,6 +192,7 @@ describe('marking an abonement as paid', () => {
         expect(undone.body.subscription).toMatchObject({
             isPaid: false,
             paidAt: null,
+            paymentMethod: null,
             amountPaid: 4000,
         })
 

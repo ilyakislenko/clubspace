@@ -10,7 +10,9 @@ import ts from "typescript"
 // string and JSX text of the app — comments are not strings and never match.
 
 const SRC = join(__dirname, "..")
-const WORDS = /тренир|тренер/i
+// «Ковёр» is the grappling academy's mat — a yoga or dance studio has none.
+// The look-behind keeps «кратковременный» from matching.
+const WORDS = /тренир|тренер|(?<![а-яё])ков[её]?р/i
 
 // Files whose wording is deliberately not the club's:
 const ALLOWED: Record<string, true> = {
@@ -75,11 +77,14 @@ describe("club vocabulary guard", () => {
       'const a = "Ближайшая тренировка"',
       "const b = `Тренер: ${a}`",
       "export const C = () => <Text>Отметиться на тренировке</Text>",
+      'const d = "Открытый ковёр в субботу"',
+      'const e = "кратковременным ссылкам"',
     ].join("\n")
     expect(offendingTexts("probe.tsx", code)).toEqual([
       "Ближайшая тренировка",
       "Тренер:",
       "Отметиться на тренировке",
+      "Открытый ковёр в субботу",
     ])
   })
 })

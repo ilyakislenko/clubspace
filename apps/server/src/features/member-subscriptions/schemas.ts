@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
 import {
+    PaymentMethodSchema,
+    type PaymentMethodValue,
+} from '../../shared/utils/payment-method'
+import {
     DirectionRefSchema,
     type DirectionRef,
 } from '../../domains/directions/direction-ref'
@@ -28,6 +32,9 @@ export const SubscriptionOutputSchema = z.object({
     // When the payment was marked; null while unpaid and on rows from before
     // payment tracking.
     paidAt: z.iso.datetime().nullable(),
+    // How it was paid; null while unpaid and when not recorded («не указано»:
+    // sold before the method was stored, imported, or not picked).
+    paymentMethod: PaymentMethodSchema.nullable(),
     // Class-pack balance (null for a time-only tariff).
     classesTotal: z.number().int().nullable(),
     classesRemaining: z.number().int().nullable(),
@@ -118,6 +125,7 @@ export const serializeSubscription = (s: {
     currency: string
     isPaid: boolean
     paidAt: Date | null
+    paymentMethod: PaymentMethodValue | null
     classesTotal: number | null
     classesRemaining: number | null
     source: string
@@ -136,6 +144,9 @@ export const serializeSubscription = (s: {
     currency: s.currency,
     isPaid: s.isPaid,
     paidAt: s.paidAt ? s.paidAt.toISOString() : null,
+    // A checkout sale from before the method was stored is still ONLINE.
+    paymentMethod:
+        s.paymentMethod ?? (s.isPaid && s.source === 'GATEWAY' ? 'ONLINE' : null),
     classesTotal: s.classesTotal,
     classesRemaining: s.classesRemaining,
     source: s.source,

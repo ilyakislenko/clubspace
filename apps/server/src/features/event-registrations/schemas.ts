@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+import {
+    PaymentMethodSchema,
+    type PaymentMethodValue,
+} from '../../shared/utils/payment-method'
 import { nameOrPlaceholder } from '../../shared/utils/person-name'
 
 export const EventRegistrationStatusSchema = z.enum([
@@ -11,10 +15,6 @@ export type EventRegistrationStatusValue = z.infer<
     typeof EventRegistrationStatusSchema
 >
 
-// CASH / TRANSFER — marked by staff at the club; ONLINE — paid through the
-// club's payment provider (only the payment webhook sets it).
-export const EventPaymentMethodSchema = z.enum(['CASH', 'TRANSFER', 'ONLINE'])
-
 // A member's registration for an event, as the member sees it.
 export const EventRegistrationOutputSchema = z.object({
     id: z.string().uuid(),
@@ -25,7 +25,7 @@ export const EventRegistrationOutputSchema = z.object({
     // The ticket is paid (marked by staff, or paid online) and how — a ticket
     // paid ONLINE is refunded by the club, not cancelled in the app.
     isPaid: z.boolean(),
-    paymentMethod: EventPaymentMethodSchema.nullable(),
+    paymentMethod: PaymentMethodSchema.nullable(),
     // Got the place from the waitlist at this instant.
     promotedAt: z.iso.datetime().nullable(),
     cancelledAt: z.iso.datetime().nullable(),
@@ -63,7 +63,7 @@ export const EventRegistrantSchema = z.object({
     paidAt: z.iso.datetime().nullable(),
     amountPaid: z.number().int().nullable(),
     currency: z.string().nullable(),
-    paymentMethod: EventPaymentMethodSchema.nullable(),
+    paymentMethod: PaymentMethodSchema.nullable(),
     promotedAt: z.iso.datetime().nullable(),
     cancelledAt: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),
@@ -80,7 +80,7 @@ export type RegistrationRow = {
     paidAt: Date | null
     amountPaid: number | null
     currency: string | null
-    paymentMethod: z.infer<typeof EventPaymentMethodSchema> | null
+    paymentMethod: PaymentMethodValue | null
     promotedAt: Date | null
     cancelledAt: Date | null
     createdAt: Date

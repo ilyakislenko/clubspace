@@ -1,5 +1,7 @@
 import { type ClubVocabulary, fromFirstSession } from "@clubspace/ui-kit/brand"
 
+import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "./payment-method"
+
 // Pure display helpers for an abonement's period. An abonement sold on a
 // «срок с первой тренировки» tariff has no dates until the member's first visit.
 
@@ -51,16 +53,25 @@ export const formatAmount = (amount: number, currency: string): string =>
 type PaymentSubscription = {
   isPaid: boolean
   paidAt: string | null
+  paymentMethod: PaymentMethod | null
   amountPaid: number
   currency: string
 }
 
-// «Оплачено 5 000 RUB · 22.10.2026» / «Ожидает оплаты: 5 000 RUB». Rows from
-// before payment tracking have no payment date, so the date part is dropped.
+// «Оплачено 5 000 ₽ · Наличные · 22.10.2026» / «Ожидает оплаты: 5 000 ₽». A
+// payment whose method was not recorded (before it was, or imported) skips
+// it; rows from before payment tracking have no payment date, so the date
+// part is dropped too.
 export const paymentLabel = (s: PaymentSubscription): string => {
   const amount = formatAmount(s.amountPaid, s.currency)
   if (!s.isPaid) return `Ожидает оплаты: ${amount}`
-  return s.paidAt ? `Оплачено ${amount} · ${fmtDate(s.paidAt)}` : `Оплачено ${amount}`
+  return [
+    `Оплачено ${amount}`,
+    s.paymentMethod ? PAYMENT_METHOD_LABEL[s.paymentMethod] : null,
+    s.paidAt ? fmtDate(s.paidAt) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
 }
 
 // «Занятий: 3 / 12» for a class pack; null for a time-based abonement.

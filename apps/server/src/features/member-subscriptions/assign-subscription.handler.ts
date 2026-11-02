@@ -152,6 +152,7 @@ export class AssignSubscriptionHandler
                 startDate,
                 amountPaid: f.payload.amountPaid,
                 paid: f.payload.paid,
+                paymentMethod: f.payload.paymentMethod,
                 source: 'MANUAL',
             })
 

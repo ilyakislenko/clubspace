@@ -31,6 +31,12 @@ import {
 } from "./freeze-utils"
 import { MarkPaidForm, MAX_PAYMENT } from "./MarkPaidForm"
 import {
+  lastPaymentMethod,
+  rememberPaymentMethod,
+  type ClubPaymentMethod,
+} from "./payment-method"
+import { PaymentMethodPicker } from "./PaymentMethodPicker"
+import {
   classesLabel,
   formatAmount,
   isPending,
@@ -82,6 +88,9 @@ export function MemberSubscriptionPanel({
   // What the sale is recorded at: the plan price unless changed (a discount).
   const [amountText, setAmountText] = useState("")
   const [paid, setPaid] = useState(true)
+  // How a sale recorded as paid was paid; set from the last pick on choosing
+  // a tariff (read in the browser only).
+  const [paymentMethod, setPaymentMethod] = useState<ClubPaymentMethod>("CASH")
   const [busy, setBusy] = useState(false)
   const [payingId, setPayingId] = useState<string | null>(null)
   const [payBusy, setPayBusy] = useState(false)
@@ -110,6 +119,7 @@ export function MemberSubscriptionPanel({
     setPlanId(id)
     const plan = plans.find((p) => p.id === id)
     setAmountText(plan ? String(plan.price) : "")
+    setPaymentMethod(lastPaymentMethod())
   }
 
   const assign = async () => {
@@ -124,8 +134,10 @@ export function MemberSubscriptionPanel({
           startDate: startDate || undefined,
           amountPaid: amount,
           paid,
+          ...(paid ? { paymentMethod } : {}),
         },
       })
+      if (paid) rememberPaymentMethod(paymentMethod)
       setPlanId("")
       setStartDate("")
       setAmountText("")
@@ -156,14 +168,18 @@ export function MemberSubscriptionPanel({
     }
   }
 
-  const markPaid = async (subscriptionId: string, received: number) => {
+  const markPaid = async (
+    subscriptionId: string,
+    received: number,
+    method: ClubPaymentMethod,
+  ) => {
     setPayBusy(true)
     try {
       await markSubscriptionPaid({
         workspaceId,
         userId,
         subscriptionId,
-        data: { amount: received },
+        data: { amount: received, method },
       })
       setPayingId(null)
       await load()
@@ -288,7 +304,7 @@ export function MemberSubscriptionPanel({
             amount={a.amountPaid}
             currency={a.currency}
             busy={payBusy}
-            onSubmit={(received) => void markPaid(a.id, received)}
+            onSubmit={(received, method) => void markPaid(a.id, received, method)}
             onCancel={() => setPayingId(null)}
           />
         )}
@@ -404,6 +420,13 @@ export function MemberSubscriptionPanel({
             />
             Оплата получена
           </label>
+          {paid && (
+            <PaymentMethodPicker
+              value={paymentMethod}
+              onChange={setPaymentMethod}
+              disabled={busy}
+            />
+          )}
           <Button
             disabled={!planId || amount === null || busy}
             onClick={() => void assign()}
@@ -497,7 +520,7 @@ export function MemberSubscriptionPanel({
               amount={row.amountPaid}
               currency={row.currency}
               busy={payBusy}
-              onSubmit={(received) => void markPaid(row.id, received)}
+              onSubmit={(received, method) => void markPaid(row.id, received, method)}
               onCancel={() => setPayingId(null)}
             />
           ) : null
