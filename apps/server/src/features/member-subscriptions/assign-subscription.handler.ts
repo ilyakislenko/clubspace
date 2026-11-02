@@ -20,6 +20,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { cap, vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { localDateInTz, wallClockToUtc } from '../attendance/attendance-utils'
 import {
     AssignSubscriptionFeature,
@@ -69,7 +70,7 @@ export class AssignSubscriptionHandler
 
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: f.workspaceId },
-            select: { ownerId: true, timezone: true },
+            select: { ownerId: true, timezone: true, type: true },
         })
         if (!workspace) throw new NotFoundError({ message: 'Клуб не найден' })
         if (f.userId === workspace.ownerId) {
@@ -133,7 +134,7 @@ export class AssignSubscriptionHandler
                     f.payload.startDate > latest
                 ) {
                     throw new BadRequestError({
-                        message: `Тренер может оформить абонемент с датой начала не раньше чем за ${COACH_BACKDATE_DAYS} дня до сегодня и не позже окончания текущего`,
+                        message: `${cap(vocabularyForWorkspaceType(workspace.type).coach.nom)} может оформить абонемент с датой начала не раньше чем за ${COACH_BACKDATE_DAYS} дня до сегодня и не позже окончания текущего`,
                     })
                 }
             }

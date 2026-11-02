@@ -6,6 +6,7 @@ import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service
 import { PrismaService } from '../../infrastructure/prisma'
 import { ConflictError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     DeclinePersonalTrainingFeature,
     DeclinePersonalTrainingFeatureResponse,
@@ -51,7 +52,9 @@ export class DeclinePersonalTrainingHandler
             f,
             request,
         )
-        throwIfRefused(checkDecline({ actor, status: request.status }))
+        await throwIfRefused(checkDecline({ actor, status: request.status }), () =>
+            loadClubVocabulary(this.prisma, f.workspaceId),
+        )
 
         const comment = f.payload.comment || null
         const moved = await this.prisma.personalTrainingRequest.updateMany({

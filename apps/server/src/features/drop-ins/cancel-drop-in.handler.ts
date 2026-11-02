@@ -5,6 +5,7 @@ import { NotificationProducerService } from '../../domains/notifications/service
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
+import { agree, cap, vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import {
     formatLocalDateTimeRu,
     resolveSlotOccurrence,
@@ -60,7 +61,7 @@ export class CancelDropInHandler
         const sessionDate = booking.sessionDate.toISOString().slice(0, 10)
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
-            select: { timezone: true },
+            select: { timezone: true, type: true },
         })
         const exceptions = await this.prisma.scheduleException.findMany({
             where: {
@@ -85,8 +86,9 @@ export class CancelDropInHandler
         const active = occ.scheduled && !occ.cancelled
         const now = new Date()
         if (active && occ.startAt.getTime() <= now.getTime()) {
+            const { session } = vocabularyForWorkspaceType(workspace?.type)
             throw new BadRequestError({
-                message: 'Тренировка уже началась — отменить запись нельзя',
+                message: `${cap(session.nom)} уже ${agree(session, 'началась', 'началось')} — отменить запись нельзя`,
             })
         }
 

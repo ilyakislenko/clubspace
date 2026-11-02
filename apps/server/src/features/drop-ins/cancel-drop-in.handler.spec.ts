@@ -86,7 +86,11 @@ describe('CancelDropInHandler', () => {
         prisma.dropInBooking.findFirst.mockResolvedValue(booking('2026-10-24'))
         jest.setSystemTime(new Date('2026-10-24T13:00:00Z'))
         await expect(run(handler)).rejects.toBeInstanceOf(BadRequestError)
+        await expect(run(handler)).rejects.toThrow('Тренировка уже началась — отменить запись нельзя')
         expect(prisma.dropInBooking.deleteMany).not.toHaveBeenCalled()
+
+        prisma.workspace.findUnique.mockResolvedValue({ timezone: 'Europe/Moscow', type: 'DANCE' })
+        await expect(run(handler)).rejects.toThrow('Занятие уже началось — отменить запись нельзя')
     })
 
     it('deletes and tells the coaches', async () => {

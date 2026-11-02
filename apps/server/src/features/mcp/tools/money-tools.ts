@@ -9,6 +9,9 @@ import {
     revenueTrendStart,
     shiftMonth,
     summarizeAwaiting,
+    ticketRevenueRow,
+    ticketRevenueSelect,
+    ticketsPaidInRangeWhere,
 } from '../../get-workspace-stats/revenue'
 import {
     ListAwaitingPaymentFeature,
@@ -53,8 +56,10 @@ export const revenueReportTool = defineTool({
     description:
         'Выручка клуба за последние N месяцев (по умолчанию 6) или за один календарный месяц (month): по месяцам, по тарифам или по направлениям. ' +
         'period в ответе — за какие даты посчитано. ' +
-        'Считаются только оплаченные абонементы по дате оплаты, в основной валюте клуба, суммы в целых рублях (единицах валюты). ' +
-        'Абонемент на несколько направлений делится между ними поровну; абонементы на весь клуб — отдельной строкой. ' +
+        'Считаются оплаченные абонементы и оплаченные билеты на события (мастер-классы) по дате оплаты, в основной валюте клуба, суммы в целых рублях (единицах валюты); ' +
+        'bySource — разбивка «абонементы / события». ' +
+        'Абонемент на несколько направлений делится между ними поровну; билет относится к направлению события; продажи без направления — отдельной строкой. ' +
+        'В разбивке по тарифам событие — отдельная строка (kind: event). ' +
         'Только для токена администратора.',
     adminOnly: true,
     input: z.object({
@@ -83,22 +88,41 @@ export const revenueReportTool = defineTool({
         const end = new Date(Math.min(monthEnd, now.getTime()))
         const months = args.month ? 1 : args.months
         const start = revenueTrendStart(end, tz, months)
-        const rows = await prisma.subscription.findMany({
-            where: {
-                workspaceId: scope.workspaceId,
-                ...paidInRangeWhere(args.month ? { gte: start, lte: end } : { gte: start }),
-            },
-            select: {
-                amountPaid: true,
-                currency: true,
-                paidAt: true,
-                createdAt: true,
-                planId: true,
-                plan: { select: { name: true } },
-                directions: { select: { direction: { select: { id: true, name: true } } } },
-            },
-        })
-        const flat = rows.map((r) => ({
+        const range = args.month ? { gte: start, lte: end } : { gte: start }
+        const [rows, tickets] = await Promise.all([
+            prisma.subscription.findMany({
+                where: { workspaceId: scope.workspaceId, ...paidInRangeWhere(range) },
+                select: {
+                    amountPaid: true,
+                    currency: true,
+                    paidAt: true,
+                    createdAt: true,
+                    planId: true,
+                    plan: { select: { name: true } },
+                    directions: { select: { direction: { select: { id: true, name: true } } } },
+                },
+            }),
+            // The dashboard's ticket source (revenue.ts), plus the event's
+            // direction for the by-direction split.
+            prisma.eventRegistration.findMany({
+                where: {
+                    workspaceId: scope.workspaceId,
+                    event: scope.events(),
+                    ...ticketsPaidInRangeWhere(range),
+                },
+                select: {
+                    ...ticketRevenueSelect,
+                    event: {
+                        select: {
+                            title: true,
+                            currency: true,
+                            direction: { select: { id: true, name: true } },
+                        },
+                    },
+                },
+            }),
+        ])
+        const abonementRows = rows.map((r) => ({
             amountPaid: r.amountPaid,
             currency: r.currency,
             paidAt: r.paidAt,
@@ -107,6 +131,12 @@ export const revenueReportTool = defineTool({
             planName: r.plan.name,
             directions: r.directions.map((d) => d.direction),
         }))
+        const ticketRows = tickets.map((t) => ({
+            ...ticketRevenueRow(t),
+            paidAt: t.paidAt,
+            directions: t.event.direction ? [t.event.direction] : [],
+        }))
+        const flat = [...abonementRows, ...ticketRows]
         const currency = dominantCurrency(flat)
         const inCurrency = flat.filter((r) => r.currency === currency)
         const items = groupRevenue(flat, {
@@ -116,6 +146,11 @@ export const revenueReportTool = defineTool({
             tz,
             months,
         })
+        const sourceTotal = (source: typeof flat) => {
+            const sales = source.filter((r) => r.currency === currency)
+            return { revenue: sales.reduce((s, r) => s + r.amountPaid, 0), sales: sales.length }
+        }
+        const eventIds = new Set(tickets.map((t) => t.eventId))
         return {
             rows: items.length,
             data: {
@@ -125,10 +160,16 @@ export const revenueReportTool = defineTool({
                 total: inCurrency.reduce((s, r) => s + r.amountPaid, 0),
                 sales: inCurrency.length,
                 otherCurrencySales: flat.length - inCurrency.length,
-                // By tariff: each item's key is the tariff id.
+                bySource: { abonements: sourceTotal(abonementRows), events: sourceTotal(ticketRows) },
+                // By tariff: each item's key is the tariff id, or the event id
+                // for an event's tickets.
                 items:
                     args.groupBy === 'tariff'
-                        ? items.map((i) => ({ ...i, ref: planRef(i.key) }))
+                        ? items.map((i) =>
+                              eventIds.has(i.key)
+                                  ? { ...i, kind: 'event' as const }
+                                  : { ...i, kind: 'tariff' as const, ref: planRef(i.key) },
+                          )
                         : items,
             },
         }

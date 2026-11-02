@@ -7,6 +7,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import {
     AddGroupMemberFeature,
     AddGroupMemberFeatureResponse,
@@ -58,23 +59,19 @@ export class AddGroupMemberHandler
                 message: 'Пользователь не участник этого клуба',
             })
         }
-        if (group.coachId === payload.userId) {
-            throw new BadRequestError({
-                message:
-                    'Тренера нельзя добавить учеником в его же группу',
+        // A coach of the group (primary, or an assistant in GroupCoach) is
+        // never its student; the club's words are read only on this refusal.
+        const coachRefusal = async () =>
+            new BadRequestError({
+                message: `${cap((await loadClubVocabulary(this.prisma, workspaceId)).coach.acc)} нельзя добавить учеником в его же группу`,
             })
-        }
+        if (group.coachId === payload.userId) throw await coachRefusal()
 
-        // An assistant coach is in GroupCoach, not in Group.coachId.
         const asCoach = await this.prisma.groupCoach.findFirst({
             where: { groupId, userId: payload.userId },
             select: { userId: true },
         })
-        if (asCoach) {
-            throw new BadRequestError({
-                message: 'Тренера нельзя добавить учеником в его же группу',
-            })
-        }
+        if (asCoach) throw await coachRefusal()
 
         // Idempotent — re-adding an existing member is a no-op rather than
         // a 409 error, so the UI can re-emit the request after a flaky tap

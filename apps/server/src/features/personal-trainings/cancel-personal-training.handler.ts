@@ -64,13 +64,14 @@ export class CancelPersonalTrainingHandler
               })) > 0
             : false
         const now = new Date()
-        throwIfRefused(
+        await throwIfRefused(
             checkCancel({
                 status: request.status,
                 confirmedStartAt: request.confirmedStartAt,
                 hasRecords,
                 now,
             }),
+            () => loadClubVocabulary(this.prisma, f.workspaceId),
         )
 
         const comment = f.payload.comment || null

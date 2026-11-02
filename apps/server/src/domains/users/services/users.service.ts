@@ -7,6 +7,7 @@ import { LanguageEnum, Prisma, PrismaService, UserStatus } from '../../../infras
 import { isDemoAccountEmail } from '../../../shared/utils/demo-mode.util'
 import { isStoreReviewEmail } from '../../../shared/utils/store-review.util'
 import { BadRequestError } from '../../../shared/errors/shared.errors'
+import { vocabularyForWorkspaceType } from '../../../shared/utils/club-vocabulary'
 import { purgePersonalTraining } from '../../../features/personal-trainings/purge-personal-training'
 import { USERS_PUBLISHER, UsersEventPattern, type UsersEventsPublisher } from '../configs/users-events.config'
 import { UserCompleteCodeTooEarlyError, UserNotFoundError } from '../errors/users.errors'
@@ -104,9 +105,18 @@ export class UsersService {
         ])
 
         if (ownedWorkspaces > 0 || coachedGroups > 0) {
+            // The words of the club whose group they lead (an account spans
+            // clubs; read only on refusal).
+            const coached =
+                coachedGroups > 0
+                    ? await this.prisma.group.findFirst({
+                          where: { coachId: { in: ids } },
+                          select: { workspace: { select: { type: true } } },
+                      })
+                    : null
+            const v = vocabularyForWorkspaceType(coached?.workspace.type)
             throw new BadRequestError({
-                message:
-                    'Ваш аккаунт управляет клубом (владелец или тренер группы). Передайте эти роли в админ-панели, затем удалите аккаунт.',
+                message: `Ваш аккаунт управляет клубом (владелец или ${v.coach.nom} группы). Передайте эти роли в админ-панели, затем удалите аккаунт.`,
             })
         }
 

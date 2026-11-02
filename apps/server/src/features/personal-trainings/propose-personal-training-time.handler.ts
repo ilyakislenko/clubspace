@@ -5,10 +5,7 @@ import { NotificationProducerService } from '../../domains/notifications/service
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
-import {
-    BadRequestError,
-    ConflictError,
-} from '../../shared/errors/shared.errors'
+import { ConflictError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     formatLocalDateTimeRu,
@@ -63,12 +60,13 @@ export class ProposePersonalTrainingTimeHandler
             f,
             request,
         )
-        throwIfRefused(checkPropose({ actor, status: request.status }))
+        const vocabulary = () => loadClubVocabulary(this.prisma, f.workspaceId)
+        await throwIfRefused(checkPropose({ actor, status: request.status }), vocabulary)
 
         const now = new Date()
         const instant = wallClockToUtc(f.payload.startAt, request.timezone)
         const invalid = validateProposedTimes([instant], now)
-        if (invalid) throw new BadRequestError({ message: invalid })
+        await throwIfRefused(invalid ? { kind: 'bad', message: invalid } : null, vocabulary)
 
         const option = await this.prisma.$transaction(async (tx) => {
             const created = await tx.personalTrainingOption.create({

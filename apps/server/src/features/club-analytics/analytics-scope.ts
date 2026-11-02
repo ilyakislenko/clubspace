@@ -2,6 +2,7 @@ import type { AnalyticsScope } from '../../domains/analytics/analytics-reports'
 import type { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { type CoachContext, ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
+import { cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
 import type { AnalyticsFilter } from './schemas'
 
 // Who sees what in «Аналитика»: owner, admin and head coach the whole club;
@@ -55,7 +56,10 @@ export const resolveAnalyticsScope = async (
         throw new NotFoundError({ message: 'Направление не найдено' })
     }
     if (filter.groupId && !group) throw new NotFoundError({ message: 'Группа не найдена' })
-    if (filter.coachId && !coach) throw new NotFoundError({ message: 'Тренер не найден' })
+    if (filter.coachId && !coach) {
+        const v = await loadClubVocabulary(prisma, workspaceId)
+        throw new NotFoundError({ message: `${cap(v.coach.nom)} не найден` })
+    }
 
     const filtered = !!(filter.gymId || filter.directionId || filter.groupId || filter.coachId)
     if (isAdmin && !filtered) {

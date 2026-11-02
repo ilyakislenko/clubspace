@@ -9,6 +9,7 @@ import { toCsv } from '../../shared/utils/csv'
 import {
     paidInRangeWhere,
     paidOn,
+    ticketsPaidInRangeWhere,
 } from '../get-workspace-stats/revenue'
 import {
     renewalNeed,
@@ -27,6 +28,8 @@ const joinCells = (values: ReadonlyArray<string | number | null>) =>
 
 const day = (d: Date | null | undefined) =>
     d ? d.toISOString().slice(0, 10) : ''
+
+const TICKET_PAYMENT_LABELS = { CASH: 'Наличные', TRANSFER: 'Перевод' } as const
 
 // Inclusive date bounds (the controller passes from = start-of-day and
 // to = end-of-day). Produces a Prisma filter, or undefined when unbounded.
@@ -155,66 +158,105 @@ export class ExportService {
         )
     }
 
-    // Revenue: every PAID subscription, newest payment first — for accounting.
+    // Revenue: every PAID sale, newest payment first — for accounting. The
+    // same sales as the dashboard's revenue (revenue.ts): abonements, and the
+    // event tickets (a master class) staff marked paid — one row each, the
+    // event in the «Тариф / событие» column; unmarking a payment drops its row.
     // Filtered, sorted and printed by the payment date (paidOn: paidAt, or the
     // sale date on rows from before payment tracking); unpaid sales are a
     // receivable, not revenue, and stay out. Sales to members who have since
     // left stay in, under the buyer's name (Subscription.user).
     async revenueCsv(workspaceId: string, range?: DateRange): Promise<string> {
         const paidRange = rangeFilter(range)
-        const subs = await this.prisma.subscription.findMany({
-            where: { workspaceId, ...paidInRangeWhere(paidRange ?? {}) },
-            select: {
-                createdAt: true,
-                paidAt: true,
-                amountPaid: true,
-                currency: true,
-                source: true,
-                classesTotal: true,
-                plan: { select: { name: true } },
-                user: { select: { firstname: true, lastname: true, email: true } },
-                // Rows sold before Subscription.userId existed.
-                workspaceMember: {
-                    select: {
-                        user: {
-                            select: {
-                                firstname: true,
-                                lastname: true,
-                                email: true,
+        const [subs, tickets] = await Promise.all([
+            this.prisma.subscription.findMany({
+                where: { workspaceId, ...paidInRangeWhere(paidRange ?? {}) },
+                select: {
+                    createdAt: true,
+                    paidAt: true,
+                    amountPaid: true,
+                    currency: true,
+                    source: true,
+                    classesTotal: true,
+                    plan: { select: { name: true } },
+                    user: { select: { firstname: true, lastname: true, email: true } },
+                    // Rows sold before Subscription.userId existed.
+                    workspaceMember: {
+                        select: {
+                            user: {
+                                select: {
+                                    firstname: true,
+                                    lastname: true,
+                                    email: true,
+                                },
                             },
                         },
                     },
                 },
-            },
-        })
-        subs.sort((a, b) => paidOn(b).getTime() - paidOn(a).getTime())
+            }),
+            this.prisma.eventRegistration.findMany({
+                where: { workspaceId, ...ticketsPaidInRangeWhere(paidRange ?? {}) },
+                select: {
+                    createdAt: true,
+                    paidAt: true,
+                    amountPaid: true,
+                    currency: true,
+                    paymentMethod: true,
+                    event: { select: { title: true, currency: true } },
+                    user: { select: { firstname: true, lastname: true, email: true } },
+                },
+            }),
+        ])
 
-        const rows = subs.map((s) => {
-            const user = s.user ?? s.workspaceMember?.user
-            return [
-                day(paidOn(s)),
-                user ? fullName(user) : '',
-                user?.email ?? '',
-                s.plan.name,
-                s.amountPaid,
-                s.currency,
-                s.source,
-                s.classesTotal ?? '',
-            ]
-        })
+        const rows = [
+            ...subs.map((s) => {
+                const user = s.user ?? s.workspaceMember?.user
+                return {
+                    on: paidOn(s),
+                    cells: [
+                        user ? fullName(user) : '',
+                        user?.email ?? '',
+                        s.plan.name,
+                        s.amountPaid,
+                        s.currency,
+                        s.source,
+                        s.classesTotal ?? '',
+                        'Абонемент',
+                        '',
+                    ],
+                }
+            }),
+            ...tickets.map((t) => ({
+                on: paidOn(t),
+                cells: [
+                    fullName(t.user),
+                    t.user.email ?? '',
+                    t.event.title,
+                    t.amountPaid ?? 0,
+                    t.currency ?? t.event.currency,
+                    '',
+                    '',
+                    'Событие',
+                    t.paymentMethod ? TICKET_PAYMENT_LABELS[t.paymentMethod] : '',
+                ],
+            })),
+        ]
+        rows.sort((a, b) => b.on.getTime() - a.on.getTime())
 
         return toCsv(
             [
                 'Дата оплаты',
                 'Участник',
                 'Email',
-                'Тариф',
+                'Тариф / событие',
                 'Сумма',
                 'Валюта',
                 'Источник',
                 'Занятий в пакете',
+                'Вид',
+                'Способ оплаты',
             ],
-            rows,
+            rows.map((r) => [day(r.on), ...r.cells]),
         )
     }
 

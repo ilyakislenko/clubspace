@@ -7,9 +7,12 @@ import { AddGroupMemberFeature } from './add-group-member.feature'
 import { AddGroupMemberHandler } from './add-group-member.handler'
 
 const build = (
-    o: { denied?: boolean; inClub?: boolean; assistant?: boolean } = {},
+    o: { denied?: boolean; inClub?: boolean; assistant?: boolean; clubType?: string } = {},
 ) => {
     const prisma = {
+        workspace: {
+            findUnique: jest.fn().mockResolvedValue({ type: o.clubType ?? 'GRAPPLING' }),
+        },
         group: {
             findFirst: jest.fn().mockResolvedValue({ id: 'g1', coachId: 'c1' }),
         },
@@ -72,12 +75,22 @@ describe('AddGroupMemberHandler', () => {
 
     it('refuses an assistant coach of the group as a student', async () => {
         const { handler, prisma } = build({ assistant: true })
-        await expect(run(handler)).rejects.toBeInstanceOf(BadRequestError)
+        await expect(run(handler)).rejects.toThrow('Тренера нельзя добавить учеником в его же группу')
         expect(prisma.groupCoach.findFirst).toHaveBeenCalledWith({
             where: { groupId: 'g1', userId: 'u1' },
             select: { userId: true },
         })
         expect(prisma.groupMember.upsert).not.toHaveBeenCalled()
+    })
+
+    it('refuses a dance teacher in the studio’s words', async () => {
+        const { handler, prisma } = build({ assistant: true, clubType: 'DANCE' })
+        await expect(run(handler)).rejects.toBeInstanceOf(BadRequestError)
+        await expect(run(handler)).rejects.toThrow('Педагога нельзя добавить учеником в его же группу')
+        expect(prisma.workspace.findUnique).toHaveBeenCalledWith({
+            where: { id: 'w1' },
+            select: { type: true },
+        })
     })
 
     it('404s when the user is not in the club', async () => {

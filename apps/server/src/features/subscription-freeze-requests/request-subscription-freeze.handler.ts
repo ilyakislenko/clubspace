@@ -132,8 +132,7 @@ export class RequestSubscriptionFreezeHandler
         } catch (err) {
             if (!isP2002(err)) throw err
             throw new ConflictError({
-                message:
-                    'Вы уже отправили заявку на заморозку — дождитесь ответа тренера или отмените её',
+                message: `Вы уже отправили заявку на заморозку — дождитесь ответа ${vocabularyForWorkspaceType(member.workspace.type).coach.gen} или отмените её`,
             })
         }
 

@@ -12,6 +12,9 @@ import {
     paidOn,
     revenueTrendStart,
     summarizeAwaiting,
+    ticketRevenueRow,
+    ticketRevenueSelect,
+    ticketsPaidInRangeWhere,
 } from '../../get-workspace-stats/revenue'
 import { defineTool } from '../mcp-tool'
 import { groupRef, planRef, scopedStudentIds } from './tool-helpers'
@@ -215,7 +218,7 @@ export const clubOverviewTool = defineTool({
         if (scope.isAdmin) {
             const monthStart = revenueTrendStart(now, tz, 1)
             const windowStart = monthStart < since30 ? monthStart : since30
-            const [paid, awaiting] = await Promise.all([
+            const [paidSubs, paidTickets, awaiting] = await Promise.all([
                 prisma.subscription.findMany({
                     where: {
                         workspaceId: scope.workspaceId,
@@ -223,11 +226,20 @@ export const clubOverviewTool = defineTool({
                     },
                     select: { amountPaid: true, currency: true, paidAt: true, createdAt: true },
                 }),
+                // Event tickets marked paid: sales like on the dashboard.
+                prisma.eventRegistration.findMany({
+                    where: {
+                        workspaceId: scope.workspaceId,
+                        ...ticketsPaidInRangeWhere({ gte: windowStart }),
+                    },
+                    select: ticketRevenueSelect,
+                }),
                 prisma.subscription.findMany({
                     where: awaitingPaymentWhere(scope.workspaceId),
                     select: { amountPaid: true, currency: true },
                 }),
             ])
+            const paid = [...paidSubs, ...paidTickets.map(ticketRevenueRow)]
             const currency = dominantCurrency(paid) ?? dominantCurrency(awaiting)
             const sumSince = (from: Date) =>
                 paid
@@ -238,7 +250,7 @@ export const clubOverviewTool = defineTool({
                 revenue30d: sumSince(since30),
                 revenueThisMonth: sumSince(monthStart),
                 unpaid: summarizeAwaiting(awaiting, currency),
-                note: 'Суммы в целых единицах валюты; выручка — только оплаченные абонементы по дате оплаты',
+                note: 'Суммы в целых единицах валюты; выручка — оплаченные абонементы и билеты на события по дате оплаты',
             }
         }
 

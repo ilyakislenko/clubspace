@@ -6,6 +6,7 @@ import {
     WORKSPACE_ADMINS,
 } from '../decorators/roles.decorator'
 import { ForbiddenError, NotFoundError } from '../errors/shared.errors'
+import { cap, type ClubVocabulary, loadClubVocabulary } from '../utils/club-vocabulary'
 
 export type CoachScope =
     // Full read+write across the workspace. Owner, head_coach, admin.
@@ -41,6 +42,12 @@ export const ownGroupsWhere = (userId: string) => ({
 @Injectable()
 export class RbacService {
     constructor(private readonly prisma: PrismaService) {}
+
+    // The club's words (тренер / педагог) for a refusal — read only when
+    // refusing, never on the allowed path.
+    clubVocabulary(workspaceId: string): Promise<ClubVocabulary> {
+        return loadClubVocabulary(this.prisma, workspaceId)
+    }
 
     // Call once per endpoint; consult the result when building where-clauses.
     async resolveCoachScope(params: {
@@ -111,8 +118,9 @@ export class RbacService {
         if (this.canWriteAllGroups(ctx)) return
         if (coachUserId === ctx.userId) return
         if (directionId && (await this.managesAll(ctx, [directionId]))) return
+        const v = await this.clubVocabulary(ctx.workspaceId)
         throw new ForbiddenError({
-            message: 'Тренер может создавать только свои группы',
+            message: `${cap(v.coach.nom)} может создавать только свои группы`,
         })
     }
 
@@ -159,8 +167,9 @@ export class RbacService {
             return 'direction'
         }
 
+        const v = await this.clubVocabulary(ctx.workspaceId)
         throw new ForbiddenError({
-            message: 'Тренер может менять только свои группы',
+            message: `${cap(v.coach.nom)} может менять только свои группы`,
         })
     }
 
