@@ -7,6 +7,7 @@ import {
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollViewInstance,
 } from "react-native"
 
 import { Pressable } from "../../shared/components/Pressable"
@@ -108,8 +109,8 @@ export function WeekCalendar({
   const bodyHeight = hours * size.hour
   const gridHeight = EDGE + bodyHeight + EDGE
 
-  const scrollRef = useRef<ScrollView>(null)
-  const headerRef = useRef<ScrollView>(null)
+  const scrollRef = useRef<ScrollViewInstance>(null)
+  const headerRef = useRef<ScrollViewInstance>(null)
   // The page on screen, and the one a programmatic scroll is heading to.
   const shown = useRef(page)
   const target = useRef<number | null>(null)

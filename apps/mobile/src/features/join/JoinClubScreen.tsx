@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ScrollViewInstance,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -54,7 +55,7 @@ export function JoinClubScreen({ navigation, route }: Props) {
   const styles = useThemedStyles(makeStyles)
   const { workspaces, refresh, actingAs } = useAuth()
   const { showToast } = useToast()
-  const scrollRef = useRef<ScrollView>(null)
+  const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
 
   const [me, setMe] = useState<Me | null>(null)

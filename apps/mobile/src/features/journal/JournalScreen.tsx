@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ScrollViewInstance,
 } from "react-native"
 import { showAlert } from "../../shared/alert"
 import { Pressable } from "../../shared/components/Pressable"
@@ -40,7 +41,7 @@ const fmtDate = (ymd: string): string =>
 export function JournalScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const scrollRef = useRef<ScrollView>(null)
+  const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const { workspace } = useAuth()
 

@@ -135,7 +135,7 @@ export function NotificationsScreen({ navigation }: Props) {
         contentContainerStyle={
           items.length === 0 ? styles.emptyContent : styles.listContent
         }
-        ListHeaderComponent={stale && data ? <OfflineNotice /> : null}
+        ListHeaderComponent={stale && data ? <OfflineNotice /> : undefined}
         ListEmptyComponent={
           <View style={styles.empty}>
             {error ? (

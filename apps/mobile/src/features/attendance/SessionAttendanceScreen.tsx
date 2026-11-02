@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ScrollViewInstance,
 } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
@@ -72,7 +73,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
   const title = "title" in params ? params.title : undefined
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const scrollRef = useRef<ScrollView>(null)
+  const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const { workspace } = useAuth()
 

@@ -7,6 +7,7 @@ import {
   Switch,
   Text,
   View,
+  type ScrollViewInstance,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -109,7 +110,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
   const { showToast } = useToast()
-  const scrollRef = useRef<ScrollView>(null)
+  const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
 
   const [data, setData] = useState<MemberSubscriptions | null>(null)

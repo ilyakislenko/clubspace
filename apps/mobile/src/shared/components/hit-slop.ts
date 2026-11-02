@@ -59,18 +59,19 @@ export const webHitSlopStyle = (
   if (!slop) return null
 
   const style = resolvedStyle ?? {}
-  const out: ViewStyle = {}
-  if (!hasVerticalPadding(style)) {
-    out.paddingTop = slop.top
-    out.paddingBottom = slop.bottom
-    out.marginTop = -slop.top
-    out.marginBottom = -slop.bottom
-  }
-  if (!hasHorizontalPadding(style)) {
-    out.paddingLeft = slop.left
-    out.paddingRight = slop.right
-    out.marginLeft = -slop.left
-    out.marginRight = -slop.right
+  const out: ViewStyle = {
+    ...(!hasVerticalPadding(style) && {
+      paddingTop: slop.top,
+      paddingBottom: slop.bottom,
+      marginTop: -slop.top,
+      marginBottom: -slop.bottom,
+    }),
+    ...(!hasHorizontalPadding(style) && {
+      paddingLeft: slop.left,
+      paddingRight: slop.right,
+      marginLeft: -slop.left,
+      marginRight: -slop.right,
+    }),
   }
   return Object.keys(out).length > 0 ? out : null
 }

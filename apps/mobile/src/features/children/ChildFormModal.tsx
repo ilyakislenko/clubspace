@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type TextInputInstance,
 } from "react-native"
 
 import {
@@ -51,9 +52,9 @@ export function ChildFormModal({
   const [consent, setConsent] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const firstnameRef = useRef<React.ElementRef<typeof TextInput>>(null)
-  const lastnameRef = useRef<React.ElementRef<typeof TextInput>>(null)
-  const birthRef = useRef<React.ElementRef<typeof TextInput>>(null)
+  const firstnameRef = useRef<TextInputInstance>(null)
+  const lastnameRef = useRef<TextInputInstance>(null)
+  const birthRef = useRef<TextInputInstance>(null)
 
   // See EditNameModal: autoFocus inside a Modal doesn't open the Android
   // keyboard, focusing once the modal has settled does.

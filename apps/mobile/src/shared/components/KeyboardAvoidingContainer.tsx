@@ -5,6 +5,7 @@ import {
   View,
   type StyleProp,
   type ViewStyle,
+  type ViewInstance,
 } from "react-native"
 
 // Keeps a screen's content above the on-screen keyboard. Use this instead of
@@ -31,7 +32,7 @@ export function KeyboardAvoidingContainer({
   children: ReactNode
   style?: StyleProp<ViewStyle>
 }) {
-  const ref = useRef<View>(null)
+  const ref = useRef<ViewInstance>(null)
   const [pageY, setPageY] = useState(0)
 
   // pageY, not measureInWindow: the keyboard's screenY counts from the top of

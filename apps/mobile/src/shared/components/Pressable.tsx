@@ -6,6 +6,7 @@ import {
   type StyleProp,
   type View,
   type ViewStyle,
+  type ViewInstance,
 } from "react-native"
 
 import { isWeb } from "../platform"
@@ -46,7 +47,7 @@ type WebPressableState = {
 // pressables `cursor: pointer`; this adds the feedback that goes with it.
 const HOVER_OPACITY = 0.86
 
-export const Pressable = forwardRef<View, AppPressableProps>(
+export const Pressable = forwardRef<ViewInstance, AppPressableProps>(
   function AppPressable({ accessibilityRole, style, ...rest }, ref) {
     const role =
       accessibilityRole ?? (rest.onPress || rest.onLongPress ? "button" : undefined)

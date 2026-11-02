@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type TextInputInstance,
 } from "react-native"
 
 import { updateMe, type Me } from "../../shared/api/me"
@@ -32,8 +33,8 @@ export function EditNameModal({
   const [lastname, setLastname] = useState(me.lastname ?? "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const firstnameRef = useRef<React.ElementRef<typeof TextInput>>(null)
-  const lastnameRef = useRef<React.ElementRef<typeof TextInput>>(null)
+  const firstnameRef = useRef<TextInputInstance>(null)
+  const lastnameRef = useRef<TextInputInstance>(null)
 
   // `autoFocus` inside a Modal places the caret but doesn't open the Android
   // keyboard — the window isn't focused yet — so the first field needed a

@@ -7,6 +7,7 @@ import {
   type RefreshControlProps,
   type StyleProp,
   type ViewStyle,
+  type ViewInstance,
 } from "react-native"
 
 import { useTheme } from "../theme-context"
@@ -43,7 +44,7 @@ export function RefreshControl({
   style?: StyleProp<ViewStyle>
 }) {
   const theme = useTheme()
-  const containerRef = useRef<View>(null)
+  const containerRef = useRef<ViewInstance>(null)
   const [pull, setPull] = useState(0)
   // Mirrored in a ref so touchend can read the distance without inspecting it
   // from inside a state updater — React runs those during render, and calling

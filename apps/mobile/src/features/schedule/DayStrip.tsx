@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react"
-import { ScrollView, StyleSheet, Text, View } from "react-native"
+import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from "react-native"
 
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
@@ -29,7 +29,7 @@ export function DayStrip({
   busyDays: ReadonlySet<string>
 }) {
   const styles = useThemedStyles(makeStyles)
-  const scrollRef = useRef<ScrollView>(null)
+  const scrollRef = useRef<ScrollViewInstance>(null)
 
   // Keep the picked day in view (a «Сегодня» tap or a ‹ › step moves it).
   useEffect(() => {

@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ScrollViewInstance,
 } from "react-native"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -67,7 +68,7 @@ export function MySubscriptionScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace, actingAs } = useAuth()
-  const scrollRef = useRef<ScrollView>(null)
+  const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
 
   const {
