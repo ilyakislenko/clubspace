@@ -37,7 +37,7 @@ export type RevenueBucket = {
 }
 
 export const CLUB_WIDE_KEY = 'club'
-export const CLUB_WIDE_LABEL = 'Весь клуб (абонементы без направления)'
+export const CLUB_WIDE_LABEL = 'Весь клуб (продажи без направления)'
 
 // Sales grouped by club-local month (every month of the window, oldest
 // first), by tariff or by direction (highest revenue first). A sale covering
