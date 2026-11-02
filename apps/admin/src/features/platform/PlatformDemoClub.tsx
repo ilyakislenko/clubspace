@@ -15,7 +15,7 @@ import { formatShortDate } from "../billing/billing-view"
 
 const ABOUT: Record<PlatformDemoClubId, string> = {
   academy: "«ACADEMY» — клуб единоборств (Томск + Северск)",
-  ritm: "«Ритм» — танцевальная студия: занятия, педагоги, мастер-классы с записью",
+  ritm: "«Ритм» — танцевальная студия: направления, дети с родителями, мастер-классы с записью",
 }
 
 // One in-person demo club (docs/demo.md): who to sign in as on the Mac and the
