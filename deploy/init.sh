@@ -173,7 +173,7 @@ else
     PUBLIC_IP="$(curl -fsS --max-time 10 https://api.ipify.org || true)"
     [ -n "$PUBLIC_IP" ] || fail "Не удалось узнать внешний IP — проверь интернет на хосте"
     note "внешний IP: $PUBLIC_IP"
-    for sub in api admin app s3; do
+    for sub in api admin app pwa s3; do
         host="$sub.$DOMAIN"
         resolved="$(getent hosts "$host" | awk '{print $1}' | head -1 || true)"
         [ -n "$resolved" ] || fail "$host не резолвится. Создай A-запись → $PUBLIC_IP и подожди пропагации."
@@ -317,6 +317,7 @@ if [ "$MODE" = "proxy" ]; then
   │  api.$DOMAIN$PUBLIC_PORT_SUFFIX     ->  http://clubspace-api:3000
   │  admin.$DOMAIN$PUBLIC_PORT_SUFFIX   ->  http://clubspace-admin:3000
   │  app.$DOMAIN$PUBLIC_PORT_SUFFIX     ->  http://clubspace-app:3000
+  │  pwa.$DOMAIN$PUBLIC_PORT_SUFFIX     ->  http://clubspace-pwa:8080
   │  s3.$DOMAIN$PUBLIC_PORT_SUFFIX      ->  http://clubspace-s3:9000
   └──────────────────────────────────────────────────────────────┘
 
@@ -374,7 +375,8 @@ cat <<DONE
 
   ┌─ Стек поднят ────────────────────────────────────────────────┐
   │  Админка   https://admin.$PUBLIC_BASE
-  │  Ученикам  https://app.$PUBLIC_BASE
+  │  Ученикам  https://pwa.$PUBLIC_BASE   (приложение в браузере)
+  │  Сайт      https://app.$PUBLIC_BASE   (лендинг, /join, /legal)
   │  API       https://api.$PUBLIC_BASE   (/healthz · /readyz)
   └──────────────────────────────────────────────────────────────┘
 

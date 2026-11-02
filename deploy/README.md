@@ -1,56 +1,102 @@
 # ClubSpace — Production Deploy
 
 One-host Docker Compose deploy: the NestJS API, Postgres, Redis, MinIO object
-storage, the video worker, the admin panel and the student web app, all behind
-Caddy with automatic Let's Encrypt TLS. Sized for a home server or a small VPS.
+storage, the video worker, the admin panel, the public site and the member web
+app (PWA), all behind Caddy with automatic Let's Encrypt TLS. Sized for a home
+server or a small VPS.
 
 Read this top to bottom the first time. The steps are ordered so nothing is
 referenced before it exists.
 
-## Запуск с нуля за час (VDS Selectel / Timeweb)
+## Запуск с нуля за час (облачный сервер Selectel / Timeweb)
 
 Путь для одного арендованного сервера без DevOps-инженера. Всё ниже делает
 `deploy/bootstrap.sh`; руками — только то, что требует ваших аккаунтов (DNS,
 почта, S3, Telegram). Остальная часть документа (на английском) — справочник.
 
+Кит прогнан на чистой Ubuntu 24.04 (2 vCPU / 6 ГБ + swap 4 ГБ, ноябрь 2026):
+`bootstrap.sh` от первой команды до «Готово» — около 50 минут, почти всё —
+первая сборка пяти образов (server с video-worker ~35 мин, admin, client и pwa
+по ~3–5 мин). Обновление `update.sh` пересобирает всё и занимает ~20 минут.
+Стек в простое занимает ~0,9 ГБ RAM; пик сборки — ~5 ГБ вместе со swap, так
+что 8 ГБ хватает с запасом.
+
+### 0. Что купить и получить до деплоя (чек-лист)
+
+Соберите всё заранее — в день запуска останется только скопировать значения.
+
+- [ ] **Сервер:** облачный сервер Selectel, Ubuntu 24.04 LTS, 2 vCPU / 8 ГБ /
+      80 ГБ (меньше 8 ГБ не берите — сборка не поместится), публичный IPv4,
+      ваш SSH-ключ. → **IP сервера**.
+- [ ] **Домен** и доступ к его DNS (у регистратора или в DNS-хостинге
+      Selectel). Записи — поимённо, `<IP>` — адрес сервера:
+
+      | Имя | Тип | Значение | Когда |
+      |---|---|---|---|
+      | `api` | A | `<IP>` | до запуска |
+      | `admin` | A | `<IP>` | до запуска |
+      | `app` | A | `<IP>` | до запуска |
+      | `pwa` | A | `<IP>` | до запуска |
+      | `s3` | A | `<IP>` | до запуска |
+      | `@` (сам домен) | TXT | ключ владения доменом от почтового сервиса | шаг 3 |
+      | `selcloud._domainkey` (или селектор вашего сервиса) | TXT | DKIM от почтового сервиса | шаг 3 |
+      | `@` | TXT | SPF: `v=spf1 include:spf.mail.selcloud.ru ~all` (для Selectel) | шаг 3 |
+      | `_dmarc` | TXT | `v=DMARC1; p=none; rua=mailto:<ваш ящик>` | шаг 3 |
+
+- [ ] **Почта для кодов входа:** SMTP-логин и пароль сервиса, который
+      доступен с Selectel (шаг 3) → **строка `--smtp-url`**.
+- [ ] **S3 для бэкапов** (шаг 4): бакет, сервисный пользователь, его S3-ключ
+      (Access Key + Secret Key), эндпоинт → **4 значения `BACKUP_S3_*`**.
+- [ ] **Алерты** (шаг 5): токен Telegram-бота и chat id и/или e-mail.
+- [ ] **Ваш e-mail владельца платформы** (`--admin-email`): на него приходят
+      коды входа в консоль платформы — включите в ящике двухфакторную защиту.
+- [ ] **Ключ ИИ-чата** `AI_CHAT_API_KEY` (OpenRouter, ≈1 ₽ за вопрос на
+      модели по умолчанию; без ключа страница «ИИ-ассистент» пишет «не настроен»).
+- [ ] **Реквизиты продавца** `PLATFORM_SELLER_*` (ИП: название, ИНН, ОГРНИП,
+      адрес, банк, БИК, счёт) — без них оплата клубов картой выключена (шаг 8).
+- [ ] **Менеджер паролей**, куда ляжет `.env.production` после запуска.
+
+Задавать руками не нужно: секреты, пароли баз, ключ шифрования бэкапов и пару
+VAPID-ключей для уведомлений в браузере `bootstrap.sh` генерирует сам.
+
 ### Что понадобится и сколько стоит
 
 | Что | Где | ≈ в месяц |
 |---|---|---|
-| VDS 4 vCPU / 8 ГБ / 80 ГБ NVMe, Ubuntu 24.04 | Selectel «VDS 4-8-80» или Timeweb Cloud «Cloud MSK 80» | 1 100–1 800 ₽ |
+| Сервер 2 vCPU / 8 ГБ / 80 ГБ, Ubuntu 24.04 | Selectel «Облачный сервер» (линейка VDS временно недоступна) или Timeweb Cloud «Cloud MSK 80» | ≈ 4 100–4 850 ₽ у Selectel (Shared Line 4×20% / 8 / 80 — дешевле, обычная 2 / 8 / 80 — дороже) |
 | S3 для бэкапов (дампы базы + зеркало видео, 20–60 ГБ) | Selectel S3 или Timeweb S3 (холодное/стандартное хранилище) | 50–200 ₽ |
-| Почта для кодов входа (транзакционный SMTP) | см. шаг 3 | 0–600 ₽ |
+| Почта для кодов входа (транзакционный SMTP) | почтовый сервис Selectel или другой, см. шаг 3 | 0–600 ₽ |
 | Домен `.ru` | любой регистратор | ~20–80 ₽ (200–900 ₽ в год) |
 | HTTPS-сертификаты, Telegram-алерты, мониторинг | Let's Encrypt, свой бот | 0 ₽ |
-| **Итого** | | **≈ 1 300–2 700 ₽** |
+| **Итого** | | **≈ 4 200–5 700 ₽** у Selectel |
 
-Цены — ориентир на ноябрь 2026 по публичным тарифам ([сравнение 4/8/80](https://hostmetrics.ru/vps/config/4-cpu-8-gb/),
-[Timeweb S3](https://timeweb.cloud/services/s3-storage)); перед покупкой
-проверьте, входит ли в тариф публичный IPv4 и сколько стоит исходящий трафик S3.
-Одной такой машины хватает на первые десятки клубов; видео — главный
-потребитель диска и канала (см. «Видео и диск» ниже).
+Цены — ориентир на ноябрь 2026 по публичным тарифам ([Timeweb S3](https://timeweb.cloud/services/s3-storage));
+перед покупкой проверьте, входит ли в тариф публичный IPv4 и сколько стоит
+исходящий трафик S3. Одной такой машины хватает на первые десятки клубов;
+видео — главный потребитель диска и канала (см. «Видео и диск» ниже).
 
 ### 1. Сервер
 
-- **Selectel:** Панель → Облачная платформа / VDS → создать сервер, образ
-  Ubuntu 24.04 LTS, 4 vCPU / 8 ГБ / 80 ГБ, публичный IPv4, добавьте свой
-  SSH-ключ. **Timeweb Cloud:** Облачные серверы → Создать, Ubuntu 24.04, регион
-  Москва, та же конфигурация, SSH-ключ.
+- **Selectel:** Панель → Продукты → Облачные серверы → Создать сервер, образ
+  Ubuntu 24.04 LTS, 2 vCPU / 8 ГБ / 80 ГБ (сетевой диск SSD/NVMe), публичный
+  IPv4, добавьте свой SSH-ключ. **Timeweb Cloud:** Облачные серверы → Создать,
+  Ubuntu 24.04, регион Москва, та же конфигурация, SSH-ключ.
 - Запишите IP. Проверьте вход: `ssh root@<IP>`.
 
 ### 2. DNS
 
-У регистратора домена (или в DNS-хостинге Selectel/Timeweb) создайте четыре
-A-записи на IP сервера, TTL 300–600:
+У регистратора домена (или в DNS-хостинге Selectel/Timeweb) создайте пять
+A-записей на IP сервера, TTL 300–600:
 
 | Имя | Тип | Значение | Зачем |
 |---|---|---|---|
 | `api` | A | `<IP>` | API для приложений и сайта |
 | `admin` | A | `<IP>` | админка клубов и консоль платформы |
 | `app` | A | `<IP>` | сайт: лендинг, страницы клубов, `/join`, `/legal` |
+| `pwa` | A | `<IP>` | приложение в браузере (PWA) для учеников, родителей и тренеров |
 | `s3` | A | `<IP>` | загрузка и просмотр видео (браузер ходит напрямую) |
 
-Проверка: `dig +short api.<домен>` (и для остальных трёх) показывает ваш IP.
+Проверка: `dig +short api.<домен>` (и для остальных четырёх) показывает ваш IP.
 Пока записи не разошлись, `bootstrap.sh` остановится на проверке DNS — так и
 задумано: иначе Caddy потратит лимит Let's Encrypt на неудачные попытки.
 
@@ -61,11 +107,32 @@ A-записи на IP сервера, TTL 300–600:
 адресе отправителя, а не отправка с самого сервера (письма с IP VDS почти
 гарантированно уйдут в спам, а 25-й порт провайдеры часто закрывают).
 
-- Подходят российские транзакционные сервисы (Unisender Go, Notisend,
-  SendPulse SMTP и т. п.) или почта для домена (Яндекс 360 для бизнеса, VK
-  WorkSpace) — у последних есть суточные лимиты на отправку, для старта
-  обычно хватает; условия и цены проверьте на сайте сервиса.
-- В сервисе подтвердите домен — он выдаст DNS-записи. Добавьте все три вида:
+**Selectel закрывает исходящие порты 25, 465 и 587** ко всем внешним адресам
+([документация](https://docs.selectel.ru/infrastructure/blocked-ports/)). Значит,
+сервис с подключением только на этих портах (например, Unisender Go) с
+сервера Selectel не работает. Варианты, от простого к сложному:
+
+1. **Почтовый сервис Selectel** (Продукты → Почтовый сервис) — рекомендуемый.
+   Создайте ресурс, добавьте домен и записи из его вкладки «Информация»: TXT
+   с ключом владения на сам домен, DKIM — TXT `selcloud._domainkey`, SPF —
+   `v=spf1 include:spf.mail.selcloud.ru ~all`, DMARC. Хост
+   `smtp.mail.selcloud.ru`, порт **1127** (TLS) или 1126 (STARTTLS), логин и
+   пароль — на той же вкладке:
+   `smtps://<логин>:<пароль>@smtp.mail.selcloud.ru:1127`.
+   Лимит по умолчанию — 20 писем за 5 минут на ресурс: на запуск хватит, но
+   если в начале тренировки код запросят 30 человек разом, часть подождёт —
+   заранее попросите поднять лимит тикетом.
+2. **Другой транзакционный сервис с портом 2525** (например, SendPulse:
+   `smtp://<логин>:<пароль>@smtp-pulse.com:2525`, шифрование включится через
+   STARTTLS). Проверьте в документации сервиса, что порт 2525 есть.
+3. **Разблокировка портов тикетом** в поддержку Selectel (типы и примеры
+   писем, домен, объём в неделю). Не гарантирована и невозможна для
+   VDS-линейки и для серверов с «прямым публичным IP».
+
+`bootstrap.sh` проверяет, что порт из `--smtp-url` открыт с сервера, до
+20-минутной сборки, и останавливается с подсказкой, если нет.
+
+- В любом сервисе подтвердите домен — он выдаст DNS-записи. Добавьте все три вида:
   - **SPF** — TXT на `@`: `v=spf1 include:<значение от сервиса> ~all`
     (одна SPF-запись на домен: если уже есть — допишите `include:` в неё);
   - **DKIM** — TXT (или CNAME) с именем вида `<селектор>._domainkey`, значение
@@ -73,24 +140,31 @@ A-записи на IP сервера, TTL 300–600:
   - **DMARC** — TXT на `_dmarc`: `v=DMARC1; p=none; rua=mailto:<ваш ящик>`;
     через пару недель без проблем в отчётах ужесточите до `p=quarantine`.
 - Отправитель — `noreply@<домен>` (по умолчанию). Строка подключения:
-  `smtps://<логин>:<пароль>@<smtp-хост>:465` (спецсимволы в пароле —
-  в URL-кодировке: `@` → `%40`, `:` → `%3A`, `/` → `%2F`, `#` → `%23`).
+  `smtps://` — шифрование сразу (порты 465, 1127), `smtp://` — STARTTLS
+  (587, 1126, 2525). Спецсимволы в пароле — в URL-кодировке: `@` → `%40`,
+  `:` → `%3A`, `/` → `%2F`, `#` → `%23`.
 - После запуска отправьте себе код входа и посмотрите заголовки письма в Gmail /
   Яндексе: `spf=pass`, `dkim=pass`, `dmarc=pass`.
 
 ### 4. S3 для бэкапов
 
-- **Selectel:** S3 → создать бакет `clubspace-backups` (приватный, класс
-  «холодное» подходит), затем сервисный пользователь с ролью на S3 и
-  S3-ключ для него. Эндпоинт для бакета в пуле ru-1:
-  `https://s3.ru-1.storage.selcloud.ru` (для другого пула — `s3.<пул>.storage.selcloud.ru`,
-  список в [документации](https://docs.selectel.ru/s3/manage/domains/)).
+- **Selectel:** Продукты → S3 → создать бакет `clubspace-backups` (приватный,
+  класс «холодное» подходит; тип адресации — Path-Style: бэкап обращается к
+  бакету по пути `https://s3.ru-1.storage.selcloud.ru/clubspace-backups/…`), затем
+  «Управление доступом» → сервисный пользователь с ролью на S3 и S3-ключ для
+  него (Access Key + Secret Key показываются один раз — сразу в менеджер
+  паролей). Эндпоинт для пула ru-1: `https://s3.ru-1.storage.selcloud.ru`,
+  регион — `ru-1` (бэкап определяет его сам, вписывать не нужно); для другого
+  пула — `s3.<пул>.storage.selcloud.ru`, список в
+  [документации](https://docs.selectel.ru/s3/manage/domains/).
 - **Timeweb Cloud:** S3-хранилище → создать бакет (приватный), ключи — на вкладке
   «Дашборд» бакета. Эндпоинт: `https://s3.twcstorage.ru`.
 - Если провайдер позволяет — включите версионирование бакета: тогда даже
   удаление файлов с самого сервера (взлом, ошибка) можно откатить.
 - Держите бэкапы у **другого** провайдера или хотя бы в другом проекте/регионе,
   чем сервер, — тогда блокировка аккаунта или авария в ДЦ не заберёт всё сразу.
+- Видео самого приложения хранятся не здесь, а в MinIO на диске сервера;
+  в этот бакет `backup-s3.sh` кладёт их зеркало.
 
 ### 5. Telegram-бот для алертов (2 минуты)
 
@@ -109,22 +183,33 @@ A-записи на IP сервера, TTL 300–600:
 ssh root@<IP>
 curl -fsSL https://raw.githubusercontent.com/ilyakislenko/clubspace/main/deploy/bootstrap.sh \
   | bash -s -- --domain <домен> --admin-email <ваш e-mail> \
-               --smtp-url 'smtps://<логин>:<пароль>@<smtp-хост>:465'
+               --smtp-url 'smtps://<логин>:<пароль>@smtp.mail.selcloud.ru:1127'
 ```
 
 Скрипт (повторный запуск безопасен — он только доделывает недостающее):
 ставит Docker, создаёт пользователя `clubspace`, включает firewall (открыты
 только SSH, 80, 443), fail2ban и автоматические обновления безопасности,
 добавляет swap 4 ГБ, клонирует код в `/opt/clubspace`, создаёт
-`.env.production` со случайными стойкими секретами, проверяет DNS, собирает и
-запускает стек (первая сборка — 15–30 минут) с Caddy, который сам получает и
-продлевает HTTPS-сертификаты для `api.`/`admin.`/`app.`/`s3.`, и ставит
-таймеры: ночной бэкап, проверку здоровья каждые 5 минут, ежемесячную проверку
-восстановления.
+`.env.production` со случайными стойкими секретами и VAPID-ключами,
+проверяет, что SMTP доступен, и DNS, собирает пять образов по одному (первая
+сборка на 2 vCPU — 40–60 минут, почти всё время — скачивание пакетов npm и
+Alpine; сбой сети на этом шаге скрипт повторяет сам, а если и повтор не
+удался — запустите ту же команду ещё раз, сборка продолжится с кеша) и
+запускает стек с Caddy, который сам получает и продлевает HTTPS-сертификаты
+для `api.`/`admin.`/`app.`/`pwa.`/`s3.`, и ставит таймеры: ночной бэкап,
+проверку здоровья каждые 5 минут, ежемесячную проверку восстановления.
 
 Если `docker pull` падает с ошибками доступа к Docker Hub — запустите ещё раз с
 `--registry-mirror <адрес зеркала>` (например, `https://mirror.gcr.io` или
 зеркало, которое даёт ваш провайдер).
+
+Хотите сначала прогнать всё «вхолостую», не тратя лимит Let's Encrypt
+(5 неудачных выпусков в час на имя)? Перед запуском создайте
+`/opt/clubspace/.env.production` с одной строкой
+`CADDY_GLOBAL_OPTIONS=acme_ca https://acme-staging-v02.api.letsencrypt.org/directory`:
+сертификаты будут тестовые (браузер ругается), остальное — как в бою. Потом
+очистите значение и выполните
+`docker compose -f docker-compose.prod.yml --env-file .env.production up -d caddy`.
 
 ### 7. Бэкапы и алерты
 
@@ -187,31 +272,40 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d media
    сгенерированный демо-клуб. Аккаунты, сценарий показа и офлайн-вариант —
    [docs/demo.md](../docs/demo.md). Закончили показы — верните `DEMO_MODE=false`:
    демо-сессии на телефонах закончатся сами.
+5. ИИ-ассистент в админке: впишите `AI_CHAT_API_KEY=<ключ OpenRouter>` в
+   `.env.production` (модель и лимиты вопросов — `AI_CHAT_MODEL`,
+   `AI_CHAT_MONTHLY_QUESTIONS`, `AI_CHAT_TRIAL_MONTHLY_QUESTIONS`, по умолчанию
+   `openai/gpt-4.1-mini`, 300 и 30) и перезапустите сервер
+   (`docker compose -f docker-compose.prod.yml --env-file .env.production up -d server`).
 
-### 9. Мобильное приложение и пуши
+### 9. Приложение: браузер (PWA), Android, iOS, пуши
 
-- Приложение одно для всех клубов; направьте его на ваш сервер:
+- **PWA уже работает** на `https://pwa.<домен>`: то же приложение, что на
+  телефонах, в браузере, ставится на экран «Домой». Эту ссылку (или QR клуба —
+  он ведёт на `app.<домен>/join/<код>` с кнопкой «Открыть в браузере») можно
+  раздавать ученикам, родителям и тренерам сразу, без магазинов.
+- **Уведомления в браузере (Web Push)** включены: `bootstrap.sh` один раз
+  сгенерировал пару VAPID-ключей (`WEB_PUSH_VAPID_PUBLIC_KEY`,
+  `WEB_PUSH_VAPID_PRIVATE_KEY`) и `WEB_PUSH_SUBJECT=mailto:<--admin-email>`.
+  Ключи не меняйте: новая пара отключает все подписки браузеров. Включаются
+  участником в «Настройки → Уведомления» или баннером на главной; на iPhone —
+  только из PWA, добавленной на экран «Домой» (iOS 16.4+). Серверу нужен
+  исходящий HTTPS к `fcm.googleapis.com`, `*.push.services.mozilla.com`,
+  `*.push.apple.com` — у Selectel он открыт (закрыты только почтовые порты),
+  проверка: `curl -sI https://fcm.googleapis.com | head -1` на сервере.
+- Приложение для Android/iOS одно для всех клубов; направьте его на ваш сервер:
   `./scripts/set-mobile-target.sh --domain <домен> --support-email <e-mail>`,
   затем сборка через EAS — см. *Your club, and the first students*.
-- **Пуши** не настраиваются в `.env.production`: сервер шлёт через Expo, а
-  Android-сборке нужен FCM-ключ (Firebase → `google-services.json`), загруженный в
-  EAS-проект; для iOS — APNs-ключ в EAS. Без них приложение работает, но
-  уведомления не приходят. Подробно — [docs/store-distribution.md](../docs/store-distribution.md).
-- **Уведомления в браузере (PWA)** — Web Push, настраиваются в `.env.production`:
-  сгенерируйте пару VAPID-ключей один раз
-  `node apps/server/scripts/generate-vapid-keys.mjs` и впишите
-  `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_SUBJECT`
-  (`mailto:` для связи с push-сервисами). Ключи не меняйте: новая пара отключает
-  все подписки браузеров. Без ключей PWA работает, но без уведомлений. Включаются
-  участником в «Настройки → Уведомления» или баннером на главной; на iPhone —
-  только из приложения, добавленного на экран «Домой» (iOS 16.4+). Сервер ходит
-  наружу на `fcm.googleapis.com`, `*.push.services.mozilla.com`,
-  `*.push.apple.com` (HTTPS).
+- **Пуши в приложении** не настраиваются в `.env.production`: сервер шлёт через
+  Expo, а Android-сборке нужен FCM-ключ (Firebase → `google-services.json`),
+  загруженный в EAS-проект; для iOS — APNs-ключ в EAS. Без них приложение
+  работает, но уведомления не приходят. Подробно — [docs/store-distribution.md](../docs/store-distribution.md).
 
 ### 10. Проверка «всё работает»
 
 - [ ] `https://admin.<домен>` открывается с замком, вход по коду работает
 - [ ] `curl -s https://api.<домен>/readyz` → `"status":"ok"`
+- [ ] `https://pwa.<домен>` открывается, вход по коду работает
 - [ ] тестовое сообщение пришло в Telegram/почту
 - [ ] `sudo ./deploy/restore.sh --list` показывает копию в `daily/`
 - [ ] загрузили видео в админке и посмотрели его с телефона
@@ -229,10 +323,12 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d media
 | Логи | `cd /opt/clubspace && docker compose -f docker-compose.prod.yml --env-file .env.production logs -f server` |
 | Перезагрузка после обновления ядра | если есть `/var/run/reboot-required` — `sudo reboot` в тихий час; стек поднимется сам |
 
-**Видео и диск.** Видео хранятся в MinIO на диске VDS. Из 80 ГБ под видео
-остаётся примерно 40–50 ГБ (система, образы Docker и база занимают остальное);
-алерт по диску сработает на 85 %. Когда видео станет больше — увеличьте диск
-у провайдера (без переустановки) или возьмите тариф крупнее.
+**Видео и диск.** Видео хранятся в MinIO на диске VDS. После установки занято
+~35 ГБ: система, образы (~7 ГБ) и кеш сборки Docker (~20–25 ГБ — он ускоряет
+обновления, `update.sh` чистит записи старше недели; освободить сразу:
+`docker builder prune -f`). Под видео на 80 ГБ остаётся ~40 ГБ; алерт по диску
+сработает на 85 %. Когда видео станет больше — увеличьте диск у провайдера
+(без переустановки) или возьмите тариф крупнее.
 
 **Безопасность входа на сервер.** Firewall и fail2ban включены. Когда вход по
 SSH-ключу проверен, отключите вход по паролю: `PasswordAuthentication no` в
@@ -255,19 +351,24 @@ SSH-ключу проверен, отключите вход по паролю: 
     (`ufw allow 80,443/tcp && ufw allow 443/udp`);
   - port 80 is not blocked upstream. Caddy proves domain ownership over HTTP-01
     on port 80; if the ISP blocks it, no certificate is ever issued.
-- **Four A-records, all pointing at this host, all resolving before first start:**
+- **Five A-records, all pointing at this host, all resolving before first start:**
 
   | Record | Serves | Why it cannot be skipped |
   |---|---|---|
   | `api.<domain>` | the NestJS API | every client call |
   | `admin.<domain>` | the admin panel | where you run the club |
-  | `app.<domain>` | the student web app | the browser alternative to the APK |
+  | `app.<domain>` | the public site: landing, `/join/<code>` links, legal pages | join links, privacy policy and account deletion the apps link to |
+  | `pwa.<domain>` | the member app in the browser (the Expo app exported as a PWA) | members without the APK; browser push notifications |
   | `s3.<domain>` | object storage | uploads and video segments go **directly** here on presigned URLs; the API never proxies them |
 
   Caddy requests a certificate per hostname at startup. A record that does not
   resolve yet means that one site stays down while the others work — and failed
   validations count against Let's Encrypt's rate limit, so premature starts are
-  not free. `deploy/init.sh` checks all four for you before touching Docker.
+  not free. `deploy/init.sh` checks all five for you before touching Docker.
+  On a rehearsal box with no public DNS, `CADDY_GLOBAL_OPTIONS=local_certs` in
+  `.env.production` makes Caddy issue from its own CA instead (and
+  `acme_ca https://acme-staging-v02.api.letsencrypt.org/directory` is a dry run
+  against Let's Encrypt staging that spends no production rate limit).
 - A working outbound SMTP relay — see *Email* below. Not optional.
 
 **A note on home uplink.** Students stream video from this box. A 720p viewer
@@ -285,6 +386,15 @@ Sending directly from a residential IP will land in spam, so use a relay
 (Resend, Postmark, Brevo, Yandex 360 — any of them). Set `SMTP_URL` and
 `SMTP_NO_REPLY_EMAIL`, and add SPF, DKIM and DMARC records for the domain,
 or Gmail will quietly bin the codes.
+
+**Selectel blocks outbound 25, 465 and 587** to every external address
+([docs](https://docs.selectel.ru/infrastructure/blocked-ports/)), and a ticket
+does not lift it for cloud servers with a direct public IP. Use a relay on
+another port: Selectel's own mail service (`smtp.mail.selcloud.ru`, 1127 TLS
+or 1126 STARTTLS, 20 messages per 5 minutes on the base plan) or SendPulse on
+2525. Relays that only listen on 25/465/587 (Unisender Go, most others) cannot
+be reached. `bootstrap.sh` opens a TCP connection to the `SMTP_URL` host and
+port before the long first build and stops with this hint when it fails.
 
 ## First-time bring-up
 
@@ -370,13 +480,14 @@ joins your proxy's Docker network — `shared-net` by default, override with
 `PROXY_NETWORK=<name>` — and publishes no host ports at all, so nothing of this
 stack is exposed on the LAN.
 
-Add four proxy hosts, all plain HTTP; your proxy terminates TLS:
+Add five proxy hosts, all plain HTTP; your proxy terminates TLS:
 
 | Hostname | Target |
 |---|---|
 | `api.<domain>` | `http://clubspace-api:3000` |
 | `admin.<domain>` | `http://clubspace-admin:3000` |
 | `app.<domain>` | `http://clubspace-app:3000` |
+| `pwa.<domain>` | `http://clubspace-pwa:8080` |
 | `s3.<domain>` | `http://clubspace-s3:9000` |
 
 **On the `s3.` host, lift the upload limit and pass on only what browsers
@@ -567,7 +678,7 @@ sudo ./deploy/update.sh            # or --ref <tag>; --help for the rest
 ```
 
 It fast-forwards the checkout, adds settings the template gained to
-`.env.production` (never changing existing values), builds the four app images
+`.env.production` (never changing existing values), builds the five app images
 one at a time while the old containers keep serving, takes an encrypted backup
 to S3, runs the one-off data migrations from `apps/server/scripts/` **only when
 the database still has the shape they migrate from** (detected per script —
@@ -583,12 +694,12 @@ By hand, the equivalent is:
 ```bash
 git pull
 ./deploy/backup-now.sh        # fresh verified dump first; stops here if it fails
-docker compose -f docker-compose.prod.yml --env-file .env.production build server video-worker admin client
+docker compose -f docker-compose.prod.yml --env-file .env.production build server video-worker admin client pwa
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 docker image prune -f
 ```
 
-Rebuild all four app images together. The worker reads the same schema as the
+Rebuild all five app images together. The worker reads the same schema as the
 server, and the admin/client bundles speak the same API — an admin left on the
 old image is sending requests the new server was written for.
 
@@ -972,7 +1083,7 @@ the server container itself still answers), `/readyz` (database, Redis, SMTP),
 every compose service running and not unhealthy, disk usage of `/`, Docker's
 data dir and `BACKUP_DIR` (`ALERT_DISK_PERCENT`, 85), age of the last S3 backup
 (`ALERT_BACKUP_MAX_AGE_HOURS`, 30), the local backup failure markers, and the
-TLS certificates of all four names (`ALERT_CERT_MIN_DAYS`, 14). A failing check
+TLS certificates of all five names (`ALERT_CERT_MIN_DAYS`, 14). A failing check
 alerts once, again every `ALERT_REPEAT_HOURS` (6) while it stays down, and once
 more when it recovers. `sudo ./deploy/healthcheck.sh --test-alert` checks the
 channels. It runs on the box it watches, so it cannot report the box itself

@@ -1,0 +1,24 @@
+# Static server inside the `pwa` image (apps/mobile/Dockerfile). Plain HTTP on
+# the internal network only; the stack's Caddy (deploy/Caddyfile) terminates
+# TLS for pwa.<domain> and proxies here.
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	root * /srv
+	encode zstd gzip
+
+	# Hashed bundles never change under the same name. Everything else — the
+	# shell, the service worker, the manifest — is revalidated on every load,
+	# so a new deploy reaches members on their next visit.
+	@hashed path /_expo/static/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	@other not path /_expo/static/*
+	header @other Cache-Control "no-cache"
+
+	# Client-side routes (/join/<code>, /courses/…) are all the app shell.
+	try_files {path} /index.html
+	file_server
+}

@@ -42,7 +42,8 @@ RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 FROM node:22.23.4-alpine3.24 AS builder
 
 WORKDIR /workspace
-ENV NX_DAEMON=false
+# NX_NO_CLOUD: no Nx Cloud from a server build (see apps/admin/Dockerfile).
+ENV NX_DAEMON=false NX_NO_CLOUD=true
 
 RUN apk add --no-cache python3 make g++ libc6-compat
 

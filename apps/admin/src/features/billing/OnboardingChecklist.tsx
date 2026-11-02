@@ -15,7 +15,8 @@ const STEPS: Record<StepKey, { label: string; hint: string; path: string }> = {
   gym: {
     label: "Добавьте зал",
     hint: "Адрес, где проходят занятия",
-    path: "gyms",
+    // Halls are added on the groups page; /gyms has only per-hall pages.
+    path: "groups",
   },
   group: {
     label: "Создайте группу",

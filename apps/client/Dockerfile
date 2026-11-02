@@ -15,12 +15,15 @@ FROM node:22.23.4-alpine3.24 AS deps
 WORKDIR /workspace
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
+# The app's own manifest, so `npm ci` keeps the packages only it depends on.
+COPY apps/client/package.json apps/client/
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 # ─── builder ──────────────────────────────────────────────────────────────────
 FROM node:22.23.4-alpine3.24 AS builder
 WORKDIR /workspace
-ENV NX_DAEMON=false NEXT_TELEMETRY_DISABLED=1
+# NX_NO_CLOUD: no Nx Cloud from a server build (see apps/admin/Dockerfile).
+ENV NX_DAEMON=false NX_NO_CLOUD=true NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ARG NEXT_PUBLIC_SUPPORT_EMAIL
@@ -33,7 +36,8 @@ ARG NEXT_PUBLIC_CONSENT_VERSION
 ENV NEXT_PUBLIC_CONSENT_VERSION=${NEXT_PUBLIC_CONSENT_VERSION}
 COPY --from=deps /workspace/node_modules ./node_modules
 COPY . .
-RUN npx nx build @clubspace/client
+# api-client first, no Nx sync prompt — see apps/admin/Dockerfile.
+RUN npx nx build @clubspace/client --skip-sync
 
 # ─── runtime ──────────────────────────────────────────────────────────────────
 FROM node:22.23.4-alpine3.24 AS runtime
@@ -42,7 +46,8 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN apk add --no-cache tini wget
 
 COPY --from=builder /workspace/dist/apps/client/.next/standalone ./
-COPY --from=builder /workspace/dist/apps/client/.next/static ./apps/client/.next/static
+# Static assets into the distDir server.js reads (see apps/admin/Dockerfile).
+COPY --from=builder /workspace/dist/apps/client/.next/static ./dist/apps/client/.next/static
 COPY --from=builder /workspace/apps/client/public ./apps/client/public
 
 RUN chown -R node:node /app

@@ -29,6 +29,9 @@
       },
       "build": {
         "executor": "@nx/next:build",
+        "dependsOn": [
+          "^build"
+        ],
         "outputs": [
           "{options.outputPath}"
         ],
