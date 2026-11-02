@@ -7,6 +7,11 @@
 # All five A-records must point at this host *before* the container starts,
 # otherwise the ACME HTTP-01 challenge fails and Caddy burns Let's Encrypt
 # rate limit retrying.
+#
+# The file is bind-mounted, and a running Caddy keeps the version it started
+# with. deploy/update.sh restarts caddy when an update changes this file; after
+# an edit by hand: docker compose -f docker-compose.prod.yml --env-file
+# .env.production restart caddy
 {
 	# Global options
 	email {$ACME_EMAIL}
