@@ -214,6 +214,16 @@ export const demoUuid = (name: string): string => {
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`
 }
 
+// How a sale recorded at the reception was paid: card at the club's
+// terminal for about half, a transfer for a third, cash for the rest. Drawn
+// from the sale's id, not the generator's noise, so the rest of the club stays
+// as it is. Unpaid and free sales have no method («не указано» is only for
+// rows from before payment methods were recorded).
+export const demoPaymentMethod = (saleId: string): 'CASH' | 'TRANSFER' | 'CARD' => {
+    const r = parseInt(createHash('sha256').update(`clubspace-demo:pay:${saleId}`).digest('hex').slice(0, 8), 16) % 20
+    return r < 9 ? 'CARD' : r < 16 ? 'TRANSFER' : 'CASH'
+}
+
 // mulberry32 — tiny, fast and good enough for believable noise.
 const makeRng = (seed: number) => {
     let a = seed >>> 0
@@ -1496,6 +1506,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 currency: 'RUB',
                 isPaid: s.isPaid,
                 paidAt: s.isPaid ? s.soldAt : null,
+                paymentMethod: s.isPaid && s.tariff.price > 0 ? demoPaymentMethod(s.id) : null,
                 classesTotal: s.tariff.classes,
                 classesRemaining: s.remaining,
                 // Those who left keep the abonements with no member.
