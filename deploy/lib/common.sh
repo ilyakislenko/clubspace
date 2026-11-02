@@ -57,16 +57,18 @@ compose() { (cd "$CS_ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
 
 # build_service <service> — build one app image, retried once. A first build
 # downloads a few GB (base images, apk, npm), and a dropped connection on the
-# way is the usual failure; the retry resumes from the layer cache. The full
-# output goes to $CS_STATE_DIR/build-<service>.log, its tail to the terminal
-# when both attempts fail. One image at a time is the caller's job: two Next.js
+# way is the usual failure; the retry resumes from the layer cache. The output
+# of both attempts goes to $CS_STATE_DIR/build-<service>.log, its tail to the
+# terminal when both fail. One image at a time is the caller's job: two Next.js
 # builds side by side do not fit in 8 GB.
 build_service() {
     local svc="$1" log try
     state_dir
     log="$CS_STATE_DIR/build-$svc.log"
+    : > "$log"
     for try in 1 2; do
-        compose --progress plain build "$svc" > "$log" 2>&1 && return 0
+        printf '=== попытка %s, %s ===\n' "$try" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$log"
+        compose --progress plain build "$svc" >> "$log" 2>&1 && return 0
         warn "сборка $svc не удалась (попытка $try из 2), полный лог: $log"
     done
     tail -n 30 "$log" >&2

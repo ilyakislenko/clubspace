@@ -15,12 +15,15 @@ FROM node:22.23.4-alpine3.24 AS deps
 WORKDIR /workspace
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
+# The app's own manifest, so `npm ci` keeps the packages only it depends on.
+COPY apps/client/package.json apps/client/
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 # ─── builder ──────────────────────────────────────────────────────────────────
 FROM node:22.23.4-alpine3.24 AS builder
 WORKDIR /workspace
-ENV NX_DAEMON=false NEXT_TELEMETRY_DISABLED=1
+# NX_NO_CLOUD: no Nx Cloud from a server build (see apps/admin/Dockerfile).
+ENV NX_DAEMON=false NX_NO_CLOUD=true NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ARG NEXT_PUBLIC_SUPPORT_EMAIL

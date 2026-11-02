@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 # ─── builder ──────────────────────────────────────────────────────────────────
 FROM node:22.23.4-alpine3.24 AS builder
 WORKDIR /workspace
-ENV NX_DAEMON=false EXPO_NO_TELEMETRY=1 CI=1
+ENV NX_DAEMON=false NX_NO_CLOUD=true EXPO_NO_TELEMETRY=1 CI=1
 # The neutral ClubSpace app: no club baked in, members join by code or link.
 ENV EXPO_PUBLIC_BRAND=clubspace EXPO_PUBLIC_CLUB_PICKER=true
 ARG EXPO_PUBLIC_API_URL

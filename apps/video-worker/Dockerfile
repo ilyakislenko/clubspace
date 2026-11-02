@@ -20,6 +20,8 @@ COPY libs/api-client/package.json libs/api-client/
 COPY libs/prisma-client/package.json libs/prisma-client/
 RUN --mount=type=cache,target=/root/.npm npm ci
 
+# No Nx daemon or Nx Cloud inside a one-shot image build (see apps/admin/Dockerfile).
+ENV NX_DAEMON=false NX_NO_CLOUD=true
 COPY . .
 # prisma.config.ts eagerly resolves env('DATABASE_URL') when the config loads,
 # but `prisma generate` only reads the schema — it never connects to a DB. Give

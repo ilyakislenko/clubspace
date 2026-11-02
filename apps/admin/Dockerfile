@@ -15,12 +15,17 @@ FROM node:22.23.4-alpine3.24 AS deps
 WORKDIR /workspace
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
+# Without the app's own manifest `npm ci` prunes the packages only the admin
+# depends on (socket.io-client), and the build fails to resolve them.
+COPY apps/admin/package.json apps/admin/
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 # ─── builder ──────────────────────────────────────────────────────────────────
 FROM node:22.23.4-alpine3.24 AS builder
 WORKDIR /workspace
-ENV NX_DAEMON=false NEXT_TELEMETRY_DISABLED=1
+# NX_NO_CLOUD: nx.json carries the repo's Nx Cloud id; a server build must not
+# call out to it (no access token here — a 401 that buries the real error).
+ENV NX_DAEMON=false NX_NO_CLOUD=true NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY --from=deps /workspace/node_modules ./node_modules
