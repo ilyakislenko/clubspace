@@ -13574,6 +13574,7 @@
           },
           "timezone": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 64
           },
           "ownerAcceptedOffer": {
@@ -13786,6 +13787,7 @@
           },
           "timezone": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 64
           },
           "isActive": {

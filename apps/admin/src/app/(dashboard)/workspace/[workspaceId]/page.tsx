@@ -26,6 +26,10 @@ import { errorMessage } from "../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
 import { useThrottledCallback } from "../../../../shared/lib/throttle"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
+import {
+  featureOn,
+  useWorkspaceFeatures,
+} from "../../../../shared/lib/use-workspace-features"
 import { formatAmount } from "../../../../features/subscriptions/subscription-display"
 import { OnboardingChecklist } from "../../../../features/billing/OnboardingChecklist"
 
@@ -56,6 +60,12 @@ export default function WorkspaceOverviewPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
   const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
+  // Blocks of a section the club switched off (video at a fitness club,
+  // abonements, attendance) are not shown, as the menu hides them.
+  const features = useWorkspaceFeatures(workspaceId)
+  const showSubscriptions = featureOn(features, "subscription")
+  const showAttendance = featureOn(features, "attendance")
+  const showVideos = featureOn(features, "videos")
 
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
@@ -175,7 +185,7 @@ export default function WorkspaceOverviewPage() {
         </p>
       )}
 
-      {stats?.revenue && (
+      {stats?.revenue && showSubscriptions && (
         <section className="space-y-2">
           <h2 className="text-sm font-medium">Финансы</h2>
           {/* Money in 4 columns only from xl: below that a card is too narrow
@@ -237,7 +247,7 @@ export default function WorkspaceOverviewPage() {
             loading={loading}
             href={`/workspace/${workspaceId}/users`}
           />
-          {canAdmin && (
+          {canAdmin && showSubscriptions && (
             <StatCard
               label="К продлению"
               value={renewalsDue ?? undefined}
@@ -272,22 +282,26 @@ export default function WorkspaceOverviewPage() {
             tone="warn"
             href={`/workspace/${workspaceId}/users?filter=inactive`}
           />
-          <StatCard
-            label="Доступ истекает"
-            value={stats?.retention.expiringSoon}
-            subtitle="в ближайшие 14 дней"
-            loading={loading}
-            tone="warn"
-            href={`/workspace/${workspaceId}/users?filter=expiring`}
-          />
-          <StatCard
-            label="Доступ закончился"
-            value={stats?.retention.expiredAccess}
-            subtitle="требуют продления"
-            loading={loading}
-            tone="danger"
-            href={`/workspace/${workspaceId}/users?filter=expired`}
-          />
+          {showSubscriptions && (
+            <>
+              <StatCard
+                label="Доступ истекает"
+                value={stats?.retention.expiringSoon}
+                subtitle="в ближайшие 14 дней"
+                loading={loading}
+                tone="warn"
+                href={`/workspace/${workspaceId}/users?filter=expiring`}
+              />
+              <StatCard
+                label="Доступ закончился"
+                value={stats?.retention.expiredAccess}
+                subtitle="требуют продления"
+                loading={loading}
+                tone="danger"
+                href={`/workspace/${workspaceId}/users?filter=expired`}
+              />
+            </>
+          )}
         </div>
       </section>
 
@@ -300,12 +314,14 @@ export default function WorkspaceOverviewPage() {
               value={stats.today.sessions}
               loading={loading}
             />
-            <StatCard
-              label="Отметок сегодня"
-              value={stats.today.checkins}
-              subtitle="учеников отметилось"
-              loading={loading}
-            />
+            {showAttendance && (
+              <StatCard
+                label="Отметок сегодня"
+                value={stats.today.checkins}
+                subtitle="учеников отметилось"
+                loading={loading}
+              />
+            )}
             <StatCard
               label="Новые участники"
               value={stats.today.newMembers}
@@ -324,7 +340,7 @@ export default function WorkspaceOverviewPage() {
         </section>
       )}
 
-      <section className="space-y-2">
+      <section className="space-y-2" hidden={!showAttendance}>
         <h2 className="text-sm font-medium">Посещаемость</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <StatCard
@@ -435,7 +451,7 @@ export default function WorkspaceOverviewPage() {
         )}
       </section>
 
-      <section className="space-y-2">
+      <section className="space-y-2" hidden={!showVideos}>
         <h2 className="text-sm font-medium">Видео</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
@@ -504,7 +520,7 @@ export default function WorkspaceOverviewPage() {
         </section>
       )}
 
-      <section className="space-y-2">
+      <section className="space-y-2" hidden={!showVideos}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium">Топ видео за неделю</h2>
           <Link

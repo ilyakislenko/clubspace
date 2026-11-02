@@ -2,7 +2,10 @@ import {
     ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
-import { UpdatePlatformWorkspaceFeature } from './update-platform-workspace.feature'
+import {
+    UpdatePlatformWorkspaceFeature,
+    UpdatePlatformWorkspaceInputSchema,
+} from './update-platform-workspace.feature'
 import { UpdatePlatformWorkspaceHandler } from './update-platform-workspace.handler'
 
 const UPDATED_ROW = {
@@ -138,6 +141,24 @@ describe('UpdatePlatformWorkspaceHandler', () => {
         expect(tx.workspace.update.mock.calls[0][0].data).toEqual({
             isActive: false,
         })
+    })
+
+    it('changes only the type, leaving the feature switches as they are', async () => {
+        const { handler, tx } = build()
+        await run(handler, { type: 'YOGA' })
+        expect(tx.workspace.update.mock.calls[0][0].data).toEqual({
+            type: 'YOGA',
+        })
+    })
+
+    it('accepts an IANA zone and refuses a typo', () => {
+        expect(
+            UpdatePlatformWorkspaceInputSchema.parse({ timezone: ' Asia/Tomsk ' }),
+        ).toEqual({ timezone: 'Asia/Tomsk' })
+        expect(
+            UpdatePlatformWorkspaceInputSchema.safeParse({ timezone: 'Asia/Tomks' })
+                .success,
+        ).toBe(false)
     })
 
     it('transfers ownership to an existing account', async () => {

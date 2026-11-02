@@ -198,6 +198,9 @@ type RunContext = {
     importId: string
     mode: ClubImportMode
     workspace: { id: string; name: string; ownerId: string; timezone: string }
+    // Ranks switched off for the club: the «Пояс / уровень» and «Полоски»
+    // columns are read past instead of creating ladders nobody sees.
+    ranksEnabled: boolean
     actorId: string
     roleId: string
     createMissing: boolean
@@ -335,9 +338,9 @@ export class ClubImportEngine {
         rowCount: number,
         now: Date,
     ): Promise<RunContext> {
-        const workspace = await this.prisma.workspace.findUniqueOrThrow({
+        const { ranksEnabled, ...workspace } = await this.prisma.workspace.findUniqueOrThrow({
             where: { id: job.workspaceId },
-            select: { id: true, name: true, ownerId: true, timezone: true },
+            select: { id: true, name: true, ownerId: true, timezone: true, ranksEnabled: true },
         })
         const role = await this.prisma.role.findUniqueOrThrow({
             where: { name: 'user' },
@@ -398,6 +401,7 @@ export class ClubImportEngine {
             importId: job.id,
             mode,
             workspace,
+            ranksEnabled,
             actorId: job.createdById ?? workspace.ownerId,
             roleId: role.id,
             createMissing: job.createMissing,
@@ -428,7 +432,19 @@ export class ClubImportEngine {
         cells: string[],
         mapping: ClubImportMapping,
     ): Promise<ClubImportRowResult> {
-        const { record, errors, warnings } = readRecord(cells, mapping, ctx.now)
+        const rankColumns = ctx.ranksEnabled
+            ? []
+            : [mapping.rank, mapping.stripes].filter((i): i is number => i !== undefined)
+        const { record, errors, warnings } = readRecord(
+            cells,
+            rankColumns.length > 0 ? { ...mapping, rank: undefined, stripes: undefined } : mapping,
+            ctx.now,
+        )
+        if (rankColumns.some((i) => cells[i]?.trim())) {
+            warnings.push(
+                'Пояс / уровень не перенесён: ранги в клубе выключены (включите их в настройках клуба и повторите импорт)',
+            )
+        }
         const result: ClubImportRowResult = {
             line,
             name: fullName(record.firstname, record.lastname) || record.email || '—',

@@ -36,6 +36,13 @@ describe('suggestMapping', () => {
         ).toEqual({ firstname: 0, lastname: 1, email: 2, parentPhone: 3, rank: 4, notes: 5 })
     })
 
+    it.each(['Пояс', 'Уровень', 'Ранг', 'Грейд', 'Пояс / уровень', 'Level', 'Уровень подготовки'])(
+        'takes «%s» for the rank column',
+        (header) => {
+            expect(suggestMapping(['ФИО', header, 'Полоски'])).toEqual({ fullName: 0, rank: 1, stripes: 2 })
+        },
+    )
+
     // A parent's phone or name column must not be taken for the parent's
     // e-mail (every child row would fail as «не похоже на e-mail»).
     it('tells the parent e-mail, name and phone columns apart', () => {

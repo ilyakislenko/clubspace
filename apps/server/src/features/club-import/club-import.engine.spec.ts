@@ -15,7 +15,7 @@ type User = { id: string; email: string | null; status: string; firstname: strin
 
 // An in-memory stand-in for the slice of Prisma the engine touches: a club
 // with one gym, БЖЖ, the group «Взрослые», a 12-class tariff and a ladder.
-const makeWorld = (opts: { rows: Row[]; createMissing?: boolean; overwrite?: boolean; users?: User[]; members?: Record<string, unknown>[] }) => {
+const makeWorld = (opts: { rows: Row[]; createMissing?: boolean; overwrite?: boolean; ranksEnabled?: boolean; users?: User[]; members?: Record<string, unknown>[] }) => {
     let seq = 0
     const id = (p: string) => `${p}-${++seq}`
     const users: User[] = [...(opts.users ?? [])]
@@ -40,7 +40,7 @@ const makeWorld = (opts: { rows: Row[]; createMissing?: boolean; overwrite?: boo
             update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => Object.assign(saved, data)),
         },
         workspace: {
-            findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'w1', name: 'Клуб', ownerId: 'owner', timezone: 'Europe/Moscow' }),
+            findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'w1', name: 'Клуб', ownerId: 'owner', timezone: 'Europe/Moscow', ranksEnabled: opts.ranksEnabled ?? true }),
             count: jest.fn().mockResolvedValue(0),
         },
         role: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'role-user' }) },
@@ -214,6 +214,21 @@ describe('ClubImportEngine', () => {
         for (const write of world.writes) expect(write).not.toHaveBeenCalled()
         expect(world.deps.invitations.invite).not.toHaveBeenCalled()
         expect(world.deps.audit.record).not.toHaveBeenCalled()
+    })
+
+    it('reads past the rank columns, with a warning, when the club has ranks switched off', async () => {
+        const world = makeWorld({ ranksEnabled: false, createMissing: true, rows: [{ ...ivan, rank: 'Жёлтый', stripes: 'много' }, { ...ivan, email: 'b@example.com', phone: '', name: 'Без Пояса', rank: '', stripes: '' }] })
+        const { summary, results } = await world.run('apply')
+
+        expect(results.map((r) => r.action)).toEqual(['create', 'create'])
+        expect(summary).toMatchObject({ ranks: 0, createdRanks: 0 })
+        expect(results[0].changes.some((c) => c.startsWith('пояс'))).toBe(false)
+        expect(results[0].messages).toContain(
+            'Пояс / уровень не перенесён: ранги в клубе выключены (включите их в настройках клуба и повторите импорт)',
+        )
+        expect(results[1].messages.some((m) => m.startsWith('Пояс'))).toBe(false)
+        expect(world.prisma.rankLadder.create).not.toHaveBeenCalled()
+        expect(world.prisma.rankLevel.create).not.toHaveBeenCalled()
     })
 
     it('applies: creates people, missing entities, abonements and ranks, and audits the counts', async () => {

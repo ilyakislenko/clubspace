@@ -37,7 +37,7 @@ export class GetWorkspaceOnboardingHandler
 
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: f.workspaceId },
-            select: { ownerId: true, videosEnabled: true },
+            select: { ownerId: true, videosEnabled: true, scheduleEnabled: true },
         })
         if (!workspace) {
             throw new NotFoundError({ message: 'Клуб не найден' })
@@ -83,11 +83,13 @@ export class GetWorkspaceOnboardingHandler
             members: member !== null,
             video: video !== null,
         }
-        // A club that switched the video section off (a fitness or yoga club
-        // starts without it) is not asked to upload a video.
-        const steps = ONBOARDING_STEP_KEYS.filter(
-            (key) => key !== 'video' || workspace.videosEnabled,
-        ).map((key) => ({
+        // A club that switched a section off (a fitness or yoga club starts
+        // without video) is not asked to fill it.
+        const off = new Set<string>([
+            ...(workspace.videosEnabled ? [] : ['video']),
+            ...(workspace.scheduleEnabled ? [] : ['schedule']),
+        ])
+        const steps = ONBOARDING_STEP_KEYS.filter((key) => !off.has(key)).map((key) => ({
             key,
             done: done[key],
         }))
