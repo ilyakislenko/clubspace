@@ -36,7 +36,8 @@ ARG NEXT_PUBLIC_CONSENT_VERSION
 ENV NEXT_PUBLIC_CONSENT_VERSION=${NEXT_PUBLIC_CONSENT_VERSION}
 COPY --from=deps /workspace/node_modules ./node_modules
 COPY . .
-RUN npx nx build @clubspace/client
+# api-client first, no Nx sync prompt — see apps/admin/Dockerfile.
+RUN npx nx build @clubspace/client --skip-sync
 
 # ─── runtime ──────────────────────────────────────────────────────────────────
 FROM node:22.23.4-alpine3.24 AS runtime

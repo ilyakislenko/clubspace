@@ -30,7 +30,11 @@ ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY --from=deps /workspace/node_modules ./node_modules
 COPY . .
-RUN npx nx build @clubspace/admin
+# The build first compiles libs/api-client (dependsOn ^build): the typecheck
+# needs its .d.ts, and a fresh checkout has none. --skip-sync: Nx's tsconfig
+# reference check covers unrelated projects and only fails here, where it
+# cannot prompt; a build never rewrites the sources.
+RUN npx nx build @clubspace/admin --skip-sync
 
 # ─── runtime ──────────────────────────────────────────────────────────────────
 FROM node:22.23.4-alpine3.24 AS runtime

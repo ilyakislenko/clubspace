@@ -408,5 +408,7 @@ jobs:
             npx prisma generate --schema=apps/server/prisma/schema.prisma
           fi
 
+      # admin/client build libs/api-client first (dependsOn ^build) — the same
+      # command as the Docker images, including --skip-sync (apps/admin/Dockerfile).
       - name: Build ${{ matrix.project }}
-        run: npx nx build @clubspace/${{ matrix.project }}
+        run: npx nx build @clubspace/${{ matrix.project }} --skip-sync
