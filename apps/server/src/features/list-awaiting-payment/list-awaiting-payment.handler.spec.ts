@@ -16,7 +16,7 @@ const row = (over: Record<string, unknown> = {}) => ({
     currency: 'RUB',
     startDate: new Date('2026-10-22T00:00:00Z'),
     createdAt: new Date('2026-10-21T10:00:00Z'),
-    plan: { name: '12 занятий' },
+    plan: { id: 'p1', name: '12 занятий' },
     workspaceMember: {
         userId: 'u1',
         user: {
@@ -105,6 +105,7 @@ describe('listAwaitingPayment', () => {
                     userId: 'u1',
                     memberName: 'Иван Петров',
                     memberPhone: '+79528849420',
+                    planId: 'p1',
                     planName: '12 занятий',
                     amount: 5000,
                     currency: 'RUB',
@@ -116,6 +117,7 @@ describe('listAwaitingPayment', () => {
                     userId: 'u2',
                     memberName: 'anon@x.ru',
                     memberPhone: null,
+                    planId: 'p1',
                     planName: '12 занятий',
                     amount: 5000,
                     currency: 'RUB',

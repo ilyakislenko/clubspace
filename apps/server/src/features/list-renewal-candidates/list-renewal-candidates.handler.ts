@@ -87,6 +87,7 @@ export class ListRenewalCandidatesHandler
                     accessUntil: m.accessUntil
                         ? m.accessUntil.toISOString()
                         : null,
+                    planId: sub?.plan.id ?? null,
                     planName: sub?.plan.name ?? null,
                     endDate: sub?.endDate ? sub.endDate.toISOString() : null,
                     directions: sub

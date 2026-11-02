@@ -53,7 +53,7 @@ export class ListAwaitingPaymentHandler
                     currency: true,
                     startDate: true,
                     createdAt: true,
-                    plan: { select: { name: true } },
+                    plan: { select: { id: true, name: true } },
                     workspaceMember: {
                         select: {
                             userId: true,
@@ -89,6 +89,7 @@ export class ListAwaitingPaymentHandler
                             m.user.email ||
                             'без имени',
                         memberPhone: m.user.phone,
+                        planId: s.plan.id,
                         planName: s.plan.name,
                         amount: s.amountPaid,
                         currency: s.currency,

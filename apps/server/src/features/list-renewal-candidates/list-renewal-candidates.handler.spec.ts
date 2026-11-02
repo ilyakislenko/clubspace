@@ -38,7 +38,7 @@ const abonement = (o: {
             : o.pending
               ? null
               : new Date(Date.now() + 30 * DAY),
-    plan: { name: o.planName ?? 'Абонемент' },
+    plan: { id: 'p1', name: o.planName ?? 'Абонемент' },
     directions: (o.directions ?? []).map((direction) => ({ direction })),
 });
 
@@ -206,6 +206,7 @@ describe('listRenewalCandidates', () => {
                 classesRemaining: 1,
                 classesTotal: 12,
                 accessUntil: end.toISOString(),
+                planId: 'p1',
                 planName: 'БЖЖ 12',
                 endDate: end.toISOString(),
                 directions: [BJJ],
