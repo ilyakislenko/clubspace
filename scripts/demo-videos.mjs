@@ -1,15 +1,16 @@
 #!/usr/bin/env node
-// Puts two short demo clips into the demo club's white-belt course, in place of
-// the «в обработке» placeholders the demo generator leaves there: renders them
-// with ffmpeg, uploads them through the API like the admin does, waits for the
+// Puts two short demo clips into a demo club's course, in place of the «в
+// обработке» placeholders the demo generator leaves there: renders them with
+// ffmpeg, uploads them through the API like the admin does, waits for the
 // video worker to transcode them and swaps them into the course.
 //
-//   npm run demo:videos
+//   npm run demo:videos            — ACADEMY, «БЖЖ: база белого пояса»
+//   npm run demo:videos -- ritm    — «Ритм», «High heels: связки для начинающих»
 //
 // Needs the API (ROOT_URL), MinIO and the video worker running, and
-// DEMO_LOGIN_CODE / DEMO_WORKSPACE_KEY in .env. «Сбросить демо» deletes the
-// clips with the rest of the club — run it again after a reset. Lessons that
-// already have their clip are skipped.
+// DEMO_LOGIN_CODE in .env. «Сбросить демо» deletes the clips with the rest of
+// the club — run it again after a reset. Lessons that already have their clip
+// are skipped.
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -21,13 +22,10 @@ if (existsSync('.env')) process.loadEnvFile('.env')
 
 const API = (process.env.ROOT_URL || 'http://localhost:3000').replace(/\/$/, '')
 const CODE = process.env.DEMO_LOGIN_CODE
-const WORKSPACE_KEY = process.env.DEMO_WORKSPACE_KEY || 'academy-demo'
-const OWNER_EMAIL = 'owner@academy.demo'
-const COURSE_SLUG = 'bjj-white-belt'
 const DURATION = 30
 const READY_TIMEOUT_MS = 5 * 60 * 1000
 
-const CLIPS = [
+const ACADEMY_CLIPS = [
     {
         lesson: 'Выход из маунта «мостом»',
         title: 'Выход из маунта «мостом»',
@@ -60,6 +58,43 @@ const CLIPS = [
     },
 ]
 
+const RITM_CLIPS = [
+    {
+        lesson: 'Связка № 1 — восьмёрки',
+        title: 'Связка № 1 — восьмёрки',
+        description: 'Восьмёрки бёдрами на каблуках: счёт, руки и выход в проходку. Повторяйте под музыку с занятия.',
+        subtitle: 'High heels: связки для начинающих · Связки',
+        steps: [
+            'Стопы на ширине бёдер, колени мягкие',
+            '«Раз-два» — восьмёрка бёдрами вправо',
+            '«Три-четыре» — восьмёрка влево',
+            'Руки ведут от плеча, взгляд в зеркало',
+            'Проходка на «пять-шесть-семь-восемь»',
+        ],
+        tone: [261.63, 392],
+    },
+    {
+        lesson: 'Связка № 2 — партер',
+        title: 'Связка № 2 — партер',
+        description: 'Связка в партере: спуск на колени, волна корпусом и подъём. Наколенники обязательны.',
+        subtitle: 'High heels: связки для начинающих · Связки',
+        steps: [
+            'Спуск на колени через присед — спина прямая',
+            'Волна корпусом от груди к бёдрам',
+            'Мах ногой и перекат на бедро',
+            'Подъём через колено на счёт «семь»',
+            'Финальная поза — и в проходку',
+        ],
+        tone: [293.66, 440],
+    },
+]
+
+// Which demo club (apps/server/src/domains/demo/demo-clubs.ts).
+const CLUBS = {
+    academy: { key: 'academy-demo', owner: 'owner@academy.demo', course: 'bjj-white-belt', brand: 'ACADEMY · Бразильское джиу-джитсу', clips: ACADEMY_CLIPS },
+    ritm: { key: 'ritm-demo', owner: 'owner@ritm.demo', course: 'heels-basics', brand: 'Студия танца «Ритм» · High heels', clips: RITM_CLIPS },
+}
+
 const FONTS = [
     ['/System/Library/Fonts/Supplemental/Arial.ttf', '/System/Library/Fonts/Supplemental/Arial Bold.ttf'],
     ['/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'],
@@ -72,6 +107,9 @@ const fail = (message) => {
 }
 
 if (!CODE) fail('В .env нет DEMO_LOGIN_CODE — демо-клуб не включён.')
+const club = CLUBS[process.argv[2] ?? 'academy']
+if (!club) fail(`Неизвестный демо-клуб «${process.argv[2]}» — ${Object.keys(CLUBS).join(' или ')}.`)
+const { key: WORKSPACE_KEY, owner: OWNER_EMAIL, course: COURSE_SLUG, clips: CLIPS } = club
 
 // ---- rendering --------------------------------------------------------------
 
@@ -95,7 +133,7 @@ const render = (clip, dir, index) => {
     const stepStart = 4
     const stepLen = (DURATION - stepStart) / clip.steps.length
     const filters = [
-        caption('brand', 'ACADEMY · Бразильское джиу-джитсу', { size: 26, color: '0x94a3b8', x: 64, y: 52 }),
+        caption('brand', club.brand, { size: 26, color: '0x94a3b8', x: 64, y: 52 }),
         'drawbox=x=64:y=96:w=72:h=4:color=0x38bdf8:t=fill',
         caption('title', clip.title, { bold: true, size: 60, color: 'white', y: 230, alpha: fade(0.2, DURATION + 1) }),
         caption('subtitle', clip.subtitle, { size: 28, color: '0x94a3b8', y: 320, alpha: fade(0.8, DURATION + 1) }),

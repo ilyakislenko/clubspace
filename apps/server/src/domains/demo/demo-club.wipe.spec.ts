@@ -1,3 +1,4 @@
+import { DEMO_CLUBS } from './demo-clubs'
 import { deleteDemoOnlyUsers, wipeDemoWorkspace } from './demo-club.wipe'
 
 const MODELS = [
@@ -59,14 +60,27 @@ describe('wipeDemoWorkspace', () => {
 describe('deleteDemoOnlyUsers', () => {
     it('deletes generated people with no club left, never an owner or a fixed account', async () => {
         const { tx } = buildTx()
-        await expect(deleteDemoOnlyUsers(tx as never)).resolves.toBe(1)
+        await expect(deleteDemoOnlyUsers(tx as never, DEMO_CLUBS.academy)).resolves.toBe(1)
         const where = tx.user.findMany.mock.calls[0][0].where
         expect(where.isDemo).toBe(true)
         expect(where.workspaceMemberships).toEqual({ none: {} })
-        expect(where.OR[1].email.notIn).toContain('owner@academy.demo')
+        // Fixed accounts of every demo club are kept.
+        expect(where.OR[1].email.notIn).toEqual(expect.arrayContaining(['owner@academy.demo', 'owner@ritm.demo']))
         expect(tx.user.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['u-1'] } } })
         // The kept accounts get their consent evidence and family links rebuilt.
         expect(tx.consentRecord.deleteMany).toHaveBeenCalledWith({ where: { userId: { in: ['acc-1'] } } })
         expect(tx.guardianship.deleteMany).toHaveBeenCalledWith({ where: { guardianId: { in: ['acc-1'] } } })
+    })
+
+    it('never reaches into the other demo club: its leavers and parents stay', async () => {
+        const { tx } = buildTx()
+        await deleteDemoOnlyUsers(tx as never, DEMO_CLUBS.ritm)
+        const where = tx.user.findMany.mock.calls[0][0].where
+        expect(where.subscriptions).toEqual({ none: {} })
+        expect(where.attendanceRecords).toEqual({ none: {} })
+        expect(where.guardianOf).toEqual({ none: { dependent: { workspaceMemberships: { some: {} } } } })
+        // Only the studio's own fixed accounts get their links rebuilt.
+        const accounts = tx.user.findMany.mock.calls[1][0].where.email.in
+        expect(accounts).toEqual(['owner@ritm.demo', 'pedagog@ritm.demo', 'student@ritm.demo', 'parent@ritm.demo'])
     })
 })

@@ -32,7 +32,7 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
         await this.setupEmailTemplates()
         await this.setupPlatformOwner()
 
-        // Demo club «ACADEMY» (docs/demo.md) — only when explicitly asked for.
+        // Demo clubs «ACADEMY» and «Ритм» (docs/demo.md) — only when explicitly asked for.
         // Clubs are created from the platform console; a deploy inventing one
         // is a leftover from when code was the only way to make a club.
         if (environment.seedDemoWorkspace) {

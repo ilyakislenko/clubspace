@@ -134,7 +134,8 @@ export type DemoClubPlan = {
     workspace: Prisma.WorkspaceCreateManyInput
     joinCode: string
     // Ids of the fixed accounts (kept across resets, so phones stay signed in).
-    accountUserIds: Record<DemoAccountKey, string>
+    // A club has only some of the roles (the studio has no admin account).
+    accountUserIds: Partial<Record<DemoAccountKey, string>>
     users: Prisma.UserCreateManyInput[]
     consents: Prisma.ConsentRecordCreateManyInput[]
     guardianships: Prisma.GuardianshipCreateManyInput[]
@@ -161,6 +162,8 @@ export type DemoClubPlan = {
     gradings: Prisma.RankGradingCreateManyInput[]
     gradingCandidates: Prisma.RankGradingCandidateCreateManyInput[]
     events: Prisma.WorkspaceEventCreateManyInput[]
+    // Places taken and the waitlist of a paid / limited event (a master class).
+    eventRegistrations: Prisma.EventRegistrationCreateManyInput[]
     subscriptions: Prisma.SubscriptionCreateManyInput[]
     subscriptionDirections: Prisma.SubscriptionDirectionCreateManyInput[]
     sessions: Prisma.AttendanceSessionCreateManyInput[]
@@ -334,6 +337,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         gradings: [],
         gradingCandidates: [],
         events: [],
+        eventRegistrations: [],
         subscriptions: [],
         subscriptionDirections: [],
         sessions: [],

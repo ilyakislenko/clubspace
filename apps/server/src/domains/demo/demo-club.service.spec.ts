@@ -49,13 +49,13 @@ describe('DemoClubService.reset', () => {
     it('refuses with demo mode off and touches nothing', async () => {
         environment.demo = { enabled: false }
         const { service, prisma } = build(null)
-        await expect(service.reset({ actorId: 'admin' })).rejects.toBeInstanceOf(ForbiddenError)
+        await expect(service.reset({ club: 'academy', actorId: 'admin' })).rejects.toBeInstanceOf(ForbiddenError)
         expect(prisma.$transaction).not.toHaveBeenCalled()
     })
 
     it('never wipes a real club holding the demo key', async () => {
         const { service } = build({ id: 'w-real', isDemo: false })
-        await expect(service.reset({ actorId: 'admin' })).rejects.toBeInstanceOf(BadRequestError)
+        await expect(service.reset({ club: 'academy', actorId: 'admin' })).rejects.toBeInstanceOf(BadRequestError)
         expect(wipeDemoWorkspace).not.toHaveBeenCalled()
         expect(writeDemoClubPlan).not.toHaveBeenCalled()
     })
@@ -63,9 +63,9 @@ describe('DemoClubService.reset', () => {
     it('wipes the demo club and its people, regenerates and audits', async () => {
         const { service, tx, audit, freezes, analytics } = build({ id: 'w-demo', isDemo: true })
         const now = new Date('2026-11-04T09:30:00.000Z')
-        const result = await service.reset({ actorId: 'admin', now })
+        const result = await service.reset({ club: 'academy', actorId: 'admin', now })
         expect(wipeDemoWorkspace).toHaveBeenCalledWith(tx, 'w-demo')
-        expect(deleteDemoOnlyUsers).toHaveBeenCalledWith(tx)
+        expect(deleteDemoOnlyUsers).toHaveBeenCalledWith(tx, expect.objectContaining({ id: 'academy' }))
         const [, plan, deps] = (writeDemoClubPlan as jest.Mock).mock.calls[0]
         expect(plan.workspace.key).toBe('academy-demo')
         expect(deps).toEqual({ freezes, now })
@@ -83,9 +83,23 @@ describe('DemoClubService.reset', () => {
 
     it('creates the demo club when there is none yet', async () => {
         const { service } = build(null)
-        await service.reset({ actorId: null })
+        await service.reset({ club: 'academy', actorId: null })
         expect(wipeDemoWorkspace).not.toHaveBeenCalled()
         expect(writeDemoClubPlan).toHaveBeenCalledTimes(1)
+    })
+
+    it('resets the studio at its own key, never the academy', async () => {
+        const { service, tx, audit } = build({ id: 'w-ritm', isDemo: true })
+        const result = await service.reset({ club: 'ritm', actorId: 'admin', now: new Date('2026-11-04T09:30:00.000Z') })
+        expect(tx.workspace.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { key: 'ritm-demo' } }))
+        expect(tx.workspace.findUnique).not.toHaveBeenCalledWith(expect.objectContaining({ where: { key: 'academy-demo' } }))
+        expect(wipeDemoWorkspace).toHaveBeenCalledTimes(1)
+        expect(wipeDemoWorkspace).toHaveBeenCalledWith(tx, 'w-ritm')
+        expect(deleteDemoOnlyUsers).toHaveBeenCalledWith(tx, expect.objectContaining({ id: 'ritm' }))
+        const [, plan] = (writeDemoClubPlan as jest.Mock).mock.calls[0]
+        expect(plan.workspace).toMatchObject({ key: 'ritm-demo', type: 'DANCE', isDemo: true })
+        expect(result.club).toBe('ritm')
+        expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ club: 'ritm' }) }))
     })
 })
 
@@ -95,21 +109,23 @@ describe('DemoClubService.ensureSeeded', () => {
         environment.demo = { enabled: false }
     })
 
-    it('leaves an existing demo club alone', async () => {
+    it('leaves existing demo clubs alone', async () => {
         const { service, prisma } = build({ id: 'w-demo', isDemo: true })
-        await expect(service.ensureSeeded()).resolves.toBe('present')
+        await expect(service.ensureSeeded()).resolves.toEqual({ academy: 'present', ritm: 'present' })
         expect(prisma.$transaction).not.toHaveBeenCalled()
     })
 
-    it('stays away from a real club holding the key', async () => {
+    it('stays away from a real club holding a demo key', async () => {
         const { service, prisma } = build({ id: 'w-real', isDemo: false })
-        await expect(service.ensureSeeded()).resolves.toBe('blocked')
+        await expect(service.ensureSeeded()).resolves.toEqual({ academy: 'blocked', ritm: 'blocked' })
         expect(prisma.$transaction).not.toHaveBeenCalled()
     })
 
-    it('generates the club when missing, without demo mode', async () => {
+    it('generates both clubs when missing, without demo mode', async () => {
         const { service } = build(null)
-        await expect(service.ensureSeeded()).resolves.toBe('created')
-        expect(writeDemoClubPlan).toHaveBeenCalledTimes(1)
+        await expect(service.ensureSeeded()).resolves.toEqual({ academy: 'created', ritm: 'created' })
+        expect(writeDemoClubPlan).toHaveBeenCalledTimes(2)
+        const keys = (writeDemoClubPlan as jest.Mock).mock.calls.map(([, plan]) => plan.workspace.key)
+        expect(keys).toEqual(['academy-demo', 'ritm-demo'])
     })
 })

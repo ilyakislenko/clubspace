@@ -1,5 +1,5 @@
 import type { PrismaTransactionClientType } from '../../infrastructure/prisma'
-import { DEMO_ACCOUNT_EMAILS } from './demo-accounts'
+import { DEMO_ACCOUNT_EMAILS, type DemoClubIdentity } from './demo-clubs'
 
 // Removes one demo club. Only ever called with the id of the club holding the
 // demo key AND flagged isDemo (DemoClubService checks both first).
@@ -31,16 +31,22 @@ export const wipeDemoWorkspace = async (
 // become a member or the owner of a real club is left alone (deleting it would
 // reach into that club); the fixed demo accounts are kept on purpose, so the
 // phones stay signed in across resets — only their consent evidence and
-// family links are rebuilt by the generator.
+// family links are rebuilt by the generator, and only for the club being
+// reset. People of the other demo club are never touched: whoever still has
+// an abonement or a visit (those who left it), or is the parent of someone
+// who is still a member somewhere, stays.
 export const deleteDemoOnlyUsers = async (
     tx: PrismaTransactionClientType,
+    club: DemoClubIdentity,
 ): Promise<number> => {
-    const accountEmails = [...DEMO_ACCOUNT_EMAILS]
     const candidates = await tx.user.findMany({
         where: {
             isDemo: true,
-            OR: [{ email: null }, { email: { notIn: accountEmails } }],
+            OR: [{ email: null }, { email: { notIn: [...DEMO_ACCOUNT_EMAILS] } }],
             workspaceMemberships: { none: {} },
+            subscriptions: { none: {} },
+            attendanceRecords: { none: {} },
+            guardianOf: { none: { dependent: { workspaceMemberships: { some: {} } } } },
         },
         select: { id: true },
     })
@@ -58,7 +64,7 @@ export const deleteDemoOnlyUsers = async (
     })
 
     const accounts = await tx.user.findMany({
-        where: { isDemo: true, email: { in: accountEmails } },
+        where: { isDemo: true, email: { in: club.accounts.map((a) => a.email) } },
         select: { id: true },
     })
     const accountIds = accounts.map((a) => a.id)

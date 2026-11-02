@@ -1279,7 +1279,21 @@
     "/platform/demo-club": {
       "get": {
         "operationId": "getPlatformDemoClub",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "club",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "academy",
+              "type": "string",
+              "enum": [
+                "academy",
+                "ritm"
+              ]
+            }
+          }
+        ],
         "responses": {
           "default": {
             "description": "",
@@ -1297,7 +1311,21 @@
     "/platform/demo-club/reset": {
       "post": {
         "operationId": "resetPlatformDemoClub",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "club",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "academy",
+              "type": "string",
+              "enum": [
+                "academy",
+                "ritm"
+              ]
+            }
+          }
+        ],
         "responses": {
           "default": {
             "description": "",
@@ -16792,6 +16820,16 @@
       "GetPlatformDemoClubOutput_Output": {
         "type": "object",
         "properties": {
+          "club": {
+            "type": "string",
+            "enum": [
+              "academy",
+              "ritm"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
           "enabled": {
             "type": "boolean"
           },
@@ -16867,6 +16905,8 @@
           }
         },
         "required": [
+          "club",
+          "name",
           "enabled",
           "workspaceKey",
           "loginCode",
@@ -16879,6 +16919,13 @@
       "ResetPlatformDemoClubOutput_Output": {
         "type": "object",
         "properties": {
+          "club": {
+            "type": "string",
+            "enum": [
+              "academy",
+              "ritm"
+            ]
+          },
           "workspaceId": {
             "type": "string",
             "format": "uuid",
@@ -16929,6 +16976,7 @@
           }
         },
         "required": [
+          "club",
           "workspaceId",
           "durationMs",
           "counts"

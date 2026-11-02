@@ -308,17 +308,21 @@ export const fetchPlatformDemoRequests = async (): Promise<{
 
 export type PlatformDemoClub = ApiTypes.GetPlatformDemoClubOutputOutput
 export type PlatformDemoClubReset = ApiTypes.ResetPlatformDemoClubOutputOutput
+export type PlatformDemoClubId = PlatformDemoClub["club"]
 
-// The in-person demo club (docs/demo.md): its accounts, the fixed code while
-// DEMO_MODE is on, and «Сбросить демо».
-export const fetchPlatformDemoClub = async (): Promise<PlatformDemoClub> =>
+// The in-person demo clubs (docs/demo.md: ACADEMY and the dance studio «Ритм»):
+// each one's accounts, the fixed code while DEMO_MODE is on, and «Сбросить
+// демо» of that club only.
+export const fetchPlatformDemoClub = async (club: PlatformDemoClubId): Promise<PlatformDemoClub> =>
   await getApiClient().request<PlatformDemoClub>({
     method: "get",
     url: "/platform/demo-club",
+    params: { club },
   })
 
-export const resetPlatformDemoClub = async (): Promise<PlatformDemoClubReset> =>
+export const resetPlatformDemoClub = async (club: PlatformDemoClubId): Promise<PlatformDemoClubReset> =>
   await getApiClient().request<PlatformDemoClubReset>({
     method: "post",
     url: "/platform/demo-club/reset",
+    params: { club },
   })

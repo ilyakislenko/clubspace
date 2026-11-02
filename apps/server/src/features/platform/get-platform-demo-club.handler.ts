@@ -1,12 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { findDemoWorkspace } from '../../domains/demo/demo-access'
-import {
-    DEMO_ACCOUNTS,
-    DEMO_CLUB_KEY,
-    DEMO_PARENT_CHILDREN,
-    demoAccount,
-} from '../../domains/demo/demo-accounts'
+import { DEMO_CLUBS } from '../../domains/demo/demo-clubs'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
@@ -26,45 +21,49 @@ export class GetPlatformDemoClubHandler
     async execute(f: GetPlatformDemoClubFeature): Promise<GetPlatformDemoClubFeatureResponse> {
         assertPlatformAdmin(f.isSuperAdmin)
 
+        const club = DEMO_CLUBS[f.club]
         const enabled = isDemoModeOn()
-        const workspace = await findDemoWorkspace(this.prisma)
-        const [joinCode, lastReset] = await Promise.all([
-            workspace
-                ? this.prisma.workspaceJoinCode.findUnique({
+        const workspace = await findDemoWorkspace(this.prisma, club.id)
+        // The demo club keeps its id across resets: its own last reset.
+        const [joinCode, lastReset] = workspace
+            ? await Promise.all([
+                  this.prisma.workspaceJoinCode.findUnique({
                       where: { workspaceId: workspace.id },
                       select: { code: true },
-                  })
-                : null,
-            this.prisma.auditEvent.findFirst({
-                where: { action: 'workspace.demoReset' },
-                orderBy: { createdAt: 'desc' },
-                select: { createdAt: true },
-            }),
-        ])
-        const parent = demoAccount('parent')
+                  }),
+                  this.prisma.auditEvent.findFirst({
+                      where: { action: 'workspace.demoReset', targetId: workspace.id },
+                      orderBy: { createdAt: 'desc' },
+                      select: { createdAt: true },
+                  }),
+              ])
+            : [null, null]
+        const parent = club.accounts.find((a) => a.key === 'parent')
 
         return {
+            club: club.id,
+            name: club.name,
             enabled,
-            workspaceKey: DEMO_CLUB_KEY,
+            workspaceKey: club.key,
             loginCode: enabled ? (environment.demo.code?.trim() ?? null) : null,
             workspace: workspace
                 ? { id: workspace.id, name: workspace.name, joinCode: joinCode?.code ?? null }
                 : null,
             lastResetAt: lastReset?.createdAt.toISOString() ?? null,
             accounts: [
-                ...DEMO_ACCOUNTS.map((a) => ({
+                ...club.accounts.map((a) => ({
                     email: a.email,
-                    name: `${a.firstname} ${a.lastname}`,
+                    name: a.firstname ? `${a.firstname} ${a.lastname}` : a.lastname,
                     roleLabel: a.roleLabel,
                     summary: a.summary,
                     via: null,
                 })),
-                ...DEMO_PARENT_CHILDREN.map((c) => ({
+                ...club.children.map((c) => ({
                     email: null,
                     name: `${c.firstname} ${c.lastname}`,
                     roleLabel: 'Ребёнок',
-                    summary: 'Расписание, посещения, пояс и абонемент ребёнка — у родителя в приложении',
-                    via: parent.email,
+                    summary: club.childSummary,
+                    via: parent?.email ?? null,
                 })),
             ],
         }
