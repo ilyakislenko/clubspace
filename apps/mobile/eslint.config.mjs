@@ -54,6 +54,11 @@ export default [
               message:
                 "Import RefreshControl from 'shared/components/RefreshControl' — react-native-web's drops every prop it's given (onRefresh included), so pull-to-refresh does nothing in a browser.",
             },
+            {
+              name: '@expo/vector-icons/Ionicons',
+              message:
+                "Use Icon from 'shared/components/Icon' — a bare icon-font glyph ends up in the spoken label of the row around it (VoiceOver: «, Настройки»).",
+            },
           ],
         },
       ],
@@ -69,6 +74,7 @@ export default [
       '**/shared/components/Pressable.tsx',
       '**/shared/components/RefreshControl.tsx',
       '**/shared/components/TextInput.tsx',
+      '**/shared/components/Icon.tsx',
     ],
     rules: { 'no-restricted-imports': 'off' },
   },

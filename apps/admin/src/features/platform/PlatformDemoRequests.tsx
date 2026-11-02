@@ -7,6 +7,7 @@ import {
   type PlatformDemoRequest,
 } from "../../shared/api/platform"
 import { errorMessage } from "../../shared/lib/error-message"
+import { formatPhone } from "../../shared/lib/phone"
 import { formatShortDate } from "../billing/billing-view"
 
 const PREVIEW = 5
@@ -90,10 +91,10 @@ export function PlatformDemoRequests() {
                         target={href.startsWith("http") ? "_blank" : undefined}
                         rel="noreferrer"
                       >
-                        {r.contact}
+                        {formatPhone(r.contact)}
                       </a>
                     ) : (
-                      r.contact
+                      formatPhone(r.contact)
                     )}
                   </div>
                   {r.comment && <p className="whitespace-pre-line">{r.comment}</p>}

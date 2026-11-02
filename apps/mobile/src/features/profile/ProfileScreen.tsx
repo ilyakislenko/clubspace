@@ -1,4 +1,3 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import React, { useCallback, useState } from "react"
 import {
   ActivityIndicator,
@@ -14,6 +13,7 @@ import {
 } from "../../app/nav-sections"
 import { NavRowList } from "../../app/NavRowList"
 import { NavTileGrid } from "../../app/NavTileGrid"
+import { Icon } from "../../shared/components/Icon"
 import { AddClubRow, ClubRow } from "../clubs/ClubRow"
 import { sortClubs } from "../clubs/club-switcher-helpers"
 import { Chevron } from "../../shared/components/Chevron"
@@ -149,7 +149,9 @@ export function ProfileScreen({ navigation }: Props) {
                 onPress={() => setEditingName(true)}
                 disabled={!canEditName}
                 accessibilityRole={canEditName ? "button" : "text"}
-                accessibilityLabel={`${fullName || "Имя не указано"}, ${subtitle}`}
+                accessibilityLabel={[fullName || "Имя не указано", subtitle, roleLabel]
+                  .filter(Boolean)
+                  .join(", ")}
                 accessibilityHint={
                   canEditName
                     ? fullName
@@ -162,12 +164,13 @@ export function ProfileScreen({ navigation }: Props) {
                 <View style={styles.nameRow}>
                   <Text
                     style={[styles.name, !fullName && styles.nameMissing]}
-                    numberOfLines={1}
+                    // A phone is too narrow for «Имя Фамилия» in one line.
+                    numberOfLines={2}
                   >
                     {fullName || (canEditName ? "Добавить имя" : "Без имени")}
                   </Text>
                   {canEditName && (
-                    <Ionicons
+                    <Icon
                       name={fullName ? "create-outline" : "add-circle-outline"}
                       size={18}
                       color={
@@ -179,12 +182,14 @@ export function ProfileScreen({ navigation }: Props) {
                 <Text style={styles.email} numberOfLines={1}>
                   {subtitle}
                 </Text>
+                {/* Under the name, not beside it: beside it the badge left the
+                    name a few letters on a phone. */}
+                {roleLabel && (
+                  <View style={styles.rolePill}>
+                    <Text style={styles.rolePillText}>{roleLabel}</Text>
+                  </View>
+                )}
               </Pressable>
-              {roleLabel && (
-                <View style={styles.rolePill}>
-                  <Text style={styles.rolePillText}>{roleLabel}</Text>
-                </View>
-              )}
             </View>
 
             <Text style={styles.meta}>
@@ -261,7 +266,7 @@ export function ProfileScreen({ navigation }: Props) {
               style={[styles.actionRow, styles.actionRowLast]}
             >
               <View style={[styles.addClubLabel, styles.fill]}>
-                <Ionicons
+                <Icon
                   name="people-outline"
                   size={20}
                   color={theme.colors.accent}
@@ -357,6 +362,8 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   nameMissing: { color: theme.colors.accent, fontWeight: "600" },
   email: { fontSize: 14, color: theme.colors.muted },
   rolePill: {
+    alignSelf: "flex-start",
+    marginTop: theme.spacing(1),
     paddingHorizontal: theme.spacing(2),
     paddingVertical: 3,
     borderRadius: theme.radius.full,

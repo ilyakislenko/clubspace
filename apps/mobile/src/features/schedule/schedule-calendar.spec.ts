@@ -1,6 +1,7 @@
 import {
   CALENDAR_PAGES,
   DEFAULT_AXIS,
+  blockDetail,
   blockFrame,
   blockStateLine,
   calendarItems,
@@ -490,6 +491,23 @@ describe("blockStateLine", () => {
     expect(
       blockStateLine({ cancelled: false, booking: booking({ capacity: null, booked: 0 }) }, false),
     ).toBeNull()
+  })
+})
+
+describe("blockDetail", () => {
+  it.each([
+    // A phone's day column split between overlapping classes: no «0…» stubs.
+    [20, "bare"],
+    [35, "bare"],
+    // Room for «12:00» but not for a title worth reading.
+    [38, "time"],
+    // A whole day column on a phone (390 dp wide): the start and «Тайс…».
+    [45, "narrow"],
+    [60, "narrow"],
+    [100, "brief"],
+    [140, "full"],
+  ])("%i dp → %s", (width, detail) => {
+    expect(blockDetail(width)).toBe(detail)
   })
 })
 

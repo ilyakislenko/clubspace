@@ -15,12 +15,14 @@ import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import {
   WEEK_DAYS,
+  blockDetail,
   blockFrame,
   dayOfMonth,
   fitLines,
   nowOffset,
   tintColor,
   weekdayShort,
+  type BlockDetail,
   type BlockTone,
   type PlacedSegment,
   type TimeAxis,
@@ -51,10 +53,6 @@ const COMPACT: Sizes = { axis: 36, hour: 44, header: 44, line: 12 }
 const EDGE = 10
 // Half the hour label's line height: the label's middle sits on its line.
 const LABEL_HALF = 7
-// A block narrower than this keeps to its start time and a one-line title.
-const NARROW_BLOCK = 72
-// Below this a block has no room for «12:00–13:30»; it shows the start only.
-const BRIEF_BLOCK = 120
 // How long a programmatic page scroll may take before user scrolls count again.
 const SCROLL_SETTLE_MS = 900
 
@@ -193,7 +191,13 @@ export function WeekCalendar({
         )}
         {showNow && (
           <Text
-            style={[styles.nowLabel, { top: EDGE + nowTop - LABEL_HALF }]}
+            style={[
+              styles.nowLabel,
+              // The browser has no adjustsFontSizeToFit: without this the
+              // phone's narrow axis cut the word to «сей…».
+              compact && styles.nowLabelCompact,
+              { top: EDGE + nowTop - LABEL_HALF },
+            ]}
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.7}
@@ -254,8 +258,7 @@ export function WeekCalendar({
                           <CalendarBlock
                             content={describe(seg)}
                             height={frame.height - 2}
-                            narrow={blockWidth < NARROW_BLOCK}
-                            brief={blockWidth < BRIEF_BLOCK}
+                            detail={blockDetail(blockWidth)}
                             compact={compact}
                             lineHeight={size.line}
                           />
@@ -385,18 +388,17 @@ function DayHeader({
 export function CalendarBlock({
   content: c,
   height,
-  narrow,
-  brief,
+  detail,
   compact,
   lineHeight,
 }: {
   content: CalendarBlockContent
   height: number
-  narrow: boolean
-  brief: boolean
+  detail: BlockDetail
   compact: boolean
   lineHeight: number
 }) {
+  const narrow = detail === "narrow" || detail === "time" || detail === "bare"
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const edge =
@@ -417,20 +419,25 @@ export function CalendarBlock({
         : c.state?.tone === "cancelled"
           ? styles.stateCancelled
           : null
-  const time = brief || compact ? c.start : `${c.start}–${c.end}`
+  const time = detail !== "full" || compact ? c.start : `${c.start}–${c.end}`
   const maxLines = Math.max(1, Math.floor((height - 4) / lineHeight))
-  const lines = fitLines(
-    [
-      { key: "time", priority: 0 },
-      { key: "title", priority: 0 },
-      ...(c.state && !compact ? [{ key: "state", priority: 1 }] : []),
-      ...(c.gym && !compact && !narrow ? [{ key: "gym", priority: 2 }] : []),
-      ...(c.person && !compact && !narrow
-        ? [{ key: "person", priority: 3 }]
-        : []),
-    ],
-    maxLines,
-  )
+  const lines =
+    detail === "bare"
+      ? []
+      : detail === "time"
+        ? [{ key: "time", priority: 0 }]
+        : fitLines(
+            [
+              { key: "time", priority: 0 },
+              { key: "title", priority: 0 },
+              ...(c.state && !compact ? [{ key: "state", priority: 1 }] : []),
+              ...(c.gym && !compact && !narrow ? [{ key: "gym", priority: 2 }] : []),
+              ...(c.person && !compact && !narrow
+                ? [{ key: "person", priority: 3 }]
+                : []),
+            ],
+            maxLines,
+          )
   // The title takes whatever lines the others leave; a narrow block keeps it
   // to one line, since a few letters per line would break words apart.
   const titleLines = narrow ? 1 : Math.max(1, maxLines - (lines.length - 1))
@@ -489,6 +496,7 @@ export function CalendarBlock({
   const style = [
     styles.block,
     (narrow || compact) && styles.blockNarrow,
+    detail === "bare" && styles.blockBare,
     {
       backgroundColor: fill,
       borderColor:
@@ -545,6 +553,7 @@ const makeStyles = (theme: Theme) =>
       color: theme.colors.danger,
       backgroundColor: theme.colors.background,
     },
+    nowLabelCompact: { fontSize: 8 },
     headerRow: { flexDirection: "row" },
     headerCell: {
       flex: 1,
@@ -607,6 +616,7 @@ const makeStyles = (theme: Theme) =>
     blockEvent: { borderStyle: "dashed" },
     blockDim: { opacity: 0.55 },
     blockNarrow: { paddingHorizontal: 2, paddingVertical: 2, borderLeftWidth: 2 },
+    blockBare: { paddingHorizontal: 0, paddingVertical: 0 },
     blockTime: {
       fontSize: 11,
       lineHeight: 14,

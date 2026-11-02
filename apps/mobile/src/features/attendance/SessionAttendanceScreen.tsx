@@ -1,4 +1,3 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
@@ -9,6 +8,7 @@ import {
   View,
   type ScrollViewInstance,
 } from "react-native"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import {
@@ -401,7 +401,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
         <Text style={styles.abonementChipText} numberOfLines={1}>
           {label}
         </Text>
-        <Ionicons name="chevron-down" size={14} color={theme.colors.accent} />
+        <Icon name="chevron-down" size={14} color={theme.colors.accent} />
       </Pressable>
     )
   }
@@ -641,7 +641,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                           accessibilityLabel={`Абонемент: ${e.displayName}`}
                           hitSlop={8}
                         >
-                          <Ionicons
+                          <Icon
                             name="card-outline"
                             size={22}
                             color={theme.colors.muted}

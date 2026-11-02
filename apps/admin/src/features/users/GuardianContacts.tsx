@@ -4,6 +4,7 @@ import {
   GUARDIAN_LINE_PREFIX,
   guardianName,
 } from "../../shared/lib/guardians"
+import { formatPhone } from "../../shared/lib/phone"
 import type { MemberGuardian } from "../../shared/api/members"
 
 // A child's guardians, one line each: «Родитель: Имя Фамилия · email · phone»,
@@ -35,7 +36,7 @@ export function GuardianContacts({
               href={`tel:${g.phone}`}
               className="text-primary hover:underline"
             >
-              {g.phone}
+              {formatPhone(g.phone)}
             </a>,
           )
         return (

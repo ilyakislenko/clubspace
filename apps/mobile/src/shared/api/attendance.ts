@@ -163,3 +163,17 @@ export const getMyAttendance = async (params: {
       perPage: params.perPage,
     },
   })
+
+export type AttendanceOverview = ApiTypes.AttendanceOverviewOutputOutput
+
+// Staff: the classes held, check-ins and distinct members over the last `days`
+// (30 by default) — a coach's own groups unless the club lets coaches see all.
+export const getAttendanceOverview = async (params: {
+  workspaceId: string
+  days?: number
+}): Promise<AttendanceOverview> =>
+  await getApiClient().request<AttendanceOverview>({
+    method: "get",
+    url: `${base(params.workspaceId)}/overview`,
+    params: { days: params.days },
+  })

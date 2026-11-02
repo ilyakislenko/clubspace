@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { cn } from "@clubspace/ui-kit/util"
 
 import { pluralRu } from "../../../shared/lib/plural-ru"
 import {
+  blockFit,
   DOW_SHORT,
   formatHm,
   formatRange,
@@ -119,6 +120,19 @@ export function TimeGridView({
     for (const [key, list] of columnItems) out.set(key, layoutDay(list))
     return out
   }, [columnItems])
+
+  // The grid's width, for how much a narrow block can show (blockFit).
+  const [gridWidth, setGridWidth] = useState(0)
+  useEffect(() => {
+    const grid = gridRef.current
+    if (!grid) return
+    const measure = () => setGridWidth(grid.getBoundingClientRect().width)
+    measure()
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(measure)
+    observer.observe(grid)
+    return () => observer.disconnect()
+  }, [])
 
   // Land on the morning's first class (or on "now" today) instead of 00:00.
   const firstStart = dayItems.reduce(
@@ -294,6 +308,12 @@ export function TimeGridView({
 
                 {(columnItems.get(col.key) ?? []).map((it) => {
                   const place = layout?.get(it.key) ?? { left: 0, width: 1 }
+                  // Hall columns keep a minimum lane width, so only a shared
+                  // day column gets slivers; unmeasured (0) shows everything.
+                  const fit =
+                    byHall || gridWidth === 0
+                      ? "full"
+                      : blockFit((gridWidth / columns.length) * place.width - 4)
                   const dragging = drag?.item.key === it.key
                   const isClass = it.kind === "class"
                   return (
@@ -312,6 +332,7 @@ export function TimeGridView({
                       <EventBlock
                         item={it}
                         detailed={detailed}
+                        fit={fit}
                         showGym={!col.hall}
                         state={dragging ? "dragging" : undefined}
                         className={isClass && it.editable ? "touch-none" : undefined}

@@ -13,7 +13,11 @@ import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { DirectionTag } from "../directions/DirectionTag"
-import { formatLevelWithStripes, stripeColorOn } from "./rank-format"
+import {
+  formatLevelWithStripes,
+  stripeColorOn,
+  swatchBlendsIn,
+} from "./rank-format"
 
 /** The member's current rank per ladder; tapping opens the promotion history. */
 export function CurrentRankCard({
@@ -56,7 +60,17 @@ function RankRow({ promotion }: { promotion: Promotion }) {
   return (
     <View style={styles.rankRow}>
       <View
-        style={[styles.rankSwatch, { backgroundColor: color, borderColor: color }]}
+        // Outlined in a theme colour, not the belt's own: a white belt vanished
+        // into a white card, a black one into a dark card.
+        style={[
+          styles.rankSwatch,
+          {
+            backgroundColor: color,
+            borderColor: swatchBlendsIn(promotion.color, theme.scheme)
+              ? theme.colors.mutedFaint
+              : theme.colors.border,
+          },
+        ]}
       >
         <View style={styles.rankStripes}>
           {Array.from({ length: promotion.stripes }).map((_, i) => (

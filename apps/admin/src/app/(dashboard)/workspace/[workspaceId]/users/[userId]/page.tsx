@@ -39,6 +39,7 @@ import {
   isWorkspaceAdmin,
 } from "../../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../../shared/lib/member-status"
+import { formatPhone } from "../../../../../../shared/lib/phone"
 import { formatRoleName } from "../../../../../../shared/lib/role-labels"
 import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
 import { GuardianContacts } from "../../../../../../features/users/GuardianContacts"
@@ -399,7 +400,7 @@ export default function MemberProgressPage() {
               </dd>
               <dt className="text-muted-foreground">Телефон</dt>
               <dd>
-                {member.phone || (
+                {(member.phone && formatPhone(member.phone)) || (
                   <span className="italic text-muted-foreground">
                     не задан
                   </span>

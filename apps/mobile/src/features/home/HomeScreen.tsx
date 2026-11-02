@@ -1,4 +1,3 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import { useFocusEffect } from "@react-navigation/native"
 import React, { useCallback, useState } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
@@ -22,6 +21,7 @@ import {
   DASHBOARD_WIDTH,
 } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { Icon } from "../../shared/components/Icon"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
@@ -299,7 +299,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       accessibilityRole="button"
       style={styles.primaryCta}
     >
-      <Ionicons
+      <Icon
         name="checkmark-circle"
         size={22}
         color={theme.colors.accentText}
@@ -447,7 +447,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
                   hitSlop={8}
                   style={styles.addName}
                 >
-                  <Ionicons
+                  <Icon
                     name="add-circle-outline"
                     size={18}
                     color={theme.colors.accent}

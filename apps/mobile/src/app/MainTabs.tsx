@@ -1,4 +1,3 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import {
   createBottomTabNavigator,
   type BottomTabNavigationOptions,
@@ -11,6 +10,7 @@ import { ProfileScreen } from "../features/profile/ProfileScreen"
 import { ProgressScreen } from "../features/progress/ProgressScreen"
 import { ScheduleTabScreen } from "../features/schedule/ScheduleTabScreen"
 import { useAuth } from "../shared/auth-context"
+import { Icon } from "../shared/components/Icon"
 import { isFeatureEnabled } from "../shared/feature-flags"
 import { isWeb } from "../shared/platform"
 import { useTheme } from "../shared/theme-context"
@@ -34,7 +34,7 @@ export function MainTabs() {
       title: tab.label,
       headerShown: tab.header,
       tabBarIcon: ({ focused, color, size }) => (
-        <Ionicons
+        <Icon
           name={focused ? tab.iconFocused : tab.icon}
           size={size}
           color={color}

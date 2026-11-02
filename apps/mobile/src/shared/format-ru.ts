@@ -85,8 +85,18 @@ export const formatRuDayRange = (from: string, until: string): string =>
     ? `с ${Number(from.slice(8, 10))} по ${formatRuDay(until)}`
     : `с ${formatRuDay(from)} по ${formatRuDay(until)}`
 
-// «+79528849420» → «+7 952 884-94-20»; any other shape is shown as stored.
-export const formatPhone = (e164: string): string => {
-  const m = /^\+7(\d{3})(\d{3})(\d{2})(\d{2})$/.exec(e164)
-  return m ? `+7 ${m[1]} ${m[2]}-${m[3]}-${m[4]}` : e164
+// A stored phone, grouped for reading: «+79528849420» → «+7 952 884-94-20».
+// Every +7 number gets the mask (Kazakhstan's +7 7xx shares the plan), as does
+// a Russian number kept without the plus («8 952…» / «7 952…»). Anything else —
+// a foreign number, a short code, text — is shown as stored; dial links keep
+// using the stored value, never this.
+export const formatPhone = (phone: string): string => {
+  const trimmed = phone.trim()
+  if (!/^\+?[\d\s().-]+$/.test(trimmed)) return phone
+  const digits = trimmed.replace(/\D/g, "")
+  const plusSeven = trimmed.startsWith("+") && digits[0] === "7"
+  const bare = !trimmed.startsWith("+") && (digits[0] === "7" || digits[0] === "8")
+  if (digits.length !== 11 || !(plusSeven || bare)) return phone
+  const n = digits.slice(1)
+  return `+7 ${n.slice(0, 3)} ${n.slice(3, 6)}-${n.slice(6, 8)}-${n.slice(8)}`
 }

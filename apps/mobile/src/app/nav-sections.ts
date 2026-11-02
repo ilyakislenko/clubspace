@@ -1,5 +1,6 @@
-import type Ionicons from "@expo/vector-icons/Ionicons"
+import type { ComponentProps } from "react"
 
+import type { Icon } from "../shared/components/Icon"
 import type { AppFeatureKey } from "../shared/feature-flags"
 import type { RootStackParamList } from "./navigation"
 
@@ -30,7 +31,7 @@ export const sectionRoute = (route: ParamlessRoute) => route as "Settings"
 export type NavGroup = "training" | "club" | "progress" | "account"
 
 /** An Ionicons glyph name. Type-only import: nothing native loads in tests. */
-export type NavIcon = keyof typeof Ionicons.glyphMap
+export type NavIcon = ComponentProps<typeof Icon>["name"]
 
 export type NavSection = {
   route: ParamlessRoute

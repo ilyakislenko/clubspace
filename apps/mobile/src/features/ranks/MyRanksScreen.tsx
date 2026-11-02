@@ -26,7 +26,7 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { DirectionTag } from "../directions/DirectionTag"
-import { formatLevelWithStripes } from "./rank-format"
+import { formatLevelWithStripes, swatchBlendsIn } from "./rank-format"
 import { RankProgressLine } from "./RankProgressLine"
 
 const fmtDate = (iso: string): string =>
@@ -77,8 +77,14 @@ export function MyRanksScreen() {
     )
   }
 
-  const swatchColor = (color: string | null): string =>
-    color ?? theme.colors.mutedFaint
+  // A white belt on a light card (a black one on a dark card) gets a firm
+  // outline; other colours keep the hairline.
+  const swatchStyle = (color: string | null) => ({
+    backgroundColor: color ?? theme.colors.mutedFaint,
+    borderColor: swatchBlendsIn(color, theme.scheme)
+      ? theme.colors.mutedFaint
+      : theme.colors.border,
+  })
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -116,7 +122,7 @@ export function MyRanksScreen() {
             </View>
             <View style={styles.levelRow}>
               <View
-                style={[styles.swatch, { backgroundColor: swatchColor(p.color) }]}
+                style={[styles.swatch, swatchStyle(p.color)]}
               />
               <Text style={styles.levelName}>
                 {formatLevelWithStripes(p.levelName, p.stripes)}
@@ -139,10 +145,7 @@ export function MyRanksScreen() {
               {data.history.map((p: Promotion) => (
                 <Card key={p.id} style={styles.row}>
                   <View
-                    style={[
-                      styles.rowSwatch,
-                      { backgroundColor: swatchColor(p.color) },
-                    ]}
+                    style={[styles.rowSwatch, swatchStyle(p.color)]}
                   />
                   <View style={styles.rowText}>
                     <Text style={styles.rowTitle} numberOfLines={1}>

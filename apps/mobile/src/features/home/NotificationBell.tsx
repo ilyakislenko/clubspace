@@ -1,9 +1,9 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import { useNavigation } from "@react-navigation/native"
 import React from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import type { AppNavigation } from "../../app/navigation"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -28,7 +28,7 @@ export function NotificationBell() {
       }
       style={styles.bell}
     >
-      <Ionicons
+      <Icon
         name="notifications-outline"
         size={24}
         color={theme.colors.text}

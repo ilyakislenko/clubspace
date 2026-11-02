@@ -1,8 +1,8 @@
-import Ionicons from "@expo/vector-icons/Ionicons"
 import React from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import { Chevron } from "../shared/components/Chevron"
+import { Icon } from "../shared/components/Icon"
 import { Pressable } from "../shared/components/Pressable"
 import type { Theme } from "../shared/theme"
 import { useTheme, useThemedStyles } from "../shared/theme-context"
@@ -30,7 +30,7 @@ export function NavRowList({
           ]}
         >
           {section.icon && (
-            <Ionicons
+            <Icon
               name={section.icon}
               size={20}
               color={theme.colors.accent}

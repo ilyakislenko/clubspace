@@ -115,6 +115,7 @@ export function ChildFormModal({
         <Pressable
           style={styles.backdrop}
           onPress={onClose}
+          onAccessibilityEscape={onClose}
           // Structural, not a control: it only catches taps outside the sheet.
           accessibilityRole="none"
         >

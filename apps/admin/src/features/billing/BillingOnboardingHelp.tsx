@@ -12,6 +12,7 @@ import {
 } from "../../shared/api/onboarding-help"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
+import { formatPhone } from "../../shared/lib/phone"
 import { formatAmount } from "../subscriptions/subscription-display"
 import { BANNER_TONE_CLASS, formatDay, type Banner } from "./billing-view"
 
@@ -128,7 +129,7 @@ export function BillingOnboardingHelp({
           <p>{status.text}</p>
           {open && (request.phone || request.message) && (
             <p className="text-xs">
-              {request.phone ? `Телефон: ${request.phone}` : ""}
+              {request.phone ? `Телефон: ${formatPhone(request.phone)}` : ""}
               {request.phone && request.message ? " · " : ""}
               {request.message ?? ""}
             </p>

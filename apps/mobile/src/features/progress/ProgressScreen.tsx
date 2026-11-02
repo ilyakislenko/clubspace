@@ -1,4 +1,4 @@
-import React, { useCallback } from "react"
+import React, { useCallback, useState } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 
 import { NavRowList } from "../../app/NavRowList"
@@ -10,7 +10,10 @@ import {
 } from "../../app/nav-sections"
 import type { TabScreenProps } from "../../app/navigation"
 import { getMyAchievements } from "../../shared/api/achievements"
+import { getAttendanceOverview } from "../../shared/api/attendance"
+import { getRankReadiness } from "../../shared/api/rank-readiness"
 import { getMyRanks } from "../../shared/api/ranks"
+import { listAtRiskMembers } from "../../shared/api/retention"
 import { useAuth } from "../../shared/auth-context"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import {
@@ -33,7 +36,11 @@ import {
   monthAttendanceKey,
 } from "../attendance/month-attendance"
 import { CurrentRankCard } from "../ranks/CurrentRankCard"
+import { CallListCard } from "../retention/CallListCard"
+import { isStaffWorkspace } from "../retention/retention-helpers"
+import { overviewLine, showsOwnProgress } from "./coach-progress"
 import { inMonth, tenureSummary, yearMonth } from "./progress-helpers"
+import { ReadinessCard } from "./ReadinessCard"
 import { WeeklyBars } from "./WeeklyBars"
 
 export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
@@ -47,6 +54,11 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
   const ranksOn = isFeatureEnabled(workspace, "ranks")
   const achievementsOn = isFeatureEnabled(workspace, "achievements")
   const subscriptionOn = isFeatureEnabled(workspace, "subscription")
+  // Staff get their groups' picture here first; their own blocks follow only
+  // if they train themselves (see showsOwnProgress).
+  const staff = isStaffWorkspace(workspace)
+  // The readiness card's ladder; undefined = the club's first.
+  const [ladderId, setLadderId] = useState<string>()
   // Tabs stay mounted, so the month is read on every render (not memoized):
   // the key changes when the month does. Same key and window as the
   // calendar on MyAttendance, so the two counts always agree.
@@ -79,8 +91,43 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
       [workspaceId],
     ),
   )
+  // Same key as Home and «Кому позвонить».
+  const atRisk = useCachedResource(
+    workspaceId && staff ? `atrisk:${workspaceId}:mine` : null,
+    useCallback(
+      async () =>
+        await listAtRiskMembers({ workspaceId: workspaceId!, scope: "mine" }),
+      [workspaceId],
+    ),
+  )
+  const overview = useCachedResource(
+    workspaceId && staff && attendanceOn
+      ? `attendance-overview:${workspaceId}`
+      : null,
+    useCallback(
+      async () => await getAttendanceOverview({ workspaceId: workspaceId! }),
+      [workspaceId],
+    ),
+  )
+  const readiness = useCachedResource(
+    workspaceId && staff && ranksOn
+      ? `rank-readiness:${workspaceId}:${ladderId ?? "first"}`
+      : null,
+    useCallback(
+      async () =>
+        await getRankReadiness({ workspaceId: workspaceId!, ladderId }),
+      [workspaceId, ladderId],
+    ),
+  )
 
-  const resources = [monthAttendance, achievements, ranks]
+  const resources = [
+    monthAttendance,
+    achievements,
+    ranks,
+    atRisk,
+    overview,
+    readiness,
+  ]
   const refreshing = resources.some((r) => r.refreshing)
   const stale = resources.some((r) => r.stale && r.data)
 
@@ -128,6 +175,19 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
         })
       : null
   const currentRanks = ranksOn ? (ranks.data?.current ?? []) : []
+  const ownShown = showsOwnProgress({
+    staff,
+    totalCheckIns: achievements.data?.totalCheckIns ?? 0,
+    ranks: currentRanks.length,
+  })
+  const callList = atRisk.data && atRisk.data.summary.total > 0 && (
+    <CallListCard
+      summary={atRisk.data.summary}
+      onPress={() => navigation.navigate("AtRiskMembers")}
+    />
+  )
+  const staffCards =
+    overview.data || callList || (readiness.data && readiness.data.ladderId)
 
   return (
     <View style={styles.root}>
@@ -144,7 +204,39 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
         >
           {stale && <OfflineNotice />}
 
-          {attendanceOn && (
+          {staff && staffCards && (
+            <Text style={styles.sectionTitle} accessibilityRole="header">
+              Мои ученики
+            </Text>
+          )}
+
+          {staff && (overview.data || callList) && (
+            <ResponsiveGrid columns={{ medium: 2, expanded: 2 }} fill>
+              {overview.data && (
+                <View style={styles.card}>
+                  <View style={styles.cardText}>
+                    <Text style={styles.cardTitle}>
+                      За {overview.data.days} дней
+                    </Text>
+                    <Text style={styles.strong}>{overviewLine(overview.data)}</Text>
+                  </View>
+                </View>
+              )}
+              {callList}
+            </ResponsiveGrid>
+          )}
+
+          {staff && readiness.data && readiness.data.ladderId && (
+            <ReadinessCard data={readiness.data} onPickLadder={setLadderId} />
+          )}
+
+          {staff && ownShown && (
+            <Text style={styles.sectionTitle} accessibilityRole="header">
+              Мои тренировки
+            </Text>
+          )}
+
+          {attendanceOn && ownShown && (
             <Pressable
               onPress={() => navigation.navigate("MyAttendance")}
               accessibilityRole="button"
@@ -176,7 +268,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
           )}
 
           <ResponsiveGrid columns={{ medium: 2, expanded: 2 }} fill>
-            {attendanceOn && achievementsOn && badges.length > 0 && (
+            {ownShown && attendanceOn && achievementsOn && badges.length > 0 && (
               <Pressable
                 onPress={() => navigation.navigate("Achievements")}
                 accessibilityRole="button"
@@ -233,7 +325,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
             )}
           </ResponsiveGrid>
 
-          {tenure && (
+          {ownShown && tenure && (
             <View style={styles.card}>
               <View style={styles.cardText}>
                 <Text style={styles.cardTitle}>Стаж</Text>
@@ -243,7 +335,7 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
             </View>
           )}
 
-          {ranksOn && ranks.data && currentRanks.length === 0 && (
+          {ownShown && ranksOn && ranks.data && currentRanks.length === 0 && (
             <Text style={styles.noRank}>
               Ранг пока не присвоен — его назначает тренер.
             </Text>
@@ -273,6 +365,11 @@ const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
     body: { padding: theme.spacing(5), gap: theme.spacing(4) },
+    sectionTitle: {
+      ...theme.typography.label,
+      paddingHorizontal: theme.spacing(1),
+      marginBottom: -theme.spacing(2),
+    },
     card: {
       flexGrow: 1,
       flexDirection: "row",
