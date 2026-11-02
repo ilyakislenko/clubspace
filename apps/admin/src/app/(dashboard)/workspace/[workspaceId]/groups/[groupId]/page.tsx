@@ -171,7 +171,7 @@ export default function WorkspaceGroupPage() {
         </div>
       </div>
 
-      <section className="space-y-2 rounded-lg border border-border bg-card p-4">
+      <section>
         {group.canEdit ? (
           <GroupScheduleBlock
             workspaceId={workspaceId}

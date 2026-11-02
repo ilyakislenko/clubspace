@@ -57,7 +57,7 @@ export class GetGroupHandler
             })) > 0
         if (!this.rbac.canSeeAllGroups(ctx) && !isOwn) {
             throw new ForbiddenError({
-                message: 'Тренер видит только свои группы',
+                message: 'Можно открыть только свои группы',
             })
         }
         const canEdit = isAdmin || isOwn
