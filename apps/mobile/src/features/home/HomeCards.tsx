@@ -432,7 +432,7 @@ export function AnnouncementCard({
       onPress={onPress}
       grow={grow}
     >
-      <Text style={styles.strong} numberOfLines={1}>
+      <Text style={styles.strong} numberOfLines={2}>
         {item.title}
       </Text>
       <Text style={styles.muted} numberOfLines={2}>

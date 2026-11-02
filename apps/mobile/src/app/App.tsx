@@ -70,8 +70,8 @@ import {
 } from "../shared/theme-context"
 import { ThemedBackground } from "../shared/ThemedBackground"
 import { isWeb } from "../shared/platform"
-import { useResponsive } from "../shared/useResponsive"
-import { DesktopSidebar } from "./DesktopSidebar"
+import { ShellInsetContext, useResponsive } from "../shared/useResponsive"
+import { DESKTOP_SIDEBAR_WIDTH, DesktopSidebar } from "./DesktopSidebar"
 import { formatDocumentTitle, webLinking } from "./linking"
 import { MainTabs } from "./MainTabs"
 import { navHeaderOptions } from "./nav-header-options"
@@ -171,6 +171,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
   return (
     <View style={[styles.fill, showSidebar && styles.shell]}>
       {showSidebar && <DesktopSidebar activeRoute={activeRoute} />}
+      <ShellInsetContext.Provider value={showSidebar ? DESKTOP_SIDEBAR_WIDTH : 0}>
       <View style={styles.fill}>
       <Stack.Navigator
         screenOptions={{
@@ -413,6 +414,7 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
       )}
       </Stack.Navigator>
       </View>
+      </ShellInsetContext.Provider>
     </View>
   )
 }

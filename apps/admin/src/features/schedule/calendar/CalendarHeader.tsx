@@ -87,7 +87,9 @@ export function CalendarHeader(props: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      {/* Wraps by its own width, not the window's: with the sidebar expanded a
+          1280 window leaves ~980px, and `lg:` rows overflowed the content. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -137,7 +139,7 @@ export function CalendarHeader(props: Props) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div role="tablist" aria-label="Вид календаря" className="inline-flex rounded-md border border-border p-0.5">
             {VIEW_OPTIONS.map(({ view: v, label, icon: Icon }) => (
               <button
@@ -148,7 +150,7 @@ export function CalendarHeader(props: Props) {
                 data-calendar-view={v}
                 onClick={() => props.onViewChange(v)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+                  "inline-flex items-center gap-1.5 whitespace-nowrap rounded px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
                   view === v && "bg-primary text-primary-foreground shadow hover:text-primary-foreground",
                 )}
               >
@@ -167,7 +169,7 @@ export function CalendarHeader(props: Props) {
                   data-calendar-day-layout={layout}
                   onClick={() => props.onDayLayoutChange(layout)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+                    "inline-flex items-center gap-1.5 whitespace-nowrap rounded px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
                     props.dayLayout === layout && "bg-accent text-foreground shadow-sm",
                   )}
                 >

@@ -23,7 +23,11 @@ import { CourseLessonRow } from "./CourseLessonRow"
 import { LockBadge } from "./LockBadge"
 import { getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
-import { CenteredColumn } from "../../shared/components/CenteredColumn"
+import {
+  CenteredColumn,
+  READABLE_WIDTH,
+} from "../../shared/components/CenteredColumn"
+import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { errorMessage } from "../../shared/error-message"
@@ -386,7 +390,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
-      <CenteredColumn>
+      <CenteredColumn maxWidth={READABLE_WIDTH}>
       {/* The lesson search sits under the course hero; on a landscape tablet
           the keyboard covered it. Edge-to-edge Android doesn't shrink the
           window, so the list does. */}
@@ -690,6 +694,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     overflow: "hidden",
   },
   bulkButton: {
+    // A phone's full width; on a tablet a button, not a 700px slab.
+    width: "100%",
+    maxWidth: CONTROL_MAX_WIDTH,
+    alignSelf: "flex-start",
     backgroundColor: theme.colors.text,
     paddingHorizontal: theme.spacing(4),
     paddingVertical: theme.spacing(3),

@@ -347,8 +347,9 @@ export function MemberSubscriptionPanel({
 
       {canManage && plans.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
+          {/* Shrinks below its longest option so «Назначить» stays on the row. */}
           <select
-            className={inputCls}
+            className={`${inputCls} min-w-0 flex-1 basis-60`}
             value={planId}
             onChange={(e) => choosePlan(e.target.value)}
           >

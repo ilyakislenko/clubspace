@@ -2,12 +2,13 @@
 
 import Link from "next/link"
 import { useParams, usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useState } from "react"
 
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@clubspace/ui-kit/ui"
 import { getWorkspaceSettings } from "../../../../shared/api/workspaces"
 import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
+import { defaultSidebarOpen } from "../../../../shared/lib/sidebar-default"
 import { setActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { ThemeSwitcher } from "../../../../shared/theme/theme-switcher"
 import { BillingBanner } from "../../../../features/billing/BillingBanner"
@@ -30,6 +31,14 @@ export default function WorkspaceLayout({
   // only its billing page stays open (for admins).
   const [suspended, setSuspended] = useState<SuspendedInfo | null>(null)
   const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
+  // The server render has neither the cookie nor the window width, so it
+  // renders expanded and the real default is applied before the first paint
+  // (a layout effect) — no hydration mismatch, no visible jump. The provider
+  // itself saves every toggle to the `sidebar_state` cookie.
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  useLayoutEffect(() => {
+    setSidebarOpen(defaultSidebarOpen(document.cookie, window.innerWidth))
+  }, [])
 
   useEffect(() => {
     if (workspaceId) {
@@ -68,7 +77,11 @@ export default function WorkspaceLayout({
     // content sat past the window edge with no visual cue that the page, rather
     // than the panel, was the thing to scroll. Now the sidebar and the club
     // title stay put and only the middle moves.
-    <SidebarProvider className="h-svh overflow-hidden">
+    <SidebarProvider
+      className="h-svh overflow-hidden"
+      open={sidebarOpen}
+      onOpenChange={setSidebarOpen}
+    >
       <WorkspaceSidebar />
       <SidebarInset className="h-svh min-w-0 overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">

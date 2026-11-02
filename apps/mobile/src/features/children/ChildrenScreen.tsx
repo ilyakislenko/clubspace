@@ -2,6 +2,7 @@ import { useFocusEffect } from "@react-navigation/native"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native"
+import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import type { RootStackParamList } from "../../app/navigation"
@@ -410,6 +411,10 @@ const makeStyles = (theme: Theme) =>
     dangerText: { color: theme.colors.danger },
     disabled: { opacity: 0.5 },
     primary: {
+      // A phone's full width; on a tablet a button, not a 700px slab.
+      width: "100%",
+      maxWidth: CONTROL_MAX_WIDTH,
+      alignSelf: "center",
       backgroundColor: theme.colors.accent,
       paddingVertical: theme.spacing(4),
       borderRadius: theme.radius.full,

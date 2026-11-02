@@ -165,27 +165,27 @@ export default function OccupancyPage() {
                       <td className="whitespace-nowrap p-3">
                         {WEEKDAY_SHORT[s.dayOfWeek]} {s.startTime}
                       </td>
-                      <td className="p-3">{s.groupName}</td>
+                      <td className="min-w-[10rem] p-3">{s.groupName}</td>
                       <td className="p-3 text-muted-foreground">
                         {s.gymName ?? "—"}
                       </td>
-                      <td className="p-3 text-right tabular-nums">
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums">
                         {s.held} из {s.scheduled}
                       </td>
-                      <td className="p-3 text-right tabular-nums">
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums">
                         {formatAverage(s.avgAttendance)}
                       </td>
-                      <td className="p-3 text-right tabular-nums">
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums">
                         {s.capacity}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="whitespace-nowrap p-3 text-right">
                         <span
                           className={`inline-block rounded px-2 py-0.5 tabular-nums ${fillCellClass(s.fill)}`}
                         >
                           {formatPercent(s.fill)}
                         </span>
                       </td>
-                      <td className="p-3 text-right tabular-nums">
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums">
                         {s.booked} / {s.missedBookings}
                       </td>
                     </tr>

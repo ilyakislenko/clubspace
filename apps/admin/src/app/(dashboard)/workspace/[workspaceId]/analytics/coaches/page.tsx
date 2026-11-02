@@ -106,30 +106,30 @@ export default function CoachesAnalyticsPage() {
                       <td className="p-3 font-medium">
                         {personName(c)}
                         {best && (
-                          <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          <span className="ml-2 inline-block whitespace-nowrap rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                             лучшее удержание
                           </span>
                         )}
                       </td>
-                      <td className="p-3 text-right tabular-nums">
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums">
                         {c.activeStudents}
                       </td>
-                      <td className="p-3 text-right tabular-nums">
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums">
                         {formatPercent(c.retention.rate)}
                         <span className="ml-1 text-xs text-muted-foreground">
                           ({c.retention.retained} из {c.retention.eligible})
                         </span>
                       </td>
-                      <td className="p-3 text-right tabular-nums">
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums">
                         {formatPercent(c.renewals.rate)}
                         <span className="ml-1 text-xs text-muted-foreground">
                           ({c.renewals.done} из {c.renewals.due})
                         </span>
                       </td>
-                      <td className="p-3 text-right tabular-nums">
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums">
                         {formatAverage(c.avgAttendance)}
                       </td>
-                      <td className="p-3 text-right tabular-nums">
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums">
                         {c.classes}
                       </td>
                     </tr>

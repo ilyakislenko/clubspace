@@ -174,7 +174,8 @@ export function MemberRankPanel({
         />
         <input
           className={inputCls}
-          placeholder="Заметка (необязательно)"
+          placeholder="Заметка"
+          title="Заметка (необязательно)"
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />

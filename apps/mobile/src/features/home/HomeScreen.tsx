@@ -1,5 +1,5 @@
 import { useFocusEffect } from "@react-navigation/native"
-import React, { useCallback, useState } from "react"
+import React, { useCallback, useContext, useState } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -31,7 +31,7 @@ import { steppedFontSize } from "../../shared/size-class"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
-import { useResponsive } from "../../shared/useResponsive"
+import { ShellInsetContext, useResponsive } from "../../shared/useResponsive"
 import { EditNameModal } from "../profile/EditNameModal"
 import { listRecents, type RecentEntry } from "../profile/preferences-store"
 import {
@@ -80,6 +80,8 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const styles = useThemedStyles(makeStyles)
   const { workspace, workspaces, actingAs } = useAuth()
   const { sizeClass } = useResponsive()
+  // The desktop web sidebar already shows whose profile this is.
+  const shellShowsProfile = useContext(ShellInsetContext) > 0
   const workspaceId = workspace?.workspaceId
   const groupsOn = isFeatureEnabled(workspace, "groups")
   const attendanceOn = isFeatureEnabled(workspace, "attendance")
@@ -392,14 +394,25 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   )
 
   // The expanded layout's main column.
+  // Staff have no abonement card: their short cards (call list, requests)
+  // go to the side column instead, or it held one announcement over a
+  // screen-tall gap beside a long main column.
+  const staffSide = !subscriptionCard
+  const hasSideCards = [
+    subscriptionCard,
+    staffSide && callList,
+    staffSide && coachRequests,
+    staffSide && freezeRequestsCard,
+    announcementCard,
+  ].some(Boolean)
   const expandedMain = (
     <>
       {agendaCard}
       {coachToday}
-      {callList}
+      {!staffSide && callList}
       {nextClass}
-      {coachRequests}
-      {freezeRequestsCard}
+      {!staffSide && coachRequests}
+      {!staffSide && freezeRequestsCard}
       {checkIn}
       {continueRow}
     </>
@@ -420,7 +433,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
         >
           <View style={styles.header}>
             <View style={styles.headerText}>
-              {actingAs && (
+              {actingAs && !shellShowsProfile && (
                 <View style={styles.pillRow}>
                   <ActingAsPill />
                 </View>
@@ -494,22 +507,25 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             <>
               {agendaCard}
               {coachToday}
-              <ResponsiveGrid fill>{callList}</ResponsiveGrid>
+              {/* A coach's call list pairs with the next class instead of
+                  stretching alone across the tablet. */}
               <ResponsiveGrid fill>
+                {callList}
                 {nextClass}
                 {subscriptionCard}
               </ResponsiveGrid>
-              {coachRequests}
-              {freezeRequestsCard}
+              <ResponsiveGrid fill>
+                {coachRequests}
+                {freezeRequestsCard}
+              </ResponsiveGrid>
               {checkIn}
               <ResponsiveGrid fill>
                 {announcementCard}
                 {continueRow}
               </ResponsiveGrid>
             </>
-          ) : !subscriptionCard && !announcementCard ? (
-            // Nothing for the side column (e.g. staff without an abonement):
-            // the main cards take the full width.
+          ) : !hasSideCards ? (
+            // Nothing for the side column: the main cards take the full width.
             expandedMain
           ) : (
             <SplitLayout
@@ -517,6 +533,9 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               side={
                 <>
                   {subscriptionCard}
+                  {staffSide && callList}
+                  {staffSide && coachRequests}
+                  {staffSide && freezeRequestsCard}
                   {announcementCard}
                 </>
               }
