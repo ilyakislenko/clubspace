@@ -32,6 +32,7 @@ const make = (
         pending?: object[]
         group?: object | null
         visits?: Record<string, number>
+        managed?: string[]
     } = {},
 ) => {
     const scope = o.scope ?? 'admin'
@@ -43,6 +44,7 @@ const make = (
             workspaceOwnerId: OWNER,
         }),
         canSeeAllGroups: jest.fn().mockReturnValue(scope !== 'coach_own_only'),
+        managedDirectionIds: jest.fn().mockResolvedValue(o.managed ?? []),
     }
     const prisma = {
         workspace: {
@@ -183,6 +185,25 @@ describe('getRankReadiness', () => {
         })
         expect(prisma.rankPromotion.findMany.mock.calls[0][0].where.userId.in).toEqual(['b'])
         expect(out.data.map((e) => e.userId)).toEqual(['b'])
+    })
+
+    it('lets a direction manager see every group of their directions', async () => {
+        const { prisma, run } = make({
+            scope: 'coach_own_only',
+            managed: ['bjj'],
+            members: ['a', 'b'],
+            groupMembers: ['a', 'b'],
+        })
+        await run()
+        expect(prisma.groupMember.findMany.mock.calls[0][0].where).toEqual({
+            group: {
+                workspaceId: 'w1',
+                OR: [
+                    { coaches: { some: { userId: 'me' } } },
+                    { directionId: { in: ['bjj'] } },
+                ],
+            },
+        })
     })
 
     it('does not touch group membership for an admin without a group filter', async () => {

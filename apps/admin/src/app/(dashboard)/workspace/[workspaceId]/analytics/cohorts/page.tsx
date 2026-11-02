@@ -149,10 +149,13 @@ export default function CohortsPage() {
                     {COHORT_OFFSETS.map((o) => {
                       const cell = cohortCell(row, o)
                       const rate = cell?.rate ?? null
+                      // A window that has only just opened reads 0% — not a
+                      // cohort that left, just no visits counted yet.
+                      const early = cell?.partial === true && rate === 0
                       return (
                         <td
                           key={o}
-                          className={`p-3 text-center tabular-nums ${rateCellClass(rate)} ${
+                          className={`p-3 text-center tabular-nums ${rateCellClass(early ? null : rate)} ${
                             cell?.partial ? "italic opacity-70" : ""
                           }`}
                           title={
@@ -163,8 +166,8 @@ export default function CohortsPage() {
                                 : undefined
                           }
                         >
-                          {formatPercent(rate)}
-                          {cell?.partial && rate !== null && "*"}
+                          {early ? "рано" : formatPercent(rate)}
+                          {cell?.partial && rate !== null && !early && "*"}
                         </td>
                       )
                     })}
@@ -187,7 +190,8 @@ export default function CohortsPage() {
           </div>
           <p className="text-xs text-muted-foreground">
             * курсивом — {PARTIAL_HINT}: прошло меньше времени, чем нужно для
-            этой колонки, цифра ещё изменится.
+            этой колонки, цифра ещё изменится. «рано» — срок только наступил,
+            посещений за него ещё нет.
           </p>
         </>
       )}

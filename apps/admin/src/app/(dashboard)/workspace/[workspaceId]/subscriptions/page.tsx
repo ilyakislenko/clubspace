@@ -20,6 +20,7 @@ import {
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { inputCls } from "../../../../../shared/lib/input-class"
 import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
+import { pluralRu } from "../../../../../shared/lib/plural-ru"
 import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
 import {
   ALL_DIRECTIONS,
@@ -51,6 +52,14 @@ const REASON_CLASS: Record<RenewalCandidate["reason"], string> = {
 const candidateName = (c: RenewalCandidate): string => {
   const full = [c.firstname, c.lastname].filter(Boolean).join(" ").trim()
   return full || c.email || "—"
+}
+
+// access_expiring also covers windows that already ended — say so instead of
+// "заканчивается" for someone whose access ran out months ago.
+const isLapsed = (c: RenewalCandidate): boolean => {
+  if (c.reason !== "access_expiring") return false
+  const end = c.endDate ?? c.accessUntil
+  return end != null && new Date(end).getTime() < Date.now()
 }
 
 const fmtDate = (iso: string): string =>
@@ -302,8 +311,9 @@ export default function WorkspaceSubscriptionsPage() {
         <div className="rounded-xl border border-border bg-card p-5">
           <div className="mb-1 font-medium">Кому продать абонемент</div>
           <p className="mb-3 text-xs text-muted-foreground">
-            У этих участников заканчиваются занятия или доступ. Назначьте новый
-            абонемент на странице участника в разделе «Участники».
+            У этих участников заканчиваются или уже закончились занятия или
+            доступ. Назначьте новый абонемент на странице участника в разделе
+            «Участники».
           </p>
           <ul className="divide-y divide-border">
             {candidates.map((c) => (
@@ -332,9 +342,9 @@ export default function WorkspaceSubscriptionsPage() {
                     </div>
                   </div>
                   <span
-                    className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${REASON_CLASS[c.reason]}`}
+                    className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${isLapsed(c) ? REASON_CLASS.out_of_classes : REASON_CLASS[c.reason]}`}
                   >
-                    {REASON_LABEL[c.reason]}
+                    {isLapsed(c) ? "Доступ закончился" : REASON_LABEL[c.reason]}
                   </span>
                 </Link>
               </li>
@@ -540,7 +550,7 @@ export default function WorkspaceSubscriptionsPage() {
                 <div className="text-sm text-muted-foreground">
                   {formatAmount(p.price, p.currency)} ·{" "}
                   {p.classCount != null
-                    ? `${p.classCount} занятий`
+                    ? `${p.classCount} ${pluralRu(p.classCount, "занятие", "занятия", "занятий")}`
                     : "безлимит"}{" "}
                   · {p.durationDays} дн. доступа
                   {p.description ? ` · ${p.description}` : ""}

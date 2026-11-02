@@ -188,7 +188,7 @@ export const suggestOccupancyActions = (
         out.push({
             kind: 'add_class',
             slotId: s.slotId,
-            text: `${slotLabel(s)} ${where(n)}: в среднем ${s.avgAttendance} из ${s.capacity} (${Math.round(s.fill * 100)}%). Спрос выше вместимости — добавьте занятие в соседний час или параллельную группу.`,
+            text: `${slotLabel(s)} ${where(n)}: в среднем ${String(s.avgAttendance).replace('.', ',')} из ${s.capacity} (${Math.round(s.fill * 100)}%). Спрос выше вместимости — добавьте занятие в соседний час или параллельную группу.`,
         })
     }
     for (const s of weakestSlots(slots)) {
@@ -197,7 +197,7 @@ export const suggestOccupancyActions = (
         out.push({
             kind: 'rethink_slot',
             slotId: s.slotId,
-            text: `${slotLabel(s)} ${where(n)}: в среднем ${s.avgAttendance} из ${s.capacity} (${Math.round(s.fill * 100)}%). Подумайте о переносе времени или объединении с другой группой.`,
+            text: `${slotLabel(s)} ${where(n)}: в среднем ${String(s.avgAttendance).replace('.', ',')} из ${s.capacity} (${Math.round(s.fill * 100)}%). Подумайте о переносе времени или объединении с другой группой.`,
         })
     }
     return out
