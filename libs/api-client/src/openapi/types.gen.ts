@@ -3152,9 +3152,27 @@ export type ListEventsOutputOutput = {
             firstname: string | null;
             lastname: string | null;
         } | null;
+        hostName: string | null;
+        price: number | null;
+        currency: string;
+        capacity: number | null;
         createdById: string;
         createdAt: string;
         updatedAt: string;
+        registration: {
+            booked: number;
+            waitlist: number;
+            mine: {
+                id: string;
+                eventId: string;
+                status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
+                waitlistPosition: number | null;
+                isPaid: boolean;
+                promotedAt: string | null;
+                cancelledAt: string | null;
+                createdAt: string;
+            } | null;
+        } | null;
     }>;
 };
 
@@ -3168,6 +3186,10 @@ export type CreateEventInput = {
     gymId?: string | null;
     coachId?: string | null;
     directionId?: string | null;
+    hostName?: string | null;
+    price?: number | null;
+    currency?: string;
+    capacity?: number | null;
 };
 
 export type CreateEventOutputOutput = {
@@ -3196,6 +3218,10 @@ export type CreateEventOutputOutput = {
         firstname: string | null;
         lastname: string | null;
     } | null;
+    hostName: string | null;
+    price: number | null;
+    currency: string;
+    capacity: number | null;
     createdById: string;
     createdAt: string;
     updatedAt: string;
@@ -3211,6 +3237,10 @@ export type UpdateEventInput = {
     gymId?: string | null;
     coachId?: string | null;
     directionId?: string | null;
+    hostName?: string | null;
+    price?: number | null;
+    currency?: string;
+    capacity?: number | null;
 };
 
 export type UpdateEventOutputOutput = {
@@ -3239,6 +3269,10 @@ export type UpdateEventOutputOutput = {
         firstname: string | null;
         lastname: string | null;
     } | null;
+    hostName: string | null;
+    price: number | null;
+    currency: string;
+    capacity: number | null;
     createdById: string;
     createdAt: string;
     updatedAt: string;
@@ -3876,6 +3910,95 @@ export type CancelClassBookingOutputOutput = {
     createdAt: string;
 };
 
+export type EventRegistrationOutputOutput = {
+    id: string;
+    eventId: string;
+    status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
+    waitlistPosition: number | null;
+    isPaid: boolean;
+    promotedAt: string | null;
+    cancelledAt: string | null;
+    createdAt: string;
+};
+
+export type CancelEventRegistrationOutputOutput = {
+    id: string;
+    eventId: string;
+    status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
+    waitlistPosition: number | null;
+    isPaid: boolean;
+    promotedAt: string | null;
+    cancelledAt: string | null;
+    createdAt: string;
+};
+
+export type EventRegistrationsOutputOutput = {
+    eventId: string;
+    capacity: number | null;
+    price: number | null;
+    currency: string;
+    booked: number;
+    waitlist: number;
+    paid: {
+        count: number;
+        amount: number;
+    };
+    data: Array<{
+        id: string;
+        userId: string;
+        name: string;
+        status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
+        waitlistPosition: number | null;
+        bookedByOther: boolean;
+        isPaid: boolean;
+        paidAt: string | null;
+        amountPaid: number | null;
+        currency: string | null;
+        paymentMethod: 'CASH' | 'TRANSFER' | null;
+        promotedAt: string | null;
+        cancelledAt: string | null;
+        createdAt: string;
+    }>;
+};
+
+export type MarkEventRegistrationPaidInput = {
+    method: 'CASH' | 'TRANSFER';
+};
+
+export type MarkEventRegistrationPaidOutputOutput = {
+    id: string;
+    userId: string;
+    name: string;
+    status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
+    waitlistPosition: number | null;
+    bookedByOther: boolean;
+    isPaid: boolean;
+    paidAt: string | null;
+    amountPaid: number | null;
+    currency: string | null;
+    paymentMethod: 'CASH' | 'TRANSFER' | null;
+    promotedAt: string | null;
+    cancelledAt: string | null;
+    createdAt: string;
+};
+
+export type UnmarkEventRegistrationPaidOutputOutput = {
+    id: string;
+    userId: string;
+    name: string;
+    status: 'BOOKED' | 'WAITLISTED' | 'CANCELLED';
+    waitlistPosition: number | null;
+    bookedByOther: boolean;
+    isPaid: boolean;
+    paidAt: string | null;
+    amountPaid: number | null;
+    currency: string | null;
+    paymentMethod: 'CASH' | 'TRANSFER' | null;
+    promotedAt: string | null;
+    cancelledAt: string | null;
+    createdAt: string;
+};
+
 export type ClassOccurrenceOutputOutput = {
     slotId: string;
     groupId: string;
@@ -4387,6 +4510,10 @@ export type GetWorkspaceScheduleOutputOutput = {
             firstname: string | null;
             lastname: string | null;
         } | null;
+        hostName: string | null;
+        price: number | null;
+        currency: string;
+        capacity: number | null;
         createdById: string;
         createdAt: string;
         updatedAt: string;
@@ -10152,6 +10279,86 @@ export type CancelClassBookingResponses = {
 };
 
 export type CancelClassBookingResponse = CancelClassBookingResponses[keyof CancelClassBookingResponses];
+
+export type ListEventRegistrationsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/events/{eventId}/registrations';
+};
+
+export type ListEventRegistrationsResponses = {
+    default: EventRegistrationsOutputOutput;
+};
+
+export type ListEventRegistrationsResponse = ListEventRegistrationsResponses[keyof ListEventRegistrationsResponses];
+
+export type RegisterForEventData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/events/{eventId}/registrations';
+};
+
+export type RegisterForEventResponses = {
+    default: EventRegistrationOutputOutput;
+};
+
+export type RegisterForEventResponse = RegisterForEventResponses[keyof RegisterForEventResponses];
+
+export type CancelEventRegistrationData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        registrationId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/event-registrations/{registrationId}';
+};
+
+export type CancelEventRegistrationResponses = {
+    default: CancelEventRegistrationOutputOutput;
+};
+
+export type CancelEventRegistrationResponse = CancelEventRegistrationResponses[keyof CancelEventRegistrationResponses];
+
+export type UnmarkEventRegistrationPaidData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        registrationId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/event-registrations/{registrationId}/payment';
+};
+
+export type UnmarkEventRegistrationPaidResponses = {
+    default: UnmarkEventRegistrationPaidOutputOutput;
+};
+
+export type UnmarkEventRegistrationPaidResponse = UnmarkEventRegistrationPaidResponses[keyof UnmarkEventRegistrationPaidResponses];
+
+export type MarkEventRegistrationPaidData = {
+    body: MarkEventRegistrationPaidInput;
+    path: {
+        workspaceId: string;
+        registrationId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/event-registrations/{registrationId}/payment';
+};
+
+export type MarkEventRegistrationPaidResponses = {
+    default: MarkEventRegistrationPaidOutputOutput;
+};
+
+export type MarkEventRegistrationPaidResponse = MarkEventRegistrationPaidResponses[keyof MarkEventRegistrationPaidResponses];
 
 export type GetClassOccurrenceData = {
     body?: never;

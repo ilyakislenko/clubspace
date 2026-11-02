@@ -16,6 +16,7 @@ export type ExpectedSessionLike = {
     groupId: string | null
     slotId: string | null
     occurrenceKey: string
+    workspaceEventId: string | null
     isPersonal: boolean
 }
 
@@ -60,6 +61,27 @@ export const loadExpectedAttendees = async (
                 ...filledByRoster,
             },
         ]
+    }
+    // An event with registration (a master class): the members holding a
+    // place are its list, like a «Запись на занятие» class.
+    if (s.workspaceEventId) {
+        const places = await prisma.eventRegistration.findMany({
+            where: { eventId: s.workspaceEventId, status: 'BOOKED' },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            select: {
+                userId: true,
+                user: {
+                    select: { firstname: true, lastname: true, email: true },
+                },
+            },
+        })
+        return places.map((b) => ({
+            userId: b.userId,
+            displayName: displayName(b.user),
+            present: presentIds.has(b.userId),
+            source: 'booking' as const,
+            ...filledByRoster,
+        }))
     }
     if (!s.slotId) return []
     const bookings = await prisma.dropInBooking.findMany({

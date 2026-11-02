@@ -10,6 +10,7 @@ import { formatRuDate } from '../../shared/utils/format-ru-date'
 import { localDateInTz } from '../attendance/attendance-utils'
 import {
     loadSessionVisitOptions,
+    sessionUsesAbonements,
     type SessionVisitOptions,
 } from '../attendance/session-visits'
 
@@ -24,6 +25,7 @@ export type SelfCheckInSession = {
         startAt: Date
         groupId: string | null
         occurrenceKey: string
+        workspaceEventId: string | null
     }
     visits: SessionVisitOptions
     // Every current abonement of the member / the eligible ones in precedence
@@ -57,6 +59,7 @@ export const loadSelfCheckInSession = async (
             startAt: true,
             groupId: true,
             occurrenceKey: true,
+            workspaceEventId: true,
         },
     })
     if (!session) {
@@ -73,6 +76,17 @@ export const loadSelfCheckInSession = async (
         throw new ForbiddenError({
             message: 'Только активные участники могут отмечаться',
         })
+    }
+
+    // A paid event (a master class) is paid for by its ticket: nothing to
+    // spend, nothing frozen matters.
+    if (!(await sessionUsesAbonements(prisma, { ...session, isPersonal: false }))) {
+        return {
+            session,
+            visits: { candidates: new Map(), ranked: new Map(), sessionDirectionId: null },
+            candidates: [],
+            ranked: [],
+        }
     }
 
     // The session's own day on the club calendar, matching the roster badge.

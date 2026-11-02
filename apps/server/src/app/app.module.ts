@@ -78,6 +78,13 @@ import { DeclineClassSubstitutionHandler } from '../features/class-substitutions
 import { ListClassSubstitutionsHandler } from '../features/class-substitutions/list-class-substitutions.handler'
 import { ListSubstituteCandidatesHandler } from '../features/class-substitutions/list-substitute-candidates.handler'
 import { ClassBookingService } from '../domains/class-bookings/class-booking.service'
+import { EventRegistrationService } from '../domains/event-registrations/event-registration.service'
+import { CancelEventRegistrationHandler } from '../features/event-registrations/cancel-event-registration.handler'
+import { EventRegistrationsController } from '../features/event-registrations/event-registrations.controller'
+import { ListEventRegistrationsHandler } from '../features/event-registrations/list-event-registrations.handler'
+import { MarkEventRegistrationPaidHandler } from '../features/event-registrations/mark-event-registration-paid.handler'
+import { RegisterForEventHandler } from '../features/event-registrations/register-for-event.handler'
+import { UnmarkEventRegistrationPaidHandler } from '../features/event-registrations/unmark-event-registration-paid.handler'
 import { GetAttendanceSessionHandler } from '../features/attendance/get-session.handler'
 import { AcceptPersonalTrainingHandler } from '../features/personal-trainings/accept-personal-training.handler'
 import { CancelPersonalTrainingHandler } from '../features/personal-trainings/cancel-personal-training.handler'
@@ -745,6 +752,7 @@ const controllers: ModuleMetadata['controllers'] = [
     SelfCheckInController,
     DropInsController,
     ClassBookingsController,
+    EventRegistrationsController,
     ClassOccurrencesController,
     ClassSubstitutionsController,
     PersonalTrainingsController,
@@ -959,6 +967,11 @@ const handlers: ModuleMetadata['providers'] = [
     AddClassBookingHandler,
     RemoveClassBookingHandler,
     SetClassCapacityHandler,
+    RegisterForEventHandler,
+    CancelEventRegistrationHandler,
+    ListEventRegistrationsHandler,
+    MarkEventRegistrationPaidHandler,
+    UnmarkEventRegistrationPaidHandler,
     CreateClassSubstitutionHandler,
     ApproveClassSubstitutionHandler,
     DeclineClassSubstitutionHandler,
@@ -1231,6 +1244,8 @@ z.config(z.locales.ru())
       DemoClubService,
       // «Запись на занятие»: bookings, waitlist, late cancels (domains/class-bookings).
       ClassBookingService,
+      // Registration for paid / limited events (domains/event-registrations).
+      EventRegistrationService,
       RankService,
       // «Импорт клуба»: the shared engine and its background worker.
       ClubImportEngine,

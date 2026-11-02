@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { EventRegistrationSummarySchema } from '../event-registrations/schemas'
 import { EventOutputSchema } from './schemas'
 
 export const ListWorkspaceEventsFeatureInputSchema = z.object({
@@ -12,8 +13,14 @@ export const ListWorkspaceEventsFeatureInputSchema = z.object({
     directionId: z.string().uuid().optional(),
 })
 
+// An event plus its places when members register for it (a price or a
+// limit); null for an open event.
+export const EventListItemSchema = EventOutputSchema.extend({
+    registration: EventRegistrationSummarySchema.nullable(),
+})
+
 export const ListWorkspaceEventsFeatureOutputSchema = z.object({
-    data: z.array(EventOutputSchema),
+    data: z.array(EventListItemSchema),
 })
 
 export class ListWorkspaceEventsFeature {
@@ -22,6 +29,9 @@ export class ListWorkspaceEventsFeature {
             typeof ListWorkspaceEventsFeatureInputSchema
         >,
         readonly workspaceId: string,
+        // Whose registrations `registration.mine` shows (the child under
+        // act-as).
+        readonly invokerUserId: string,
     ) {}
 }
 

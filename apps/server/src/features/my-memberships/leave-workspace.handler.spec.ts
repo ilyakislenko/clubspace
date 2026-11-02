@@ -12,6 +12,7 @@ const build = (
         workspaceMember: { delete: jest.fn().mockResolvedValue({}) },
         dropInBooking: { deleteMany: jest.fn().mockResolvedValue({}) },
         classBooking: { updateMany: jest.fn().mockResolvedValue({}) },
+        eventRegistration: { updateMany: jest.fn().mockResolvedValue({}) },
         groupMember: { deleteMany: jest.fn().mockResolvedValue({}) },
         groupCoach: { deleteMany: jest.fn().mockResolvedValue({}) },
         directionManager: { deleteMany: jest.fn().mockResolvedValue({}) },

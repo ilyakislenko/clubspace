@@ -19,6 +19,7 @@ const build = (
         },
         dropInBooking: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
         classBooking: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+        eventRegistration: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         rankGradingCandidate: {
             deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         },

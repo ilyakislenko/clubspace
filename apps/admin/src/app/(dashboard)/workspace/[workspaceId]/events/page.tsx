@@ -21,6 +21,10 @@ import { getWorkspaceSettings } from "../../../../../shared/api/workspaces"
 import { safeExternalUrl } from "../../../../../shared/lib/safe-url"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { EventForm } from "../../../../../features/events/EventForm"
+import { EventRegistrationsPanel } from "../../../../../features/events/EventRegistrationsPanel"
+import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
+import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
+import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { DirectionChip } from "../../../../../features/directions/DirectionChip"
 import {
   ALL_DIRECTIONS,
@@ -73,6 +77,7 @@ export default function EventsPage() {
   const workspaceId = params?.workspaceId
   // Any coach edits events; a direction manager only their directions' ones.
   const scope = useDirectionScope(workspaceId)
+  const isAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
 
   const [events, setEvents] = useState<WorkspaceEvent[]>([])
   const [gyms, setGyms] = useState<Gym[]>([])
@@ -82,6 +87,8 @@ export default function EventsPage() {
   const [editingEvent, setEditingEvent] = useState<WorkspaceEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  // The event whose registrations are unfolded.
+  const [openRegistrations, setOpenRegistrations] = useState<string | null>(null)
   // Workspace timezone is the default for the new-event form. Loaded
   // alongside events/gyms so the form opens with a sensible value.
   const [workspaceTz, setWorkspaceTz] = useState<string>("Europe/Moscow")
@@ -249,7 +256,54 @@ export default function EventsPage() {
                             .join(" ") || event.coach.email}
                         </Link>
                       )}
+                      {event.hostName && (
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                          Ведёт: {event.hostName}
+                        </span>
+                      )}
                     </div>
+                    {event.registration && (
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                        <span className="font-medium">
+                          {event.price !== null
+                            ? formatAmount(event.price, event.currency)
+                            : "Бесплатно"}
+                        </span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {event.capacity !== null
+                            ? `Записано ${event.registration.booked} из ${event.capacity}`
+                            : `Записано ${event.registration.booked}`}
+                          {event.registration.waitlist > 0
+                            ? ` · в листе ожидания ${event.registration.waitlist}`
+                            : ""}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() =>
+                            setOpenRegistrations((id) =>
+                              id === event.id ? null : event.id,
+                            )
+                          }
+                        >
+                          {openRegistrations === event.id
+                            ? "Скрыть список"
+                            : "Записавшиеся"}
+                        </Button>
+                      </div>
+                    )}
+                    {event.registration &&
+                      openRegistrations === event.id &&
+                      workspaceId && (
+                        <div className="mt-3">
+                          <EventRegistrationsPanel
+                            workspaceId={workspaceId}
+                            eventId={event.id}
+                            canUnmark={isAdmin}
+                          />
+                        </div>
+                      )}
                     {event.description && (
                       <p className="mt-2 whitespace-pre-wrap text-sm">
                         {event.description}

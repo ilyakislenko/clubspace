@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback } from "react"
+import React, { useCallback, useState } from "react"
 import {
   ActivityIndicator,
   Linking,
@@ -18,9 +18,18 @@ import {
 } from "../../shared/components/CenteredColumn"
 import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 
+import {
+  cancelEventRegistration,
+  registerForEvent,
+} from "../../shared/api/event-registrations"
 import { listEvents, type ScheduleEvent } from "../../shared/api/groups"
+import { showAlert } from "../../shared/alert"
 import { useAuth } from "../../shared/auth-context"
+import { useToast } from "../../shared/components/Toast"
+import { errorMessage } from "../../shared/error-message"
+import { haptics } from "../../shared/haptics"
 import { useVocabulary } from "../../shared/use-vocabulary"
+import { spotsLine } from "./class-booking-helpers"
 import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
@@ -65,6 +74,150 @@ const formatRangeInTz = (
   return `${dateFmt.format(start)}, ${timeFmt.format(start)} – ${dateFmt.format(end)}, ${timeFmt.format(end)}`
 }
 
+const moneyFmt = new Intl.NumberFormat("ru-RU")
+
+// «1 500 ₽» / «Бесплатно».
+const priceLabel = (price: number | null, currency: string): string =>
+  price === null
+    ? "Бесплатно"
+    : `${moneyFmt.format(price)} ${currency === "RUB" ? "₽" : currency}`
+
+// A master class: price, places and the member's own registration, with
+// register / waitlist / cancel. A guardian acting for a child acts for it.
+function EventRegistrationBlock({
+  event,
+  onChanged,
+}: {
+  event: ScheduleEvent
+  onChanged: () => void
+}) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
+  const { workspace } = useAuth()
+  const { showToast } = useToast()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const reg = event.registration
+  if (!reg || !workspace) return null
+  const mine = reg.mine
+  const capacity = event.capacity ?? null
+  const started = new Date(event.startAt).getTime() <= Date.now()
+  const full = capacity !== null && reg.booked >= capacity
+
+  const run = async (action: () => Promise<unknown>, done: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await action()
+      haptics.success()
+      showToast(done, "success")
+      onChanged()
+    } catch (e) {
+      // The server explains why (started, not a member, …) — as is.
+      setError(errorMessage(e, "Не удалось сохранить запись"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const register = () =>
+    void run(
+      () =>
+        registerForEvent({
+          workspaceId: workspace.workspaceId,
+          eventId: event.id,
+        }),
+      full ? "Вы в листе ожидания" : "Вы записаны",
+    )
+
+  const cancel = () => {
+    if (!mine) return
+    const waiting = mine.status === "WAITLISTED"
+    showAlert(
+      waiting ? "Покинуть лист ожидания?" : "Отменить запись?",
+      waiting
+        ? "Место в очереди займёт следующий."
+        : "Ваше место перейдёт первому из листа ожидания.",
+      [
+        { text: "Нет", style: "cancel" },
+        {
+          text: waiting ? "Покинуть" : "Отменить запись",
+          style: "destructive",
+          onPress: () =>
+            void run(
+              () =>
+                cancelEventRegistration({
+                  workspaceId: workspace.workspaceId,
+                  registrationId: mine.id,
+                }),
+              waiting ? "Вы покинули лист ожидания" : "Запись отменена",
+            ),
+        },
+      ],
+    )
+  }
+
+  return (
+    <View style={styles.regBlock}>
+      <Text style={styles.regPrice}>
+        {priceLabel(event.price ?? null, event.currency ?? "RUB")}
+      </Text>
+      <Text style={styles.regSpots}>
+        {spotsLine({ capacity, booked: reg.booked, waitlist: reg.waitlist })}
+      </Text>
+      {mine?.status === "BOOKED" && (
+        <Text style={styles.regMine}>
+          Вы записаны
+          {event.price != null
+            ? mine.isPaid
+              ? " · оплачено"
+              : " · оплата в клубе"
+            : ""}
+        </Text>
+      )}
+      {mine?.status === "WAITLISTED" && (
+        <Text style={styles.regMine}>
+          Вы в листе ожидания: {mine.waitlistPosition ?? "—"}-е место в очереди.
+          Освободится место — запишем и пришлём уведомление
+        </Text>
+      )}
+      {error && <Text style={styles.regError}>{error}</Text>}
+      {!started &&
+        (mine ? (
+          <Pressable
+            onPress={cancel}
+            disabled={busy}
+            accessibilityRole="button"
+            style={[styles.regButton, styles.regButtonSecondary]}
+          >
+            <Text style={styles.regButtonSecondaryText}>
+              {busy
+                ? "Отменяем…"
+                : mine.status === "WAITLISTED"
+                  ? "Покинуть лист ожидания"
+                  : "Отменить запись"}
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={register}
+            disabled={busy}
+            accessibilityRole="button"
+            style={[styles.regButton, styles.regButtonPrimary]}
+          >
+            {busy ? (
+              <ActivityIndicator color={theme.colors.accentText} />
+            ) : (
+              <Text style={styles.regButtonPrimaryText}>
+                {full ? "Встать в лист ожидания" : "Записаться"}
+              </Text>
+            )}
+          </Pressable>
+        ))}
+    </View>
+  )
+}
+
 export function EventsScreen({ navigation: _ }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -90,10 +243,12 @@ export function EventsScreen({ navigation: _ }: Props) {
         (list: ScheduleEvent[] | null, op: DeltaOp, item: DeltaItem) => {
           const current = list ?? []
           if (op === "delete") return current.filter((e) => e.id !== item.id)
+          // A live edit carries the event without the places: keep them
+          // until the refetch the registration change triggers.
           const next =
             op === "update"
               ? current.map((e) =>
-                  e.id === item.id ? (item as ScheduleEvent) : e,
+                  e.id === item.id ? { ...e, ...(item as ScheduleEvent) } : e,
                 )
               : [
                   ...current.filter((e) => e.id !== item.id),
@@ -165,13 +320,15 @@ export function EventsScreen({ navigation: _ }: Props) {
                     {event.gym.name} · {event.gym.address}
                   </Text>
                 )}
-                {event.coach && (
+                {(event.hostName || event.coach) && (
                   <Text style={styles.cardCoach} numberOfLines={1}>
                     Ведёт:{" "}
-                    {[event.coach.firstname, event.coach.lastname]
-                      .filter(Boolean)
-                      .join(" ")
-                      .trim() || event.coach.email}
+                    {event.hostName ||
+                      [event.coach?.firstname, event.coach?.lastname]
+                        .filter(Boolean)
+                        .join(" ")
+                        .trim() ||
+                      event.coach?.email}
                   </Text>
                 )}
                 {event.description && (
@@ -188,6 +345,9 @@ export function EventsScreen({ navigation: _ }: Props) {
                       {event.link}
                     </Text>
                   </Pressable>
+                )}
+                {event.registration && (
+                  <EventRegistrationBlock event={event} onChanged={refetch} />
                 )}
               </View>
             ))}
@@ -281,5 +441,39 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   linkText: {
     color: theme.colors.accent,
     fontSize: 12,
+  },
+  regBlock: {
+    marginTop: theme.spacing(2),
+    gap: theme.spacing(1),
+    paddingTop: theme.spacing(2),
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  regPrice: { ...theme.typography.bodyStrong, color: theme.colors.text },
+  regSpots: { fontSize: 14, fontWeight: "600", color: theme.colors.text },
+  regMine: { fontSize: 13, color: theme.colors.success },
+  regError: { fontSize: 13, color: theme.colors.danger },
+  regButton: {
+    marginTop: theme.spacing(1),
+    paddingVertical: theme.spacing(3),
+    borderRadius: theme.radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  regButtonPrimary: { backgroundColor: theme.colors.accent },
+  regButtonPrimaryText: {
+    color: theme.colors.accentText,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  regButtonSecondary: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  regButtonSecondaryText: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "600",
   },
 })

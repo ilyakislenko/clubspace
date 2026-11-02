@@ -5,6 +5,8 @@ import { CreateWorkspaceEventFeature } from './create-workspace-event.feature'
 import { CreateWorkspaceEventHandler } from './create-workspace-event.handler'
 import { DeleteWorkspaceEventFeature } from './delete-workspace-event.feature'
 import { DeleteWorkspaceEventHandler } from './delete-workspace-event.handler'
+import { ListWorkspaceEventsFeature } from './list-workspace-events.feature'
+import { ListWorkspaceEventsHandler } from './list-workspace-events.handler'
 import { UpdateWorkspaceEventFeature } from './update-workspace-event.feature'
 import { UpdateWorkspaceEventHandler } from './update-workspace-event.handler'
 
@@ -48,6 +50,10 @@ const eventRow = (directionId: string | null) => ({
     direction: null,
     coachId: 'u1',
     coach: { id: 'u1', email: 'c@x', firstname: 'C', lastname: null },
+    hostName: null as string | null,
+    price: null as number | null,
+    currency: 'RUB',
+    capacity: null as number | null,
     createdById: 'u1',
     createdAt: new Date('2026-11-01T00:00:00Z'),
     updatedAt: new Date('2026-11-01T00:00:00Z'),
@@ -68,7 +74,12 @@ const prismaFor = (current: string | null) => ({
 const audit = () => ({ record: jest.fn().mockResolvedValue(undefined) })
 const rt = () => ({ emitListDelta: jest.fn(), invalidate: jest.fn() })
 
-const create = (prisma: unknown, r: unknown, directionId?: string) =>
+const create = (
+    prisma: unknown,
+    r: unknown,
+    directionId?: string,
+    extra: Record<string, unknown> = {},
+) =>
     new CreateWorkspaceEventHandler(
         prisma as never,
         audit() as never,
@@ -81,6 +92,7 @@ const create = (prisma: unknown, r: unknown, directionId?: string) =>
                 startAt: '2026-11-10T10:00',
                 endAt: '2026-11-10T12:00',
                 directionId,
+                ...extra,
             } as never,
             'w1',
             'u1',
@@ -88,12 +100,22 @@ const create = (prisma: unknown, r: unknown, directionId?: string) =>
             false,
         ),
     )
-const update = (prisma: unknown, r: unknown, payload: Record<string, unknown>) =>
+const registrations = () => ({
+    promote: jest.fn().mockResolvedValue(0),
+    summaries: jest.fn().mockResolvedValue(new Map()),
+})
+const update = (
+    prisma: unknown,
+    r: unknown,
+    payload: Record<string, unknown>,
+    regs = registrations(),
+) =>
     new UpdateWorkspaceEventHandler(
         prisma as never,
         audit() as never,
         rt() as never,
         r as never,
+        regs as never,
     ).execute(
         new UpdateWorkspaceEventFeature(
             payload as never,
@@ -182,5 +204,66 @@ describe('workspace events: direction manager', () => {
             ForbiddenError,
         )
         expect(other.workspaceEvent.deleteMany).not.toHaveBeenCalled()
+    })
+})
+
+describe('workspace events: master class (price, places, guest host)', () => {
+    it('creates a paid event with a limit; a guest host leaves the coach empty', async () => {
+        const prisma = prismaFor(null)
+        await create(prisma, rbac(null), undefined, {
+            price: 1500,
+            currency: 'rub',
+            capacity: 3,
+            hostName: 'Анна Петрова',
+        })
+        expect(prisma.workspaceEvent.create.mock.calls[0][0].data).toMatchObject({
+            price: 1500,
+            currency: 'RUB',
+            capacity: 3,
+            hostName: 'Анна Петрова',
+            coachId: null,
+        })
+    })
+
+    it('an event without them is created as before: free, no limit, the creator leads', async () => {
+        const prisma = prismaFor(null)
+        await create(prisma, rbac(null))
+        const data = prisma.workspaceEvent.create.mock.calls[0][0].data
+        expect(data).toMatchObject({ price: null, capacity: null, hostName: null, coachId: 'u1' })
+        expect(data.currency).toBeUndefined()
+    })
+
+    it('a changed limit moves the waitlist up; other edits do not touch it', async () => {
+        const prisma = prismaFor(null)
+        const regs = registrations()
+        await update(prisma, rbac(null), { title: 'Новый' }, regs)
+        expect(regs.promote).not.toHaveBeenCalled()
+        await update(prisma, rbac(null), { capacity: 5, price: null }, regs)
+        expect(prisma.workspaceEvent.update.mock.calls[1][0].data).toMatchObject({
+            capacity: 5,
+            price: null,
+        })
+        expect(regs.promote).toHaveBeenCalledWith('w1', 'e1')
+    })
+
+    it('lists places for the viewer: a summary for registration events, null for open ones', async () => {
+        const paid = { ...eventRow(null), id: 'e2', price: 1500, capacity: 3 }
+        const prisma = {
+            workspaceEvent: {
+                findMany: jest.fn().mockResolvedValue([eventRow(null), paid]),
+            },
+        }
+        const regs = registrations()
+        const summary = { booked: 3, waitlist: 1, mine: null }
+        regs.summaries.mockResolvedValue(new Map([['e2', summary]]))
+        const out = await new ListWorkspaceEventsHandler(
+            prisma as never,
+            regs as never,
+        ).execute(new ListWorkspaceEventsFeature({}, 'w1', 'viewer'))
+        expect(regs.summaries).toHaveBeenCalledWith([eventRow(null), paid], 'viewer')
+        expect(out.data.map((e) => [e.id, e.registration, e.price])).toEqual([
+            ['e1', null, null],
+            ['e2', summary, 1500],
+        ])
     })
 })

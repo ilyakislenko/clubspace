@@ -20,6 +20,7 @@ import { loadSessionForWrite } from './session-access'
 import {
     chargeVisits,
     loadSessionVisitOptions,
+    sessionUsesAbonements,
     VISIT_ABONEMENT_REFUSED_MESSAGE,
     type SessionVisitOptions,
 } from './session-visits'
@@ -113,16 +114,17 @@ export class MarkRecordsHandler
         let newIds: string[] = []
         let touchedSubIds: string[] = []
         const now = new Date()
+        const usesAbonements = await sessionUsesAbonements(this.prisma, session)
         const overrides = new Map(
             (f.payload.abonements ?? []).map((a) => [a.userId, a.subscriptionId]),
         )
 
         await this.prisma.$transaction(async (tx) => {
             // Which abonement each member's visit may be spent on. Personal
-            // sessions never touch abonements (paid off-app: never draw a
-            // group class pack).
+            // sessions and paid events never touch abonements (paid off-app /
+            // by the ticket: never draw a group class pack).
             let visits: SessionVisitOptions | null = null
-            if (!session.isPersonal) {
+            if (usesAbonements) {
                 visits = await loadSessionVisitOptions(tx, {
                     workspaceId: f.workspaceId,
                     sessionId: session.id,

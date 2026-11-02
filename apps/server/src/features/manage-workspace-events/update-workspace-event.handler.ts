@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
+import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
 import { assertDirectionInWorkspace } from '../../domains/directions/direction-scope'
 import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -73,6 +74,7 @@ export class UpdateWorkspaceEventHandler
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
         private readonly rbac: RbacService,
+        private readonly registrations: EventRegistrationService,
     ) {}
 
     async execute({
@@ -189,6 +191,16 @@ export class UpdateWorkspaceEventHandler
                 ...(payload.coachId !== undefined && {
                     coachId: payload.coachId,
                 }),
+                ...(payload.hostName !== undefined && {
+                    hostName: payload.hostName || null,
+                }),
+                ...(payload.price !== undefined && { price: payload.price }),
+                ...(payload.currency !== undefined && {
+                    currency: payload.currency.toUpperCase(),
+                }),
+                ...(payload.capacity !== undefined && {
+                    capacity: payload.capacity,
+                }),
             },
             include: {
                 gym: { select: { id: true, name: true, address: true } },
@@ -212,6 +224,12 @@ export class UpdateWorkspaceEventHandler
             actorId: invokerUserId,
             metadata: { fields: Object.keys(payload) },
         })
+
+        // A raised or removed limit: the waitlist moves up at once (a no-op
+        // when nobody waits or nothing freed).
+        if (payload.capacity !== undefined) {
+            await this.registrations.promote(workspaceId, eventId)
+        }
 
         const serialized = serializeEvent(updated)
         this.realtime.emitListDelta(

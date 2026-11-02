@@ -25,6 +25,23 @@ export type SessionVisitOptions = {
     sessionDirectionId: string | null
 }
 
+// Whether a visit to this session is spent on an abonement at all. A personal
+// session is paid off-app; a paid event (a guest teacher's master class) by
+// its own ticket — neither ever draws a class pack. A free event counts like a
+// class, as before.
+export const sessionUsesAbonements = async (
+    db: Pick<PrismaTransactionClientType, 'workspaceEvent'>,
+    s: { isPersonal: boolean; workspaceEventId: string | null },
+): Promise<boolean> => {
+    if (s.isPersonal) return false
+    if (!s.workspaceEventId) return true
+    const event = await db.workspaceEvent.findUnique({
+        where: { id: s.workspaceEventId },
+        select: { price: true },
+    })
+    return (event?.price ?? null) === null
+}
+
 // Current abonements of these members and which of them this session may be
 // spent on. One query for all members; the session's direction is looked up
 // only when some abonement is scoped (a club without directions never needs it).

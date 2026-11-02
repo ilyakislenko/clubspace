@@ -53,3 +53,43 @@ export const deleteEvent = async (params: {
     url: `/workspaces/${params.workspaceId}/events/${params.eventId}`,
   })
 }
+
+// Who registered for an event with a price or a limit of places, and who paid.
+export type EventRegistrations = ApiTypes.EventRegistrationsOutputOutput
+export type EventRegistrant = EventRegistrations["data"][number]
+export type EventPaymentMethod = ApiTypes.MarkEventRegistrationPaidInput["method"]
+
+export const listEventRegistrations = async (params: {
+  workspaceId: string
+  eventId: string
+}): Promise<EventRegistrations> => {
+  return await getApiClient().request<EventRegistrations>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/events/${params.eventId}/registrations`,
+  })
+}
+
+export const markEventRegistrationPaid = async (params: {
+  workspaceId: string
+  registrationId: string
+  method: EventPaymentMethod
+}): Promise<EventRegistrant> => {
+  return await getApiClient().request<
+    EventRegistrant,
+    ApiTypes.MarkEventRegistrationPaidInput
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/event-registrations/${params.registrationId}/payment`,
+    data: { method: params.method },
+  })
+}
+
+export const unmarkEventRegistrationPaid = async (params: {
+  workspaceId: string
+  registrationId: string
+}): Promise<EventRegistrant> => {
+  return await getApiClient().request<EventRegistrant, undefined>({
+    method: "delete",
+    url: `/workspaces/${params.workspaceId}/event-registrations/${params.registrationId}/payment`,
+  })
+}

@@ -119,8 +119,10 @@ export class CreateWorkspaceEventHandler
         }
 
         // Default coachId to the creator so list views show "by [Coach
-        // name]" without the form forcing an explicit pick.
-        const coachId = payload.coachId ?? invokerUserId
+        // name]" without the form forcing an explicit pick — unless a guest
+        // teacher hosts it.
+        const hostName = payload.hostName || null
+        const coachId = payload.coachId ?? (hostName ? null : invokerUserId)
 
         const created = await this.prisma.workspaceEvent.create({
             data: {
@@ -134,6 +136,12 @@ export class CreateWorkspaceEventHandler
                 gymId: payload.gymId ?? null,
                 directionId: payload.directionId ?? null,
                 coachId,
+                hostName,
+                price: payload.price ?? null,
+                ...(payload.currency && {
+                    currency: payload.currency.toUpperCase(),
+                }),
+                capacity: payload.capacity ?? null,
                 createdById: invokerUserId,
             },
             include: {
