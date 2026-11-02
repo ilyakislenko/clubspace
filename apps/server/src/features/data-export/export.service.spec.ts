@@ -4,6 +4,9 @@ import { ExportService } from './export.service'
 const svc = (prisma: object) =>
     new ExportService({
         eventRegistration: { findMany: jest.fn().mockResolvedValue([]) },
+        workspace: {
+            findUnique: jest.fn().mockResolvedValue({ timezone: 'UTC' }),
+        },
         ...prisma,
     } as never)
 
@@ -178,8 +181,35 @@ describe('ExportService.revenueCsv', () => {
             'Дата оплаты;Участник;Email;Тариф / событие;Сумма;Валюта;Источник;Занятий в пакете;Вид;Способ оплаты',
         )
         expect(csv).toContain(
-            '2026-07-01;Иван Петров;ivan@x;8 занятий;4000;RUB;MANUAL;8;Абонемент;',
+            '2026-07-01;Иван Петров;ivan@x;8 занятий;4000;RUB;Вручную;8;Абонемент;',
         )
+    })
+
+    it('prints the payment day in the club timezone', async () => {
+        const prisma = {
+            workspace: {
+                findUnique: jest
+                    .fn()
+                    .mockResolvedValue({ timezone: 'Asia/Novosibirsk' }),
+            },
+            subscription: {
+                findMany: jest.fn().mockResolvedValue([
+                    {
+                        createdAt: new Date('2026-11-02T21:30:00Z'),
+                        paidAt: new Date('2026-11-02T21:30:00Z'),
+                        amountPaid: 5600,
+                        currency: 'RUB',
+                        source: 'GATEWAY',
+                        classesTotal: 8,
+                        plan: { name: '8 занятий' },
+                        user: null,
+                        workspaceMember: null,
+                    },
+                ]),
+            },
+        }
+        const csv = await svc(prisma).revenueCsv('w1')
+        expect(csv).toContain('2026-11-03;;;8 занятий;5600;RUB;Онлайн-оплата;8;Абонемент;')
     })
 
     it('dates a row by its payment, falling back to the sale date, newest first', async () => {
@@ -232,7 +262,7 @@ describe('ExportService.revenueCsv', () => {
             },
         }
         const csv = await svc(prisma).revenueCsv('w1')
-        expect(csv).toContain('2026-06-01;;;Разовое;800;RUB;MANUAL;')
+        expect(csv).toContain('2026-06-01;;;Разовое;800;RUB;Вручную;')
     })
 
     it('applies a date range to the payment date (sale date for legacy rows)', async () => {
@@ -295,7 +325,7 @@ describe('ExportService.revenueCsv', () => {
         // Each sale exactly once: one abonement and two tickets.
         expect(lines).toEqual([
             '2026-07-09;Анна Смирнова;anna@x;Мастер-класс;1500;RUB;;;Событие;Перевод',
-            '2026-07-05;;;8 занятий;4000;RUB;MANUAL;8;Абонемент;',
+            '2026-07-05;;;8 занятий;4000;RUB;Вручную;8;Абонемент;',
             '2026-07-01;Анна Смирнова;anna@x;Семинар;2000;RUB;;;Событие;Перевод',
         ])
     })
