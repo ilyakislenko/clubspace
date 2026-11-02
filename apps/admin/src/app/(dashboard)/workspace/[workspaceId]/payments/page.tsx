@@ -17,8 +17,8 @@ export default function WorkspacePaymentsPage() {
         <h1 className="text-2xl font-semibold">Онлайн-оплата</h1>
         <p className="text-sm text-muted-foreground">
           Подключите ЮKassa или Stripe — участники смогут сами оплачивать
-          абонементы в приложении, а абонемент оформится автоматически после
-          оплаты.
+          абонементы и билеты на события в приложении: абонемент оформится, а
+          билет отметится оплаченным автоматически после оплаты.
         </p>
       </div>
       <PaymentSettingsCard workspaceId={workspaceId} />

@@ -58,13 +58,13 @@ const MS_1D = 24 * 3600 * 1000
 // ATTENDANCE, and it sits inches away from the abonement's class balance
 // ("лимит 12: 12/12"). The old wording — "без тренировок" — read as "no classes
 // left on the pass", so a member with a brand-new 12-class abonement looked
-// like they had none. Say "не отмечался" / "посл. визит", which can only mean
+// like they had none. Say "отметок ещё не было" / "посл. визит", which can only mean
 // check-ins.
 const formatLastCheckIn = (iso: string | null): string => {
-  if (!iso) return "ни разу не отмечался"
+  if (!iso) return "отметок ещё не было"
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / MS_1D)
-  if (days <= 0) return "был сегодня"
-  if (days === 1) return "был вчера"
+  if (days <= 0) return "визит сегодня"
+  if (days === 1) return "визит вчера"
   return `посл. визит ${days} дн назад`
 }
 const ACCESS_FILTER_LABELS: Record<AccessFilter, string> = {
@@ -420,7 +420,7 @@ export default function WorkspaceUsersPage() {
                       {user.email ?? "—"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {fullName} · зарегистрировался {created}
+                      {fullName} · регистрация {created}
                     </p>
                   </div>
                   <Button
