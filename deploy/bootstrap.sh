@@ -363,7 +363,13 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     fi
 else
     install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$INSTALL_DIR"
-    if ! as_user git clone -q --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"; then
+    # Rebuilding a lost server, the saved .env.production is put here first —
+    # git refuses to clone into a non-empty directory, so clone beside it and
+    # move the checkout in (the file is not in the repository, nothing clashes).
+    CLONE_DIR="$INSTALL_DIR"
+    rm -rf "$INSTALL_DIR/.bootstrap-clone"
+    [ -z "$(ls -A "$INSTALL_DIR")" ] || CLONE_DIR="$INSTALL_DIR/.bootstrap-clone"
+    if ! as_user git clone -q --branch "$BRANCH" "$REPO_URL" "$CLONE_DIR"; then
         # A private fork: give the server a read-only deploy key.
         if [ ! -f "$DEPLOY_HOME/.ssh/id_ed25519" ]; then
             install -d -m 700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$DEPLOY_HOME/.ssh"
@@ -373,6 +379,11 @@ else
         die "не удалось склонировать $REPO_URL. Для приватного репозитория добавьте этот ключ в GitHub → Settings → Deploy keys (read-only):
 $(cat "$DEPLOY_HOME/.ssh/id_ed25519.pub")
 и запустите снова с --repo git@github.com:<owner>/<repo>.git"
+    fi
+    if [ "$CLONE_DIR" != "$INSTALL_DIR" ]; then
+        as_user cp -a "$CLONE_DIR/." "$INSTALL_DIR/"
+        rm -rf "$CLONE_DIR"
+        note "код склонирован в непустой $INSTALL_DIR (лежавшие там файлы не тронуты)"
     fi
     note "$(as_user git -C "$INSTALL_DIR" log -1 --format='%h %s')"
 fi

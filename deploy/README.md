@@ -181,22 +181,33 @@ A-записей на IP сервера, TTL 300–600:
 ssh root@<IP>
 curl -fsSL https://raw.githubusercontent.com/ilyakislenko/clubspace/main/deploy/bootstrap.sh \
   | bash -s -- --domain <домен> --admin-email <ваш e-mail> \
-               --smtp-url 'smtps://<логин>:<пароль>@<smtp-хост>:465'
+               --smtp-url 'smtps://<логин>:<пароль>@smtp.mail.selcloud.ru:1127'
 ```
 
 Скрипт (повторный запуск безопасен — он только доделывает недостающее):
 ставит Docker, создаёт пользователя `clubspace`, включает firewall (открыты
 только SSH, 80, 443), fail2ban и автоматические обновления безопасности,
 добавляет swap 4 ГБ, клонирует код в `/opt/clubspace`, создаёт
-`.env.production` со случайными стойкими секретами, проверяет DNS, собирает и
-запускает стек (первая сборка — 15–30 минут) с Caddy, который сам получает и
-продлевает HTTPS-сертификаты для `api.`/`admin.`/`app.`/`s3.`, и ставит
-таймеры: ночной бэкап, проверку здоровья каждые 5 минут, ежемесячную проверку
-восстановления.
+`.env.production` со случайными стойкими секретами и VAPID-ключами,
+проверяет, что SMTP доступен, и DNS, собирает пять образов по одному (первая
+сборка на 2 vCPU — 40–60 минут, почти всё время — скачивание пакетов npm и
+Alpine; сбой сети на этом шаге скрипт повторяет сам, а если и повтор не
+удался — запустите ту же команду ещё раз, сборка продолжится с кеша) и
+запускает стек с Caddy, который сам получает и продлевает HTTPS-сертификаты
+для `api.`/`admin.`/`app.`/`pwa.`/`s3.`, и ставит таймеры: ночной бэкап,
+проверку здоровья каждые 5 минут, ежемесячную проверку восстановления.
 
 Если `docker pull` падает с ошибками доступа к Docker Hub — запустите ещё раз с
 `--registry-mirror <адрес зеркала>` (например, `https://mirror.gcr.io` или
 зеркало, которое даёт ваш провайдер).
+
+Хотите сначала прогнать всё «вхолостую», не тратя лимит Let's Encrypt
+(5 неудачных выпусков в час на имя)? Перед запуском создайте
+`/opt/clubspace/.env.production` с одной строкой
+`CADDY_GLOBAL_OPTIONS=acme_ca https://acme-staging-v02.api.letsencrypt.org/directory`:
+сертификаты будут тестовые (браузер ругается), остальное — как в бою. Потом
+очистите значение и выполните
+`docker compose -f docker-compose.prod.yml --env-file .env.production up -d caddy`.
 
 ### 7. Бэкапы и алерты
 
@@ -259,31 +270,40 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d media
    сгенерированный демо-клуб. Аккаунты, сценарий показа и офлайн-вариант —
    [docs/demo.md](../docs/demo.md). Закончили показы — верните `DEMO_MODE=false`:
    демо-сессии на телефонах закончатся сами.
+5. ИИ-ассистент в админке: впишите `AI_CHAT_API_KEY=<ключ OpenRouter>` в
+   `.env.production` (модель и лимиты вопросов — `AI_CHAT_MODEL`,
+   `AI_CHAT_MONTHLY_QUESTIONS`, `AI_CHAT_TRIAL_MONTHLY_QUESTIONS`, по умолчанию
+   `openai/gpt-4.1-mini`, 300 и 30) и перезапустите сервер
+   (`docker compose -f docker-compose.prod.yml --env-file .env.production up -d server`).
 
-### 9. Мобильное приложение и пуши
+### 9. Приложение: браузер (PWA), Android, iOS, пуши
 
-- Приложение одно для всех клубов; направьте его на ваш сервер:
+- **PWA уже работает** на `https://pwa.<домен>`: то же приложение, что на
+  телефонах, в браузере, ставится на экран «Домой». Эту ссылку (или QR клуба —
+  он ведёт на `app.<домен>/join/<код>` с кнопкой «Открыть в браузере») можно
+  раздавать ученикам, родителям и тренерам сразу, без магазинов.
+- **Уведомления в браузере (Web Push)** включены: `bootstrap.sh` один раз
+  сгенерировал пару VAPID-ключей (`WEB_PUSH_VAPID_PUBLIC_KEY`,
+  `WEB_PUSH_VAPID_PRIVATE_KEY`) и `WEB_PUSH_SUBJECT=mailto:<--admin-email>`.
+  Ключи не меняйте: новая пара отключает все подписки браузеров. Включаются
+  участником в «Настройки → Уведомления» или баннером на главной; на iPhone —
+  только из PWA, добавленной на экран «Домой» (iOS 16.4+). Серверу нужен
+  исходящий HTTPS к `fcm.googleapis.com`, `*.push.services.mozilla.com`,
+  `*.push.apple.com` — у Selectel он открыт (закрыты только почтовые порты),
+  проверка: `curl -sI https://fcm.googleapis.com | head -1` на сервере.
+- Приложение для Android/iOS одно для всех клубов; направьте его на ваш сервер:
   `./scripts/set-mobile-target.sh --domain <домен> --support-email <e-mail>`,
   затем сборка через EAS — см. *Your club, and the first students*.
-- **Пуши** не настраиваются в `.env.production`: сервер шлёт через Expo, а
-  Android-сборке нужен FCM-ключ (Firebase → `google-services.json`), загруженный в
-  EAS-проект; для iOS — APNs-ключ в EAS. Без них приложение работает, но
-  уведомления не приходят. Подробно — [docs/store-distribution.md](../docs/store-distribution.md).
-- **Уведомления в браузере (PWA)** — Web Push, настраиваются в `.env.production`:
-  сгенерируйте пару VAPID-ключей один раз
-  `node apps/server/scripts/generate-vapid-keys.mjs` и впишите
-  `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_SUBJECT`
-  (`mailto:` для связи с push-сервисами). Ключи не меняйте: новая пара отключает
-  все подписки браузеров. Без ключей PWA работает, но без уведомлений. Включаются
-  участником в «Настройки → Уведомления» или баннером на главной; на iPhone —
-  только из приложения, добавленного на экран «Домой» (iOS 16.4+). Сервер ходит
-  наружу на `fcm.googleapis.com`, `*.push.services.mozilla.com`,
-  `*.push.apple.com` (HTTPS).
+- **Пуши в приложении** не настраиваются в `.env.production`: сервер шлёт через
+  Expo, а Android-сборке нужен FCM-ключ (Firebase → `google-services.json`),
+  загруженный в EAS-проект; для iOS — APNs-ключ в EAS. Без них приложение
+  работает, но уведомления не приходят. Подробно — [docs/store-distribution.md](../docs/store-distribution.md).
 
 ### 10. Проверка «всё работает»
 
 - [ ] `https://admin.<домен>` открывается с замком, вход по коду работает
 - [ ] `curl -s https://api.<домен>/readyz` → `"status":"ok"`
+- [ ] `https://pwa.<домен>` открывается, вход по коду работает
 - [ ] тестовое сообщение пришло в Telegram/почту
 - [ ] `sudo ./deploy/restore.sh --list` показывает копию в `daily/`
 - [ ] загрузили видео в админке и посмотрели его с телефона
