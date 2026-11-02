@@ -9,12 +9,25 @@
 //
 // Each abonement carries its scope — the directions it may be spent on,
 // snapshotted from the tariff at sale (SubscriptionDirection). Empty = club-wide.
+//
+// Only a member holds an abonement. When the membership goes (removed, left)
+// its rows stay as the club's history — revenue, the renewal share — with no
+// member (workspaceMemberId null); a rejoin starts a new membership and the old
+// rows stay history. Every reader of what someone holds NOW (current, debts,
+// sweeps) filters with heldSubscriptionWhere; revenue readers do not.
 import { directionRefSelect } from '../directions/direction-ref'
 import type { Prisma } from '../../infrastructure/prisma'
+
+// Under NOT, not as a workspaceMemberId key: spread next to a caller's own
+// `workspaceMemberId: member.id` it must never replace (or be replaced by) it.
+export const heldSubscriptionWhere = {
+    NOT: { workspaceMemberId: null },
+} as const satisfies Prisma.SubscriptionWhereInput
 
 export const currentSubscriptionWhere = (
     now: Date = new Date(),
 ): Prisma.SubscriptionWhereInput => ({
+    ...heldSubscriptionWhere,
     status: 'ACTIVE',
     OR: [{ endDate: null }, { endDate: { gt: now } }],
 })

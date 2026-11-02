@@ -94,9 +94,9 @@ describe('ExportMyDataHandler', () => {
                 userId: 'u1',
             })
         }
-        // Abonements hang off the membership, not the user.
+        // Abonements: the caller's membership rows, plus ones kept after removal (by userId).
         expect(prisma.subscription.findMany.mock.calls[0][0].where).toEqual({
-            workspaceMember: { userId: 'u1' },
+            OR: [{ userId: 'u1' }, { workspaceMember: { userId: 'u1' } }],
         })
     })
 

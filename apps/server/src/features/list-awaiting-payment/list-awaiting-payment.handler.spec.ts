@@ -66,6 +66,7 @@ describe('listAwaitingPayment', () => {
         expect(args.where).toEqual(awaitingPaymentWhere('w1'))
         expect(args.where).toEqual({
             workspaceId: 'w1',
+            NOT: { workspaceMemberId: null },
             isPaid: false,
             status: { in: ['ACTIVE', 'EXPIRED'] },
         })

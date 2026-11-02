@@ -646,6 +646,7 @@ describe('grantFromPlan', () => {
             expect(
                 tx.workspaceMember.findFirst.mock.calls[0][0].select.subscriptions.where,
             ).toEqual({
+                NOT: { workspaceMemberId: null },
                 status: 'ACTIVE',
                 OR: [{ endDate: null }, { endDate: { gt: NOW } }],
             })

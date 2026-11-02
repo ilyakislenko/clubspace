@@ -121,6 +121,7 @@ describe('ExportService.membersCsv — current abonements', () => {
         await svc({ workspaceMember: { findMany } }).membersCsv('w1')
         const { subscriptions } = findMany.mock.calls[0][0].select
         expect(subscriptions.where).toEqual({
+            NOT: { workspaceMemberId: null },
             status: 'ACTIVE',
             OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
         })
@@ -319,6 +320,7 @@ describe('ExportService.renewalsCsv', () => {
         await svc({ workspaceMember: { findMany } }).renewalsCsv('w1')
         const where = findMany.mock.calls[0][0].select.subscriptions.where
         expect(where.OR[0]).toEqual({
+            NOT: { workspaceMemberId: null },
             status: 'ACTIVE',
             OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
         })

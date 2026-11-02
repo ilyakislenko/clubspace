@@ -191,6 +191,7 @@ describe('getAnnouncementFeed', () => {
   it('reads only the current abonements of the member', async () => {
     const { select } = await segmentFeed(null);
     expect(select.subscriptions.where).toEqual({
+      NOT: { workspaceMemberId: null },
       status: 'ACTIVE',
       OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
     });

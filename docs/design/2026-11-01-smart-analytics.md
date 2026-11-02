@@ -46,6 +46,7 @@ transaction):
 | Table | What | When |
 |---|---|---|
 | `AnalyticsMemberSnapshot` | per active student: score, reasons, monthly spend, groups, forecast pieces, renewal history, trial facts | every hour |
+| `AnalyticsFormerMember` | per former student (membership removed, abonements kept): renewal history and trial facts, groups = the ones they attended | every hour |
 | `AnalyticsMemberGroupStat` | first/last visit and count per student × group (null = outside groups) | nightly, 04:00 club time |
 | `AnalyticsSlotOccurrence` | every past scheduled class of the last 26 weeks: held, present, roster, drop-in bookings | nightly |
 | `AnalyticsRun` | computed-at times, club renewal rate | with each part |
@@ -129,7 +130,11 @@ Over the groups a coach leads (inside the viewer's scope):
 
 - **Renewal** of an ended abonement = a newer non-trial purchase no later than
   14 days after its end (buying ahead counts). Club rate = renewed / ended over
-  abonements that ended 14–180 days ago; below 10 of them the default **70%**.
+  **every** abonement of the club that ended 14–180 days ago — the ones of
+  members removed since included (their rows stay, `Subscription.userId` keeps
+  the person); below 10 of them the default **70%**. A scope's rate (and a
+  coach's renewals, trial conversion) adds the former students of the scope's
+  groups (`AnalyticsFormerMember`), so it doesn't count only those who stayed.
 - Member probability **p = club rate × (1 − score/100)**.
 - Per member, one stream per abonement scope: it renews when coverage runs out
   (latest end, extended by abonements already bought and waiting for the first

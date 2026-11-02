@@ -3,8 +3,11 @@
 // unit; callers pass already-active rows (status ACTIVE, not expired) and the
 // rows paid in the trailing 30 days. Money counts PAID rows only («Ожидает
 // оплаты» is a receivable, not revenue): every reader goes through
-// paidInRangeWhere(), and a row's revenue date is paidOn().
+// paidInRangeWhere(), and a row's revenue date is paidOn(). Revenue includes
+// the abonements of former members (the sale happened); the receivable does
+// not — nobody is chased after leaving the club.
 
+import { heldSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
 import { localDateInTz, wallClockToUtc } from '../attendance/attendance-utils'
 
 const DAY_MS = 24 * 3600 * 1000
@@ -39,10 +42,12 @@ export const paidInRangeWhere = (range: { gte?: Date; lte?: Date }) => {
 }
 
 // Prisma `where` for the receivable: sold, not paid yet, still a live sale (an
-// expired debt is still a debt; a cancelled sale is not). The dashboard card and
-// the «Ожидают оплаты» list share it so their numbers always agree.
+// expired debt is still a debt; a cancelled sale is not), held by a member. The
+// dashboard card and the «Ожидают оплаты» list share it so their numbers always
+// agree.
 export const awaitingPaymentWhere = (workspaceId: string) => ({
     workspaceId,
+    ...heldSubscriptionWhere,
     isPaid: false,
     status: { in: ['ACTIVE', 'EXPIRED'] as ('ACTIVE' | 'EXPIRED')[] },
 })

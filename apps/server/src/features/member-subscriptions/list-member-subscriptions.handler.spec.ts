@@ -145,6 +145,7 @@ describe('ListMemberSubscriptionsHandler', () => {
         )?.[0] as { where: unknown; include: { freezeRequests: unknown } }
         expect(currentQuery.where).toMatchObject({
             workspaceMemberId: 'm1',
+            NOT: { workspaceMemberId: null },
             status: 'ACTIVE',
         })
         expect(currentQuery.include.freezeRequests).toMatchObject({
@@ -256,7 +257,7 @@ describe('ListMemberSubscriptionsHandler', () => {
         const prisma = build([subRow()], [freezeRow()])
         const out = await run(prisma)
         expect(prisma.subscriptionFreeze.findMany).toHaveBeenCalledWith({
-            where: { workspaceId: 'w1', userId: 'u1' },
+            where: { workspaceId: 'w1', userId: 'u1', subscription: { workspaceMemberId: 'm1' } },
             orderBy: { fromDate: 'desc' },
         })
         expect(out.freezes).toEqual([

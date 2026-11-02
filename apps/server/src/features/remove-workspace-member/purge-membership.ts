@@ -4,8 +4,10 @@ import { purgePersonalTraining } from '../personal-trainings/purge-personal-trai
 // Everything a membership owns in one club, removed together: the member row
 // plus this club's bookings, roster places, assistant-coach seats, direction
 // manager seats, open grading slots, freeze requests and personal training.
-// Shared by an admin removing a member and a member leaving the club. Other
-// clubs are untouched.
+// The abonements stay as the club's sales history with no member
+// (Subscription.workspaceMemberId SetNull): revenue and the renewal share keep
+// counting them, the current lists don't. Shared by an admin removing a member
+// and a member leaving the club. Other clubs are untouched.
 export const purgeMembership = async (
     tx: PrismaTransactionClientType,
     p: { memberId: string; userId: string; workspaceId: string; now: Date },

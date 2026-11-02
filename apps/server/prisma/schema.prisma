@@ -216,6 +216,7 @@ model Workspace {
   // «Аналитика» snapshots (docs/design/2026-11-01-smart-analytics.md).
   analyticsRun             AnalyticsRun?
   analyticsMembers         AnalyticsMemberSnapshot[]
+  analyticsFormerMembers   AnalyticsFormerMember[]
   analyticsMemberGroups    AnalyticsMemberGroupStat[]
   analyticsSlotOccurrences AnalyticsSlotOccurrence[]
 
@@ -360,6 +361,8 @@ model User {
 
   consentRecords ConsentRecord[]
   payments Payment[]
+  // Every abonement bought in any club, kept after the membership is gone.
+  subscriptions Subscription[] @relation("UserSubscriptions")
 
   workspaceInvitations WorkspaceInvitation[]
 
@@ -1621,8 +1624,22 @@ model Subscription {
   directions SubscriptionDirection[]
 
   // Buyer/owner of this purchase — gives a member their subscription history.
+  // SetNull, not Cascade: removing a member (or the member leaving) ends the
+  // membership, not the club's sales history — revenue and the renewal share
+  // still count the abonement. A row without a member is history only: every
+  // "current" reader (debts, renewals, freezes, active counts) goes through
+  // currentSubscriptionWhere / awaitingPaymentWhere / heldSubscriptionWhere,
+  // which require a member. Rejoining starts a new membership; the old rows
+  // stay history (domains/subscriptions/current-subscriptions.ts).
   workspaceMemberId String?          @db.Uuid
-  workspaceMember   WorkspaceMember? @relation("MemberSubscriptions", fields: [workspaceMemberId], references: [id], onDelete: Cascade)
+  workspaceMember   WorkspaceMember? @relation("MemberSubscriptions", fields: [workspaceMemberId], references: [id], onDelete: SetNull)
+  // The person who held it, kept when the membership goes (renewals of a
+  // former member, their own data export). Set on every sale; account deletion
+  // de-identifies the User row and keeps it, like Payment. null only on rows
+  // sold before this column existed and not backfilled
+  // (apps/server/scripts/backfill-subscription-user.sql).
+  userId String? @db.Uuid
+  user   User?   @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: SetNull)
 
   // How the purchase was recorded and the provider's references: MANUAL for a
   // sale in the admin; an online payment's webhook sets GATEWAY plus
@@ -1642,6 +1659,7 @@ model Subscription {
   @@index([status])
   @@index([endDate])
   @@index([workspaceMemberId])
+  @@index([workspaceId, userId])
   @@index([workspaceId, isPaid])
   // Sweeps: payment reminders (status, isPaid, startDate), first-visit
   // pending (status, startsOnFirstVisit, startDate), per-club unpaid lists.
@@ -2349,6 +2367,30 @@ model AnalyticsMemberSnapshot {
 
   @@id([workspaceId, userId])
   @@index([workspaceId, score])
+}
+
+// One former student of the club — their membership was removed, their
+// abonements kept (Subscription.workspaceMemberId null): the renewals and the
+// trial they had, so the forecast's renewal share and trial conversion count
+// the ones who left, not only the ones who stayed. groupIds = the groups they
+// attended (their roster places went with the membership), the scope filter.
+// Rebuilt with the hourly risk part.
+model AnalyticsFormerMember {
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String    @db.Uuid
+
+  groupIds String[] @default([])
+  // Their abonements that ended in the last 180 days / of them renewed (a
+  // renewal bought after rejoining counts).
+  renewalsDue  Int @default(0)
+  renewalsDone Int @default(0)
+  trialStartedAt   DateTime?
+  trialConvertedAt DateTime?
+
+  computedAt DateTime
+
+  @@id([workspaceId, userId])
 }
 
 // Visits of one member in one group (groupId null = events, personal and

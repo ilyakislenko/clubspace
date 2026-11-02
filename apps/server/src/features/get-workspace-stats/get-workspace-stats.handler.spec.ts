@@ -1,5 +1,5 @@
 import { notAwaitingFirstVisitWhere } from '../manage-announcements/renewal-segment'
-import { RbacService } from '../../shared/services/rbac.service'
+import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import { GetWorkspaceStatsFeature } from './get-workspace-stats.feature'
 import { GetWorkspaceStatsHandler } from './get-workspace-stats.handler'
 
@@ -146,6 +146,7 @@ describe('GetWorkspaceStatsHandler paid-only revenue', () => {
     it('asks for the receivable: unpaid, active or expired', async () => {
         expect(await wheres()).toContainEqual({
             workspaceId: 'w1',
+            NOT: { workspaceMemberId: null },
             isPaid: false,
             status: { in: ['ACTIVE', 'EXPIRED'] },
         })
@@ -289,14 +290,66 @@ describe('GetWorkspaceStatsHandler classes today', () => {
 
     it('shows a scoped coach only their own groups', async () => {
         const { handler } = build(false, {
-            'group.findMany': jest
-                .fn()
-                .mockResolvedValue([{ id: 'g1', members: [] }]),
+            'group.findMany': jest.fn().mockResolvedValue([{ id: 'g1' }]),
         }, [
             { groupId: 'g1', cancelled: false },
             { groupId: 'g2', cancelled: false },
         ])
         const out = await run(handler, 'coach')
         expect(out.today.sessions).toBe(1)
+    })
+})
+
+describe('GetWorkspaceStatsHandler coach scope', () => {
+    // What the database returns for ownGroupsWhere: a direction manager's own
+    // group plus a group of their direction led by another coach.
+    const scoped = () => {
+        const groupFindMany = jest
+            .fn()
+            .mockResolvedValue([{ id: 'g-own' }, { id: 'g-direction' }])
+        const groupMemberFindMany = jest
+            .fn()
+            .mockResolvedValue([{ userId: 's1' }, { userId: 's2' }])
+        const built = build(false, {
+            'group.findMany': groupFindMany,
+            'groupMember.findMany': groupMemberFindMany,
+        })
+        return { ...built, groupFindMany, groupMemberFindMany }
+    }
+
+    it('narrows coach_own_only to ownGroupsWhere: coached or of a managed direction', async () => {
+        const { handler, groupFindMany, groupMemberFindMany, memberCount, sessionCount } =
+            scoped()
+        await run(handler, 'coach')
+        const ownOfClub = { workspaceId: 'w1', ...ownGroupsWhere('u1') }
+        expect(groupFindMany).toHaveBeenCalledWith({
+            where: ownOfClub,
+            select: { id: true },
+        })
+        expect(groupMemberFindMany).toHaveBeenCalledWith({
+            where: { group: ownOfClub },
+            distinct: ['userId'],
+            select: { userId: true },
+        })
+        // Students of both groups (and the coach) are counted; sessions of
+        // both groups too.
+        expect(memberCount.mock.calls[0][0].where.userId).toEqual({
+            in: ['u1', 's1', 's2'],
+        })
+        expect(sessionCount.mock.calls[0][0].where.groupId).toEqual({
+            in: ['g-own', 'g-direction'],
+        })
+    })
+
+    it('does not narrow a coach of a club where coaches see all groups', async () => {
+        const { groupFindMany, groupMemberFindMany } = scoped()
+        const { handler, memberCount } = build(true, {
+            'group.findMany': groupFindMany,
+            'groupMember.findMany': groupMemberFindMany,
+        })
+        await run(handler, 'coach')
+        expect(groupFindMany).not.toHaveBeenCalled()
+        expect(groupMemberFindMany).not.toHaveBeenCalled()
+        expect(memberCount.mock.calls[0][0].where.userId).toBeUndefined()
     })
 })

@@ -87,6 +87,12 @@ const FAR_FUTURE_DAYS = 5 * 365
 const LEAVERS_PER_PLACE = 0.7
 const TOP_COACH: StaffKey = 'reshetyuk'
 const TOP_COACH_LEAVERS_PER_PLACE = 0
+// Breaks in a regular's chain (a skipped month, see the chains below): the
+// chance per abonement that started this many days ago (min, max). Together
+// with those who left it puts the renewal share of «Аналитика → Прогноз»
+// where a healthy martial-arts club is, around 80%.
+const BREAK_SHARE = 0.2
+const BREAK_WINDOW_DAYS: [number, number] = [75, 175]
 // How strongly a slot draws its group against the group's other slots
 // (default 1). The kids' weekday mornings in «Дворец спорта» and the Monday
 // noon тайский in Северск are the weak slots of «Загрузка расписания».
@@ -255,7 +261,8 @@ type Person = {
     stopYmd: string | null
     target: number
     account?: DemoAccountKey
-    // LEFT: trained, then the club removed them — visits only, no member row.
+    // LEFT: trained, then the club removed them — visits and abonements stay,
+    // no member row.
     status: 'ACTIVE' | 'INVITED' | 'LEFT'
     subs: Sub[]
     visits: number
@@ -786,8 +793,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     })
 
     // People who left during the year (LEAVERS_PER_PLACE): most within their
-    // first months, everyone at least six weeks ago. No member row, roster place
-    // or abonement — the club removed them; the visits stay.
+    // first months, everyone at least six weeks ago. No member row or roster
+    // place — the club removed them; the visits and abonements stay.
     for (const g of GROUPS) {
         const share = g.coach === TOP_COACH ? TOP_COACH_LEAVERS_PER_PLACE : LEAVERS_PER_PLACE
         for (let n = Math.round(g.size * share); n > 0; n--) {
@@ -815,11 +822,11 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         if (p.archetype === 'casual') return [tariffDef(rnd() < 0.1 ? 'single' : 'pack8')]
         return [tariffDef(rnd() < 0.15 ? 'unlim' : 'pack12')]
     }
-    const newSub = (p: Person, t: TariffDef, chain: number, startYmd: string, endYmd: string): Sub => {
+    const newSub = (p: Person, t: TariffDef, chain: number, startYmd: string, endYmd: string, draw = int): Sub => {
         // Sold at the reception before the first class of the day. A tariff
         // counted from the first training starts at that day's club midnight
         // (first-visit-start.ts); the first visit is that day.
-        const saleTime = `07:${pad2(int(0, 59))}`
+        const saleTime = `07:${pad2(draw(0, 59))}`
         const coverFrom = t.startsOnFirstVisit ? '00:00' : saleTime
         return {
             id: demoUuid(`sub:${p.idx}:${chain}:${startYmd}`),
@@ -890,6 +897,57 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             p.subs.push(...chainSubs)
         })
         if (p.archetype === 'absent') p.stopYmd = ago(int(15, 30))
+    }
+
+    // The rest of the sales history draws from its own stream, so the club as
+    // generated above (members, their chains, visits) stays exactly the same.
+    const rndHistory = makeRng(SEED + 1)
+    const intHistory = (a: number, b: number) => a + Math.floor(rndHistory() * (b - a + 1))
+
+    // Those who left paid like everyone else: a chain from their first
+    // training, the last abonement covering their stop day and never renewed.
+    // The rows stay with the club after the removal (no member, see
+    // Subscription.workspaceMemberId), so revenue and the renewal share in
+    // «Аналитика» count the ones who left, not only the ones who stayed.
+    for (const p of persons) {
+        if (p.status !== 'LEFT' || !p.stopYmd) continue
+        const t = tariffDef(
+            p.kind === 'kid'
+                ? rndHistory() < 0.7 ? 'pack8' : 'pack12'
+                : dirsOf(p).includes('muay') && rndHistory() < 0.6
+                  ? 'muay12'
+                  : rndHistory() < 0.15 ? 'unlim' : 'pack12',
+        )
+        for (let start = p.joinYmd; start <= p.stopYmd; start = addDaysYmd(start, t.days)) {
+            const s = newSub(p, t, 0, start, addDaysYmd(start, t.days), intHistory)
+            if (start !== p.joinYmd && rndHistory() < RENEW_AHEAD_SHARE) {
+                s.soldAt = new Date(s.soldAt.getTime() - intHistory(...RENEW_AHEAD_DAYS) * DAY_MS)
+            }
+            p.subs.push(s)
+        }
+    }
+
+    // Breaks: a holiday, an injury, exams — a regular skips a month and buys
+    // the next abonement when back, at the reception (not ahead), so the one
+    // before the break counts as not renewed. Only in the judged past, far
+    // enough from today not to touch the risk signals; never the first or the
+    // last two of a chain.
+    const takesBreaks: Archetype[] = ['regular', 'fanatic', 'casual', 'declining', 'absent']
+    for (const p of persons) {
+        if (p.status !== 'ACTIVE' || fixedPeople.has(p) || !takesBreaks.includes(p.archetype)) continue
+        for (const chain of new Set(p.subs.map((s) => s.chain))) {
+            const subs = p.subs.filter((s) => s.chain === chain)
+            for (let i = 1; i < subs.length - 2; i++) {
+                const s = subs[i]
+                if (s.startYmd < ago(BREAK_WINDOW_DAYS[1]) || s.startYmd > ago(BREAK_WINDOW_DAYS[0])) continue
+                if (rndHistory() >= BREAK_SHARE) continue
+                p.subs.splice(p.subs.indexOf(s), 1)
+                const back = subs[i + 1]
+                back.soldAt = back.tariff.startsOnFirstVisit ? at(back.startYmd, '07:30') : back.startAt
+                // The one after a break is not skipped too.
+                i += 1
+            }
+        }
     }
 
     // Classes bought before the visible history were partly used already.
@@ -993,8 +1051,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     }
 
     const members = persons.filter((p) => p.status === 'ACTIVE')
-    // Members and those who left (they came until their stop day, with no
-    // abonement left on record).
+    // Members and those who left (they came until their stop day; a visit
+    // their used-up pack no longer covers is still marked).
     const rosters = new Map(
         GROUPS.map((g) => [
             g.key,
@@ -1427,7 +1485,9 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 paidAt: s.isPaid ? s.soldAt : null,
                 classesTotal: s.tariff.classes,
                 classesRemaining: s.remaining,
-                workspaceMemberId: demoUuid(`member:${p.idx}`),
+                // Those who left keep the abonements with no member.
+                workspaceMemberId: p.status === 'LEFT' ? null : demoUuid(`member:${p.idx}`),
+                userId: p.id,
                 source: 'MANUAL',
                 createdAt: s.soldAt,
             })

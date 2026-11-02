@@ -180,9 +180,9 @@ export default function WorkspaceOverviewPage() {
           <h2 className="text-sm font-medium">Финансы</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              label="Выручка в месяц (оценка)"
+              label="Регулярный доход в месяц"
               value={formatMoney(stats.revenue.mrr, stats.revenue.currency)}
-              subtitle="ежемесячно по активным абонементам"
+              subtitle="действующие абонементы в пересчёте на 30 дней"
               loading={loading}
             />
             <StatCard
@@ -191,6 +191,7 @@ export default function WorkspaceOverviewPage() {
                 stats.revenue.revenue30d,
                 stats.revenue.currency,
               )}
+              subtitle="фактически оплачено"
               loading={loading}
             />
             <StatCard

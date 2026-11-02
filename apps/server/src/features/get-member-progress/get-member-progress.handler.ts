@@ -6,10 +6,7 @@ import {
     subscriptionScopeSelect,
 } from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
-import {
-    ForbiddenError,
-    NotFoundError,
-} from '../../shared/errors/shared.errors'
+import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     memberGuardiansSelect,
@@ -47,22 +44,12 @@ export class GetMemberProgressHandler
             roleName: invokerRoleName,
             isSuperAdmin,
         })
-        // Coach scoped to own groups can only inspect students who are in
-        // a group they coach. Coach themselves are always allowed (they
-        // need to see their own profile). Read-all and admin scopes pass.
-        if (ctx.scope === 'coach_own_only' && userId !== invokerUserId) {
-            const inOwnGroup = await this.prisma.groupMember.findFirst({
-                where: {
-                    userId,
-                    group: { workspaceId, coachId: invokerUserId },
-                },
-                select: { groupId: true },
-            })
-            if (!inOwnGroup) {
-                throw new ForbiddenError({
-                    message: 'Участник не состоит в ваших группах',
-                })
-            }
+        // Coach scoped to own groups can only inspect students of their own
+        // groups (coached or of a direction they run). Coach themselves are
+        // always allowed (they need to see their own profile). Read-all and
+        // admin scopes pass.
+        if (userId !== invokerUserId) {
+            await this.rbac.assertCanReadMember(ctx, userId)
         }
         const [member, totalVideos] = await Promise.all([
             this.prisma.workspaceMember.findFirst({

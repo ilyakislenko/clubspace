@@ -124,20 +124,20 @@ export default function ForecastPage() {
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <AnalyticsCard
-              label="Продлевают"
+              label="Продлевают вовремя"
               value={formatPercent(renewal.scopeRate ?? renewal.clubRate)}
               subtitle={
                 renewal.usesDefault
                   ? `мало истории — берём ${formatPercent(renewal.clubRate)}`
                   : renewal.scopeRate !== null
-                    ? `${renewal.scopeSample} ${pluralRu(renewal.scopeSample, "абонемент", "абонемента", "абонементов")} в выборке · по клубу ${formatPercent(renewal.clubRate)}`
-                    : `по клубу, ${renewal.clubSample} ${pluralRu(renewal.clubSample, "абонемент", "абонемента", "абонементов")}`
+                    ? `${renewalSample(renewal.scopeSample)} · по клубу ${formatPercent(renewal.clubRate)}`
+                    : `по клубу, ${renewalSample(renewal.clubSample)}`
               }
             />
             <AnalyticsCard
-              label="В месяц по абонементам"
+              label="Средние траты в месяц"
               value={money(data.monthlyRecurring)}
-              subtitle={`${data.members} ${pluralRu(data.members, "ученик", "ученика", "учеников")} с абонементом`}
+              subtitle={`${data.members} ${pluralRu(data.members, "ученик", "ученика", "учеников")} сейчас, в среднем за полгода (продажи месяца — в «Обзоре»)`}
             />
             <AnalyticsCard
               label="На кону у учеников с высоким риском"
@@ -171,3 +171,8 @@ export default function ForecastPage() {
     </div>
   )
 }
+
+// What the renewal share is taken over: abonements, not people — the ones
+// that ended 14–180 days ago, of members who have left too.
+const renewalSample = (n: number) =>
+  `из ${n} ${pluralRu(n, "абонемента", "абонементов", "абонементов")}, закончившихся 14–180 дней назад, включая ушедших`

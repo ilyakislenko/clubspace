@@ -326,6 +326,29 @@ export class RbacService {
         }
     }
 
+    // Ids of this club's groups the caller acts on as their own
+    // (ownGroupsWhere): the scope of every coach-narrowed list, so a list
+    // matches what assertCanReadMember / canWriteMember let them open.
+    async ownGroupIds(ctx: CoachContext): Promise<string[]> {
+        const rows = await this.prisma.group.findMany({
+            where: { workspaceId: ctx.workspaceId, ...ownGroupsWhere(ctx.userId) },
+            select: { id: true },
+        })
+        return rows.map((r) => r.id)
+    }
+
+    // Students of those groups (distinct user ids).
+    async ownGroupMemberIds(ctx: CoachContext): Promise<string[]> {
+        const rows = await this.prisma.groupMember.findMany({
+            where: {
+                group: { workspaceId: ctx.workspaceId, ...ownGroupsWhere(ctx.userId) },
+            },
+            distinct: ['userId'],
+            select: { userId: true },
+        })
+        return rows.map((r) => r.userId)
+    }
+
     private async isMemberInOwnGroups(
         ctx: CoachContext,
         memberUserId: string,

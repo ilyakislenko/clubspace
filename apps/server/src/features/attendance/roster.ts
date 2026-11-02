@@ -9,6 +9,7 @@ import {
     type VisitAbonement,
 } from '../../domains/subscriptions/visit-abonement'
 import { PrismaService } from '../../infrastructure/prisma'
+import { ownGroupsWhere } from '../../shared/services/rbac.service'
 import { awaitingPaymentWhere } from '../get-workspace-stats/revenue'
 import { localDateInTz } from './attendance-utils'
 import { loadExpectedAttendees } from './expected-attendees'
@@ -302,7 +303,7 @@ export const buildRoster = async (
                               userId: { in: userIds },
                               group: {
                                   workspaceId: s.workspaceId,
-                                  coaches: { some: { userId: viewer.userId } },
+                                  ...ownGroupsWhere(viewer.userId),
                               },
                           },
                           select: { userId: true },

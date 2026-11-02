@@ -1,4 +1,5 @@
 import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
+import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import { ListAtRiskMembersFeature } from './list-at-risk-members.feature'
 import { ListAtRiskMembersHandler } from './list-at-risk-members.handler'
 
@@ -52,25 +53,30 @@ const ENTRIES = [
     entry('c', [], { snoozed: true }),
 ]
 
-const make = (scope: string, coachGroupIds: string[] = ['g1']) => {
-    const rbac = {
-        resolveCoachScope: jest
-            .fn()
-            .mockResolvedValue({ scope, userId: 'me', workspaceId: 'w1', workspaceOwnerId: OWNER }),
-        canSeeAllGroups: jest.fn().mockReturnValue(scope !== 'coach_own_only'),
-        canWriteAllGroups: jest.fn().mockReturnValue(scope === 'admin'),
-    }
+// `ownGroupIds` = what the database returns for ownGroupsWhere(caller).
+const make = (scope: string, ownGroupIds: string[] = ['g1']) => {
     const prisma = {
         gym: { findFirst: jest.fn().mockResolvedValue({ id: 'gym1' }) },
-        group: { findFirst: jest.fn().mockResolvedValue({ id: 'g1' }) },
-        groupCoach: {
+        group: {
+            findFirst: jest.fn().mockResolvedValue({ id: 'g1' }),
             findMany: jest
                 .fn()
-                .mockResolvedValue(coachGroupIds.map((groupId) => ({ groupId }))),
+                .mockResolvedValue(ownGroupIds.map((id) => ({ id }))),
         },
     }
-    const handler = new ListAtRiskMembersHandler(prisma as never, rbac as never)
-    return { handler, prisma, rbac }
+    // The real scope rules over the Prisma double; only the role lookup is
+    // stubbed.
+    const rbac = new RbacService(prisma as never)
+    const resolveCoachScope = jest
+        .spyOn(rbac, 'resolveCoachScope')
+        .mockResolvedValue({
+            scope: scope as 'admin' | 'coach_read_all' | 'coach_own_only',
+            userId: 'me',
+            workspaceId: 'w1',
+            workspaceOwnerId: OWNER,
+        })
+    const handler = new ListAtRiskMembersHandler(prisma as never, rbac)
+    return { handler, prisma, resolveCoachScope }
 }
 
 const run = (
@@ -87,8 +93,8 @@ beforeEach(() => {
 
 describe('ListAtRiskMembersHandler', () => {
     it('propagates a refusal from resolveCoachScope', async () => {
-        const { handler, rbac } = make('admin')
-        rbac.resolveCoachScope.mockRejectedValueOnce(new ForbiddenError({ message: 'no' }))
+        const { handler, resolveCoachScope } = make('admin')
+        resolveCoachScope.mockRejectedValueOnce(new ForbiddenError({ message: 'no' }))
         await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
         expect(loadWorkspaceRisk).not.toHaveBeenCalled()
     })
@@ -105,7 +111,7 @@ describe('ListAtRiskMembersHandler', () => {
             declining: 0,
             snoozed: 1,
         })
-        expect(prisma.groupCoach.findMany).not.toHaveBeenCalled()
+        expect(prisma.group.findMany).not.toHaveBeenCalled()
     })
 
     it('shows a coach_own_only only their groups and narrows the group list', async () => {
@@ -115,13 +121,20 @@ describe('ListAtRiskMembersHandler', () => {
         expect(res.data[0].groups.map((g) => g.id)).toEqual(['g1'])
     })
 
-    it('reads assistant-coach groups from the junction table', async () => {
+    it('takes own groups from ownGroupsWhere: coached (junction) or of a managed direction', async () => {
         const { handler, prisma } = make('coach_own_only')
         await run(handler)
-        expect(prisma.groupCoach.findMany.mock.calls[0][0].where).toEqual({
-            userId: 'me',
-            group: { workspaceId: 'w1' },
+        expect(prisma.group.findMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'w1', ...ownGroupsWhere('me') },
+            select: { id: true },
         })
+    })
+
+    it('shows a direction manager the students of another coach of the direction', async () => {
+        // g2 is led by someone else; the caller runs its direction.
+        const { handler } = make('coach_own_only', ['g2'])
+        const res = await run(handler)
+        expect(res.data.map((m) => [m.userId, m.canContact])).toEqual([['b', true]])
     })
 
     it('lets coach_read_all see everyone, and scope=mine narrows it', async () => {
@@ -132,11 +145,14 @@ describe('ListAtRiskMembersHandler', () => {
         ])
     })
 
-    it('narrows an owner without a member row to their coached groups on scope=mine', async () => {
+    it('narrows an owner without a member row to their own groups on scope=mine', async () => {
         const { handler, prisma } = make('admin', ['g2'])
         const res = await run(handler, { scope: 'mine' }, OWNER, 'admin')
         expect(res.data.map((m) => m.userId)).toEqual(['b'])
-        expect(prisma.groupCoach.findMany.mock.calls[0][0].where.userId).toBe('me')
+        expect(prisma.group.findMany.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            ...ownGroupsWhere('me'),
+        })
     })
 
     it('flags canContact: admins any member, a coach only members of their own groups', async () => {

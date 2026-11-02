@@ -43,19 +43,17 @@ export class ListWorkspaceMembersHandler
         })
 
         // For coaches scoped to own groups: pre-compute the set of student
-        // ids visible to them. Coach themselves and the workspace owner
-        // stay visible regardless so the list isn't disorienting (they
-        // need to see their own row + know who runs the club).
+        // ids visible to them — students of the groups they coach (primary
+        // or assistant) or whose direction they run, the same rule as opening
+        // a member card. Coach themselves and the workspace owner stay
+        // visible regardless so the list isn't disorienting (they need to see
+        // their own row + know who runs the club).
         let scopedUserIds: string[] | null = null
-        if (ctx.scope === 'coach_own_only') {
-            const ownGroups = await this.prisma.group.findMany({
-                where: { workspaceId, coachId: invokerUserId },
-                select: { members: { select: { userId: true } } },
-            })
+        if (!this.rbac.canSeeAllGroups(ctx)) {
             const ids = new Set<string>([
                 invokerUserId,
                 ctx.workspaceOwnerId,
-                ...ownGroups.flatMap((g) => g.members.map((m) => m.userId)),
+                ...(await this.rbac.ownGroupMemberIds(ctx)),
             ])
             scopedUserIds = [...ids]
         }
