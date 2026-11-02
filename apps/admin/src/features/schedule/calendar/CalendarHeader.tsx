@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  Building2,
   CalendarDays,
   CalendarRange,
   ChevronLeft,
@@ -8,6 +9,7 @@ import {
   Columns3,
   Grid2x2,
   Grid3x3,
+  Layers,
   List,
   Settings2,
 } from "lucide-react"
@@ -36,6 +38,7 @@ import {
   navigateAnchor,
   rangeLabel,
   type CalendarView,
+  type DayLayout,
   type HourRange,
 } from "./calendar-helpers"
 import { activeFilterCount, ALL, EMPTY_FILTERS, type CalendarFilters } from "./calendar-items"
@@ -48,11 +51,19 @@ const VIEW_OPTIONS: Array<{ view: CalendarView; label: string; icon: typeof List
   { view: "agenda", label: "Список", icon: List },
 ]
 
+const DAY_LAYOUT_OPTIONS: Array<{ layout: DayLayout; label: string; icon: typeof List }> = [
+  { layout: "halls", label: "По залам", icon: Building2 },
+  { layout: "combined", label: "Общая", icon: Layers },
+]
+
 type Option = { id: string; label: string }
 
 type Props = {
   view: CalendarView
   onViewChange: (view: CalendarView) => void
+  // Day view with every hall: one shared column or a column per hall.
+  dayLayout: DayLayout | null
+  onDayLayoutChange: (layout: DayLayout) => void
   anchor: string
   onAnchorChange: (anchor: string) => void
   today: string
@@ -146,6 +157,26 @@ export function CalendarHeader(props: Props) {
               </button>
             ))}
           </div>
+          {props.dayLayout && (
+            <div role="group" aria-label="Раскладка дня" className="inline-flex rounded-md border border-border p-0.5">
+              {DAY_LAYOUT_OPTIONS.map(({ layout, label, icon: Icon }) => (
+                <button
+                  key={layout}
+                  type="button"
+                  aria-pressed={props.dayLayout === layout}
+                  data-calendar-day-layout={layout}
+                  onClick={() => props.onDayLayoutChange(layout)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+                    props.dayLayout === layout && "bg-accent text-foreground shadow-sm",
+                  )}
+                >
+                  <Icon className="size-4" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <HoursSettings {...props} />
         </div>
       </div>

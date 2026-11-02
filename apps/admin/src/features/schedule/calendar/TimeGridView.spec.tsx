@@ -80,7 +80,7 @@ describe("TimeGridView", () => {
     fireEvent.click(
       document.querySelector('[data-calendar-cell="2026-11-05 18:45"]') as HTMLElement,
     )
-    expect(props.onCreateAt).toHaveBeenCalledWith("2026-11-05", 18 * 60 + 45)
+    expect(props.onCreateAt).toHaveBeenCalledWith({ date: "2026-11-05", startMin: 18 * 60 + 45 })
   })
 
   it("drags a class to another day and time snapped to 15 minutes", async () => {
@@ -148,5 +148,75 @@ describe("TimeGridView", () => {
       window.dispatchEvent(ptr("pointerup", 350, 742 * 1.6, 3))
     })
     expect(props.onDrop).not.toHaveBeenCalled()
+  })
+
+  describe("a column per hall", () => {
+    const halls = [
+      { id: "gym1", name: "Зал gym1", address: "ул. Ленина, 1", canCreate: true },
+      { id: "gym2", name: "Зал gym2", address: "—", canCreate: true },
+      { id: "gym3", name: "Зал gym3", address: "—", canCreate: false },
+    ]
+    const column = (name: string) => document.querySelector(`[data-calendar-column="${name}"]`) as HTMLElement
+
+    it("puts each class into its hall's column at full width", () => {
+      render(<TimeGridView {...baseProps()} days={["2026-11-04"]} halls={halls} />)
+      expect([...document.querySelectorAll("[data-calendar-hall]")].map((h) => h.textContent)).toEqual([
+        "Зал gym11 занятие",
+        "Зал gym21 занятие",
+        "Зал gym3нет занятий",
+      ])
+      // The two classes overlap in time but not in hall: no half-width blocks.
+      expect(column("Зал gym1").contains(block("slot-g1:2026-11-04"))).toBe(true)
+      expect(column("Зал gym2").contains(block("slot-g2:2026-11-04"))).toBe(true)
+      expect(block("slot-g1:2026-11-04").style.width).toBe("calc(100% - 4px)")
+      // The column names the hall; the block keeps the coach.
+      expect(block("slot-g1:2026-11-04").textContent).toContain("Р. Савельев")
+      expect(block("slot-g1:2026-11-04").textContent).not.toContain("Зал gym1")
+    })
+
+    it("widens a hall that runs classes side by side", () => {
+      const twoInGym1 = buildCalendarItems(
+        {
+          sessions: [
+            sessionAt("2026-11-04", "19:00"),
+            sessionAt("2026-11-04", "19:00", { groupId: "g4", coachId: "c4" }),
+          ],
+          events: [],
+        },
+        { filters: EMPTY_FILTERS, canEdit: () => true, onlyGroupIds: null },
+      )
+      render(<TimeGridView {...baseProps()} items={twoInGym1} days={["2026-11-04"]} halls={halls} />)
+      const grid = document.querySelector("[data-calendar-grid]") as HTMLElement
+      expect(grid.style.gridTemplateColumns).toBe("minmax(22rem, 2fr) minmax(11rem, 1fr) minmax(11rem, 1fr)")
+      expect(block("slot-g4:2026-11-04").style.width).toBe("calc(50% - 4px)")
+    })
+
+    it("creates in the hall of the cell, and only where the viewer has a group", () => {
+      const props = baseProps()
+      render(<TimeGridView {...props} days={["2026-11-04"]} halls={halls} />)
+      expect(column("Зал gym3").querySelector("[data-calendar-cell]")).toBeNull()
+      fireEvent.click(column("Зал gym2").querySelector('[data-calendar-cell="2026-11-04 18:45"]') as HTMLElement)
+      expect(props.onCreateAt).toHaveBeenCalledWith({ date: "2026-11-04", startMin: 18 * 60 + 45, gymId: "gym2" })
+    })
+
+    it("moves a class in time only: dropping over another hall keeps its own", () => {
+      const props = baseProps()
+      render(<TimeGridView {...props} days={["2026-11-04"]} halls={halls} />)
+      fireEvent(screen.getByRole("button", { name: /Группа g1, 19:00–20:30/ }), ptr("pointerdown", 50, 670 * 1.6, 4))
+      act(() => {
+        // Over the third hall, 20:22 at the pointer → 20:15.
+        window.dispatchEvent(ptr("pointermove", 650, 742 * 1.6, 4))
+      })
+      expect(column("Зал gym1").querySelector("[data-calendar-preview]")).not.toBeNull()
+      expect(column("Зал gym3").querySelector("[data-calendar-preview]")).toBeNull()
+      act(() => {
+        window.dispatchEvent(ptr("pointerup", 650, 742 * 1.6, 4))
+      })
+      expect(props.onDrop).toHaveBeenCalledWith(expect.objectContaining({ key: "slot-g1:2026-11-04" }), {
+        date: "2026-11-04",
+        startMin: 20 * 60 + 15,
+        endMin: 21 * 60 + 45,
+      })
+    })
   })
 })

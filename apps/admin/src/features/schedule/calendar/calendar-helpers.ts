@@ -16,6 +16,11 @@ export const CALENDAR_VIEWS: readonly CalendarView[] = [
 export const isCalendarView = (v: unknown): v is CalendarView =>
   typeof v === "string" && (CALENDAR_VIEWS as readonly string[]).includes(v)
 
+// The day view: one column for the whole club, or a column per hall.
+export type DayLayout = "combined" | "halls"
+
+export const isDayLayout = (v: unknown): v is DayLayout => v === "combined" || v === "halls"
+
 // ---- calendar days ----------------------------------------------------------
 
 const pad = (n: number): string => String(n).padStart(2, "0")

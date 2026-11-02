@@ -196,4 +196,53 @@ describe("ScheduleCalendar", () => {
     fireEvent.click(screen.getByRole("tab", { name: /День/ }))
     await waitFor(() => expect(scheduleMock).toHaveBeenLastCalledWith({ workspaceId: "w1", from: "2026-11-04", to: "2026-11-04" }))
   })
+
+  describe("day with every hall", () => {
+    beforeEach(() => {
+      window.history.replaceState(null, "", "/workspace/w1/schedule?view=day&date=2026-11-04")
+      ;(listGroups as jest.Mock).mockResolvedValue({
+        data: [GROUP, { ...GROUP, id: "g2", name: "Группа g2", gym: { id: "gym2", name: "Зал gym2" } }],
+        total: 2,
+      })
+      ;(listGyms as jest.Mock).mockResolvedValue({
+        data: [
+          { id: "gym1", name: "Зал gym1", address: "—" },
+          { id: "gym2", name: "Зал gym2", address: "—" },
+        ],
+        total: 2,
+      })
+    })
+
+    const hallNames = () => [...document.querySelectorAll("[data-calendar-hall]")].map((h) => h.getAttribute("data-calendar-hall"))
+
+    it("opens hall by hall and offers only the hall's groups in its empty cell", async () => {
+      render(<ScheduleCalendar workspaceId="w1" />)
+      await screen.findByRole("button", { name: /Группа g1, 19:00–20:30/ })
+      await waitFor(() => expect(hallNames()).toEqual(["Зал gym1", "Зал gym2"]))
+      expect(screen.getByRole("button", { name: /По залам/ }).getAttribute("aria-pressed")).toBe("true")
+      fireEvent.click(screen.getByRole("button", { name: "Новое занятие 18:45, Зал gym2" }))
+      expect(await screen.findByText(/Зал: Зал gym2/)).toBeTruthy()
+    })
+
+    it("switches to one shared column and remembers it", async () => {
+      const { unmount } = render(<ScheduleCalendar workspaceId="w1" />)
+      await screen.findByRole("button", { name: /Группа g1/ })
+      fireEvent.click(screen.getByRole("button", { name: /Общая/ }))
+      await waitFor(() => expect(hallNames()).toEqual([]))
+      expect(JSON.parse(window.localStorage.getItem("clubspace:schedule-calendar") ?? "{}")).toMatchObject({ dayLayout: "combined" })
+      unmount()
+      render(<ScheduleCalendar workspaceId="w1" />)
+      await screen.findByRole("button", { name: /Группа g1/ })
+      expect(screen.getByRole("button", { name: /Общая/ }).getAttribute("aria-pressed")).toBe("true")
+      expect(hallNames()).toEqual([])
+    })
+
+    it("is not offered in the week", async () => {
+      window.history.replaceState(null, "", "/workspace/w1/schedule?view=week&date=2026-11-04")
+      render(<ScheduleCalendar workspaceId="w1" />)
+      await screen.findByRole("button", { name: /Группа g1/ })
+      expect(screen.queryByRole("group", { name: "Раскладка дня" })).toBeNull()
+      expect(hallNames()).toEqual([])
+    })
+  })
 })
