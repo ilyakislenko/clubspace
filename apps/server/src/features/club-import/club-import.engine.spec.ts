@@ -3,13 +3,13 @@ import type { ClubImportRowResult, ClubImportSummary } from './schemas'
 
 const NOW = new Date('2026-11-01T09:00:00Z')
 
-const HEADERS = ['ФИО', 'E-mail', 'Телефон', 'Дата рождения', 'E-mail родителя', 'Зал', 'Направление', 'Группа', 'Пояс', 'Полоски', 'Абонемент', 'Дата начала', 'Дата окончания', 'Осталось', 'Оплачено', 'Заметки']
+const HEADERS = ['ФИО', 'E-mail', 'Телефон', 'Дата рождения', 'E-mail родителя', 'Зал', 'Направление', 'Группа', 'Пояс', 'Полоски', 'Абонемент', 'Дата начала', 'Дата окончания', 'Осталось', 'Оплачено', 'Заметки', 'ФИО родителя', 'Телефон родителя']
 const MAPPING = Object.fromEntries(
-    ['fullName', 'email', 'phone', 'dateOfBirth', 'parentEmail', 'gym', 'direction', 'group', 'rank', 'stripes', 'plan', 'startDate', 'endDate', 'classesLeft', 'paid', 'notes'].map((k, i) => [k, i]),
+    ['fullName', 'email', 'phone', 'dateOfBirth', 'parentEmail', 'gym', 'direction', 'group', 'rank', 'stripes', 'plan', 'startDate', 'endDate', 'classesLeft', 'paid', 'notes', 'parentName', 'parentPhone'].map((k, i) => [k, i]),
 )
 
-type Row = Partial<Record<'name' | 'email' | 'phone' | 'dob' | 'parent' | 'gym' | 'dir' | 'group' | 'rank' | 'stripes' | 'plan' | 'start' | 'end' | 'left' | 'paid' | 'notes', string>>
-const cells = (r: Row) => [r.name, r.email, r.phone, r.dob, r.parent, r.gym, r.dir, r.group, r.rank, r.stripes, r.plan, r.start, r.end, r.left, r.paid, r.notes].map((v) => v ?? '')
+type Row = Partial<Record<'name' | 'email' | 'phone' | 'dob' | 'parent' | 'gym' | 'dir' | 'group' | 'rank' | 'stripes' | 'plan' | 'start' | 'end' | 'left' | 'paid' | 'notes' | 'parentName' | 'parentPhone', string>>
+const cells = (r: Row) => [r.name, r.email, r.phone, r.dob, r.parent, r.gym, r.dir, r.group, r.rank, r.stripes, r.plan, r.start, r.end, r.left, r.paid, r.notes, r.parentName, r.parentPhone].map((v) => v ?? '')
 
 type User = { id: string; email: string | null; status: string; firstname: string | null; lastname: string | null; dateOfBirth: Date | null; phone: string | null }
 
@@ -58,7 +58,10 @@ const makeWorld = (opts: { rows: Row[]; createMissing?: boolean; overwrite?: boo
         },
         groupCoach: { create: jest.fn().mockResolvedValue({}) },
         plan: {
-            findMany: jest.fn().mockResolvedValue([{ id: 'p12', name: '12 занятий', directions: [], price: 500000, currency: 'RUB', durationDays: 30, classCount: 12, isActive: true }]),
+            findMany: jest.fn().mockResolvedValue([
+                { id: 'p12', name: '12 занятий', directions: [], price: 500000, currency: 'RUB', durationDays: 30, classCount: 12, isActive: true, startsOnFirstVisit: false },
+                { id: 'p8', name: '8 занятий', directions: [], price: 400000, currency: 'RUB', durationDays: 30, classCount: 8, isActive: true, startsOnFirstVisit: true },
+            ]),
             create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: id('plan'), ...data })),
         },
         rankLadder: {
@@ -103,6 +106,8 @@ const makeWorld = (opts: { rows: Row[]; createMissing?: boolean; overwrite?: boo
             }),
             update: jest.fn().mockResolvedValue({}),
             findUniqueOrThrow: jest.fn().mockResolvedValue({ accessUntil: null }),
+            // syncFirstVisitStartInTx: no visits to start a waiting abonement.
+            findFirst: jest.fn().mockResolvedValue(null),
         },
         workspaceInvitation: { findUnique: jest.fn().mockResolvedValue(null) },
         groupMember: { findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
@@ -347,5 +352,50 @@ describe('ClubImportEngine', () => {
         expect(results[0]).toMatchObject({ action: 'skip', messages: ['Без изменений'] })
         expect(results[1]).toMatchObject({ action: 'error' })
         expect(results[1].messages[0]).toContain('e-mail в клубе другой')
+    })
+
+    it('leaves a «с первой тренировки» abonement without dates waiting for the first visit', async () => {
+        const world = makeWorld({
+            rows: [
+                { name: 'Петров Олег', email: 'oleg@example.com', group: 'Взрослые', plan: '8 занятий', paid: 'нет' },
+                { name: 'Сидоров Яков', email: 'yakov@example.com', group: 'Взрослые', plan: '8 занятий', start: '20.10.2026', left: '5' },
+            ],
+        })
+        const preview = await world.run('preview')
+        expect(preview.results[0].changes).toContain('абонемент «8 занятий» с первой тренировки, 30 дн., осталось 8, не оплачен')
+        expect(preview.results[1].changes).toContain('абонемент «8 занятий» 20.10.2026–19.11.2026, осталось 5')
+
+        await world.run('apply')
+        const [waiting, dated] = world.prisma.subscription.create.mock.calls.map((c) => c[0].data)
+        expect(waiting).toMatchObject({ startDate: null, endDate: null, startsOnFirstVisit: true, isPaid: false, paidAt: null, classesRemaining: 8 })
+        expect(dated).toMatchObject({ startsOnFirstVisit: false, classesRemaining: 5 })
+        // App access runs to the latest auto-start (14 days) + the term.
+        expect(world.prisma.workspaceMember.update).toHaveBeenCalledWith(
+            expect.objectContaining({ data: { accessUntil: new Date('2026-12-14T21:00:00.000Z') } }),
+        )
+    })
+
+    it('fills the parent’s blank name and phone from «ФИО/Телефон родителя», once per parent', async () => {
+        const world = makeWorld({
+            rows: [
+                { name: 'Петрова Маша', dob: '03.09.2016', parent: 'mama@example.com', parentName: 'Петрова Анна', parentPhone: '8 900 765-43-21', group: 'Взрослые' },
+                { name: 'Петров Гоша', dob: '05.05.2018', parent: 'mama@example.com', parentName: 'Петрова Анна', parentPhone: '8 900 765-43-21', group: 'Взрослые' },
+                { name: 'Лисин Ваня', dob: '01.01.2015', parent: 'papa@example.com', parentName: 'Лисин Пётр', parentPhone: '89001112233', group: 'Взрослые' },
+            ],
+            users: [
+                { id: 'papa', email: 'papa@example.com', status: 'ACTIVE', firstname: 'Пётр', lastname: null, dateOfBirth: null, phone: null },
+                { id: 'other', email: 'other@example.com', status: 'ACTIVE', firstname: null, lastname: null, dateOfBirth: null, phone: '+79001112233' },
+            ],
+        })
+        const { results } = await world.run('apply')
+        expect(results[0].changes).toContain('родитель: имя и телефон')
+        expect(results[1].changes.some((c) => c.startsWith('родитель:'))).toBe(false)
+        expect(results[2].changes).toContain('родитель: имя')
+        expect(results[2].messages).toContain('Телефон родителя не сохранён: он уже указан у другого пользователя')
+
+        const updates = world.prisma.user.update.mock.calls.map((c) => c[0])
+        expect(updates).toContainEqual({ where: { email: 'mama@example.com' }, data: { firstname: 'Анна', lastname: 'Петрова', phone: '+79007654321' } })
+        // An existing name is never overwritten: only the blank surname is filled.
+        expect(updates).toContainEqual({ where: { email: 'papa@example.com' }, data: { lastname: 'Лисин' } })
     })
 })

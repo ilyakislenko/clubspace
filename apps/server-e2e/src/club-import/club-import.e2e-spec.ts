@@ -395,7 +395,9 @@ describe('club import', () => {
             .get(`${base(workspace.id)}/template.csv`)
             .set(...headActor.auth)
             .expect(200)
-        expect(template.text).toContain('ФИО;E-mail;Телефон;Дата рождения;E-mail родителя;Зал')
+        expect(template.text).toContain(
+            'ФИО;E-mail;Телефон;Дата рождения;E-mail родителя;ФИО родителя;Телефон родителя;Зал',
+        )
 
         // Another club's admin: refused on our club's URL, and our import id
         // is not found under theirs.

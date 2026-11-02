@@ -22,6 +22,7 @@ import {
   splitChurnList,
 } from "../../../../../../shared/lib/analytics"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
+import { groupOptionLabel } from "../../../../../../shared/lib/group-label"
 import { formatRelativeDays } from "../../../../../../shared/lib/member-activity"
 import {
   AnalyticsCard,
@@ -116,7 +117,7 @@ export default function ChurnPage() {
           {m.groups.length > 0 && (
             <div className="text-xs text-muted-foreground">
               {m.groups
-                .map((g) => (g.gymName ? `${g.name} · ${g.gymName}` : g.name))
+                .map((g) => groupOptionLabel(g))
                 .join(", ")}
             </div>
           )}

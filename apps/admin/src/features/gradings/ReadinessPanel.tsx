@@ -19,6 +19,7 @@ import { errorMessage } from "../../shared/lib/error-message"
 import { formatYmd } from "../../shared/lib/format-ymd"
 import { inputCls } from "../../shared/lib/input-class"
 import { RankChip } from "../ranks/RankChip"
+import { groupOptionLabel } from "../../shared/lib/group-label"
 
 const memberName = (e: ReadinessEntry) =>
   [e.firstname, e.lastname].filter(Boolean).join(" ") || e.email
@@ -189,7 +190,7 @@ export function ReadinessPanel({
           <option value="">Все группы</option>
           {groups.map((g) => (
             <option key={g.id} value={g.id}>
-              {g.name}
+              {groupOptionLabel(g)}
             </option>
           ))}
         </select>

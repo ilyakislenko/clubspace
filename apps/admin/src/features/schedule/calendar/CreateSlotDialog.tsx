@@ -38,6 +38,7 @@ import {
 } from "./calendar-helpers"
 import type { CalendarItem } from "./calendar-items"
 import { ConflictList } from "./ConflictList"
+import { groupOptionLabel } from "../../../shared/lib/group-label"
 
 const DURATIONS = [45, 60, 75, 90, 120]
 
@@ -147,7 +148,7 @@ export function CreateSlotDialog({
                     <SelectItem key={g.id} value={g.id}>
                       <span className="inline-flex items-center gap-2">
                         <DirectionDot color={g.direction?.color ?? null} />
-                        {g.name}
+                        {groupOptionLabel(g)}
                       </span>
                     </SelectItem>
                   ))}

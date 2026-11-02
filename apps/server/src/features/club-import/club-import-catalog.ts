@@ -22,6 +22,8 @@ export type CatalogPlan = {
     durationDays: number
     classCount: number | null
     isActive: boolean
+    // «30 дней с первой тренировки»: a row without dates waits for the first visit.
+    startsOnFirstVisit: boolean
 }
 export type CatalogLevel = {
     id: string

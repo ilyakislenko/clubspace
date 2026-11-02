@@ -19,6 +19,8 @@ export const ClubImportMappingSchema = z.object({
     phone: column,
     dateOfBirth: column,
     parentEmail: column,
+    parentName: column,
+    parentPhone: column,
     gym: column,
     direction: column,
     group: column,

@@ -20660,6 +20660,16 @@
                 "minimum": 0,
                 "maximum": 1000
               },
+              "parentName": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "parentPhone": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
               "gym": {
                 "type": "integer",
                 "minimum": 0,
@@ -20896,6 +20906,8 @@
                     "phone",
                     "dateOfBirth",
                     "parentEmail",
+                    "parentName",
+                    "parentPhone",
                     "gym",
                     "direction",
                     "group",
@@ -21048,6 +21060,16 @@
                 "minimum": 0,
                 "maximum": 1000
               },
+              "parentName": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "parentPhone": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
               "gym": {
                 "type": "integer",
                 "minimum": 0,
@@ -21284,6 +21306,8 @@
                     "phone",
                     "dateOfBirth",
                     "parentEmail",
+                    "parentName",
+                    "parentPhone",
                     "gym",
                     "direction",
                     "group",
@@ -21457,6 +21481,16 @@
                 "minimum": 0,
                 "maximum": 1000
               },
+              "parentName": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "parentPhone": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
               "gym": {
                 "type": "integer",
                 "minimum": 0,
@@ -21613,6 +21647,16 @@
                 "minimum": 0,
                 "maximum": 1000
               },
+              "parentName": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "parentPhone": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
               "gym": {
                 "type": "integer",
                 "minimum": 0,
@@ -21849,6 +21893,8 @@
                     "phone",
                     "dateOfBirth",
                     "parentEmail",
+                    "parentName",
+                    "parentPhone",
                     "gym",
                     "direction",
                     "group",
@@ -22001,6 +22047,16 @@
                 "minimum": 0,
                 "maximum": 1000
               },
+              "parentName": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "parentPhone": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
               "gym": {
                 "type": "integer",
                 "minimum": 0,
@@ -22237,6 +22293,8 @@
                     "phone",
                     "dateOfBirth",
                     "parentEmail",
+                    "parentName",
+                    "parentPhone",
                     "gym",
                     "direction",
                     "group",

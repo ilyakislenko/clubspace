@@ -31,6 +31,7 @@ import { errorMessage } from "../../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
+import { groupOptionLabel } from "../../../../../shared/lib/group-label"
 
 const numberFmt = new Intl.NumberFormat("ru-RU")
 
@@ -122,7 +123,7 @@ export function AnalyticsFilters({
             <SelectItem value={ANALYTICS_ALL}>Все группы</SelectItem>
             {groupOptions.map((g) => (
               <SelectItem key={g.id} value={g.id}>
-                {g.name}
+                {groupOptionLabel(g)}
               </SelectItem>
             ))}
           </SelectContent>
