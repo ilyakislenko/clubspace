@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ScrollViewInstance,
 } from "react-native"
 import { showAlert } from "../../shared/alert"
 import { shareFeedback, shareText } from "../../shared/share"
@@ -164,7 +165,7 @@ export function VideoScreen({ route, navigation }: Props) {
   // captions in the language the coach picked as canonical.
   const [activeSubtitleId, setActiveSubtitleId] = useState<string | null>(null)
   const subtitleAutoPickedRef = useRef(false)
-  const scrollRef = useRef<ScrollView>(null)
+  const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const [loopA, setLoopA] = useState<number | null>(null)
   const [loopB, setLoopB] = useState<number | null>(null)

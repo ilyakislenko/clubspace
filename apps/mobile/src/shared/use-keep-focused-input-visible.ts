@@ -6,20 +6,13 @@ import {
   // Only TextInput.State (which field has focus) — nothing is rendered here.
   // eslint-disable-next-line no-restricted-imports
   TextInput,
-  type HostInstance,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-  type ScrollView,
+  type ScrollViewInstance,
 } from "react-native"
 
 import { revealScrollOffset } from "./keyboard-reveal"
-
-// ScrollView has getInnerViewRef at runtime (RN 0.81), but its TypeScript
-// declaration only lists the deprecated numeric getInnerViewNode.
-type ScrollViewWithInnerRef = ScrollView & {
-  getInnerViewRef(): HostInstance | null
-}
 
 // Once the keyboard is open, scrolls `scrollRef` so the focused field sits
 // above it. Pair with KeyboardAvoidingContainer around the scroll view, and
@@ -38,7 +31,7 @@ type ScrollViewWithInnerRef = ScrollView & {
 // scroll view fails to measure and is left alone, and the listener is only
 // active while the screen is focused — tab screens stay mounted.
 export function useKeepFocusedInputVisible(
-  scrollRef: RefObject<ScrollView | null>,
+  scrollRef: RefObject<ScrollViewInstance | null>,
 ) {
   const offset = useRef(0)
   const viewportHeight = useRef(0)
@@ -50,7 +43,7 @@ export function useKeepFocusedInputVisible(
     let timers: ReturnType<typeof setTimeout>[] = []
     const reveal = (animated: boolean) => {
       const scroll = scrollRef.current
-      const content = (scroll as ScrollViewWithInnerRef | null)?.getInnerViewRef()
+      const content = scroll?.getInnerViewRef()
       const field = TextInput.State.currentlyFocusedInput()
       if (!scroll || !content || !field) return
       field.measureLayout(

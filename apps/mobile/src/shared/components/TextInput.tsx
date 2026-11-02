@@ -4,6 +4,7 @@ import {
   TextInput as RNTextInput,
   type TextInputProps,
   type TextStyle,
+  type TextInputInstance,
 } from "react-native"
 
 import { isWeb } from "../platform"
@@ -24,7 +25,7 @@ export type AppTextInputProps = TextInputProps
 // The iOS Safari threshold. At or above it, focusing an input doesn't zoom.
 const MIN_WEB_FONT_SIZE = 16
 
-export const TextInput = forwardRef<RNTextInput, AppTextInputProps>(
+export const TextInput = forwardRef<TextInputInstance, AppTextInputProps>(
   function AppTextInput({ style, ...rest }, ref) {
     if (!isWeb) {
       return <RNTextInput ref={ref} style={style} {...rest} />

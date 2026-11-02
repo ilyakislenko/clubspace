@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from "react"
-import { ScrollView, StyleSheet, Text, View } from "react-native"
+import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import {
@@ -35,7 +35,7 @@ export function AtRiskMembersScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
-  const scrollRef = useRef<ScrollView>(null)
+  const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const [reason, setReason] = useState<AtRiskReason | null>(null)
   const [showSnoozed, setShowSnoozed] = useState(false)

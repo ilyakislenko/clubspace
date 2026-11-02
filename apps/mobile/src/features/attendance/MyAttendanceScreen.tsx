@@ -265,7 +265,7 @@ export function MyAttendanceScreen() {
               color={theme.colors.accent}
               style={styles.footer}
             />
-          ) : null
+          ) : undefined
         }
       />
       </CenteredColumn>
