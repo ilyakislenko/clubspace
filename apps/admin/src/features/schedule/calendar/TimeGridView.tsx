@@ -251,7 +251,9 @@ export function TimeGridView({
                     {Number(col.date.slice(8, 10))}
                   </span>
                   {detailed && count > 0 && (
-                    <span className="text-muted-foreground">· {count} зан.</span>
+                    <span className="text-muted-foreground">
+                      · {count} {countForm(count, vocabulary.session, pluralRu)}
+                    </span>
                   )}
                 </button>
               )

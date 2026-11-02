@@ -8,7 +8,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 
 import type { AiAccess } from '../../domains/ai-assistant/ai-access'
-import { AI_CHAT_DATA_WARNING } from '../../domains/ai-assistant/ai-chat-warning'
+import { AI_CHAT_DATA_WARNING, aiChatDataWarning } from '../../domains/ai-assistant/ai-chat-warning'
 import {
     isLlmConfigured,
     LlmChatClient,
@@ -123,9 +123,10 @@ export class AiChatService {
     }
 
     async state(access: AiAccess): Promise<AiChatStateResponse> {
-        const [consent, limit] = await Promise.all([
+        const [consent, limit, vocabulary] = await Promise.all([
             this.consentRow(access.workspaceId),
             this.limit(access, new Date()),
+            loadClubVocabulary(this.prisma, access.workspaceId),
         ])
         const configured = isLlmConfigured()
         return {
@@ -136,7 +137,7 @@ export class AiChatService {
                 accepted: consent !== null,
                 acceptedAt: consent?.acceptedAt.toISOString() ?? null,
                 canAccept: access.isOwner,
-                warning: { ...AI_CHAT_DATA_WARNING },
+                warning: aiChatDataWarning(vocabulary),
             },
             limit,
             suggestions: [...SUGGESTED_QUESTIONS],

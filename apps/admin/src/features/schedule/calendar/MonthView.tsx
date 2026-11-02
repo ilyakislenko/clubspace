@@ -2,7 +2,11 @@
 
 import { useMemo, useState, type DragEvent } from "react"
 
+import { countForm } from "@clubspace/ui-kit/brand"
 import { cn } from "@clubspace/ui-kit/util"
+
+import { pluralRu } from "../../../shared/lib/plural-ru"
+import { useVocabulary } from "../../../shared/lib/vocabulary"
 
 import {
   DOW_SHORT,
@@ -33,6 +37,7 @@ type Props = {
  * there is nothing to snap.
  */
 export function MonthView({ anchor, items, today, onOpenItem, onOpenDay, onDrop }: Props) {
+  const vocabulary = useVocabulary()
   const days = useMemo(() => monthGridDays(anchor), [anchor])
   const byDate = useMemo(() => groupByDate(items), [items])
   const [dragKey, setDragKey] = useState<string | null>(null)
@@ -96,8 +101,10 @@ export function MonthView({ anchor, items, today, onOpenItem, onOpenDay, onDrop 
                   {Number(day.slice(8, 10))}
                 </button>
                 {classes > 0 && (
-                  <span className={cn("text-[11px] text-muted-foreground", !inMonth && "opacity-50")}>
-                    {classes} зан.
+                  <span
+                    className={cn("truncate text-[11px] text-muted-foreground", !inMonth && "opacity-50")}
+                  >
+                    {classes} {countForm(classes, vocabulary.session, pluralRu)}
                   </span>
                 )}
               </div>

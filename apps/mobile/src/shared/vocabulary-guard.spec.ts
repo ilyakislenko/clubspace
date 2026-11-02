@@ -11,8 +11,9 @@ import ts from "typescript"
 
 const SRC = join(__dirname, "..")
 // «Ковёр» is the grappling academy's mat — a yoga or dance studio has none.
-// The look-behind keeps «кратковременный» from matching.
-const WORDS = /тренир|тренер|(?<![а-яё])ков[её]?р/i
+// «трен.» is the short «тренировок». The look-behinds keep «кратковременный»
+// and «сотрен.» from matching.
+const WORDS = /тренир|тренер|(?<![а-яё])трен\.|(?<![а-яё])ков[её]?р/i
 
 // Files whose wording is deliberately not the club's:
 const ALLOWED: Record<string, true> = {
@@ -79,12 +80,15 @@ describe("club vocabulary guard", () => {
       "export const C = () => <Text>Отметиться на тренировке</Text>",
       'const d = "Открытый ковёр в субботу"',
       'const e = "кратковременным ссылкам"',
+      'const f = "12 трен."',
+      'const g = "текст стёрт и сотрен."',
     ].join("\n")
     expect(offendingTexts("probe.tsx", code)).toEqual([
       "Ближайшая тренировка",
       "Тренер:",
       "Отметиться на тренировке",
       "Открытый ковёр в субботу",
+      "12 трен.",
     ])
   })
 })

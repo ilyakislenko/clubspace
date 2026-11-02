@@ -9,11 +9,14 @@ import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { useVocabulary } from "../../shared/lib/vocabulary"
-import { cap } from "@clubspace/ui-kit/brand"
+import { cap, countForm, type ClubVocabulary } from "@clubspace/ui-kit/brand"
+import { pluralRu } from "../../shared/lib/plural-ru"
 
-const describeRule = (lv: RankLevel): string => {
+const describeRule = (lv: RankLevel, vocabulary: ClubVocabulary): string => {
   const parts = [
-    lv.minVisits != null ? `${lv.minVisits} трен.` : null,
+    lv.minVisits != null
+      ? `${lv.minVisits} ${countForm(lv.minVisits, vocabulary.session, pluralRu)}`
+      : null,
     lv.minWeeks != null ? `${lv.minWeeks} нед.` : null,
   ].filter(Boolean)
   return parts.length > 0 ? `Допуск: ${parts.join(" · ")}` : "Допуск: не задан"
@@ -77,7 +80,7 @@ export function LevelRuleEditor({
   if (!editing) {
     return (
       <span className="flex w-full items-center gap-2 pl-5 text-xs text-muted-foreground">
-        {describeRule(level)}
+        {describeRule(level, vocabulary)}
         <button className="hover:text-foreground" onClick={open}>
           Изменить
         </button>

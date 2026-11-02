@@ -2,7 +2,11 @@
 
 import { useMemo } from "react"
 
+import { countForm } from "@clubspace/ui-kit/brand"
 import { cn } from "@clubspace/ui-kit/util"
+
+import { pluralRu } from "../../../shared/lib/plural-ru"
+import { useVocabulary } from "../../../shared/lib/vocabulary"
 
 import {
   DOW_SHORT,
@@ -33,6 +37,8 @@ const shade = (count: number, max: number): string => {
 
 /** Twelve mini months after volt's calendar-year-view; days shaded by load. */
 export function YearView({ anchor, items, today, onOpenDay, onOpenMonth }: Props) {
+  const vocabulary = useVocabulary()
+  const sessions = (n: number) => `${n} ${countForm(n, vocabulary.session, pluralRu)}`
   const year = anchor.slice(0, 4)
   const counts = useMemo(() => {
     const out = new Map<string, number>()
@@ -60,7 +66,7 @@ export function YearView({ anchor, items, today, onOpenDay, onOpenMonth }: Props
             >
               {monthName(first)}
               <span className="text-xs font-normal text-muted-foreground">
-                {monthTotal} зан.
+                {sessions(monthTotal)}
               </span>
             </button>
             <div className="grid grid-cols-7 gap-0.5 p-2 text-center">
@@ -75,7 +81,7 @@ export function YearView({ anchor, items, today, onOpenDay, onOpenMonth }: Props
                     key={d}
                     type="button"
                     onClick={() => onOpenDay(d)}
-                    title={`${counts.get(d) ?? 0} зан.`}
+                    title={sessions(counts.get(d) ?? 0)}
                     className={cn(
                       "flex aspect-square items-center justify-center rounded-full text-[11px] tabular-nums hover:ring-1 hover:ring-ring",
                       shade(counts.get(d) ?? 0, max),
