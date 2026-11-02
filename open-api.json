@@ -42631,6 +42631,9 @@
               "additionalProperties": false
             }
           },
+          "groupsRemoved": {
+            "type": "boolean"
+          },
           "publishedAt": {
             "type": "string",
             "format": "date-time",
@@ -42659,6 +42662,7 @@
           "audience",
           "direction",
           "groups",
+          "groupsRemoved",
           "publishedAt",
           "authorName",
           "createdAt",
@@ -42757,6 +42761,9 @@
                     "additionalProperties": false
                   }
                 },
+                "groupsRemoved": {
+                  "type": "boolean"
+                },
                 "publishedAt": {
                   "type": "string",
                   "format": "date-time",
@@ -42785,6 +42792,7 @@
                 "audience",
                 "direction",
                 "groups",
+                "groupsRemoved",
                 "publishedAt",
                 "authorName",
                 "createdAt",
@@ -42908,6 +42916,9 @@
                     "additionalProperties": false
                   }
                 },
+                "groupsRemoved": {
+                  "type": "boolean"
+                },
                 "publishedAt": {
                   "type": "string",
                   "format": "date-time",
@@ -42936,6 +42947,7 @@
                 "audience",
                 "direction",
                 "groups",
+                "groupsRemoved",
                 "publishedAt",
                 "authorName",
                 "createdAt",
@@ -43102,6 +43114,9 @@
               "additionalProperties": false
             }
           },
+          "groupsRemoved": {
+            "type": "boolean"
+          },
           "publishedAt": {
             "type": "string",
             "format": "date-time",
@@ -43130,6 +43145,7 @@
           "audience",
           "direction",
           "groups",
+          "groupsRemoved",
           "publishedAt",
           "authorName",
           "createdAt",

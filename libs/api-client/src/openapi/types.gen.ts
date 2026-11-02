@@ -6042,6 +6042,7 @@ export type AnnouncementOutputDtoOutput = {
         gymName: string | null;
         directionId: string | null;
     }>;
+    groupsRemoved: boolean;
     publishedAt: string | null;
     authorName: string;
     createdAt: string;
@@ -6067,6 +6068,7 @@ export type AnnouncementListOutputOutput = {
             gymName: string | null;
             directionId: string | null;
         }>;
+        groupsRemoved: boolean;
         publishedAt: string | null;
         authorName: string;
         createdAt: string;
@@ -6096,6 +6098,7 @@ export type AnnouncementFeedOutputOutput = {
             gymName: string | null;
             directionId: string | null;
         }>;
+        groupsRemoved: boolean;
         publishedAt: string | null;
         authorName: string;
         createdAt: string;
@@ -6135,6 +6138,7 @@ export type UpdateAnnouncementOutputOutput = {
         gymName: string | null;
         directionId: string | null;
     }>;
+    groupsRemoved: boolean;
     publishedAt: string | null;
     authorName: string;
     createdAt: string;

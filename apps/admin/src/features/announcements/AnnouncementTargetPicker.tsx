@@ -6,9 +6,10 @@ import { groupOptionLabel } from "../../shared/lib/group-label"
 import type { DirectionScope } from "../../shared/workspace/use-direction-scope"
 import { toggleId } from "../directions/direction-scope"
 import { DirectionSelect } from "../directions/DirectionSelect"
-import type {
-  AnnouncementTarget,
-  AnnouncementTargetKind,
+import {
+  GROUPS_REMOVED_TEXT,
+  type AnnouncementTarget,
+  type AnnouncementTargetKind,
 } from "./announcement-target"
 
 const KIND_LABELS: Record<AnnouncementTargetKind, string> = {
@@ -37,6 +38,7 @@ export function AnnouncementTargetPicker({
   directions,
   groups,
   scope,
+  groupsRemoved = false,
 }: {
   id: string
   value: AnnouncementTarget
@@ -44,6 +46,8 @@ export function AnnouncementTargetPicker({
   directions: Direction[]
   groups: GroupSummary[]
   scope: DirectionScope
+  /** Every group the announcement was addressed to was deleted since. */
+  groupsRemoved?: boolean
 }) {
   // Groups already chosen stay visible so editing never silently drops one.
   const offered = groups.filter(
@@ -56,7 +60,11 @@ export function AnnouncementTargetPicker({
       ? (["club"] as const)
       : []),
     ...(directions.length > 0 ? (["direction"] as const) : []),
-    ...(offered.length > 0 ? (["groups"] as const) : []),
+    // Kept while chosen: an announcement whose groups were all deleted (or a
+    // club left without groups) must not fall back to another kind silently.
+    ...(offered.length > 0 || value.kind === "groups"
+      ? (["groups"] as const)
+      : []),
   ]
   if (kinds.length < 2 && value.kind === "club") return null
 
@@ -134,6 +142,12 @@ export function AnnouncementTargetPicker({
             )
           })}
         </div>
+      )}
+      {groupsRemoved && value.kind === "groups" && value.groupIds.length === 0 && (
+        <p className="text-xs text-amber-600 dark:text-amber-500">
+          {GROUPS_REMOVED_TEXT}. Выберите группы или другую аудиторию —
+          без этого сохранение оставит его скрытым.
+        </p>
       )}
     </div>
   )

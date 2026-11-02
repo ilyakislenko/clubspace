@@ -31,7 +31,7 @@ import {
   useWorkspaceFeatures,
 } from "../../../../shared/lib/use-workspace-features"
 import { useVocabulary } from "../../../../shared/lib/vocabulary"
-import { cap } from "@clubspace/ui-kit/brand"
+import { agree, cap, fromFirstSession } from "@clubspace/ui-kit/brand"
 import { formatAmount } from "../../../../features/subscriptions/subscription-display"
 import { OnboardingChecklist } from "../../../../features/billing/OnboardingChecklist"
 
@@ -198,7 +198,9 @@ export default function WorkspaceOverviewPage() {
             <StatCard
               label="Регулярный доход в месяц"
               value={formatMoney(stats.revenue.mrr, stats.revenue.currency)}
-              subtitle="действующие абонементы в пересчёте на 30 дней"
+              // A «с первого занятия» abonement has no term yet: nothing to
+              // spread over 30 days until that first visit (revenue.ts).
+              subtitle={`действующие абонементы в пересчёте на 30 дней; абонементы «${fromFirstSession(vocabulary)}» входят после ${agree(vocabulary.session, "первой", "первого")} ${vocabulary.session.gen}`}
               loading={loading}
             />
             <StatCard

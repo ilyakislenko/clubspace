@@ -29,6 +29,9 @@ export const AnnouncementOutputSchema = z.object({
     // Addressed to these groups instead of a direction: only their students
     // (and a child's guardians), their coaches and the staff see it.
     groups: z.array(AnnouncementGroupRefSchema),
+    // Every target group was deleted since: `groups` is empty, yet the
+    // announcement still matches nobody — it is not the whole club.
+    groupsRemoved: z.boolean(),
     publishedAt: z.iso.datetime().nullable(),
     authorName: z.string(),
     createdAt: z.iso.datetime(),
@@ -115,6 +118,7 @@ export const serializeAnnouncement = (a: {
               ]
             : [],
     ),
+    groupsRemoved: a.groups.length > 0 && a.groups.every(({ group }) => !group),
     publishedAt: a.publishedAt ? a.publishedAt.toISOString() : null,
     authorName: fullNameWithoutEmail(a.author),
     createdAt: a.createdAt.toISOString(),

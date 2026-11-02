@@ -380,6 +380,9 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
   const split = roster ? splitRoster(roster) : null
   // One member, paid for off-app: nothing to mark in bulk, no pack to run out.
   const isPersonal = roster?.kind === "personal"
+  // A master class: those listed registered for it — not guests of a group,
+  // and a ticket, not an abonement, pays for it.
+  const isEvent = roster?.kind === "event"
   const notesDirty = notes !== savedNotes
   const pickerEntry = pickerFor
     ? (entries.find((e) => e.userId === pickerFor) ?? null)
@@ -565,13 +568,13 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                       <Text style={styles.name} numberOfLines={1}>
                         {g.displayName}
                         {g.frozenUntil ? " · заморожен" : ""}
-                        {!isPersonal && g.classesLeft === 0 && (
+                        {!isPersonal && !isEvent && g.classesLeft === 0 && (
                           <Text style={styles.noClasses}>
                             {" · занятий не осталось"}
                           </Text>
                         )}
                       </Text>
-                      {!isPersonal && !roster.booking && (
+                      {!isPersonal && !isEvent && !roster.booking && (
                         <Text style={styles.guestPill}>гость</Text>
                       )}
                     </Pressable>

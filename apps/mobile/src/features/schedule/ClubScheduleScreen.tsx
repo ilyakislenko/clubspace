@@ -72,6 +72,7 @@ import {
 import { spotsLine, withMyBooking } from "./class-booking-helpers"
 import { eventOfferLine } from "./event-helpers"
 import { DayStrip } from "./DayStrip"
+import { foreignTzSuffix } from "./schedule-helpers"
 import { rsvpStateFor, type RsvpState } from "./drop-in-helpers"
 import { loadGymFilter, saveGymFilter } from "./gym-filter-store"
 import { MyBookingsPanel } from "./MyBookingsPanel"
@@ -510,7 +511,7 @@ export function ClubScheduleScreen() {
     }
     if (item.kind === "event") {
       const e = item.event
-      const offer = eventOfferLine(e, listedById.get(e.id))
+      const offer = eventOfferLine(e, listedById.get(e.id), isStaff)
       return {
         kind: "event",
         start,
@@ -624,14 +625,16 @@ export function ClubScheduleScreen() {
             key={item.key}
             pt={item.personal}
             meId={meId}
+            clubTz={clubTz}
             onPress={() => openPersonal(item.personal)}
           />
         ) : (
           <EventRow
             key={item.key}
             event={item.event}
-            offer={eventOfferLine(item.event, listedById.get(item.event.id))}
+            offer={eventOfferLine(item.event, listedById.get(item.event.id), isStaff)}
             onPress={openEvent && (() => openEvent(item.event.id))}
+            clubTz={clubTz}
           />
         ),
       )}
@@ -1058,13 +1061,23 @@ function SessionRow({
   )
 }
 
+// The screen names the club's zone once on top: a row adds its own only when
+// its clock differs from the club's (a personal session or an event abroad).
+function OtherTzLabel({ timeZone, at, clubTz }: { timeZone: string; at: string; clubTz: string }) {
+  const styles = useThemedStyles(makeStyles)
+  const label = foreignTzSuffix(timeZone, new Date(at), clubTz).trim()
+  return label ? <Text style={styles.rowMetaTz}>{label}</Text> : null
+}
+
 function PersonalRow({
   pt,
   meId,
+  clubTz,
   onPress,
 }: {
   pt: PersonalTraining
   meId: string | null
+  clubTz: string
   onPress: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
@@ -1095,7 +1108,7 @@ function PersonalRow({
         <Text style={styles.rowMeta} numberOfLines={1}>
           {pt.gym ? `${pt.gym.name} · ${pt.gym.address}` : "Зал не выбран"}
         </Text>
-        <Text style={styles.rowMetaTz}>{formatTimezoneLabel(pt.timezone)}</Text>
+        <OtherTzLabel timeZone={pt.timezone} at={pt.confirmedStartAt!} clubTz={clubTz} />
       </View>
     </Pressable>
   )
@@ -1104,11 +1117,13 @@ function PersonalRow({
 function EventRow({
   event,
   offer,
+  clubTz,
   onPress,
 }: {
   event: ScheduleEvent
   // «1 500 ₽ · Свободно 3 из 10»; null for an open event.
   offer: string | null
+  clubTz: string
   onPress?: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
@@ -1130,9 +1145,7 @@ function EventRow({
           </Text>
         )}
         {offer && <Text style={styles.rowSpots}>{offer}</Text>}
-        <Text style={styles.rowMetaTz}>
-          {formatTimezoneLabel(event.timezone)}
-        </Text>
+        <OtherTzLabel timeZone={event.timezone} at={event.startAt} clubTz={clubTz} />
       </View>
     </>
   )

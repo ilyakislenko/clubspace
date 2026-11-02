@@ -41,11 +41,14 @@ export const priceLabel = (price: number | null, currency: string): string =>
 /**
  * «1 500 ₽ · Свободно 3 из 10» for a master class on the schedule: the
  * schedule carries its price and limit, the events list (`listed`, by id)
- * the places taken. null for an event with neither price nor limit.
+ * the places taken. The staff, who don't sign up, read the places taken
+ * instead — «Записано 3 из 3», as in «События», not «Мест нет». null for an
+ * event with neither price nor limit.
  */
 export const eventOfferLine = (
   event: Pick<ScheduleEvent, "price" | "currency" | "capacity">,
   listed?: Pick<ScheduleEvent, "registration"> | null,
+  staff = false,
 ): string | null => {
   const price = event.price ?? null
   const capacity = event.capacity ?? null
@@ -55,7 +58,9 @@ export const eventOfferLine = (
     capacity === null
       ? null
       : reg
-        ? spotsLine({ capacity, booked: reg.booked, waitlist: reg.waitlist })
+        ? staff
+          ? bookedLine({ capacity, booked: reg.booked, waitlist: reg.waitlist })
+          : spotsLine({ capacity, booked: reg.booked, waitlist: reg.waitlist })
         : `Мест: ${capacity}`
   return [priceLabel(price, event.currency ?? "RUB"), places]
     .filter(Boolean)

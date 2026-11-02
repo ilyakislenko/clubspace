@@ -4,7 +4,7 @@ import {
     currentSubscriptionOrderBy,
     currentSubscriptionWhere,
 } from '../../domains/subscriptions/current-subscriptions'
-import { localDateInTz } from '../attendance/attendance-utils'
+import { localDateInTz, wallClockToUtc } from '../attendance/attendance-utils'
 import { PrismaService } from '../../infrastructure/prisma'
 import { toCsv } from '../../shared/utils/csv'
 import {
@@ -27,10 +27,12 @@ const fullName = (u: { firstname: string | null; lastname: string | null }) =>
 const joinCells = (values: ReadonlyArray<string | number | null>) =>
     values.map((v) => (v === null ? '' : String(v))).join('; ')
 
-const day = (d: Date | null | undefined) =>
-    d ? d.toISOString().slice(0, 10) : ''
+// Every date in the files is the club-local day, as the club sees it, not
+// the UTC day (a Novosibirsk payment at 04:30 is that day, not the day before).
+const day = (d: Date | null | undefined, tz: string) =>
+    d ? localDateInTz(d, tz) : ''
 
-const TICKET_PAYMENT_LABELS = {
+const PAYMENT_METHOD_LABELS = {
     CASH: 'Наличные',
     TRANSFER: 'Перевод',
     ONLINE: 'Онлайн',
@@ -42,21 +44,42 @@ const SUBSCRIPTION_SOURCE_LABELS = {
     GATEWAY: 'Онлайн-оплата',
 } as const
 
-// Inclusive date bounds (the controller passes from = start-of-day and
-// to = end-of-day). Produces a Prisma filter, or undefined when unbounded.
-export type DateRange = { from?: Date; to?: Date }
+// Inclusive club-local days (YYYY-MM-DD) as the admin picks them.
+export type DayRange = { from?: string; to?: string }
 
-const rangeFilter = (range?: DateRange) => {
+const nextDay = (date: string) => {
+    const d = new Date(`${date}T00:00:00Z`)
+    d.setUTCDate(d.getUTCDate() + 1)
+    return d.toISOString().slice(0, 10)
+}
+
+// The instants of those days in the club's timezone: from its first moment
+// to the last moment before the next day starts. undefined when unbounded.
+export const rangeFilter = (range: DayRange | undefined, tz: string) => {
     if (!range?.from && !range?.to) return undefined
     return {
-        ...(range.from ? { gte: range.from } : {}),
-        ...(range.to ? { lte: range.to } : {}),
+        ...(range.from ? { gte: wallClockToUtc(`${range.from}T00:00`, tz) } : {}),
+        ...(range.to
+            ? {
+                  lte: new Date(
+                      wallClockToUtc(`${nextDay(range.to)}T00:00`, tz).getTime() - 1,
+                  ),
+              }
+            : {}),
     }
 }
 
 @Injectable()
 export class ExportService {
     constructor(private readonly prisma: PrismaService) {}
+
+    private async clubTz(workspaceId: string): Promise<string> {
+        const workspace = await this.prisma.workspace.findUnique({
+            where: { id: workspaceId },
+            select: { timezone: true },
+        })
+        return workspace?.timezone ?? 'UTC'
+    }
 
     // Roster: every member, contacts, role/status, access window and current
     // abonements. Ordered oldest-first (join order). One row per member (it's
@@ -65,6 +88,7 @@ export class ExportService {
     // one exports exactly as before.
     async membersCsv(workspaceId: string): Promise<string> {
         const now = new Date()
+        const tz = await this.clubTz(workspaceId)
         const members = await this.prisma.workspaceMember.findMany({
             where: { workspaceId },
             select: {
@@ -98,11 +122,11 @@ export class ExportService {
             m.user.email,
             m.role.name,
             m.status,
-            day(m.accessUntil),
+            day(m.accessUntil, tz),
             joinCells(m.subscriptions.map((s) => s.plan.name)),
             joinCells(m.subscriptions.map((s) => s.classesRemaining)),
             joinCells(m.subscriptions.map((s) => s.classesTotal)),
-            day(m.createdAt),
+            day(m.createdAt, tz),
         ])
 
         return toCsv(
@@ -122,12 +146,13 @@ export class ExportService {
     }
 
     // Attendance: every check-in, newest first — session, group and member.
-    // Filtered by the session's date when a range is given.
+    // Filtered by the session's club-local date when a range is given.
     async attendanceCsv(
         workspaceId: string,
-        range?: DateRange,
+        range?: DayRange,
     ): Promise<string> {
-        const startAt = rangeFilter(range)
+        const tz = await this.clubTz(workspaceId)
+        const startAt = rangeFilter(range, tz)
         const records = await this.prisma.attendanceRecord.findMany({
             where: {
                 workspaceId,
@@ -155,7 +180,7 @@ export class ExportService {
         })
 
         const rows = records.map((r) => [
-            day(r.session.startAt),
+            day(r.session.startAt, tz),
             r.session.title,
             r.session.group?.name ?? '',
             fullName(r.user),
@@ -177,13 +202,10 @@ export class ExportService {
     // sale date on rows from before payment tracking); unpaid sales are a
     // receivable, not revenue, and stay out. Sales to members who have since
     // left stay in, under the buyer's name (Subscription.user).
-    async revenueCsv(workspaceId: string, range?: DateRange): Promise<string> {
-        const paidRange = rangeFilter(range)
-        const [workspace, subs, tickets] = await Promise.all([
-            this.prisma.workspace.findUnique({
-                where: { id: workspaceId },
-                select: { timezone: true },
-            }),
+    async revenueCsv(workspaceId: string, range?: DayRange): Promise<string> {
+        const tz = await this.clubTz(workspaceId)
+        const paidRange = rangeFilter(range, tz)
+        const [subs, tickets] = await Promise.all([
             this.prisma.subscription.findMany({
                 where: { workspaceId, ...paidInRangeWhere(paidRange ?? {}) },
                 select: {
@@ -237,7 +259,9 @@ export class ExportService {
                         SUBSCRIPTION_SOURCE_LABELS[s.source],
                         s.classesTotal ?? '',
                         'Абонемент',
-                        '',
+                        // Paid through the checkout — online; a sale staff
+                        // recorded by hand does not store cash vs transfer.
+                        s.source === 'GATEWAY' ? PAYMENT_METHOD_LABELS.ONLINE : '',
                     ],
                 }
             }),
@@ -252,7 +276,7 @@ export class ExportService {
                     '',
                     '',
                     'Событие',
-                    t.paymentMethod ? TICKET_PAYMENT_LABELS[t.paymentMethod] : '',
+                    t.paymentMethod ? PAYMENT_METHOD_LABELS[t.paymentMethod] : '',
                 ],
             })),
         ]
@@ -271,11 +295,7 @@ export class ExportService {
                 'Вид',
                 'Способ оплаты',
             ],
-            // The payment day as the club sees it, not the UTC day.
-            rows.map((r) => [
-                localDateInTz(r.on, workspace?.timezone ?? 'UTC'),
-                ...r.cells,
-            ]),
+            rows.map((r) => [day(r.on, tz), ...r.cells]),
         )
     }
 
@@ -286,6 +306,7 @@ export class ExportService {
     // abonement to renew.
     async renewalsCsv(workspaceId: string): Promise<string> {
         const now = new Date()
+        const tz = await this.clubTz(workspaceId)
         const soon = renewalSoon(now)
         const members = await this.prisma.workspaceMember.findMany({
             where: { workspaceId, status: 'ACTIVE' },
@@ -327,7 +348,7 @@ export class ExportService {
                     reason,
                     sub?.classesRemaining ?? '',
                     sub?.classesTotal ?? '',
-                    day(m.accessUntil),
+                    day(m.accessUntil, tz),
                     need.subscription?.plan.name ?? '',
                 ],
             ]

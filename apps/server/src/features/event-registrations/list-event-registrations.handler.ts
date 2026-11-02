@@ -52,6 +52,20 @@ export class ListEventRegistrationsHandler
         )
         const positions = waitlistPositions(rows)
         const paid = rows.filter((r) => r.isPaid)
+        // One line per member: an unpaid cancellation they since registered
+        // over (or cancelled again later) says nothing new. A paid one stays —
+        // the money is still to settle.
+        const listed = rows.filter(
+            (r) =>
+                r.status !== 'CANCELLED' ||
+                r.isPaid ||
+                !rows.some(
+                    (o) =>
+                        o.id !== r.id &&
+                        o.userId === r.userId &&
+                        (o.status !== 'CANCELLED' || o.isPaid || o.createdAt > r.createdAt),
+                ),
+        )
         return {
             eventId: event.id,
             capacity: event.capacity,
@@ -63,7 +77,7 @@ export class ListEventRegistrationsHandler
                 count: paid.length,
                 amount: paid.reduce((sum, r) => sum + (r.amountPaid ?? 0), 0),
             },
-            data: rows.map((r) => serializeRegistrant(r, positions.get(r.id) ?? null)),
+            data: listed.map((r) => serializeRegistrant(r, positions.get(r.id) ?? null)),
         }
     }
 }

@@ -11,6 +11,7 @@ import { ownedByDirectionsWhere, visibleToMemberWhere } from './target';
 import { expiringSegmentWhere } from './renewal-segment';
 import { UpdateAnnouncementFeature } from './update-announcement.feature';
 import { UpdateAnnouncementHandler } from './update-announcement.handler';
+import { serializeAnnouncement } from './schemas';
 import {
   BadRequestError,
   ForbiddenError,
@@ -914,5 +915,26 @@ describe('announcements addressed to groups', () => {
     });
     await expect(del()).rejects.toBeInstanceOf(ForbiddenError);
     expect(d.prisma.announcement.delete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('serializeAnnouncement', () => {
+  const group = (id: string) => ({
+    groupId: id,
+    group: { id, name: 'Взрослые', directionId: null, gym: { name: 'Манеж' } },
+  });
+  const ser = (groups: unknown[]) =>
+    serializeAnnouncement(row({ groups }) as never);
+
+  it('flags an announcement whose every target group was deleted: closed, not the whole club', () => {
+    expect(ser([{ groupId: null, group: null }])).toMatchObject({
+      groups: [],
+      groupsRemoved: true,
+    });
+    expect(ser([])).toMatchObject({ groups: [], groupsRemoved: false });
+    expect(ser([group('g1'), { groupId: null, group: null }])).toMatchObject({
+      groups: [{ id: 'g1', name: 'Взрослые', gymName: 'Манеж' }],
+      groupsRemoved: false,
+    });
   });
 });
