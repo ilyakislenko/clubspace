@@ -14,6 +14,10 @@ export type LoadedSession = {
     workspaceEventId: string | null
     checkInCode: string | null
     coachId: string | null
+    // An event session's teacher is whoever leads the event now — not the
+    // `coachId` copied when the session was opened (the event's coach may have
+    // changed since); null when it is not an event session or the event is gone.
+    eventCoachId: string | null
     isPersonal: boolean
     startAt: Date
     timezone: string
@@ -38,17 +42,19 @@ const load = async (
             isPersonal: true,
             startAt: true,
             timezone: true,
+            workspaceEvent: { select: { coachId: true } },
         },
     })
     if (!s) throw new NotFoundError({ message: 'Занятие не найдено' })
-    return s
+    const { workspaceEvent, ...session } = s
+    return { ...session, eventCoachId: workspaceEvent?.coachId ?? null }
 }
 
 // Write access: admin scope for anything; a group session for whoever may
 // mark that class (`mark`: its group's coaches, the direction's manager, the
 // approved substitute, any coach when the club allows it) or only for whoever
 // runs the group (`manage`, e.g. deleting the session); event sessions
-// require admin scope or being the event's coach (its teacher marks who came).
+// require admin scope or leading the event now (its teacher marks who came).
 export const loadSessionForWrite = async (
     prisma: PrismaService,
     rbac: RbacService,
@@ -75,7 +81,7 @@ export const loadSessionForWrite = async (
         }
     } else if (
         !rbac.canWriteAllGroups(ctx) &&
-        !(access === 'mark' && s.coachId === ctx.userId)
+        !(access === 'mark' && s.eventCoachId === ctx.userId)
     ) {
         throw new ForbiddenError({
             message:
@@ -88,7 +94,7 @@ export const loadSessionForWrite = async (
 }
 
 // Read access: see-all scopes read anything; otherwise a coach reads a group
-// session of a class they may mark, or the event they lead.
+// session of a class they may mark, or the event they lead now.
 export const loadSessionForRead = async (
     prisma: PrismaService,
     rbac: RbacService,
@@ -110,7 +116,7 @@ export const loadSessionForRead = async (
         )
         return s
     }
-    if (s.workspaceEventId && s.coachId === ctx.userId) return s
+    if (s.eventCoachId === ctx.userId) return s
     throw new ForbiddenError({
         message: 'Нет доступа к этому занятию',
     })

@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
@@ -29,6 +30,7 @@ export class RemoveWorkspaceMemberHandler
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
         private readonly rbac: RbacService,
+        private readonly eventRegistrations: EventRegistrationService,
     ) {}
 
     async execute({
@@ -84,7 +86,7 @@ export class RemoveWorkspaceMemberHandler
                 `Удалить администратора или ${v.headCoach.gen} может только владелец или администратор клуба`,
         )
 
-        await this.prisma.$transaction((tx) =>
+        const { freedEventIds } = await this.prisma.$transaction((tx) =>
             purgeMembership(tx, {
                 memberId: member.id,
                 userId,
@@ -92,6 +94,7 @@ export class RemoveWorkspaceMemberHandler
                 now: new Date(),
             }),
         )
+        await this.eventRegistrations.promoteFreed(workspaceId, freedEventIds)
 
         await this.audit.record({
             action: 'member.remove',

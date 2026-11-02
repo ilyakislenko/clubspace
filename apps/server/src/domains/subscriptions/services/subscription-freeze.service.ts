@@ -335,6 +335,9 @@ export class SubscriptionFreezeService {
                     workspaceId: p.workspaceId,
                     subscriptionId: p.subscriptionId,
                     userId: p.userId,
+                    // Held by the member now: a removed member's abonement
+                    // stays as history (no member), its dates are not moved.
+                    subscription: { workspaceMember: { userId: p.userId } },
                 },
                 include: {
                     subscription: {

@@ -7,11 +7,13 @@ import { purgePersonalTraining } from '../personal-trainings/purge-personal-trai
 // The abonements stay as the club's sales history with no member
 // (Subscription.workspaceMemberId SetNull): revenue and the renewal share keep
 // counting them, the current lists don't. Shared by an admin removing a member
-// and a member leaving the club. Other clubs are untouched.
+// and a member leaving the club. Other clubs are untouched. Returns the events
+// where a place was given up: the caller hands them to the waitlists once this
+// transaction commits (EventRegistrationService.promoteFreed).
 export const purgeMembership = async (
     tx: PrismaTransactionClientType,
     p: { memberId: string; userId: string; workspaceId: string; now: Date },
-): Promise<void> => {
+): Promise<{ freedEventIds: string[] }> => {
     const { userId, workspaceId } = p
     await tx.workspaceMember.delete({ where: { id: p.memberId } })
     // Guest bookings are a member's privilege: they go with the membership.
@@ -23,8 +25,11 @@ export const purgeMembership = async (
         where: { workspaceId, userId, status: { in: ['BOOKED', 'WAITLISTED'] } },
         data: { status: 'CANCELLED', cancelledAt: p.now },
     })
-    // Their places in events with registration too; the event's next
-    // registration hands the freed place to its waitlist first.
+    // Their places in events with registration too (one live place per event).
+    const freed = await tx.eventRegistration.findMany({
+        where: { workspaceId, userId, status: 'BOOKED' },
+        select: { eventId: true },
+    })
     await tx.eventRegistration.updateMany({
         where: { workspaceId, userId, status: { in: ['BOOKED', 'WAITLISTED'] } },
         data: { status: 'CANCELLED', cancelledAt: p.now },
@@ -46,4 +51,5 @@ export const purgeMembership = async (
     await tx.subscriptionFreezeRequest.deleteMany({ where: { workspaceId, userId } })
     // Personal training goes too: offers, open requests, comments.
     await purgePersonalTraining(tx, { userId, workspaceId, now: p.now })
+    return { freedEventIds: freed.map((r) => r.eventId) }
 }

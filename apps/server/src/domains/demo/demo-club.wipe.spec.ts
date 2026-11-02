@@ -1,3 +1,8 @@
+jest.mock('../../features/remove-workspace-member/purge-membership', () => ({
+    purgeMembership: jest.fn().mockResolvedValue({ freedEventIds: [] }),
+}))
+
+import { purgeMembership } from '../../features/remove-workspace-member/purge-membership'
 import { DEMO_CLUBS } from './demo-clubs'
 import { deleteDemoOnlyUsers, wipeDemoWorkspace } from './demo-club.wipe'
 
@@ -39,6 +44,7 @@ const buildTx = () => {
             .mockResolvedValueOnce([{ id: 'acc-1' }]),
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
     }
+    tx.workspaceMember = { findMany: jest.fn().mockResolvedValue([]) }
     return { tx, order }
 }
 
@@ -82,5 +88,25 @@ describe('deleteDemoOnlyUsers', () => {
         // Only the studio's own fixed accounts get their links rebuilt.
         const accounts = tx.user.findMany.mock.calls[1][0].where.email.in
         expect(accounts).toEqual(['owner@ritm.demo', 'pedagog@ritm.demo', 'student@ritm.demo', 'parent@ritm.demo'])
+    })
+
+    it('takes this club’s fixed accounts out of the other demo club, so the demo code opens them again', async () => {
+        const { tx } = buildTx()
+        tx.workspaceMember.findMany.mockResolvedValue([
+            { id: 'm-ritm', userId: 'acc-1', workspaceId: 'w-ritm' },
+        ])
+        await deleteDemoOnlyUsers(tx as never, DEMO_CLUBS.academy)
+        // Memberships of the club's own accounts, in demo clubs only.
+        expect(tx.workspaceMember.findMany).toHaveBeenCalledWith({
+            where: { userId: { in: ['acc-1'] }, workspace: { isDemo: true } },
+            select: { id: true, userId: true, workspaceId: true },
+        })
+        // Left like any member leaves: bookings, rosters, seats go too.
+        expect(purgeMembership).toHaveBeenCalledWith(tx, {
+            memberId: 'm-ritm',
+            userId: 'acc-1',
+            workspaceId: 'w-ritm',
+            now: expect.any(Date),
+        })
     })
 })

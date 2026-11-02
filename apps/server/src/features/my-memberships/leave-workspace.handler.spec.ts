@@ -12,7 +12,10 @@ const build = (
         workspaceMember: { delete: jest.fn().mockResolvedValue({}) },
         dropInBooking: { deleteMany: jest.fn().mockResolvedValue({}) },
         classBooking: { updateMany: jest.fn().mockResolvedValue({}) },
-        eventRegistration: { updateMany: jest.fn().mockResolvedValue({}) },
+        eventRegistration: {
+            findMany: jest.fn().mockResolvedValue([{ eventId: 'e1' }]),
+            updateMany: jest.fn().mockResolvedValue({}),
+        },
         groupMember: { deleteMany: jest.fn().mockResolvedValue({}) },
         groupCoach: { deleteMany: jest.fn().mockResolvedValue({}) },
         directionManager: { deleteMany: jest.fn().mockResolvedValue({}) },
@@ -38,12 +41,14 @@ const build = (
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const realtime = { invalidate: jest.fn(), leaveWorkspaceRoom: jest.fn() }
+    const eventRegistrations = { promoteFreed: jest.fn().mockResolvedValue(undefined) }
     const handler = new LeaveWorkspaceHandler(
         prisma as never,
         audit as never,
         realtime as never,
+        eventRegistrations as never,
     )
-    return { handler, prisma, tx, audit, realtime }
+    return { handler, prisma, tx, audit, realtime, eventRegistrations }
 }
 
 const run = (h: LeaveWorkspaceHandler, userId = 'u1') =>
@@ -113,5 +118,14 @@ describe('leaveWorkspace', () => {
             'freeze-requests',
         ])
         expect(realtime.leaveWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
+    })
+
+    it('hands the event place they held to the waitlist once the leave commits', async () => {
+        const { handler, prisma, eventRegistrations } = build()
+        await run(handler)
+        expect(eventRegistrations.promoteFreed).toHaveBeenCalledWith('w1', ['e1'])
+        expect(prisma.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
+            eventRegistrations.promoteFreed.mock.invocationCallOrder[0],
+        )
     })
 })

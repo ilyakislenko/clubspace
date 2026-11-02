@@ -256,7 +256,7 @@ describe('loadSessionForRead', () => {
     })
 
     it('the event’s own coach marks and reads it; deleting it stays admin-only', async () => {
-        const led = { ...eventSession, coachId: 'coach1' }
+        const led = { ...eventSession, coachId: 'coach1', workspaceEvent: { coachId: 'coach1' } }
         await expect(
             loadSessionForWrite(prismaWith(led) as never, rbac() as never, ctx, 'w1', 's2'),
         ).resolves.toMatchObject({ id: 's2' })
@@ -272,5 +272,31 @@ describe('loadSessionForRead', () => {
         await expect(
             loadSessionForRead(prismaWith(led) as never, rbac() as never, otherCtx, 'w1', 's2'),
         ).rejects.toBeInstanceOf(ForbiddenError)
+    })
+
+    it('follows the event’s coach now, not the one the session was opened by', async () => {
+        // Opened by coach1; the event was then given to coach2.
+        const handedOver = { ...eventSession, coachId: 'coach1', workspaceEvent: { coachId: 'coach2' } }
+        for (const load of [loadSessionForWrite, loadSessionForRead]) {
+            await expect(
+                load(prismaWith(handedOver) as never, rbac() as never, ctx, 'w1', 's2'),
+            ).rejects.toBeInstanceOf(ForbiddenError)
+            await expect(
+                load(prismaWith(handedOver) as never, rbac() as never, otherCtx, 'w1', 's2'),
+            ).resolves.toMatchObject({ id: 's2', eventCoachId: 'coach2' })
+        }
+    })
+
+    it('a session of a deleted event is the admins’ alone', async () => {
+        const orphaned = { ...eventSession, workspaceEventId: null, coachId: 'coach1', workspaceEvent: null }
+        for (const load of [loadSessionForWrite, loadSessionForRead]) {
+            await expect(
+                load(prismaWith(orphaned) as never, rbac() as never, ctx, 'w1', 's2'),
+            ).rejects.toBeInstanceOf(ForbiddenError)
+        }
+        const admin = rbac({ canWriteAllGroups: jest.fn().mockReturnValue(true) })
+        await expect(
+            loadSessionForWrite(prismaWith(orphaned) as never, admin as never, ctx, 'w1', 's2'),
+        ).resolves.toMatchObject({ id: 's2' })
     })
 })
