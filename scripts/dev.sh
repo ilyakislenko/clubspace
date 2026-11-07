@@ -22,6 +22,20 @@ step() { printf '\n\033[1;36m▶ %s\033[0m\n' "$1"; }
 command -v docker >/dev/null 2>&1 || fail "Docker не найден. Установи / запусти Docker Desktop."
 docker info >/dev/null 2>&1 || fail "Docker daemon не отвечает. Запусти Docker Desktop и повтори."
 
+# Phones and tablets on the same Wi-Fi reach the stack by the Mac's LAN IP, so
+# every URL the server hands out (HLS manifests, storage links) and the app's
+# API address must use it — with `localhost` the video never loads on a device.
+# Falls back to localhost when offline. Exported values beat .env (nx loads it
+# without overriding), and .env.example ships localhost for these two, so they
+# are always derived here; pin them with ROOT_URL_OVERRIDE /
+# S3_UPLOAD_BUCKET_URL_OVERRIDE. The other two keep a value already exported.
+LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || true)"
+HOST="${LAN_IP:-localhost}"
+export ROOT_URL="${ROOT_URL_OVERRIDE:-http://$HOST:3000}"
+export S3_UPLOAD_BUCKET_URL="${S3_UPLOAD_BUCKET_URL_OVERRIDE:-http://$HOST:9000}"
+export EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL:-http://$HOST:3000}"
+export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:3000,http://localhost:4200,http://localhost:4201,http://$HOST:3000,http://$HOST:4200,http://$HOST:4201}"
+
 step "1/4  Инфраструктура (postgres, redis, minio, maildev)…"
 docker compose up -d $INFRA_SERVICES
 
@@ -39,7 +53,7 @@ step "3/4  Схема (prisma db push + generate)…"
 npx nx run @clubspace/server:prisma:prepare
 
 step "4/4  Поднимаю приложения…"
-cat <<'URLS'
+cat <<URLS
 
   ┌─ URLs ───────────────────────────────────────────────────────┐
   │  API        http://localhost:3000   (docs /api · health /healthz)
@@ -48,6 +62,9 @@ cat <<'URLS'
   │  MinIO      http://localhost:9001   (console: minioadmin/minioadmin)
   │  Mobile     Expo Metro — в панели [app] нажми  i  (iOS-симулятор)
   │             или отсканируй QR в Expo Go
+  ├─ С телефона / планшета в той же Wi-Fi ───────────────────────┤
+  │  API        $ROOT_URL
+  │  Видео      $S3_UPLOAD_BUCKET_URL
   └──────────────────────────────────────────────────────────────┘
   Вход в админку: SUPER_ADMIN_EMAIL из .env (по умолчанию superadmin@localhost.invalid).
   Пароля нет — код придёт на почту, забери его в Maildev (:1080).

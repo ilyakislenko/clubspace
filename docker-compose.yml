@@ -129,7 +129,9 @@ services:
       # NODE_ENV=production (which this image sets); must differ from JWT_SECRET.
       PLAYBACK_TOKEN_SECRET: ${PLAYBACK_TOKEN_SECRET:-dev-playback-secret-change-me}
 
-      ROOT_URL: http://localhost:3000
+      # Set ROOT_URL=http://<LAN-IP>:3000 to watch videos from a phone/tablet:
+      # the server builds HLS manifest links from it.
+      ROOT_URL: ${ROOT_URL:-http://localhost:3000}
       ORGANIZATION_NAME: BJJ_Academy
 
       SUPER_ADMIN_EMAIL: admin@super.com
