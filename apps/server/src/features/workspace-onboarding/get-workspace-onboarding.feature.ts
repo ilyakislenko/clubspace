@@ -7,7 +7,9 @@ export const ONBOARDING_STEP_KEYS = [
     'gym',
     'group',
     'schedule',
+    'plans',
     'members',
+    'payments',
     'video',
 ] as const
 

@@ -16,6 +16,7 @@
 #   npm run verify                # typecheck + unit/UI + e2e + contract + lint
 #   npm run verify -- --quick     # skip lint and e2e, for a fast inner loop
 #   npm run verify -- --fail-fast
+#   VERIFY_DOCKER=1 npm run verify  # also build every prod image + npm audit
 #
 # The e2e step boots the real server against a real Postgres and Redis, so it
 # needs the local stack up (`npm run dev:infra`). It is skipped with a loud
@@ -32,7 +33,7 @@ for arg in "$@"; do
     case "$arg" in
         --fail-fast) FAIL_FAST=1 ;;
         --quick) QUICK=1 ;;
-        -h|--help) sed -n '2,26p' "$0" | sed 's|^# \{0,1\}||'; exit 0 ;;
+        -h|--help) sed -n '2,27p' "$0" | sed 's|^# \{0,1\}||'; exit 0 ;;
         *) echo "unknown flag: $arg" >&2; exit 2 ;;
     esac
 done
@@ -134,8 +135,43 @@ contract() {
 # ratchets, so this is where "a new file arrived with no test" fails the build.
 unit_tests() {
     npx nx run-many -t test \
-        --projects=@clubspace/server,@clubspace/admin,@clubspace/mobile,@clubspace/video-worker \
+        --projects=@clubspace/server,@clubspace/admin,@clubspace/mobile,@clubspace/video-worker,@clubspace/api-client,@clubspace/client \
         --coverage --skip-sync --output-style=stream
+}
+
+# --- release (opt-in: VERIFY_DOCKER=1) ---------------------------------------
+# Mirrors the `docker` and `audit` CI jobs. Off by default: five image builds
+# take minutes, and the inner loop shouldn't pay for them.
+DOCKER_IMAGES=(
+    "server apps/server/Dockerfile"
+    "video-worker apps/video-worker/Dockerfile"
+    "admin apps/admin/Dockerfile"
+    "client apps/client/Dockerfile"
+    "pwa apps/mobile/Dockerfile"
+)
+docker_images() {
+    local ok=0 entry
+    for entry in "${DOCKER_IMAGES[@]}"; do
+        # shellcheck disable=SC2086
+        set -- $entry
+        printf '  · %s\n' "$1"
+        if ! docker build -q -f "$2" -t "clubspace-verify/$1" \
+            --build-arg NEXT_PUBLIC_API_URL=https://api.example.com \
+            --build-arg EXPO_PUBLIC_API_URL=https://api.example.com \
+            --build-arg EXPO_PUBLIC_WEB_URL=https://app.example.com \
+            . >/dev/null; then
+            printf '    %s^ %s image failed to build%s\n' "$RED" "$1" "$OFF"
+            ok=1
+        fi
+    done
+    return $ok
+}
+
+# Advisory, like the CI job: reported, never fails verify (yet).
+npm_audit() {
+    npm audit --omit=dev --audit-level=high || \
+        printf '%s⚠ npm audit found high/critical advisories (non-blocking)%s\n' "$YELLOW" "$OFF"
+    return 0
 }
 
 lint() {
@@ -199,6 +235,10 @@ if [ "$QUICK" = 0 ]; then
     run_step "lint" lint
 else
     printf '\n%s⏭ lint and e2e skipped (--quick)%s\n' "$YELLOW" "$OFF"
+fi
+if [ "${VERIFY_DOCKER:-0}" = 1 ]; then
+    run_step "docker images (5, no push)" docker_images
+    run_step "npm audit --omit=dev (advisory)" npm_audit
 fi
 summary
 if [ "$FAILED" = 1 ]; then

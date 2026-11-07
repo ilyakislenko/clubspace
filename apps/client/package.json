@@ -45,6 +45,13 @@
           },
           "production": {}
         }
+      },
+      "test": {
+        "executor": "@nx/jest:jest",
+        "options": {
+          "jestConfig": "apps/client/jest.config.cts",
+          "passWithNoTests": true
+        }
       }
     }
   }

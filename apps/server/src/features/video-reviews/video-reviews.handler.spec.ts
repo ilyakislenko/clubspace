@@ -11,6 +11,7 @@ import {
     ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import { verifyPlaybackToken, issuePlaybackToken } from '../../shared/utils/playback-token.util'
 import { CompleteMyVideoReviewUploadFeature } from './complete-my-video-review-upload.feature'
 import { CompleteMyVideoReviewUploadHandler } from './complete-my-video-review-upload.handler'
@@ -142,6 +143,7 @@ const users: Record<string, { firstname: string | null; lastname: string | null 
     [COACH]: { firstname: 'Иван', lastname: 'Тренер' },
     [COACH2]: { firstname: 'Пётр', lastname: null },
     [OWNER]: { firstname: null, lastname: null },
+    loner: { firstname: 'Лена', lastname: null },
 }
 
 const DRAWING = {
@@ -157,8 +159,17 @@ const build = (
         objectSize?: number | null
         // The coaches of the groups the uploading member is in.
         groupCoaches?: string[]
+        // The club's groups (who may see a member's reviews).
+        groups?: { coaches: string[]; members: string[] }[]
     } = {},
 ) => {
+    const groups = o.groups ?? [{ coaches: [COACH, COACH2], members: [A, B] }]
+    type CoachedBy = { coaches?: { some: { userId?: string } } }
+    // Groups matching ownGroupsWhere(userId) / `coaches: { some: {} }`.
+    const groupsWhere = (g: { OR?: CoachedBy[] } & CoachedBy) => {
+        const coach = g.OR?.[0].coaches?.some.userId ?? g.coaches?.some.userId
+        return groups.filter((x) => (coach ? x.coaches.includes(coach) : x.coaches.length > 0))
+    }
     const clips = o.clips ?? [clip('clip-r1')]
     const requests = o.requests ?? [request('r1')]
     const comments = o.comments ?? []
@@ -167,6 +178,7 @@ const build = (
         [B]: { status: 'ACTIVE', accessUntil: null, role: 'user' },
         [COACH]: { status: 'ACTIVE', accessUntil: null, role: 'coach' },
         [COACH2]: { status: 'ACTIVE', accessUntil: null, role: 'coach' },
+        head: { status: 'ACTIVE', accessUntil: null, role: 'head_coach' },
     }
     let seq = 0
     const who = (id: string) => ({ id, ...users[id] })
@@ -179,6 +191,32 @@ const build = (
     const prisma = {
         workspace: {
             findUnique: jest.fn(async () => ({ ownerId: OWNER, type: 'GRAPPLING' })),
+        },
+        groupMember: {
+            findFirst: jest.fn(
+                async ({ where }: { where: { userId: string; group: { OR: CoachedBy[] } } }) => {
+                    const g = groupsWhere(where.group).find((x) => x.members.includes(where.userId))
+                    return g ? { groupId: 'g' } : null
+                },
+            ),
+            findMany: jest.fn(async ({ where }: { where: { group: { OR: CoachedBy[] } } }) => [
+                ...new Set(groupsWhere(where.group).flatMap((x) => x.members)),
+            ].map((userId) => ({ userId }))),
+        },
+        user: {
+            // uncoachedMemberWhere: the member is in no group that has a coach.
+            findFirst: jest.fn(
+                async ({
+                    where,
+                }: {
+                    where: { id: string; groupMemberships: { none: { group: CoachedBy } } }
+                }) =>
+                    groupsWhere(where.groupMemberships.none.group).some((x) =>
+                        x.members.includes(where.id),
+                    )
+                        ? null
+                        : { id: where.id },
+            ),
         },
         groupCoach: {
             findMany: jest.fn(async () => (o.groupCoaches ?? []).map((userId) => ({ userId }))),
@@ -249,12 +287,21 @@ const build = (
                         memberUserId?: string
                         status?: string
                         clip?: { status: { not: string } }
+                        OR?: [
+                            { memberUserId: { in: string[] } },
+                            { member: { groupMemberships: { none: { group: CoachedBy } } } },
+                        ]
                     }
                 }) =>
                     requests
                         .filter(
                             (r) =>
                                 r.workspaceId === where.workspaceId &&
+                                (!where.OR ||
+                                    where.OR[0].memberUserId.in.includes(r.memberUserId) ||
+                                    !groupsWhere(
+                                        where.OR[1].member.groupMemberships.none.group,
+                                    ).some((x) => x.members.includes(r.memberUserId))) &&
                                 (!where.memberUserId || r.memberUserId === where.memberUserId) &&
                                 (!where.status || r.status === where.status) &&
                                 (!where.clip ||
@@ -324,13 +371,23 @@ const build = (
 type Deps = ReturnType<typeof build>
 const p = (d: Deps) => d.prisma as never
 const fl = (d: Deps) => d.files as never
+const rb = (d: Deps) => new RbacService(p(d))
 
-const STAFF = true
-const MEMBER = false
+// The club role the guards resolved (the owner is 'admin').
+type Viewer = { roleName: string | null; isSuperAdmin: boolean }
+const STAFF: Viewer = { roleName: 'coach', isSuperAdmin: false }
+const ADMIN: Viewer = { roleName: 'admin', isSuperAdmin: false }
+const MEMBER: Viewer = { roleName: 'user', isSuperAdmin: false }
 
-const get = (d: Deps, userId: string, isStaff = false, requestId = 'r1') =>
-    new GetVideoReviewHandler(p(d), fl(d)).execute(
-        new GetVideoReviewFeature(userId, W, isStaff, requestId),
+// COACH2 coaches only B's group; COACH only A's.
+const SPLIT_GROUPS = [
+    { coaches: [COACH], members: [A] },
+    { coaches: [COACH2], members: [B] },
+]
+
+const get = (d: Deps, userId: string, viewer = MEMBER, requestId = 'r1') =>
+    new GetVideoReviewHandler(p(d), fl(d), rb(d)).execute(
+        new GetVideoReviewFeature(userId, W, viewer, requestId),
     )
 
 // ---- the member's side -------------------------------------------------
@@ -557,9 +614,14 @@ describe('DeleteMyVideoReviewHandler', () => {
 // ---- the coach's side and shared reads ----------------------------------
 
 describe('ListClubVideoReviewsHandler', () => {
-    const list = (d: Deps, isStaff: boolean, status?: 'open' | 'answered' | 'closed') =>
-        new ListClubVideoReviewsHandler(p(d), fl(d)).execute(
-            new ListClubVideoReviewsFeature(COACH, W, isStaff, { status }),
+    const list = (
+        d: Deps,
+        viewer: Viewer,
+        status?: 'open' | 'answered' | 'closed',
+        userId = COACH,
+    ) =>
+        new ListClubVideoReviewsHandler(p(d), fl(d), rb(d)).execute(
+            new ListClubVideoReviewsFeature(userId, W, viewer, { status }),
         )
 
     it('refuses a member', async () => {
@@ -591,6 +653,29 @@ describe('ListClubVideoReviewsHandler', () => {
             requests: [request('a'), request('b', { status: 'closed' })],
         })
         expect((await list(d, STAFF, 'closed')).items.map((i) => i.id)).toEqual(['b'])
+    })
+
+    it("shows a coach only their groups' members and members no coach looks after", async () => {
+        const d = build({
+            groups: SPLIT_GROUPS,
+            clips: [clip('clip-a'), clip('clip-b'), clip('clip-c')],
+            requests: [
+                request('a', { memberUserId: A }),
+                request('b', { memberUserId: B }),
+                // In no coached group: every staff member sees it.
+                request('c', { memberUserId: 'loner' }),
+            ],
+        })
+        const ids = async (userId: string, viewer: Viewer) =>
+            (await list(d, viewer, undefined, userId)).items.map((i) => i.id).sort()
+        expect(await ids(COACH, STAFF)).toEqual(['a', 'c'])
+        expect(await ids(COACH2, STAFF)).toEqual(['b', 'c'])
+        expect(await ids(OWNER, MEMBER)).toEqual(['a', 'b', 'c'])
+        expect(await ids('head', { roleName: 'head_coach', isSuperAdmin: false })).toEqual([
+            'a',
+            'b',
+            'c',
+        ])
     })
 })
 
@@ -628,6 +713,13 @@ describe('GetVideoReviewHandler', () => {
         await expect(get(build(), B, MEMBER)).rejects.toBeInstanceOf(NotFoundError)
     })
 
+    it("404s a coach of another group; allows the member's group coach and the owner", async () => {
+        const d = build({ groups: SPLIT_GROUPS })
+        await expect(get(d, COACH2, STAFF)).rejects.toBeInstanceOf(NotFoundError)
+        await expect(get(d, COACH, STAFF)).resolves.toMatchObject({ viewerIsStaff: true })
+        await expect(get(d, OWNER, ADMIN)).resolves.toMatchObject({ viewerIsStaff: true })
+    })
+
     it('404s a request of another club, even for staff', async () => {
         const d = build({ requests: [request('r1', { workspaceId: 'w2' })] })
         await expect(get(d, COACH, STAFF)).rejects.toBeInstanceOf(NotFoundError)
@@ -642,17 +734,17 @@ describe('GetVideoReviewHandler', () => {
 })
 
 describe('GetVideoReviewPlaybackHandler', () => {
-    const playback = (d: Deps, userId: string, isStaff: boolean) =>
-        new GetVideoReviewPlaybackHandler(p(d)).execute(
-            new GetVideoReviewPlaybackFeature(userId, W, isStaff, 'r1'),
+    const playback = (d: Deps, userId: string, viewer: Viewer) =>
+        new GetVideoReviewPlaybackHandler(p(d), rb(d)).execute(
+            new GetVideoReviewPlaybackFeature(userId, W, viewer, 'r1'),
         )
 
     it('signs a clip-bound token for the member and for staff', async () => {
-        for (const [userId, isStaff] of [
+        for (const [userId, viewer] of [
             [A, MEMBER],
             [COACH, STAFF],
         ] as const) {
-            const { hlsUrl } = await playback(build(), userId, isStaff)
+            const { hlsUrl } = await playback(build(), userId, viewer)
             expect(hlsUrl).toContain('/review-clips/clip-r1/manifest.m3u8?token=')
             const token = decodeURIComponent(hlsUrl.split('token=')[1])
             expect(verifyPlaybackToken(token)).toMatchObject({
@@ -670,17 +762,22 @@ describe('GetVideoReviewPlaybackHandler', () => {
     it("404s another member's clip", async () => {
         await expect(playback(build(), B, MEMBER)).rejects.toBeInstanceOf(NotFoundError)
     })
+
+    it('issues no token to a coach of another group', async () => {
+        const d = build({ groups: SPLIT_GROUPS })
+        await expect(playback(d, COACH2, STAFF)).rejects.toBeInstanceOf(NotFoundError)
+    })
 })
 
 describe('SetVideoReviewStatusHandler', () => {
     const setStatus = (
         d: Deps,
         userId: string,
-        isStaff: boolean,
+        viewer: Viewer,
         status: 'open' | 'answered' | 'closed',
     ) =>
-        new SetVideoReviewStatusHandler(p(d), fl(d), d.notifications as never).execute(
-            new SetVideoReviewStatusFeature(userId, W, isStaff, 'r1', { status }),
+        new SetVideoReviewStatusHandler(p(d), fl(d), d.notifications as never, rb(d)).execute(
+            new SetVideoReviewStatusFeature(userId, W, viewer, 'r1', { status }),
         )
 
     it('a coach marks it answered and the member hears «Тренер ответил»', async () => {
@@ -738,9 +835,9 @@ describe('SetVideoReviewStatusHandler', () => {
 })
 
 describe('video review comments', () => {
-    const add = (d: Deps, payload: Record<string, unknown>, userId = COACH, isStaff = STAFF) =>
-        new AddVideoReviewCommentHandler(p(d), fl(d)).execute(
-            new AddVideoReviewCommentFeature(userId, W, isStaff, 'r1', {
+    const add = (d: Deps, payload: Record<string, unknown>, userId = COACH, viewer = STAFF) =>
+        new AddVideoReviewCommentHandler(p(d), fl(d), rb(d)).execute(
+            new AddVideoReviewCommentFeature(userId, W, viewer, 'r1', {
                 atSec: 30,
                 endSec: null,
                 text: 'Hips higher',
@@ -749,11 +846,11 @@ describe('video review comments', () => {
             } as never),
         )
     const update = (d: Deps, commentId: string, payload: Record<string, unknown>, userId = COACH) =>
-        new UpdateVideoReviewCommentHandler(p(d), fl(d)).execute(
+        new UpdateVideoReviewCommentHandler(p(d), fl(d), rb(d)).execute(
             new UpdateVideoReviewCommentFeature(userId, W, STAFF, 'r1', commentId, payload as never),
         )
     const remove = (d: Deps, commentId: string, userId = COACH) =>
-        new DeleteVideoReviewCommentHandler(p(d), fl(d)).execute(
+        new DeleteVideoReviewCommentHandler(p(d), fl(d), rb(d)).execute(
             new DeleteVideoReviewCommentFeature(userId, W, STAFF, 'r1', commentId),
         )
 
@@ -780,6 +877,12 @@ describe('video review comments', () => {
     it('refuses the member (comments are the staff’s)', async () => {
         const d = build()
         await expect(add(d, {}, A, MEMBER)).rejects.toBeInstanceOf(ForbiddenError)
+        expect(d.comments).toEqual([])
+    })
+
+    it('404s a coach of another group', async () => {
+        const d = build({ groups: SPLIT_GROUPS })
+        await expect(add(d, {}, COACH2)).rejects.toBeInstanceOf(NotFoundError)
         expect(d.comments).toEqual([])
     })
 
@@ -831,7 +934,7 @@ describe('video review comments', () => {
 
 describe('ReviewClipManifestController', () => {
     const manifest = (d: Deps, token: string | undefined, path?: string) =>
-        new ReviewClipManifestController(p(d), fl(d)).getReviewClipManifest(
+        new ReviewClipManifestController(p(d), fl(d), rb(d)).getReviewClipManifest(
             'clip-r1',
             token,
             path,
@@ -864,6 +967,12 @@ describe('ReviewClipManifestController', () => {
     ])('refuses %s even with a valid token', async (_, userId) => {
         const d = build()
         await expect(manifest(d, tokenFor(userId))).rejects.toMatchObject({ status: 403 })
+    })
+
+    it("refuses a coach of another group, serves the member's group coach", async () => {
+        const d = build({ groups: SPLIT_GROUPS })
+        await expect(manifest(d, tokenFor(COACH2))).rejects.toMatchObject({ status: 403 })
+        await expect(manifest(d, tokenFor(COACH))).resolves.toContain('#EXTM3U')
     })
 
     it('refuses a coach whose access window expired', async () => {

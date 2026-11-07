@@ -3291,6 +3291,93 @@ export type ExportMyDataOutputOutput = {
         note: string | null;
         awardedAt: string;
     }>;
+    videoNotes: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        video: {
+            id: string;
+            title: string;
+        };
+        text: string;
+        updatedAt: string;
+    }>;
+    bookmarks: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        video: {
+            id: string;
+            title: string;
+        };
+        positionSec: number;
+        endSec: number | null;
+        label: string;
+        note: string;
+        hasDrawing: boolean;
+        createdAt: string;
+        updatedAt: string;
+        deletedAt: string | null;
+        review: {
+            dueAt: string;
+            intervalDays: number;
+            ease: number;
+            reps: number;
+            lapses: number;
+            lastReviewedAt: string;
+        } | null;
+    }>;
+    studyPlans: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        title: string;
+        description: string | null;
+        createdAt: string;
+        updatedAt: string;
+        items: Array<{
+            position: number;
+            video: {
+                id: string;
+                title: string;
+            };
+            startSec: number;
+            endSec: number | null;
+            title: string;
+            note: string | null;
+            createdAt: string;
+        }>;
+    }>;
+    videoReviews: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        clip: {
+            status: string;
+            durationSec: number | null;
+            sizeBytes: number | null;
+            createdAt: string;
+        };
+        request: {
+            title: string;
+            message: string | null;
+            status: string;
+            createdAt: string;
+            updatedAt: string;
+            comments: Array<{
+                atSec: number;
+                endSec: number | null;
+                text: string;
+                hasDrawing: boolean;
+                createdAt: string;
+                updatedAt: string;
+            }>;
+        } | null;
+    }>;
     truncated: Array<string>;
 };
 
@@ -4244,6 +4331,19 @@ export type CreateDemoRequestInputDto = {
 };
 
 export type CreateDemoRequestOutputOutput = {
+    status: 'received';
+};
+
+export type ReportClientErrorInputDto = {
+    message: string;
+    stack?: string;
+    platform: 'ios' | 'android' | 'web' | 'other';
+    appVersion: string;
+    route?: string;
+    fatal?: boolean;
+};
+
+export type ReportClientErrorOutputOutput = {
     status: 'received';
 };
 
@@ -7902,7 +8002,7 @@ export type RequestWorkspaceOnboardingHelpOutputOutput = {
 
 export type GetWorkspaceOnboardingOutputOutput = {
     steps: Array<{
-        key: 'gym' | 'group' | 'schedule' | 'members' | 'video';
+        key: 'gym' | 'group' | 'schedule' | 'plans' | 'members' | 'payments' | 'video';
         done: boolean;
     }>;
     doneCount: number;
@@ -11354,6 +11454,19 @@ export type CreateDemoRequestResponses = {
 };
 
 export type CreateDemoRequestResponse = CreateDemoRequestResponses[keyof CreateDemoRequestResponses];
+
+export type ReportClientErrorData = {
+    body: ReportClientErrorInputDto;
+    path?: never;
+    query?: never;
+    url: '/client-errors';
+};
+
+export type ReportClientErrorResponses = {
+    202: ReportClientErrorOutputOutput;
+};
+
+export type ReportClientErrorResponse = ReportClientErrorResponses[keyof ReportClientErrorResponses];
 
 export type ListSessionsData = {
     body?: never;

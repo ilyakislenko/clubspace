@@ -1,7 +1,8 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { CourseAccessService } from '../../domains/playlist/services/course-access.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { loadVideoForStudent } from '../manage-my-video-bookmarks/schemas'
+import { loadWatchableVideoForStudent } from '../manage-my-video-bookmarks/schemas'
 import {
     PutMyVideoNoteFeature,
     PutMyVideoNoteFeatureResponse,
@@ -13,11 +14,15 @@ export class PutMyVideoNoteHandler
     implements
         IFeatureHandler<PutMyVideoNoteFeature, PutMyVideoNoteFeatureResponse>
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly courseAccess: CourseAccessService,
+    ) {}
 
     async execute({ userId, videoId, payload }: PutMyVideoNoteFeature) {
-        const { workspaceId } = await loadVideoForStudent(
+        const { workspaceId } = await loadWatchableVideoForStudent(
             this.prisma,
+            this.courseAccess,
             userId,
             videoId,
         )

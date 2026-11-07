@@ -460,6 +460,8 @@ import {
 } from '../features/demo-requests/demo-requests.controller'
 import { CreateDemoRequestHandler } from '../features/demo-requests/create-demo-request.handler'
 import { ListPlatformDemoRequestsHandler } from '../features/demo-requests/list-platform-demo-requests.handler'
+import { ReportClientErrorController } from '../features/report-client-error/report-client-error.controller'
+import { ReportClientErrorHandler } from '../features/report-client-error/report-client-error.handler'
 import { WorkspaceEventsController } from '../features/manage-workspace-events/workspace-events.controller'
 import { CreateWorkspaceEventHandler } from '../features/manage-workspace-events/create-workspace-event.handler'
 import { UpdateWorkspaceEventHandler } from '../features/manage-workspace-events/update-workspace-event.handler'
@@ -809,6 +811,7 @@ const controllers: ModuleMetadata['controllers'] = [
     PublicClubsController,
     PublicPricingController,
     DemoRequestsController,
+    ReportClientErrorController,
     AttendanceController,
     SelfCheckInController,
     DropInsController,
@@ -1046,6 +1049,7 @@ const handlers: ModuleMetadata['providers'] = [
     QuotePublicPricingHandler,
     CreateDemoRequestHandler,
     ListPlatformDemoRequestsHandler,
+    ReportClientErrorHandler,
     CreateAttendanceSessionHandler,
     MarkRecordsHandler,
     SelfCheckInHandler,

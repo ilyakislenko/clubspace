@@ -168,6 +168,25 @@ function resolveAppConfig(env) {
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
       },
+      // App Store privacy manifest (required since May 2024). Reasons are the
+      // ones Expo documents for its own modules: CA92.1 — UserDefaults read
+      // only by the app itself (AsyncStorage/SecureStore); C617.1 — file
+      // timestamps of files inside the app container (expo-file-system, the
+      // offline video cache). No tracking, no tracking domains.
+      privacyManifests: {
+        NSPrivacyTracking: false,
+        NSPrivacyTrackingDomains: [],
+        NSPrivacyAccessedAPITypes: [
+          {
+            NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults",
+            NSPrivacyAccessedAPITypeReasons: ["CA92.1"],
+          },
+          {
+            NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryFileTimestamp",
+            NSPrivacyAccessedAPITypeReasons: ["C617.1"],
+          },
+        ],
+      },
       ...links.ios,
     },
     android: {

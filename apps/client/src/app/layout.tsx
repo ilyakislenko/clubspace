@@ -8,6 +8,7 @@ import type { Metadata } from "next"
 import { getInstanceBrand } from "@clubspace/ui-kit/brand"
 
 import { readSiteLinks } from "../shared/lib/app-links"
+import { readMarketingConfig } from "../shared/lib/marketing"
 
 const brand = getInstanceBrand()
 
@@ -17,10 +18,16 @@ const brand = getInstanceBrand()
 // localhost, which link previews cannot fetch.
 export function generateMetadata(): Metadata {
   const { site } = readSiteLinks()
+  const { yandexVerification, googleVerification } = readMarketingConfig()
+  const verification: Metadata["verification"] = {
+    ...(googleVerification ? { google: googleVerification } : {}),
+    ...(yandexVerification ? { yandex: yandexVerification } : {}),
+  }
   return {
     title: brand.name,
     description: brand.tagline,
     ...(site ? { metadataBase: new URL(site) } : {}),
+    ...(Object.keys(verification).length ? { verification } : {}),
   }
 }
 

@@ -65,6 +65,18 @@ api.{$DOMAIN} {
 	}
 }
 
+# Bare domain: people type it without a subdomain. The public site lives on
+# app., so everything here is a permanent redirect there, path and query kept.
+# Needs its own A-record like the others.
+{$DOMAIN} {
+	redir https://app.{$DOMAIN}{uri} 308
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}
+
 # Admin panel (Next.js).
 admin.{$DOMAIN} {
 	encode zstd gzip

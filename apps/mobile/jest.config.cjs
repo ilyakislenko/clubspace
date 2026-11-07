@@ -24,4 +24,12 @@ module.exports = {
     moduleNameMapper: {
         '^react-native$': '<rootDir>/jest/react-native-stub.js',
     },
+    // Coverage over the framework-free helpers (.ts) this setup can test;
+    // .tsx screens are out of reach of the lean transform and excluded.
+    collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/**/*.d.ts'],
+    // Ratchet just below the measured 60.6 / 65.3 / 52.2 / 59.4 % (2026-11-08):
+    // raise it as helpers gain tests, never lower it to land a change.
+    coverageThreshold: {
+        global: { statements: 59, branches: 64, functions: 51, lines: 58 },
+    },
 }

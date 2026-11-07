@@ -4,6 +4,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -285,6 +286,17 @@ export function NoWorkspaceScreen({ navigation }: Props) {
               )}
               {childrenButton}
               {signOutButton}
+              {!actingAs && environment.webUrl && (
+                <Pressable
+                  onPress={() => void Linking.openURL(environment.webUrl!)}
+                  accessibilityRole="link"
+                  hitSlop={8}
+                >
+                  <Text style={[styles.signOutText, styles.ownerLink]}>
+                    Владелец клуба? Создать клуб можно на сайте ›
+                  </Text>
+                </Pressable>
+              )}
             </View>
           </>
         )
@@ -562,6 +574,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     marginTop: theme.spacing(2),
   },
   signOutText: { color: theme.colors.muted, fontSize: 13, fontWeight: "500" },
+  ownerLink: { textAlign: "center" },
   btnPressed: { opacity: 0.85 },
   btnDisabled: { opacity: 0.5 },
 })

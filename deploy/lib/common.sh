@@ -53,7 +53,14 @@ load_env() {
     CS_PROJECT="${COMPOSE_PROJECT_NAME:-clubspace}"
 }
 
-compose() { (cd "$CS_ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
+# APP_RELEASE = the checked-out commit, so Sentry events (server, worker, web
+# bundles) name the release that threw. Follows HEAD: a rollback's `up` gets
+# the previous sha back. An explicit APP_RELEASE (environment / env file) wins.
+compose() {
+    (cd "$CS_ROOT" \
+        && APP_RELEASE="${APP_RELEASE:-$(git rev-parse --short HEAD 2> /dev/null || true)}" \
+            docker compose --env-file "$ENV_FILE" "$@")
+}
 
 # build_service <service> — build one app image, retried once. A first build
 # downloads a few GB (base images, apk, npm), and a dropped connection on the

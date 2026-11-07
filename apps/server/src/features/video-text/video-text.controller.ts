@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -48,6 +49,8 @@ export class VideoTextController {
     }
 
     @Post('regenerate-text')
+    // Each call re-runs transcription/LLM work: per person, 10 an hour.
+    @Throttle({ default: { ttl: 3_600_000, limit: 10 } })
     @ZodResponse({ type: RegenerateVideoTextOutput })
     async regenerateVideoText(
         @Param('workspaceId') workspaceId: string,

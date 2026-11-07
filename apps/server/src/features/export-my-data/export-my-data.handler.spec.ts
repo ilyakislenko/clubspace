@@ -39,6 +39,10 @@ const build = (
         subscriptionFreeze: section('freezes'),
         trainingJournalEntry: section('journal'),
         rankPromotion: section('ranks'),
+        videoNote: section('videoNotes'),
+        videoBookmark: section('bookmarks'),
+        studyPlan: section('studyPlans'),
+        reviewClip: section('videoReviews'),
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const handler = new ExportMyDataHandler(prisma as never, audit as never)
@@ -89,6 +93,9 @@ describe('ExportMyDataHandler', () => {
             prisma.subscriptionFreeze,
             prisma.trainingJournalEntry,
             prisma.rankPromotion,
+            prisma.videoNote,
+            prisma.videoBookmark,
+            prisma.studyPlan,
         ]) {
             expect(model.findMany.mock.calls[0][0].where).toEqual({
                 userId: 'u1',
@@ -97,6 +104,9 @@ describe('ExportMyDataHandler', () => {
         // Abonements: the caller's membership rows, plus ones kept after removal (by userId).
         expect(prisma.subscription.findMany.mock.calls[0][0].where).toEqual({
             OR: [{ userId: 'u1' }, { workspaceMember: { userId: 'u1' } }],
+        })
+        expect(prisma.reviewClip.findMany.mock.calls[0][0].where).toEqual({
+            ownerUserId: 'u1',
         })
     })
 
@@ -280,7 +290,202 @@ describe('ExportMyDataHandler', () => {
                 freezes: 1,
                 journal: 1,
                 ranks: 1,
+                videoNotes: 0,
+                bookmarks: 0,
+                studyPlans: 0,
+                videoReviews: 0,
             },
+        })
+    })
+
+    it('exports video notes, bookmarks with their review schedule, study plans and review clips', async () => {
+        const video = { id: 'v1', title: 'Проход гарда' }
+        const { handler, audit } = build({
+            videoNotes: [
+                {
+                    videoId: 'v1',
+                    text: 'держать локти',
+                    updatedAt: d('2026-05-01T10:00:00Z'),
+                    workspace: club,
+                    video,
+                },
+            ],
+            bookmarks: [
+                {
+                    id: 'b1',
+                    positionSec: 30,
+                    endSec: 45,
+                    label: 'захват',
+                    note: 'левой рукой',
+                    drawing: { strokes: [] },
+                    createdAt: d('2026-05-01T10:00:00Z'),
+                    updatedAt: d('2026-05-02T10:00:00Z'),
+                    deletedAt: null,
+                    workspace: club,
+                    video,
+                    review: {
+                        dueAt: d('2026-05-05T10:00:00Z'),
+                        intervalDays: 3,
+                        ease: 2.5,
+                        reps: 2,
+                        lapses: 0,
+                        lastReviewedAt: d('2026-05-02T10:00:00Z'),
+                    },
+                },
+            ],
+            studyPlans: [
+                {
+                    id: 'p1',
+                    title: 'К турниру',
+                    description: null,
+                    createdAt: d('2026-05-01T10:00:00Z'),
+                    updatedAt: d('2026-05-03T10:00:00Z'),
+                    workspace: club,
+                    items: [
+                        {
+                            position: 0,
+                            startSec: 10,
+                            endSec: null,
+                            title: 'старт',
+                            note: null,
+                            createdAt: d('2026-05-01T11:00:00Z'),
+                            video,
+                        },
+                    ],
+                },
+            ],
+            videoReviews: [
+                {
+                    id: 'clip1',
+                    status: 'ready',
+                    duration: 120,
+                    sizeBytes: BigInt(5_000_000),
+                    createdAt: d('2026-06-01T10:00:00Z'),
+                    workspace: club,
+                    request: {
+                        title: 'Спарринг',
+                        message: 'что не так?',
+                        status: 'answered',
+                        createdAt: d('2026-06-01T10:00:00Z'),
+                        updatedAt: d('2026-06-02T10:00:00Z'),
+                        comments: [
+                            {
+                                atSec: 12,
+                                endSec: null,
+                                text: 'бёдра выше',
+                                drawing: null,
+                                createdAt: d('2026-06-02T09:00:00Z'),
+                                updatedAt: d('2026-06-02T09:00:00Z'),
+                            },
+                        ],
+                    },
+                },
+                {
+                    // Upload never finished: no request yet.
+                    id: 'clip2',
+                    status: 'uploading',
+                    duration: null,
+                    sizeBytes: null,
+                    createdAt: d('2026-06-03T10:00:00Z'),
+                    workspace: club,
+                    request: null,
+                },
+            ],
+        })
+        const out = await handler.execute(new ExportMyDataFeature('u1'))
+        expect(out.videoNotes).toEqual([
+            {
+                club,
+                video,
+                text: 'держать локти',
+                updatedAt: '2026-05-01T10:00:00.000Z',
+            },
+        ])
+        expect(out.bookmarks).toEqual([
+            {
+                club,
+                video,
+                positionSec: 30,
+                endSec: 45,
+                label: 'захват',
+                note: 'левой рукой',
+                hasDrawing: true,
+                createdAt: '2026-05-01T10:00:00.000Z',
+                updatedAt: '2026-05-02T10:00:00.000Z',
+                deletedAt: null,
+                review: {
+                    dueAt: '2026-05-05T10:00:00.000Z',
+                    intervalDays: 3,
+                    ease: 2.5,
+                    reps: 2,
+                    lapses: 0,
+                    lastReviewedAt: '2026-05-02T10:00:00.000Z',
+                },
+            },
+        ])
+        expect(out.studyPlans).toEqual([
+            {
+                club,
+                title: 'К турниру',
+                description: null,
+                createdAt: '2026-05-01T10:00:00.000Z',
+                updatedAt: '2026-05-03T10:00:00.000Z',
+                items: [
+                    {
+                        position: 0,
+                        video,
+                        startSec: 10,
+                        endSec: null,
+                        title: 'старт',
+                        note: null,
+                        createdAt: '2026-05-01T11:00:00.000Z',
+                    },
+                ],
+            },
+        ])
+        expect(out.videoReviews).toEqual([
+            {
+                club,
+                clip: {
+                    status: 'ready',
+                    durationSec: 120,
+                    sizeBytes: 5_000_000,
+                    createdAt: '2026-06-01T10:00:00.000Z',
+                },
+                request: {
+                    title: 'Спарринг',
+                    message: 'что не так?',
+                    status: 'answered',
+                    createdAt: '2026-06-01T10:00:00.000Z',
+                    updatedAt: '2026-06-02T10:00:00.000Z',
+                    comments: [
+                        {
+                            atSec: 12,
+                            endSec: null,
+                            text: 'бёдра выше',
+                            hasDrawing: false,
+                            createdAt: '2026-06-02T09:00:00.000Z',
+                            updatedAt: '2026-06-02T09:00:00.000Z',
+                        },
+                    ],
+                },
+            },
+            {
+                club,
+                clip: {
+                    status: 'uploading',
+                    durationSec: null,
+                    sizeBytes: null,
+                    createdAt: '2026-06-03T10:00:00.000Z',
+                },
+                request: null,
+            },
+        ])
+        expect(audit.record.mock.calls[0][0].metadata).toMatchObject({
+            videoNotes: 1,
+            bookmarks: 1,
+            studyPlans: 1,
+            videoReviews: 2,
         })
     })
 })

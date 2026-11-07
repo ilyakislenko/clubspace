@@ -1,5 +1,7 @@
 import Link from "next/link"
 
+import { LEGAL_OPERATOR, SUPPORT_EMAIL } from "../../../shared/lib/legal"
+
 // NOTE FOR LAUNCH: drafted to match how the Service actually works. Before
 // publishing, fill every [в скобках] placeholder (legal entity, jurisdiction,
 // contact email, effective date) and have a lawyer review it for your
@@ -28,8 +30,7 @@ export default function TermsOfServicePage() {
         </p>
         <p className="text-sm leading-6">
           Эти Условия регулируют использование приложения и веб-сервиса
-          ClubSpace (далее «Сервис»), предоставляемого индивидуальным
-          разработчиком Кисленко Ильёй Андреевичем (Республика Казахстан, далее
+          ClubSpace (далее «Сервис»), предоставляемого: {LEGAL_OPERATOR} (далее
           «мы»). Используя Сервис, вы принимаете эти Условия. Если вы не
           согласны — не пользуйтесь Сервисом.
         </p>
@@ -78,8 +79,10 @@ export default function TermsOfServicePage() {
 
         <h2 className="text-lg font-semibold">5. Ваш контент</h2>
         <p>
-          Заметки и закладки, которые вы создаёте, хранятся на вашем устройстве и
-          принадлежат вам. Профильные данные вы можете редактировать в приложении.
+          {/* NOTE FOR LAUNCH: changed sections need lawyer review */}
+          Заметки, закладки, рисунки и планы занятий, которые вы создаёте, а также
+          загруженные вами видео для «Разбора» принадлежат вам; мы храним их на
+          сервере, чтобы синхронизировать между устройствами. Профильные данные вы можете редактировать в приложении.
         </p>
 
         <h2 className="text-lg font-semibold">6. Оплата</h2>
@@ -120,7 +123,7 @@ export default function TermsOfServicePage() {
         <h2 className="text-lg font-semibold">11. Контакты</h2>
         <p>
           По вопросам использования Сервиса:{" "}
-          <a href="mailto:dude_talks@icloud.com">dude_talks@icloud.com</a>.
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
         </p>
       </section>
 

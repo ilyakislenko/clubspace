@@ -4,7 +4,7 @@ import Link from "next/link"
 import {
   AUDIENCES,
   DIRECTIONS_POINTS,
-  FAQ,
+  faqItems,
   IMPORT_STEPS,
   LANDING_TITLE,
   landingDescription,
@@ -16,6 +16,8 @@ import { PricingCalculator } from "../features/landing/PricingCalculator"
 import { StudentRedirect } from "../features/landing/StudentRedirect"
 import { getPublicPricing, getSelfServeConfig } from "../shared/api/pricing"
 import { readSiteLinks } from "../shared/lib/app-links"
+import { SUPPORT_EMAIL } from "../shared/lib/legal"
+import { metrikaSnippet, readMarketingConfig } from "../shared/lib/marketing"
 
 // The admin address comes from the container's environment at request time
 // (like the join pages' store links), so the page renders per request; the
@@ -69,6 +71,7 @@ function Check() {
 export default async function LandingPage() {
   const [pricing, selfServe] = await Promise.all([getPublicPricing(), getSelfServeConfig()])
   const { admin } = readSiteLinks()
+  const marketing = readMarketingConfig()
 
   const trialDays = pricing?.trialDays ?? selfServe?.trialDays ?? 30
   const trialLabel = `Попробовать ${trialDays} ${pluralRu(trialDays, "день", "дня", "дней")}`
@@ -299,7 +302,7 @@ export default async function LandingPage() {
           <div className="mx-auto max-w-3xl space-y-6 px-4 py-16">
             <SectionHeading title="Частые вопросы" />
             <div className="divide-y divide-border rounded-2xl border border-border bg-card">
-              {FAQ.map((f) => (
+              {faqItems(marketing.dataHostedInRu).map((f) => (
                 <details key={f.q} className="group p-5">
                   <summary className="flex cursor-pointer list-none items-start justify-between gap-4 font-medium">
                     <span>{f.q}</span>
@@ -343,9 +346,50 @@ export default async function LandingPage() {
             <Link href="/legal/terms" className="hover:underline">
               Условия использования
             </Link>
+            <Link href="/legal/offer" className="hover:underline">
+              Оферта
+            </Link>
+            <Link href="/legal/dpa" className="hover:underline">
+              Поручение на обработку ПД
+            </Link>
+            <Link href="/legal/consent" className="hover:underline">
+              Согласие на обработку ПД
+            </Link>
+            <Link href="/legal/requisites" className="hover:underline">
+              Реквизиты
+            </Link>
           </nav>
         </div>
+        <div className="mx-auto flex max-w-6xl flex-wrap gap-x-4 gap-y-2 px-4 pb-8 text-sm text-muted-foreground">
+          <span>Контакты:</span>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:underline">
+            {SUPPORT_EMAIL}
+          </a>
+          {marketing.telegramUrl && (
+            <a href={marketing.telegramUrl} className="hover:underline" rel="noopener noreferrer">
+              Telegram
+            </a>
+          )}
+        </div>
       </footer>
+      {marketing.metrikaId && (
+        <>
+          <script
+            // Static snippet; the id is validated as digits in readMarketingConfig.
+            dangerouslySetInnerHTML={{ __html: metrikaSnippet(marketing.metrikaId) }}
+          />
+          <noscript>
+            <div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`https://mc.yandex.ru/watch/${marketing.metrikaId}`}
+                style={{ position: "absolute", left: "-9999px" }}
+                alt=""
+              />
+            </div>
+          </noscript>
+        </>
+      )}
     </>
   )
 }

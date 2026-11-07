@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { CourseAccessService } from '../../domains/playlist/services/course-access.service'
 import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -9,7 +10,7 @@ import {
     PutMyVideoBookmarkFeature,
     PutMyVideoBookmarkFeatureResponse,
 } from './put-my-video-bookmark.feature'
-import { loadVideoForStudent, serializeMyVideoBookmark } from './schemas'
+import { loadWatchableVideoForStudent, serializeMyVideoBookmark } from './schemas'
 
 @Feature(PutMyVideoBookmarkFeature)
 export class PutMyVideoBookmarkHandler
@@ -19,7 +20,10 @@ export class PutMyVideoBookmarkHandler
             PutMyVideoBookmarkFeatureResponse
         >
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly courseAccess: CourseAccessService,
+    ) {}
 
     async execute({
         userId,
@@ -32,8 +36,9 @@ export class PutMyVideoBookmarkHandler
                 message: 'Конец отрезка должен быть позже начала',
             })
         }
-        const { workspaceId } = await loadVideoForStudent(
+        const { workspaceId } = await loadWatchableVideoForStudent(
             this.prisma,
+            this.courseAccess,
             userId,
             videoId,
         )

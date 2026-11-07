@@ -75,6 +75,7 @@ export const environment = {
     sentry: {
         dsn: get('SENTRY_DSN').required(false).asString(),
         environment: get('SENTRY_ENVIRONMENT').default('development').asString(),
+        release: get('APP_RELEASE').required(false).asString() || undefined,
     },
     redis: {
         host: get('REDIS_HOST').default('localhost').asString(),

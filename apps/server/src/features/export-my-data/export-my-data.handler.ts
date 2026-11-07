@@ -15,6 +15,7 @@ import {
 } from './export-my-data.feature'
 
 const CLUB = { select: { id: true, name: true } } as const
+const VIDEO = { select: { id: true, title: true } } as const
 
 // Self-service copy of everything the platform keeps about the caller
 // (152-ФЗ ст. 14, GDPR art. 15/20), across every club they belong to. Only
@@ -60,6 +61,10 @@ export class ExportMyDataHandler
             freezes,
             journal,
             ranks,
+            videoNotes,
+            bookmarks,
+            studyPlans,
+            videoReviews,
         ] = await Promise.all([
             collectPages((cursor, take) =>
                 this.prisma.consentRecord.findMany({
@@ -201,6 +206,123 @@ export class ExportMyDataHandler
                     },
                 }),
             ),
+            // Keyed by (user, video): the video id is the page cursor.
+            collectPages(async (cursor, take) =>
+                (
+                    await this.prisma.videoNote.findMany({
+                        where: { userId },
+                        orderBy: { videoId: 'asc' },
+                        take,
+                        ...(cursor && {
+                            cursor: { userId_videoId: { userId, videoId: cursor } },
+                            skip: 1,
+                        }),
+                        select: {
+                            videoId: true,
+                            text: true,
+                            updatedAt: true,
+                            workspace: CLUB,
+                            video: VIDEO,
+                        },
+                    })
+                ).map((n) => ({ ...n, id: n.videoId })),
+            ),
+            collectPages((cursor, take) =>
+                this.prisma.videoBookmark.findMany({
+                    where: { userId },
+                    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+                    take,
+                    ...afterCursor(cursor),
+                    select: {
+                        id: true,
+                        positionSec: true,
+                        endSec: true,
+                        label: true,
+                        note: true,
+                        drawing: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        deletedAt: true,
+                        workspace: CLUB,
+                        video: VIDEO,
+                        review: {
+                            select: {
+                                dueAt: true,
+                                intervalDays: true,
+                                ease: true,
+                                reps: true,
+                                lapses: true,
+                                lastReviewedAt: true,
+                            },
+                        },
+                    },
+                }),
+            ),
+            collectPages((cursor, take) =>
+                this.prisma.studyPlan.findMany({
+                    where: { userId },
+                    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+                    take,
+                    ...afterCursor(cursor),
+                    select: {
+                        id: true,
+                        title: true,
+                        description: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        workspace: CLUB,
+                        // Bounded per plan (MAX_STUDY_PLAN_ITEMS).
+                        items: {
+                            orderBy: { position: 'asc' },
+                            select: {
+                                position: true,
+                                startSec: true,
+                                endSec: true,
+                                title: true,
+                                note: true,
+                                createdAt: true,
+                                video: VIDEO,
+                            },
+                        },
+                    },
+                }),
+            ),
+            collectPages((cursor, take) =>
+                this.prisma.reviewClip.findMany({
+                    where: { ownerUserId: userId },
+                    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+                    take,
+                    ...afterCursor(cursor),
+                    select: {
+                        id: true,
+                        status: true,
+                        duration: true,
+                        sizeBytes: true,
+                        createdAt: true,
+                        workspace: CLUB,
+                        request: {
+                            select: {
+                                title: true,
+                                message: true,
+                                status: true,
+                                createdAt: true,
+                                updatedAt: true,
+                                comments: {
+                                    orderBy: [{ atSec: 'asc' }, { createdAt: 'asc' }],
+                                    select: {
+                                        atSec: true,
+                                        endSec: true,
+                                        text: true,
+                                        drawing: true,
+                                        createdAt: true,
+                                        updatedAt: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                }),
+            ),
         ])
 
         const sections = {
@@ -212,6 +334,10 @@ export class ExportMyDataHandler
             freezes,
             journal,
             ranks,
+            videoNotes,
+            bookmarks,
+            studyPlans,
+            videoReviews,
         }
         const truncated = Object.entries(sections)
             .filter(([, section]) => section.truncated)
@@ -316,6 +442,72 @@ export class ExportMyDataHandler
                 stripes: r.stripes,
                 note: r.note,
                 awardedAt: r.awardedAt.toISOString(),
+            })),
+            videoNotes: videoNotes.rows.map((n) => ({
+                club: n.workspace,
+                video: n.video,
+                text: n.text,
+                updatedAt: n.updatedAt.toISOString(),
+            })),
+            bookmarks: bookmarks.rows.map((b) => ({
+                club: b.workspace,
+                video: b.video,
+                positionSec: b.positionSec,
+                endSec: b.endSec,
+                label: b.label,
+                note: b.note,
+                hasDrawing: b.drawing !== null,
+                createdAt: b.createdAt.toISOString(),
+                updatedAt: b.updatedAt.toISOString(),
+                deletedAt: isoOrNull(b.deletedAt),
+                review: b.review && {
+                    dueAt: b.review.dueAt.toISOString(),
+                    intervalDays: b.review.intervalDays,
+                    ease: b.review.ease,
+                    reps: b.review.reps,
+                    lapses: b.review.lapses,
+                    lastReviewedAt: b.review.lastReviewedAt.toISOString(),
+                },
+            })),
+            studyPlans: studyPlans.rows.map((p) => ({
+                club: p.workspace,
+                title: p.title,
+                description: p.description,
+                createdAt: p.createdAt.toISOString(),
+                updatedAt: p.updatedAt.toISOString(),
+                items: p.items.map((i) => ({
+                    position: i.position,
+                    video: i.video,
+                    startSec: i.startSec,
+                    endSec: i.endSec,
+                    title: i.title,
+                    note: i.note,
+                    createdAt: i.createdAt.toISOString(),
+                })),
+            })),
+            videoReviews: videoReviews.rows.map((c) => ({
+                club: c.workspace,
+                clip: {
+                    status: c.status,
+                    durationSec: c.duration,
+                    sizeBytes: c.sizeBytes === null ? null : Number(c.sizeBytes),
+                    createdAt: c.createdAt.toISOString(),
+                },
+                request: c.request && {
+                    title: c.request.title,
+                    message: c.request.message,
+                    status: c.request.status,
+                    createdAt: c.request.createdAt.toISOString(),
+                    updatedAt: c.request.updatedAt.toISOString(),
+                    comments: c.request.comments.map((m) => ({
+                        atSec: m.atSec,
+                        endSec: m.endSec,
+                        text: m.text,
+                        hasDrawing: m.drawing !== null,
+                        createdAt: m.createdAt.toISOString(),
+                        updatedAt: m.updatedAt.toISOString(),
+                    })),
+                },
             })),
             truncated,
         }

@@ -3,6 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import { issuePlaybackToken } from '../../shared/utils/playback-token.util'
 import {
     GetVideoReviewPlaybackFeature,
@@ -16,12 +17,15 @@ export class GetVideoReviewPlaybackHandler
     implements
         IFeatureHandler<GetVideoReviewPlaybackFeature, GetVideoReviewPlaybackFeatureResponse>
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly rbac: RbacService,
+    ) {}
 
     async execute(
         f: GetVideoReviewPlaybackFeature,
     ): Promise<GetVideoReviewPlaybackFeatureResponse> {
-        const { request } = await loadReviewForViewer(this.prisma, f)
+        const { request } = await loadReviewForViewer(this.prisma, this.rbac, f)
         const { clip } = request
         if (clip.status !== 'ready' || !clip.hlsMasterKey) {
             throw new BadRequestError({ message: 'Видео ещё обрабатывается' })

@@ -8,6 +8,7 @@ if (dsn) {
   Sentry.init({
     dsn,
     environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "development",
+    release: process.env.NEXT_PUBLIC_APP_RELEASE || undefined,
     tracesSampleRate: Number(
       process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? 0,
     ),

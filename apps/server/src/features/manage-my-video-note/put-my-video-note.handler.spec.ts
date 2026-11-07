@@ -27,14 +27,35 @@ const build = (
     return { prisma }
 }
 
-const run = (prisma: unknown, text: string, updatedAt = '2026-01-03T00:00:00.000Z') =>
-    new PutMyVideoNoteHandler(prisma as never).execute(
+// The playback gate: a lesson the member may watch, unless a test locks it.
+const watchable = () => ({
+    assertCanWatchVideo: jest.fn().mockResolvedValue({ isStaff: false, visibleCourseIds: [] }),
+})
+
+const run = (
+    prisma: unknown,
+    text: string,
+    updatedAt = '2026-01-03T00:00:00.000Z',
+    courseAccess = watchable(),
+) =>
+    new PutMyVideoNoteHandler(prisma as never, courseAccess as never).execute(
         new PutMyVideoNoteFeature('u1', 'v1', { text, updatedAt }),
     )
 
 const STORED = { text: 'stored', updatedAt: new Date('2026-01-02T00:00:00Z') }
 
 describe('PutMyVideoNoteHandler', () => {
+    it("refuses a lesson the member can't watch and writes nothing", async () => {
+        const { prisma } = build()
+        const courseAccess = watchable()
+        const locked = new ForbiddenError({ message: 'Урок пока закрыт' })
+        courseAccess.assertCanWatchVideo.mockRejectedValue(locked)
+        await expect(
+            run(prisma, 'frames', '2026-01-03T00:00:00.000Z', courseAccess),
+        ).rejects.toBe(locked)
+        expect(prisma.videoNote.upsert).not.toHaveBeenCalled()
+    })
+
     it('writes a note stamped with the video workspace and client updatedAt', async () => {
         const { prisma } = build()
         const res = await run(prisma, 'frames')

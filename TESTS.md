@@ -3,7 +3,8 @@
 ## Команды
 
 ```bash
-# Всё разом — server + mobile unit тесты, ~1 сек.
+# Unit-тесты server, admin, mobile и video-worker разом (~20 сек).
+# Перед мержем — `npm run verify` (typecheck, тесты с coverage, контракт, e2e, lint).
 npm run test:all
 
 # По проекту:
@@ -17,7 +18,8 @@ npm run test:watch:mobile
 # С coverage-репортом (HTML в test-output/jest/coverage):
 npm run test:coverage
 
-# Существующий API e2e (требует запущенного сервера на :3000):
+# API e2e: поднимает AppModule целиком в процессе против настоящих Postgres и
+# Redis (`npm run dev:infra`), сам создаёт базу `clubspace_e2e`:
 npm run test:e2e
 ```
 
@@ -28,12 +30,18 @@ npm run test:e2e
 - **Mobile unit:** Jest + `@swc/jest`. Без `jest-expo` — тестируем чистые
   TS-функции (date math, schedule helpers, VTT parser), а не RN-компоненты.
   Конфиг: `apps/mobile/jest.config.cjs`.
-- **API e2e:** существующий `apps/server-e2e` (Jest + axios, бьёт по
-  localhost:3000).
+- **API e2e:** `apps/server-e2e` (Jest, настоящий AppModule + Postgres + Redis),
+  61 spec-файл.
+- **Admin:** Jest + Testing Library (jsdom), 70 spec-файлов.
+- **Video worker:** Jest, 15 spec-файлов. **api-client:** Jest, 1 spec-файл.
 
 ## Что сейчас под покрытием
 
-### Server (76 тестов)
+Счёт на 2026-11-08: server — 369 spec-файлов / 4466 тестов, admin — 70 / 493,
+mobile — 100 / 1365, video-worker — 15 / 271, api-client — 1 / 7. Таблицы ниже —
+примеры, а не полный список.
+
+### Server
 
 | Файл | Что проверяет |
 |------|---------------|
@@ -50,7 +58,7 @@ npm run test:e2e
 | `features/send-email-notification/send-email-notification.processor.spec.ts` | Очередь писем (OTP): повтор при сбое SMTP, без повтора при отказе адресата. |
 | `domains/audit/services/audit-naming.spec.ts` | Каждое значение `AuditAction` соответствует `<entity>.<camelCaseVerb>` — иначе сломается фильтр на странице аудита. |
 
-### Mobile (30 тестов)
+### Mobile
 
 | Файл | Что проверяет |
 |------|---------------|
@@ -68,13 +76,13 @@ npm run test:e2e
 
 ## Что добавить дальше
 
-- **Server e2e (apps/server-e2e):** полный flow «создать workspace → группу
-  → слот → проекция возвращает occurrence в правильной TZ». Сейчас там
-  только smoke `GET /api`. Расширить — отдельный PR.
 - **Admin Playwright:** sign-in → дашборд, группы → добавить слот → сохранить.
   Сейчас пакет не установлен. Установить + scaffold — отдельный PR.
 - **Mobile component-level (jest-expo + @testing-library/react-native):**
-  ScheduleScreen с моком auth-context. Сейчас есть только helpers.
+  экраны (`*.tsx`) сейчас не покрыты — тестируются только helpers (`*.ts`,
+  coverage-порог в `apps/mobile/jest.config.cjs`).
+- **Client (`apps/client/specs`):** 4 spec-файла есть, но у проекта нет
+  nx-цели `test`, поэтому они не запускаются ни в CI, ни в `verify`.
 
 ## Как добавить тест
 

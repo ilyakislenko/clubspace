@@ -31,6 +31,10 @@ COPY . .
 RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
     npx nx prisma:generate @clubspace/server
 RUN npx nx build @clubspace/video-worker
+# The runtime runs plain node on the tsc output (no tsx, jest, nx), and every
+# package it imports is a root `dependency` — drop the devDependencies before
+# node_modules is copied into the runtime image.
+RUN npm prune --omit=dev
 
 # ─── Runtime stage ────────────────────────────────────────────────────────────
 FROM node:22.23.4-alpine3.24 AS runtime

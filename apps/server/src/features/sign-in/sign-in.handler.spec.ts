@@ -215,7 +215,7 @@ describe('SignInHandler', () => {
         const accountClaim = prisma.user.updateMany.mock.calls[0][0]
         expect(accountClaim.where).toMatchObject({
             id: 'user-1',
-            signInFailedAttempts: { lt: 10 },
+            signInFailedAttempts: { lt: 50 },
         })
         expect(accountClaim.data).toEqual({
             signInFailedAttempts: { increment: 1 },
@@ -231,7 +231,7 @@ describe('SignInHandler', () => {
             .not.toContain(OWN_IP)
     })
 
-    it('starts both lockouts when the last tickets are spent on a wrong code', async () => {
+    it('starts the address and hard account lockouts when the last tickets are spent', async () => {
         const { handler, prisma, audit } = build(baseUser())
         await expect(run(handler, '000000')).rejects.toBeInstanceOf(
             InvalidCredentialsError,
@@ -243,26 +243,100 @@ describe('SignInHandler', () => {
             Date.now(),
         )
         const accountLock = prisma.user.updateMany.mock.calls[1][0]
-        expect(accountLock.where.signInFailedAttempts).toEqual({ gte: 10 })
+        expect(accountLock.where.signInFailedAttempts).toEqual({ gte: 50 })
         expect(accountLock.data.signInFailedAttempts).toBe(0)
         expect(accountLock.data.signInLockedUntil.getTime()).toBeGreaterThan(
             Date.now(),
         )
+        expect(audit.record).toHaveBeenCalledTimes(1)
         expect(audit.record).toHaveBeenCalledWith(
             expect.objectContaining({
                 action: 'auth.lockout',
                 targetType: 'member',
                 targetId: 'user-1',
                 workspaceId: null,
+                metadata: expect.objectContaining({ scope: 'account' }),
             }),
         )
+    })
+
+    it('starts a soft account lock (counter kept) at the lower ceiling', async () => {
+        const { handler, prisma, audit } = build(baseUser())
+        prisma.user.updateMany
+            .mockResolvedValueOnce({ count: 1 }) // the claim
+            .mockResolvedValueOnce({ count: 0 }) // hard ceiling not reached
+            .mockResolvedValueOnce({ count: 1 }) // soft lock started
+        await expect(run(handler, '000000')).rejects.toBeInstanceOf(
+            InvalidCredentialsError,
+        )
+        const softLock = prisma.user.updateMany.mock.calls[2][0]
+        expect(softLock.where.signInFailedAttempts).toEqual({ gte: 10 })
+        expect(softLock.data).not.toHaveProperty('signInFailedAttempts')
+        expect(audit.record).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'auth.lockout',
+                metadata: expect.objectContaining({ scope: 'guessingAddresses' }),
+            }),
+        )
+    })
+
+    // The owner-lockout DoS: strangers exhausting the account ceiling must not
+    // lock out an address that never guessed.
+    it('applies a soft account lock only to addresses that took part in guessing', async () => {
+        const lockedUntil = new Date(Date.now() + 10 * 60_000)
+        const { handler, prisma, tokens } = build(
+            baseUser({ signInLockedUntil: lockedUntil, signInFailedAttempts: 10 }),
+        )
+        prisma.signInThrottle.findUnique.mockImplementation(
+            async (args: { where: { userId_ipHash: { ipHash: string } } }) =>
+                args.where.userId_ipHash.ipHash === ipHash(ATTACKER_IP)
+                    ? { lockedUntil: null, updatedAt: new Date(Date.now() - 60_000) }
+                    : null,
+        )
+        await expect(
+            run(handler, CODE, ATTACKER_IP),
+        ).rejects.toBeInstanceOf(TooManySignInAttemptsError)
+        expect(bcrypt.compare).not.toHaveBeenCalled()
+
+        await expect(run(handler, CODE, OWN_IP)).resolves.toMatchObject({
+            userId: 'user-1',
+        })
+        expect(tokens.generateToken).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not apply a soft lock to an address whose failures are long past', async () => {
+        const { handler, prisma } = build(
+            baseUser({
+                signInLockedUntil: new Date(Date.now() + 10 * 60_000),
+                signInFailedAttempts: 12,
+            }),
+        )
+        prisma.signInThrottle.findUnique.mockResolvedValue({
+            lockedUntil: null,
+            updatedAt: new Date(Date.now() - 24 * 60 * 60_000),
+        })
+        await expect(run(handler)).resolves.toMatchObject({ userId: 'user-1' })
+    })
+
+    it('applies a hard account lock to every address', async () => {
+        const { handler } = build(
+            baseUser({
+                signInLockedUntil: new Date(Date.now() + 10 * 60_000),
+                signInFailedAttempts: 0,
+            }),
+        )
+        await expect(run(handler, CODE, OWN_IP)).rejects.toBeInstanceOf(
+            TooManySignInAttemptsError,
+        )
+        expect(bcrypt.compare).not.toHaveBeenCalled()
     })
 
     it('does not audit a lockout when the wrong code did not start one', async () => {
         const { handler, prisma, audit } = build(baseUser())
         prisma.user.updateMany
             .mockResolvedValueOnce({ count: 1 }) // the claim
-            .mockResolvedValueOnce({ count: 0 }) // tickets remain
+            .mockResolvedValueOnce({ count: 0 }) // no hard lock
+            .mockResolvedValueOnce({ count: 0 }) // no soft lock
         await expect(run(handler, '000000')).rejects.toBeInstanceOf(
             InvalidCredentialsError,
         )
@@ -330,8 +404,8 @@ describe('SignInHandler', () => {
             TooManySignInAttemptsError,
         )
         expect(bcrypt.compare).not.toHaveBeenCalled()
-        // lockIfExhausted ran after the failed claim.
-        expect(prisma.user.updateMany).toHaveBeenCalledTimes(2)
+        // lockAccountIfExhausted (hard, then soft) ran after the failed claim.
+        expect(prisma.user.updateMany).toHaveBeenCalledTimes(3)
     })
 
     it('burns the code and issues tokens on the correct code', async () => {

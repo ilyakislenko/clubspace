@@ -7,6 +7,7 @@ import {
 import type { Server, Socket } from 'socket.io'
 
 import { MemberStatus, PrismaService, UserStatus } from '../../infrastructure/prisma'
+import { resolveCorsOrigins } from '../../shared/utils/cors-origins.util'
 import { TokensService } from '../tokens/services/tokens.service'
 import {
     RealtimeEmitter,
@@ -35,9 +36,12 @@ const handshakeToken = (client: Socket): string | null => {
 // refresh. Read-only: the server only pushes, clients never write here.
 @WebSocketGateway({
     namespace: '/realtime',
-    // The mobile app is not a browser origin; allow any and rely on the JWT
-    // handshake for auth rather than CORS.
-    cors: { origin: '*' },
+    // Same browser origins as the HTTP API (CORS_ORIGINS). The mobile app sends
+    // no Origin, so it is unaffected; auth is still the JWT handshake.
+    cors: (() => {
+        const { origins, allowAnyOrigin } = resolveCorsOrigins()
+        return { origin: allowAnyOrigin ? true : origins, credentials: !allowAnyOrigin }
+    })(),
 })
 export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
     private readonly logger = new Logger(RealtimeGateway.name)

@@ -16,6 +16,7 @@ import {
   getAuthApi,
   storeAuthTokens,
 } from "../../../shared/api/client"
+import { environment } from "../../../environments/environment"
 import { errorMessage, retryAfterSeconds } from "../../../shared/lib/error-message"
 import { inputClsFull } from "../../../shared/lib/input-class"
 import { pluralRu } from "../../../shared/lib/plural-ru"
@@ -170,8 +171,31 @@ export default function SignUp() {
         ) : !config.enabled ? (
           <div className="space-y-3 rounded-lg border bg-card p-4 text-sm">
             <p>
-              Самостоятельная регистрация клубов сейчас закрыта. Напишите нам — мы
-              подключим ваш клуб вручную.
+              Самостоятельная регистрация клубов сейчас закрыта — мы подключим ваш
+              клуб вручную.
+              {environment.publicAppUrl && (
+                <>
+                  {" "}
+                  <a
+                    href={`${environment.publicAppUrl}/#demo`}
+                    className="font-medium underline underline-offset-4"
+                  >
+                    Оставьте заявку
+                  </a>
+                </>
+              )}
+              {environment.supportEmail && (
+                <>
+                  {environment.publicAppUrl ? " или напишите на " : " Напишите на "}
+                  <a
+                    href={`mailto:${environment.supportEmail}`}
+                    className="font-medium underline underline-offset-4"
+                  >
+                    {environment.supportEmail}
+                  </a>
+                </>
+              )}
+              {(environment.publicAppUrl || environment.supportEmail) && "."}
             </p>
             <Link href="/sign-in" className="font-medium underline underline-offset-4">
               Уже есть клуб? Войти

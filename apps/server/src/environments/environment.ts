@@ -262,6 +262,8 @@ export const environment = {
     sentry: {
         dsn: get('SENTRY_DSN').required(false).asString(),
         environment: get('SENTRY_ENVIRONMENT').default('development').asString(),
+        // Short git sha of the deployed build (deploy/update.sh sets it).
+        release: get('APP_RELEASE').required(false).asString() || undefined,
         tracesSampleRate: get('SENTRY_TRACES_SAMPLE_RATE')
             .default('0')
             .asFloat(),

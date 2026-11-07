@@ -4,10 +4,12 @@ import { FilesService } from '../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertActiveWorkspaceMembership } from '../../shared/access/assert-membership'
 import { ForbiddenError } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListClubVideoReviewsFeature,
     ListClubVideoReviewsFeatureResponse,
 } from './list-club-video-reviews.feature'
+import { resolveReviewStaffScope, uncoachedMemberWhere } from './review-clip-access'
 import { reviewSummaryInclude, serializeReviewSummary } from './schemas'
 import { REQUEST_STATUS_ORDER, type RequestStatus } from './video-reviews-utils'
 
@@ -22,21 +24,35 @@ export class ListClubVideoReviewsHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly files: FilesService,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute({
         userId,
         workspaceId,
-        isStaff,
+        viewer,
         payload,
     }: ListClubVideoReviewsFeature): Promise<ListClubVideoReviewsFeatureResponse> {
-        if (!isStaff) {
+        await assertActiveWorkspaceMembership(this.prisma, userId, workspaceId)
+        const ctx = await resolveReviewStaffScope(this.rbac, { userId, workspaceId, viewer })
+        if (!ctx) {
             throw new ForbiddenError({ message: 'Разборы учеников видят только тренеры клуба' })
         }
-        await assertActiveWorkspaceMembership(this.prisma, userId, workspaceId)
+        // Owner, admins, head coaches: the whole club. A coach: members of
+        // their own groups plus members no group coach looks after (the
+        // same people the request notification goes to).
+        const memberScope = this.rbac.canWriteAllGroups(ctx)
+            ? {}
+            : {
+                  OR: [
+                      { memberUserId: { in: await this.rbac.ownGroupMemberIds(ctx) } },
+                      { member: uncoachedMemberWhere(workspaceId) },
+                  ],
+              }
         const rows = await this.prisma.videoReviewRequest.findMany({
             where: {
                 workspaceId,
+                ...memberScope,
                 ...(payload.status && { status: payload.status }),
                 // A clip still being uploaded isn't a request yet.
                 clip: { status: { not: 'uploading' } },

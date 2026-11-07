@@ -95,6 +95,7 @@ A-записей на IP сервера, TTL 300–600:
 | `app` | A | `<IP>` | сайт: лендинг, страницы клубов, `/join`, `/legal` |
 | `pwa` | A | `<IP>` | приложение в браузере (PWA) для учеников, родителей и тренеров |
 | `s3` | A | `<IP>` | загрузка и просмотр видео (браузер ходит напрямую) |
+| `@` | A | `<IP>` | голый домен: Caddy перенаправляет его (308) на `app.<домен>` |
 
 Проверка: `dig +short api.<домен>` (и для остальных четырёх) показывает ваш IP.
 Пока записи не разошлись, `bootstrap.sh` остановится на проверке DNS — так и
@@ -360,6 +361,7 @@ SSH-ключу проверен, отключите вход по паролю: 
   | `app.<domain>` | the public site: landing, `/join/<code>` links, legal pages | join links, privacy policy and account deletion the apps link to |
   | `pwa.<domain>` | the member app in the browser (the Expo app exported as a PWA) | members without the APK; browser push notifications |
   | `s3.<domain>` | object storage | uploads and video segments go **directly** here on presigned URLs; the API never proxies them |
+  | `<domain>` (apex) | 308 redirect to `app.<domain>` | people type the bare domain; without the record Caddy keeps retrying its certificate |
 
   Caddy requests a certificate per hostname at startup. A record that does not
   resolve yet means that one site stays down while the others work — and failed
