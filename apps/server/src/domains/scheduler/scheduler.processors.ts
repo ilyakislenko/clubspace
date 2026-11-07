@@ -10,6 +10,7 @@ import { PaymentReminderService } from '../subscriptions/services/payment-remind
 import { DailyClubService } from './daily-club.service'
 import { DataPurgeService } from './data-purge.service'
 import { RemindersService } from './reminders.service'
+import { ReviewRemindersService } from './review-reminders.service'
 import { ClassBookingService } from '../class-bookings/class-booking.service'
 
 // One queue per background job, so each has its own schedule and a slow one
@@ -26,6 +27,7 @@ export const SCHEDULER_QUEUES = {
     purge: 'scheduler-purge',
     analytics: 'scheduler-analytics',
     classBookings: 'scheduler-class-bookings',
+    reviewReminders: 'scheduler-review-reminders',
 } as const
 
 const HALF_HOUR_MS = 30 * 60_000
@@ -181,6 +183,27 @@ export class ClassBookingsProcessor extends SchedulerJobProcessor {
     }
 }
 
+// «Пора повторить»: due bookmark cards, once a day per club at local evening.
+@Processor(SCHEDULER_QUEUES.reviewReminders)
+export class ReviewRemindersProcessor extends SchedulerJobProcessor {
+    protected readonly logger = new Logger(ReviewRemindersProcessor.name)
+
+    constructor(
+        private readonly reviewReminders: ReviewRemindersService,
+        @InjectQueue(SCHEDULER_QUEUES.reviewReminders) queue: Queue,
+    ) {
+        super(queue, { every: HALF_HOUR_MS })
+    }
+
+    protected async run(now: Date): Promise<string | null> {
+        const s = await this.reviewReminders.run(now)
+        if (s.failed > 0) {
+            this.logger.error(`${s.failed} club(s) failed their review reminders`)
+        }
+        return s.clubs > 0 ? `${s.clubs} clubs, ${s.sent} reminded` : null
+    }
+}
+
 // Nightly retention purge, 03:30 UTC.
 @Processor(SCHEDULER_QUEUES.purge)
 export class PurgeProcessor extends SchedulerJobProcessor {
@@ -232,4 +255,5 @@ export const SCHEDULER_PROCESSORS = [
     PurgeProcessor,
     AnalyticsProcessor,
     ClassBookingsProcessor,
+    ReviewRemindersProcessor,
 ]

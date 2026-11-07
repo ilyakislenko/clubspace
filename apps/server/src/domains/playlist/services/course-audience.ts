@@ -273,6 +273,72 @@ export const computeProgressionLocks = (
     return locked
 }
 
+// A published course holding a video, as the watch gate reads it.
+export type VideoPlacement = {
+    courseId: string
+    course: { lockedProgression: boolean; audience: AudienceRow[] }
+}
+
+// The locked-progression courses whose lesson locks decide something: the
+// ones the viewer sees without an audience lock. Hidden or teased courses
+// never open a video, so their lessons needn't be loaded.
+export const progressionCourseIds = (
+    placements: ReadonlyArray<VideoPlacement>,
+    viewer: CourseViewer,
+): string[] => [
+    ...new Set(
+        placements
+            .filter((p) => {
+                if (!p.course.lockedProgression) return false
+                const verdict = evaluateCourseAudience(p.course.audience, viewer)
+                return !verdict.hidden && !verdict.lock
+            })
+            .map((p) => p.courseId),
+    ),
+]
+
+export type PlacementVerdict = {
+    allowed: boolean
+    // The first reason it's closed; null = no visible course at all (→ 404).
+    lock: CourseLock | null
+    visibleCourseIds: string[]
+}
+
+// A student's verdict on one video from the published courses holding it:
+// allowed through any visible, unlocked course; otherwise the first lock.
+// `progressionLocks` = computeProgressionLocks per progressionCourseIds
+// course; a course missing from it counts as locked (fail closed). The single
+// watch gate and the batch both decide through here.
+export const judgeVideoPlacements = (
+    videoId: string,
+    placements: ReadonlyArray<VideoPlacement>,
+    viewer: CourseViewer,
+    progressionLocks: ReadonlyMap<string, ReadonlySet<string>>,
+): PlacementVerdict => {
+    const visibleCourseIds: string[] = []
+    let allowed = false
+    let lock: CourseLock | null = null
+    for (const placement of placements) {
+        const verdict = evaluateCourseAudience(placement.course.audience, viewer)
+        if (verdict.hidden) continue
+        visibleCourseIds.push(placement.courseId)
+        if (allowed) continue
+        if (verdict.lock) {
+            lock ??= verdict.lock
+            continue
+        }
+        if (
+            !placement.course.lockedProgression ||
+            progressionLocks.get(placement.courseId)?.has(videoId) === false
+        ) {
+            allowed = true
+            continue
+        }
+        lock ??= { kind: 'PROGRESSION', reason: PROGRESSION_LOCK_REASON }
+    }
+    return { allowed, lock, visibleCourseIds }
+}
+
 // The kinds that hide a course (vs. teasing it) — what push targeting reads.
 export const HIDING_AUDIENCE_KINDS = ['GROUP', 'DIRECTION'] as const
 

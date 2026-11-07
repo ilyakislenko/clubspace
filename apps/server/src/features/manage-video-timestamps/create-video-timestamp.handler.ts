@@ -9,6 +9,7 @@ import {
     CreateVideoTimestampFeature,
     VideoTimestampResponse,
 } from './create-video-timestamp.feature'
+import { reindexChapterMentions } from '../techniques/chapter-mentions'
 
 @Feature(CreateVideoTimestampFeature)
 export class CreateVideoTimestampHandler
@@ -49,11 +50,14 @@ export class CreateVideoTimestampHandler
                 title: payload.title.trim(),
             },
         })
+        // «Техники»: the lesson's chapter mentions follow its chapters.
+        await reindexChapterMentions(this.prisma, videoId)
 
         return {
             id: created.id,
             positionSec: created.positionSec,
             title: created.title,
+            source: created.source,
         }
     }
 }

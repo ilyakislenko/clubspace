@@ -1,6 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { PrismaService } from '../../infrastructure/prisma'
+import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
     NotFoundError,
@@ -43,6 +43,10 @@ export class PutMyVideoBookmarkHandler
             endSec: payload.endSec,
             label: payload.label,
             note: payload.note,
+            // Omitted = keep what's stored (a client that predates drawings).
+            ...(payload.drawing !== undefined && {
+                drawing: payload.drawing ?? Prisma.DbNull,
+            }),
             updatedAt,
             deletedAt: payload.deleted ? updatedAt : null,
         }

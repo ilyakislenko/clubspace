@@ -107,6 +107,8 @@ const buildDelete = (o: {
     orphans?: string[]
     // E-mail per user id; a dependent has none.
     emails?: Record<string, string | null>
+    // The user's «Разбор видео» clips (storage refs).
+    clips?: Array<{ id: string; rawBucket: string; hlsBucket: string }>
 }) => {
     const del = () => ({ deleteMany: jest.fn().mockResolvedValue({ count: 0 }) })
     const tx = {
@@ -120,6 +122,10 @@ const buildDelete = (o: {
         videoWatched: del(),
         videoBookmark: del(),
         videoNote: del(),
+        bookmarkReview: del(),
+        studyPlan: del(),
+        reviewClip: del(),
+        videoReviewComment: del(),
         file: del(),
         workspaceMember: del(),
         groupMember: del(),
@@ -172,14 +178,36 @@ const buildDelete = (o: {
                       })),
             ),
         },
+        reviewClip: { findMany: jest.fn().mockResolvedValue(o.clips ?? []) },
         $transaction: jest.fn(async (cb: any) => cb(tx)),
     }
     const events = { send: jest.fn() }
-    const service = new UsersService(prisma as never, events as never)
-    return { service, prisma, tx }
+    const files = { deleteObjectsByPrefix: jest.fn().mockResolvedValue(undefined) }
+    const service = new UsersService(prisma as never, events as never, files as never)
+    return { service, prisma, tx, files }
 }
 
 describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
+    it("deletes the stored files of the user's review clips once the rows are gone", async () => {
+        const { service, prisma, files } = buildDelete({
+            clips: [{ id: 'c1', rawBucket: 'b', hlsBucket: 'b' }],
+        })
+        files.deleteObjectsByPrefix.mockRejectedValueOnce(new Error('s3 down'))
+        await service.deleteAccount('u1')
+        expect(prisma.reviewClip.findMany.mock.calls[0][0].where).toEqual({
+            ownerUserId: { in: ['u1'] },
+        })
+        // After the transaction; a failing delete neither stops the next one
+        // nor the account deletion.
+        expect(prisma.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
+            files.deleteObjectsByPrefix.mock.invocationCallOrder[0],
+        )
+        expect(files.deleteObjectsByPrefix.mock.calls.map((c) => c[0])).toEqual([
+            { bucket: 'b', prefix: 'raw/review/c1/' },
+            { bucket: 'b', prefix: 'hls/review/c1/' },
+        ])
+    })
+
     it('anonymizes the user, purges personal data, and keeps the row', async () => {
         const { service, tx } = buildDelete({})
         await service.deleteAccount('u1')
@@ -194,12 +222,28 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
         expect(tx.videoWatched.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },
         })
-        // Personal video study data (bookmarks incl. tombstones, notes).
+        // Personal video study data (bookmarks incl. tombstones, notes and
+        // their «Повторение» schedules).
         expect(tx.videoBookmark.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },
         })
         expect(tx.videoNote.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },
+        })
+        expect(tx.bookmarkReview.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+        // «Мои планы» (their items cascade).
+        expect(tx.studyPlan.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+        // «Разбор видео»: own clips (requests + comments cascade) and the
+        // comments written as staff.
+        expect(tx.reviewClip.deleteMany).toHaveBeenCalledWith({
+            where: { ownerUserId: 'u1' },
+        })
+        expect(tx.videoReviewComment.deleteMany).toHaveBeenCalledWith({
+            where: { authorUserId: 'u1' },
         })
         expect(tx.trainingJournalEntry.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },

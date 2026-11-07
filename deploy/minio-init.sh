@@ -14,8 +14,9 @@
 #      signs the browsers' upload and playback URLs, which then act with these
 #      same rights, and it deletes a video's files when the video is deleted.
 #    - worker: read the raw uploads, write, read back and clean up the HLS
-#      renditions, and write auto-generated covers under thumbnails/ (not
-#      delete there: that prefix also holds the covers coaches upload).
+#      renditions, and write auto-generated covers under thumbnails/ and
+#      automatic subtitle tracks under subtitles/ (not delete in either: they
+#      also hold what coaches upload).
 set -eu
 
 : "${MINIO_ROOT_USER:?}" "${MINIO_ROOT_PASSWORD:?}" "${S3_BUCKET_NAME:?}"
@@ -69,7 +70,7 @@ cat > "$POLICY_DIR/clubspace-worker.json" <<EOF
     {
       "Effect": "Allow",
       "Action": ["s3:PutObject"],
-      "Resource": ["arn:aws:s3:::$BUCKET/thumbnails/*"]
+      "Resource": ["arn:aws:s3:::$BUCKET/thumbnails/*", "arn:aws:s3:::$BUCKET/subtitles/*"]
     },
     {
       "Effect": "Allow",

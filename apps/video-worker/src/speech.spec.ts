@@ -5,15 +5,20 @@ import { join } from 'path'
 
 import { spawn } from 'child_process'
 
+import { SPORT_RUSSIAN_TERMS } from '@clubspace/sport-glossary'
 import {
+    chaptersFromTranscript,
     llmConfigFrom,
     LlmUnavailableError,
     requestChat,
     reviewTitles,
     runTool,
-    scanSpeechChapters,
-    speechConfigFrom,
+    transcribeVideo,
+    translateCues,
+    whisperConfigFrom,
 } from './speech'
+import { buildCues } from './subtitles'
+import { buildGlossary } from './term-snap'
 
 jest.mock('child_process', () => ({ spawn: jest.fn() }))
 
@@ -50,36 +55,12 @@ afterEach(async () => {
     await fs.rm(dir, { recursive: true, force: true })
 })
 
-describe('speechConfigFrom', () => {
-    const env = {
-        whisperCliPath: 'whisper-cli',
-        whisperModelPath: '/models/ggml-small.bin',
-        chaptersLlm: { baseUrl: 'http://127.0.0.1:11434/v1', model: 'qwen2.5:7b-instruct' },
-    }
-
-    it('turns the step on with a Whisper model and a chat endpoint', () => {
-        expect(speechConfigFrom(env)).toEqual({
-            config: {
-                whisperCliPath: 'whisper-cli',
-                whisperModelPath: '/models/ggml-small.bin',
-                llm: { baseUrl: 'http://127.0.0.1:11434/v1', model: 'qwen2.5:7b-instruct' },
-            },
-        })
+describe('whisperConfigFrom', () => {
+    it('turns Whisper on with a model, off without', () => {
         expect(
-            speechConfigFrom({ ...env, chaptersLlm: { ...LLM, apiKey: 'sk-or-1' } }),
-        ).toMatchObject({ config: { llm: { ...LLM, apiKey: 'sk-or-1' } } })
-    })
-
-    it('says why the step is off', () => {
-        expect(speechConfigFrom({ ...env, whisperModelPath: undefined })).toEqual({
-            disabled: 'WHISPER_MODEL_PATH is not set',
-        })
-        expect(speechConfigFrom({ ...env, chaptersLlm: { model: 'm' } })).toEqual({
-            disabled: 'CHAPTERS_LLM_BASE_URL or CHAPTERS_LLM_MODEL is not set',
-        })
-        expect(speechConfigFrom({ ...env, chaptersLlm: { baseUrl: 'http://x/v1' } })).toEqual({
-            disabled: 'CHAPTERS_LLM_BASE_URL or CHAPTERS_LLM_MODEL is not set',
-        })
+            whisperConfigFrom({ whisperCliPath: 'whisper-cli', whisperModelPath: '/m/small.bin' }),
+        ).toEqual({ cliPath: 'whisper-cli', modelPath: '/m/small.bin' })
+        expect(whisperConfigFrom({ whisperCliPath: 'whisper-cli' })).toBeNull()
     })
 })
 
@@ -220,21 +201,26 @@ describe('requestChat', () => {
     })
 })
 
-describe('scanSpeechChapters', () => {
-    const SPEECH = {
-        whisperCliPath: '/opt/whisper-cli',
-        whisperModelPath: '/models/ggml-small.bin',
-        llm: LLM,
-    }
+const CONTEXT = {
+    videoTitle: 'Craig Jones Shows the Perfect Kimura',
+    courses: [{ title: 'Kimura', lessonTitle: null }],
+}
+const GLOSSARY = buildGlossary(['Kimura', 'Kimura Trap', 'Armbar'])
 
-    // Twenty segments of a lesson, 15 s apart.
-    const WHISPER_JSON = JSON.stringify({
-        result: { language: 'en' },
-        transcription: Array.from({ length: 20 }, (_, idx) => ({
-            offsets: { from: idx * 15_000, to: idx * 15_000 + 15_000 },
-            text: ` now we grip the collar and we pull the guard step ${idx}`,
-        })),
-    })
+// Twenty segments of a lesson, 15 s apart.
+const lesson = (text: (idx: number) => string) =>
+    Array.from({ length: 20 }, (_, idx) => ({
+        startSec: idx * 15,
+        endSec: idx * 15 + 15,
+        text: text(idx),
+    }))
+const LESSON = { language: 'en', segments: lesson((idx) => `now we grip the collar and we pull the guard step ${idx}`) }
+
+const bodyOf = (fetchImpl: jest.Mock, call = 0) =>
+    JSON.parse((fetchImpl.mock.calls[call] as unknown as [string, RequestInit])[1].body as string)
+
+describe('transcribeVideo', () => {
+    const WHISPER = { cliPath: '/opt/whisper-cli', modelPath: '/models/ggml-small.bin' }
 
     // ffmpeg writes the wav, whisper-cli the JSON next to the -of prefix.
     const tools = (whisperJson: string) =>
@@ -244,44 +230,39 @@ describe('scanSpeechChapters', () => {
             child.emit('close', 0)
         })
 
-    const CONTEXT = {
-        videoTitle: 'Craig Jones Shows the Perfect Kimura',
-        courses: [{ title: 'Kimura', lessonTitle: null }],
-    }
+    const whisperJson = (text: (idx: number) => string) =>
+        JSON.stringify({
+            result: { language: 'en' },
+            transcription: Array.from({ length: 3 }, (_, idx) => ({
+                offsets: { from: idx * 15_000, to: idx * 15_000 + 15_000 },
+                text: ` ${text(idx)}`,
+            })),
+        })
 
-    const scan = (fetchImpl: jest.Mock, durationSec: number | null = 300) =>
-        scanSpeechChapters({
-            config: SPEECH,
-            context: CONTEXT,
+    const transcribe = (context = CONTEXT, glossary = GLOSSARY) =>
+        transcribeVideo({
+            whisper: WHISPER,
+            context,
+            glossary,
             ffmpegBinary: 'ffmpeg',
             inputArgs: ['-protocol_whitelist', 'file,pipe', '-f', 'mov'],
             inputPath: '/tmp/in/source.mp4',
-            durationSec,
             workdir: dir,
             timeoutMs: 60_000,
-            fetchImpl: fetchImpl as never,
         })
 
-    it('transcribes the restricted input and asks the model for chapters', async () => {
-        tools(WHISPER_JSON)
-        const fetchImpl = jest.fn(async () =>
-            chatResponse(
-                JSON.stringify({
-                    chapters: [
-                        { start: '00:00', title: 'Introduction' },
-                        { start: '02:01', title: 'Collar Grip Guard Pull' },
-                    ],
-                }),
-            ),
-        )
-        await expect(scan(fetchImpl)).resolves.toEqual({
+    it('transcribes the restricted input with a vocabulary prompt and snaps the text', async () => {
+        tools(whisperJson((idx) => `now we set up the camorra, step ${idx}`))
+        const heard = await transcribe()
+        expect(heard.transcript).toEqual({
             language: 'en',
-            segments: 20,
-            chapters: [
-                { positionSec: 0, title: 'Introduction' },
-                { positionSec: 120, title: 'Collar Grip Guard Pull' },
-            ],
+            segments: [0, 1, 2].map((idx) => ({
+                startSec: idx * 15,
+                endSec: idx * 15 + 15,
+                text: `now we set up the kimura, step ${idx}`,
+            })),
         })
+        expect(heard.snaps).toEqual(Array(3).fill({ from: 'camorra', to: 'kimura' }))
 
         const [ffmpegCall, whisperCall] = spawnMock.mock.calls
         expect(ffmpegCall[1]).toEqual([
@@ -319,87 +300,16 @@ describe('scanSpeechChapters', () => {
             join(dir, 'speech'),
             '-np',
             '--prompt',
-            'Craig, Jones, Shows, Perfect, Kimura',
+            'Craig, Jones, Shows, Perfect, Kimura, Kimura Trap',
         ])
-        const body = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
-        expect(body.messages[1].content).toContain('Video title: Craig Jones Shows the Perfect Kimura')
-        expect(body.messages[1].content).toContain('Video length: 05:00')
         // The audio and the transcript do not outlive the step.
         await expect(fs.readdir(dir)).resolves.toEqual([])
     })
 
     it('gives Whisper no prompt when the titles have no words to offer', async () => {
-        tools(WHISPER_JSON)
-        await scanSpeechChapters({
-            config: SPEECH,
-            context: { videoTitle: 'Vol 2 · 7', courses: [] },
-            ffmpegBinary: 'ffmpeg',
-            inputArgs: [],
-            inputPath: '/tmp/in/source.mp4',
-            durationSec: 300,
-            workdir: dir,
-            timeoutMs: 60_000,
-            fetchImpl: jest.fn(async () => chatResponse('{"chapters":[]}')) as never,
-        })
+        tools(whisperJson(() => 'hello there'))
+        await transcribe({ videoTitle: 'Vol 2 · 7', courses: [] }, buildGlossary([]))
         expect(spawnMock.mock.calls[1][1]).not.toContain('--prompt')
-    })
-
-    it('measures an unknown length by the transcript', async () => {
-        tools(WHISPER_JSON)
-        const fetchImpl = jest.fn(async () => chatResponse('{"chapters":[]}'))
-        await expect(scan(fetchImpl, null)).resolves.toMatchObject({
-            chapters: [],
-            rejected: '0 usable chapter(s) of 0 proposed',
-        })
-        const body = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
-        expect(body.messages[1].content).toContain('Video length: 05:00')
-        expect(fetchImpl).toHaveBeenCalledTimes(1)
-    })
-
-    it('asks once more, with the shape spelled out, after an answer that is not JSON', async () => {
-        tools(WHISPER_JSON)
-        const fetchImpl = jest
-            .fn()
-            .mockResolvedValueOnce(chatResponse('Here are the chapters you asked for.'))
-            .mockResolvedValueOnce(
-                chatResponse(
-                    '{"chapters":[{"start":"00:00","title":"Introduction"},{"start":"02:00","title":"Collar Grip"}]}',
-                ),
-            )
-        await expect(scan(fetchImpl)).resolves.toMatchObject({
-            chapters: [
-                { positionSec: 0, title: 'Introduction' },
-                { positionSec: 120, title: 'Collar Grip' },
-            ],
-        })
-        const retry = JSON.parse((fetchImpl.mock.calls[1] as unknown as [string, RequestInit])[1].body as string)
-        expect(retry.messages.slice(2).map((m: { role: string }) => m.role)).toEqual([
-            'assistant',
-            'user',
-        ])
-        expect(retry.messages[2].content).toBe('Here are the chapters you asked for.')
-    })
-
-    it('gives up after the second answer that is not JSON', async () => {
-        tools(WHISPER_JSON)
-        const fetchImpl = jest.fn(async () => chatResponse('Sorry.'))
-        await expect(scan(fetchImpl)).resolves.toMatchObject({
-            chapters: [],
-            rejected: 'answer is not a JSON chapter list',
-        })
-        expect(fetchImpl).toHaveBeenCalledTimes(2)
-    })
-
-    it('does not ask the model about a video without speech', async () => {
-        tools(JSON.stringify({ result: { language: 'en' }, transcription: [] }))
-        const fetchImpl = jest.fn()
-        await expect(scan(fetchImpl)).resolves.toEqual({
-            language: 'en',
-            segments: 0,
-            chapters: [],
-            rejected: 'no speech',
-        })
-        expect(fetchImpl).not.toHaveBeenCalled()
     })
 
     it('cleans up when a tool fails', async () => {
@@ -411,7 +321,168 @@ describe('scanSpeechChapters', () => {
                 child.emit('close', 1)
             }
         })
-        await expect(scan(jest.fn())).rejects.toThrow('whisper-cli exited with code 1')
+        await expect(transcribe()).rejects.toThrow('whisper-cli exited with code 1')
         await expect(fs.readdir(dir)).resolves.toEqual([])
+    })
+})
+
+describe('chaptersFromTranscript', () => {
+    const name = (fetchImpl: jest.Mock, transcript = LESSON, durationSec: number | null = 300) =>
+        chaptersFromTranscript({
+            llm: LLM,
+            transcript,
+            context: CONTEXT,
+            glossary: GLOSSARY,
+            durationSec,
+            fetchImpl: fetchImpl as never,
+        })
+
+    it('asks the model for chapters and snaps their titles', async () => {
+        const fetchImpl = jest.fn(async () =>
+            chatResponse(
+                '{"chapters":[{"start":"00:00","title":"Introduction"},{"start":"02:01","title":"Finishing Camorra"}]}',
+            ),
+        )
+        await expect(name(fetchImpl)).resolves.toEqual({
+            chapters: [
+                { positionSec: 0, title: 'Introduction' },
+                { positionSec: 120, title: 'Finishing Kimura' },
+            ],
+            snaps: [{ from: 'Camorra', to: 'Kimura' }],
+        })
+        const body = bodyOf(fetchImpl)
+        expect(body.messages[1].content).toContain('Video title: Craig Jones Shows the Perfect Kimura')
+        expect(body.messages[1].content).toContain('Video length: 05:00')
+        expect(body.messages[0].content).toContain('spelled right: Kimura, Kimura Trap, Armbar.')
+    })
+
+    it('measures an unknown length by the transcript', async () => {
+        const fetchImpl = jest.fn(async () => chatResponse('{"chapters":[]}'))
+        await expect(name(fetchImpl, LESSON, null)).resolves.toMatchObject({
+            chapters: [],
+            rejected: '0 usable chapter(s) of 0 proposed',
+        })
+        expect(bodyOf(fetchImpl).messages[1].content).toContain('Video length: 05:00')
+        expect(fetchImpl).toHaveBeenCalledTimes(1)
+    })
+
+    it('asks once more, with the shape spelled out, after an answer that is not JSON', async () => {
+        const fetchImpl = jest
+            .fn()
+            .mockResolvedValueOnce(chatResponse('Here are the chapters you asked for.'))
+            .mockResolvedValueOnce(
+                chatResponse(
+                    '{"chapters":[{"start":"00:00","title":"Introduction"},{"start":"02:00","title":"Collar Grip"}]}',
+                ),
+            )
+        await expect(name(fetchImpl)).resolves.toMatchObject({
+            chapters: [
+                { positionSec: 0, title: 'Introduction' },
+                { positionSec: 120, title: 'Collar Grip' },
+            ],
+        })
+        const retry = bodyOf(fetchImpl, 1)
+        expect(retry.messages.slice(2).map((m: { role: string }) => m.role)).toEqual([
+            'assistant',
+            'user',
+        ])
+        expect(retry.messages[2].content).toBe('Here are the chapters you asked for.')
+    })
+
+    it('gives up after the second answer that is not JSON', async () => {
+        const fetchImpl = jest.fn(async () => chatResponse('Sorry.'))
+        await expect(name(fetchImpl)).resolves.toMatchObject({
+            chapters: [],
+            rejected: 'answer is not a JSON chapter list',
+        })
+        expect(fetchImpl).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not ask the model about a video without speech', async () => {
+        const fetchImpl = jest.fn()
+        await expect(name(fetchImpl, { language: 'en', segments: [] })).resolves.toEqual({
+            chapters: [],
+            rejected: 'no speech',
+            snaps: [],
+        })
+        expect(fetchImpl).not.toHaveBeenCalled()
+    })
+})
+
+describe('translateCues', () => {
+    // Two sentences per 15 s segment pair: units 0 … 9.
+    const CUES = buildCues(lesson((idx) => (idx % 2 ? 'and we pull the guard.' : 'Now we grip the collar')))
+    const russian = (ids: number[]) =>
+        chatResponse(JSON.stringify({ cues: ids.map((id) => ({ id, text: `перевод ${id}` })) }))
+    const askedIds = (fetchImpl: jest.Mock, call: number) =>
+        JSON.parse(bodyOf(fetchImpl, call).messages[1].content.split('\n').at(-1)).cues.map(
+            (phrase: { id: number }) => phrase.id,
+        )
+    const translate = (fetchImpl: jest.Mock) =>
+        translateCues({
+            llm: LLM,
+            context: CONTEXT,
+            cues: CUES,
+            terms: SPORT_RUSSIAN_TERMS.GRAPPLING,
+            fetchImpl: fetchImpl as never,
+        })
+
+    it('translates whole sentences and spreads them over their cues, times kept', async () => {
+        const fetchImpl = jest.fn(async () => russian([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        const translated = await translate(fetchImpl)
+        expect(fetchImpl).toHaveBeenCalledTimes(1)
+        expect(askedIds(fetchImpl, 0)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        // Each sentence spans two cues: its two words split between them.
+        expect(translated?.map((cue) => [cue.startSec, cue.endSec])).toEqual(
+            CUES.map((cue) => [cue.startSec, cue.endSec]),
+        )
+        expect(translated?.slice(0, 2).map((cue) => cue.text)).toEqual(['перевод', '0'])
+    })
+
+    it('asks again for phrases an answer left out, in short lists', async () => {
+        const fetchImpl = jest
+            .fn()
+            .mockResolvedValueOnce(russian([0, 1, 2, 3, 4, 5]))
+            .mockResolvedValueOnce(russian([6, 7]))
+            .mockResolvedValueOnce(russian([]))
+            .mockResolvedValueOnce(russian([8, 9]))
+        expect(await translate(fetchImpl)).toHaveLength(CUES.length)
+        expect([1, 2, 3].map((call) => askedIds(fetchImpl, call))).toEqual([
+            [6, 7, 8],
+            [9],
+            [8, 9],
+        ])
+    })
+
+    it('asks once more with the shape spelled out when the answer is not JSON', async () => {
+        const fetchImpl = jest
+            .fn()
+            .mockResolvedValueOnce(chatResponse('Конечно!'))
+            .mockResolvedValueOnce(russian([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        expect(await translate(fetchImpl)).toHaveLength(CUES.length)
+        expect(bodyOf(fetchImpl, 1).messages.slice(2).map((m: { role: string }) => m.role)).toEqual([
+            'assistant',
+            'user',
+        ])
+    })
+
+    it('names the sport’s terms the batch says, and puts mistranslated ones right', async () => {
+        const fetchImpl = jest.fn(async () =>
+            chatResponse(
+                JSON.stringify({
+                    cues: Array.from({ length: 10 }, (_, id) => ({ id, text: 'Тянем в защиту.' })),
+                }),
+            ),
+        )
+        const translated = await translate(fetchImpl)
+        expect(bodyOf(fetchImpl).messages[1].content).toContain(
+            'Terminology (English → Russian): guard → гард',
+        )
+        expect(translated?.slice(0, 2).map((cue) => cue.text)).toEqual(['Тянем в', 'гард.'])
+    })
+
+    it('gives up when phrases stay missing', async () => {
+        const fetchImpl = jest.fn(async () => russian([0, 1]))
+        await expect(translate(fetchImpl)).resolves.toBeNull()
     })
 })

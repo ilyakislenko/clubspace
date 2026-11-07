@@ -34,6 +34,20 @@
           "cwd": "{workspaceRoot}"
         }
       },
+      "backfill-transcripts": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node --import tsx apps/video-worker/scripts/backfill-transcripts.ts",
+          "cwd": "{workspaceRoot}"
+        }
+      },
+      "backfill-techniques": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node --import tsx apps/video-worker/scripts/backfill-techniques.ts",
+          "cwd": "{workspaceRoot}"
+        }
+      },
       "test": {
         "executor": "@nx/jest:jest",
         "options": {

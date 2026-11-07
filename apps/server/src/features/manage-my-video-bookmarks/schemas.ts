@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { assertActiveWorkspaceMembership } from '../../shared/access/assert-membership'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
+import { BookmarkDrawingSchema, parseStoredDrawing } from './drawing'
 
 export const MyVideoBookmarkSchema = z.object({
     id: z.string().uuid(),
@@ -12,6 +13,8 @@ export const MyVideoBookmarkSchema = z.object({
     endSec: z.number().int().nullable(),
     label: z.string(),
     note: z.string(),
+    // A sketch over the paused frame at `positionSec`; null = none.
+    drawing: BookmarkDrawingSchema.nullable(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
     // Tombstone (deleted on some device); only PUT ever returns one.
@@ -27,6 +30,7 @@ export const serializeMyVideoBookmark = (row: {
     endSec: number | null
     label: string
     note: string
+    drawing: unknown
     createdAt: Date
     updatedAt: Date
     deletedAt: Date | null
@@ -37,6 +41,7 @@ export const serializeMyVideoBookmark = (row: {
     endSec: row.endSec,
     label: row.label,
     note: row.note,
+    drawing: parseStoredDrawing(row.drawing),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     deleted: row.deletedAt !== null,

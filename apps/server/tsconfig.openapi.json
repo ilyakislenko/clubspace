@@ -5,6 +5,6 @@
       "module": "commonjs",
       "target": "ES2022"
     },
-    "include": ["src/generate-open-api.tool.ts", "src/**/*.ts"]
+    "include": ["src/generate-open-api.tool.ts", "src/**/*.ts", "../../libs/sport-glossary/src/**/*.ts"]
   }
   

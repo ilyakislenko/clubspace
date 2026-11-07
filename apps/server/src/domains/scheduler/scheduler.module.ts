@@ -10,7 +10,9 @@ import { FirstVisitPendingService } from '../subscriptions/services/first-visit-
 import { PaymentReminderService } from '../subscriptions/services/payment-reminder.service'
 import { DailyClubService } from './daily-club.service'
 import { DataPurgeService } from './data-purge.service'
+import { PlaylistModule } from '../playlist/playlist.module'
 import { RemindersService } from './reminders.service'
+import { ReviewRemindersService } from './review-reminders.service'
 import { ClassBookingService } from '../class-bookings/class-booking.service'
 import { SCHEDULER_PROCESSORS, SCHEDULER_QUEUES } from './scheduler.processors'
 
@@ -23,6 +25,8 @@ import { SCHEDULER_PROCESSORS, SCHEDULER_QUEUES } from './scheduler.processors'
         NotificationProducerModule,
         RealtimeModule,
         AnalyticsModule,
+        // CourseAccessService: review reminders count only cards still watchable.
+        PlaylistModule,
         ...Object.values(SCHEDULER_QUEUES).map((name) =>
             BullModule.registerQueue({ name }),
         ),
@@ -35,6 +39,7 @@ import { SCHEDULER_PROCESSORS, SCHEDULER_QUEUES } from './scheduler.processors'
         PaymentReminderService,
         RetentionDigestService,
         ClassBookingService,
+        ReviewRemindersService,
         ...SCHEDULER_PROCESSORS,
     ],
 })

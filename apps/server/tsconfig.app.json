@@ -6,7 +6,7 @@
     "types": [
       "node"
     ],
-    "rootDir": "src",
+    "rootDir": "../..",
     "moduleResolution": "nodenext",
     "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo",
     "experimentalDecorators": true,
@@ -14,7 +14,8 @@
     "target": "es2021"
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "../../libs/sport-glossary/src/**/*.ts"
   ],
   "exclude": [
     "eslint.config.js",

@@ -1,3 +1,4 @@
+import { Prisma } from '../../infrastructure/prisma'
 import {
     BadRequestError,
     ForbiddenError,
@@ -19,6 +20,7 @@ type Stored = {
     endSec: number | null
     label: string
     note: string
+    drawing?: unknown
     createdAt: Date
     updatedAt: Date
     deletedAt: Date | null
@@ -191,6 +193,44 @@ describe('PutMyVideoBookmarkHandler', () => {
         const res = await put(prisma, body({ deleted: false }))
         expect(prisma.videoBookmark.update.mock.calls[0][0].data.deletedAt).toBeNull()
         expect(res).toMatchObject({ deleted: false, label: 'guard pass' })
+    })
+
+    const drawing = {
+        strokes: [{ tool: 'arrow', color: 'red', points: [0.1, 0.2, 0.5, 0.6] }],
+    }
+
+    it('stores and returns a drawing', async () => {
+        const { prisma } = build()
+        const res = await put(prisma, body({ drawing }))
+        expect(prisma.videoBookmark.create.mock.calls[0][0].data.drawing).toEqual(
+            drawing,
+        )
+        expect(res.drawing).toEqual(drawing)
+    })
+
+    it('keeps the stored drawing when a client omits the field', async () => {
+        const { prisma } = build({ existing: stored({ drawing }) })
+        const res = await put(prisma)
+        expect(prisma.videoBookmark.update.mock.calls[0][0].data).not.toHaveProperty(
+            'drawing',
+        )
+        expect(res.drawing).toEqual(drawing)
+    })
+
+    it('clears the drawing on an explicit null', async () => {
+        const { prisma } = build({ existing: stored({ drawing }) })
+        await put(prisma, body({ drawing: null }))
+        expect(prisma.videoBookmark.update.mock.calls[0][0].data.drawing).toBe(
+            Prisma.DbNull,
+        )
+    })
+
+    it('serializes an unreadable stored drawing as none', async () => {
+        const { prisma } = build({
+            existing: stored({ drawing: { strokes: 'garbage' } }),
+        })
+        const res = await put(prisma, body({ updatedAt: '2026-01-01T12:00:00.000Z' }))
+        expect(res.drawing).toBeNull()
     })
 })
 

@@ -1,8 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { buildCourseAudienceWhere } from '../../domains/playlist/services/course-audience'
 import { CourseAccessService } from '../../domains/playlist/services/course-access.service'
-import { buildCourseVisibilityClauses } from '../../domains/playlist/services/playlist-visibility'
+import { visibleVideoCourseSelect } from '../../domains/playlist/services/video-course-pick'
 import { PrismaService } from '../../infrastructure/prisma'
 import { serializeMyVideoBookmark } from '../manage-my-video-bookmarks/schemas'
 import {
@@ -58,23 +57,8 @@ export class ListMyVideoNotesHandler
                 title: true,
                 thumbnailUrl: true,
                 duration: true,
-                courses: {
-                    // Only a course this viewer could open from the course
-                    // list (published, not hidden by group/direction audience).
-                    where: {
-                        course: {
-                            AND: [
-                                ...buildCourseVisibilityClauses({
-                                    includeUnpublished: viewer.isStaff,
-                                }),
-                                ...buildCourseAudienceWhere(viewer),
-                            ],
-                        },
-                    },
-                    orderBy: { course: { createdAt: 'asc' } },
-                    take: 1,
-                    select: { course: { select: { id: true, title: true } } },
-                },
+                // Only a course this viewer could open from the course list.
+                courses: visibleVideoCourseSelect(viewer),
             },
         })
 

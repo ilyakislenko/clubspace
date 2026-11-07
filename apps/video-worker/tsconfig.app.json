@@ -15,7 +15,7 @@
     "declarationMap": true,
     "baseUrl": "../.."
   },
-  "include": ["src/**/*.ts", "scripts/**/*.ts", "../../libs/prisma-client/src/**/*.ts"],
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "../../libs/prisma-client/src/**/*.ts", "../../libs/sport-glossary/src/**/*.ts"],
   "exclude": [
     "eslint.config.js",
     "eslint.config.cjs",

@@ -18,6 +18,7 @@ COPY apps/server/package.json apps/server/
 COPY apps/video-worker/package.json apps/video-worker/
 COPY libs/api-client/package.json libs/api-client/
 COPY libs/prisma-client/package.json libs/prisma-client/
+COPY libs/sport-glossary/package.json libs/sport-glossary/
 RUN --mount=type=cache,target=/root/.npm npm ci
 
 # No Nx daemon or Nx Cloud inside a one-shot image build (see apps/admin/Dockerfile).
@@ -55,6 +56,10 @@ COPY --from=builder /workspace/node_modules ./node_modules
 # ./libs/prisma-client via the node_modules symlink; plain node (no tsx / TS path
 # aliases) then needs an entry point there to load the compiled client.
 RUN printf '{"type":"module","main":"src/index.js"}\n' > libs/prisma-client/package.json
+
+# Same for libs/sport-glossary (an ESM workspace package; tsc emits it to
+# ./libs/sport-glossary/src, the node_modules symlink comes from npm ci).
+RUN printf '{"type":"module","main":"src/index.js"}\n' > libs/sport-glossary/package.json
 
 # Chapter OCR (src/chapter-ocr.ts) runs tesseract.js — WebAssembly, no system
 # package — with its English model from @tesseract.js-data/eng, both in the

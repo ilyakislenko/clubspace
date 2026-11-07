@@ -25,6 +25,8 @@ const build = (existing: unknown = EXISTING) => {
                 ...data,
             })),
         },
+        // «Техники» reindex after a change (covered in chapter-mentions.spec).
+        video: { findUnique: jest.fn().mockResolvedValue(null) },
     }
     const handler = new UpdateVideoTimestampHandler(prisma as never)
     return { handler, prisma }
@@ -61,6 +63,7 @@ describe('UpdateVideoTimestampHandler', () => {
             id: 'ts1',
             positionSec: 5000,
             title: 'SLX Toe Hold',
+            source: 'manual',
         })
     })
 
@@ -71,7 +74,12 @@ describe('UpdateVideoTimestampHandler', () => {
             where: { id: 'ts1' },
             data: { title: 'SLX Toe Hold Finish', source: 'manual' },
         })
-        expect(result).toEqual({ id: 'ts1', positionSec: 30, title: 'SLX Toe Hold Finish' })
+        expect(result).toEqual({
+            id: 'ts1',
+            positionSec: 30,
+            title: 'SLX Toe Hold Finish',
+            source: 'manual',
+        })
     })
 
     it('makes a moved automatic chapter manual', async () => {

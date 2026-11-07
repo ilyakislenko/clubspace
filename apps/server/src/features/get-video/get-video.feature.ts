@@ -45,6 +45,8 @@ const TimestampSchema = z.object({
     id: z.string().uuid(),
     positionSec: z.number().int(),
     title: z.string(),
+    // manual | ocr | speech (made by the worker; a staff edit makes it manual).
+    source: z.string(),
 })
 
 const SubtitleSchema = z.object({
@@ -53,6 +55,8 @@ const SubtitleSchema = z.object({
     label: z.string(),
     publicUrl: z.string(),
     isDefault: z.boolean(),
+    // manual (uploaded by staff) | auto (made by the worker from speech).
+    source: z.string(),
 })
 
 export const GetVideoFeatureOutputSchema = z.object({

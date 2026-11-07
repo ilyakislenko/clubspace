@@ -24,10 +24,11 @@ import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
-import { downloadVettedSource, ffmpegBinary, prisma } from '../src/clients.js'
+import { downloadVettedSource, ffmpegBinary, prisma, subtitleStore } from '../src/clients.js'
 import { environment } from '../src/environment.js'
-import { makeChapters } from '../src/make-chapters.js'
-import { llmConfigFrom, speechConfigFrom } from '../src/speech.js'
+import { hasFlag, videoIdsFrom } from '../src/script-args.js'
+import { llmConfigFrom, whisperConfigFrom } from '../src/speech.js'
+import { processVideoText } from '../src/video-text.js'
 
 type Candidate = {
     id: string
@@ -36,24 +37,11 @@ type Candidate = {
     rawKey: string | null
 }
 
-// Also as nx forwards it (`--rescan-auto=true`).
-const RESCAN_AUTO = process.argv.some((arg) => /^--rescan-?auto(=true)?$/i.test(arg))
-
-// `--video <id>`, `--video=<id>`, `--video=<id>,<id>`.
-const VIDEO_IDS = process.argv
-    .flatMap((arg, idx, args) =>
-        arg === '--video' ? [args[idx + 1] ?? ''] : arg.startsWith('--video=') ? [arg.slice(8)] : [],
-    )
-    .flatMap((value) => value.split(','))
-    .map((value) => value.trim())
-    .filter(Boolean)
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const badId = VIDEO_IDS.find((id) => !UUID.test(id))
-if (badId) throw new Error(`[backfill-chapters] --video takes a video id, got «${badId}»`)
+const RESCAN_AUTO = hasFlag(process.argv, 'rescan-auto')
+const VIDEO_IDS = videoIdsFrom(process.argv)
 
 const llm = llmConfigFrom(environment.chaptersLlm)
-const speechSetup = speechConfigFrom(environment)
-const speech = 'config' in speechSetup ? speechSetup.config : null
+const whisper = whisperConfigFrom(environment)
 
 const errorText = (error: unknown) =>
     error instanceof Error ? error.message : String(error)
@@ -73,18 +61,24 @@ async function resetAutoChapters(videoId: string) {
     })
 }
 
+// The chapter chain — and the transcript and automatic subtitles along the
+// way, when the video has none yet.
 async function backfill(video: Candidate) {
     const workdir = await fs.mkdtemp(join(tmpdir(), `chapters-${video.id}-`))
     try {
-        return await makeChapters({
-            prisma,
-            videoId: video.id,
-            ffmpegBinary,
-            workdir,
-            llm,
-            speech,
-            loadSource: () => downloadVettedSource(video, join(workdir, 'source')),
-        })
+        return await processVideoText(
+            {
+                prisma,
+                videoId: video.id,
+                ffmpegBinary,
+                workdir,
+                llm,
+                whisper,
+                subtitleStore,
+                loadSource: () => downloadVettedSource(video, join(workdir, 'source')),
+            },
+            { chapters: true },
+        )
     } finally {
         await fs.rm(workdir, { recursive: true, force: true })
     }
@@ -106,10 +100,7 @@ async function main() {
         `[backfill-chapters] ${RESCAN_AUTO ? 'rescan: ' : ''}${videos.length} ready video(s) ${RESCAN_AUTO ? 'without manual chapters' : 'not scanned for chapters'}${VIDEO_IDS.length > 0 ? ` of ${VIDEO_IDS.length} requested` : ''}`,
     )
     console.log('[backfill-chapters] chat model', llm ? `${llm.model} at ${llm.baseUrl}` : 'off')
-    console.log(
-        '[backfill-chapters] speech chapters',
-        'config' in speechSetup ? 'on' : `off: ${speechSetup.disabled}`,
-    )
+    console.log('[backfill-chapters] whisper', whisper ? 'on' : 'off: WHISPER_MODEL_PATH is not set')
 
     const counts = { created: 0, none: 0, kept: 0, ocr: 0, speech: 0, skipped: 0 }
     const failed: Array<{ id: string; title: string; error: string }> = []
@@ -122,15 +113,20 @@ async function main() {
                 console.log(`[backfill-chapters] skipped ${video.id} «${video.title}»: manual chapters`)
                 continue
             }
-            const run = await backfill(video)
-            counts[run.outcome] += 1
-            if (run.outcome === 'created' && run.source) counts[run.source] += 1
+            const { chapters, snapped, subtitles } = await backfill(video)
+            if (!chapters) throw new Error('the chapter step did not run')
+            counts[chapters.outcome] += 1
+            if (chapters.outcome === 'created' && chapters.source) counts[chapters.source] += 1
             const notes = [
-                run.ocr?.reviewed && `titles kept by the model: ${run.ocr.reviewed}`,
-                run.speech?.rejected && `speech: ${run.speech.rejected}`,
+                chapters.ocr?.reviewed && `titles kept by the model: ${chapters.ocr.reviewed}`,
+                chapters.speech?.rejected && `speech: ${chapters.speech.rejected}`,
+                snapped && `snapped: ${snapped.join(', ')}`,
+                subtitles &&
+                    Object.keys(subtitles).length > 0 &&
+                    `subtitles: ${JSON.stringify(subtitles)}`,
             ].filter(Boolean)
             console.log(
-                `[backfill-chapters] ${run.outcome} ${video.id} «${video.title}»: ${run.chapters} chapter(s)${run.source ? ` from ${run.source}` : ''}${notes.length ? ` (${notes.join('; ')})` : ''} in ${Math.round((Date.now() - startedAt) / 1000)}s`,
+                `[backfill-chapters] ${chapters.outcome} ${video.id} «${video.title}»: ${chapters.chapters} chapter(s)${chapters.source ? ` from ${chapters.source}` : ''}${notes.length ? ` (${notes.join('; ')})` : ''} in ${Math.round((Date.now() - startedAt) / 1000)}s`,
             )
         } catch (error) {
             failed.push({ id: video.id, title: video.title, error: errorText(error) })

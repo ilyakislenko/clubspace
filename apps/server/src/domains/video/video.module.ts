@@ -8,6 +8,7 @@ import { NotificationProducerModule } from '../notifications/notification-produc
 import { PlaylistModule } from '../playlist/playlist.module'
 import { CategoryService } from './services/category.service'
 import { TagService } from './services/tag.service'
+import { VideoTextProducer } from './services/video-text.producer'
 import { VideoTranscodeProducer } from './services/video-transcode.producer'
 import { VideoService } from './services/video.service'
 
@@ -25,14 +26,23 @@ import { VideoService } from './services/video.service'
         BullModule.registerQueue(
             { name: 'video-transcode' },
             { name: 'video-ready' },
+            // The worker's transcript/subtitles/chapters jobs («Пересоздать»).
+            { name: 'video-chapters' },
         ),
     ],
-    providers: [VideoService, TagService, CategoryService, VideoTranscodeProducer],
+    providers: [
+        VideoService,
+        TagService,
+        CategoryService,
+        VideoTranscodeProducer,
+        VideoTextProducer,
+    ],
     exports: [
         VideoService,
         TagService,
         CategoryService,
         VideoTranscodeProducer,
+        VideoTextProducer,
         BullModule,
     ],
 })

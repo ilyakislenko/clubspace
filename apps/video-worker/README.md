@@ -51,12 +51,15 @@ After a transcode hands the video off as `ready`, it queues a
 `video-chapters` job (job id `chapters-<videoId>`, so queuing twice adds
 nothing). The worker runs those one at a time in the same process, apart from
 the transcode: a restart while chapters are read re-runs only the chapter
-job, never the transcode. The job downloads the upload again and runs the
-chain in `src/make-chapters.ts`: first the technique titles burned into the
-picture (lower-third captions like «SLX Toe Hold», `source = 'ocr'`), vetted
-by the chat model when one is configured, and only when fewer than two hold
-up — and the video still has no chapters — what the instructor says
-(`source = 'speech'`, see [Chapters from speech](#chapters-from-speech)).
+job, never the transcode. The job downloads the upload again and runs
+`src/video-text.ts`: first the transcript and automatic subtitles (see
+[Transcripts and subtitles](#transcripts-and-subtitles)), then the chapter
+chain: the technique titles burned into the picture (lower-third captions
+like «SLX Toe Hold», `source = 'ocr'`), vetted by the chat model when one is
+configured, and only when fewer than two hold up — and the video still has
+no chapters — what the instructor says (`source = 'speech'`, see
+[Chapters from speech](#chapters-from-speech)). The upload is downloaded at
+most once per job, and only when a step needs it.
 
 Chapters are stored at once as `VideoTimestamp` rows, only while the video
 has no chapters, so a coach's chapters are never replaced or mixed with
@@ -69,6 +72,18 @@ process, a warning after that) and never touches the transcode. Each ffmpeg
 or whisper-cli run may take a second per second of video, within 5 minutes
 to an hour. The log line `[video-worker] chapters` carries the outcome, the
 source and the time each step took (OCR: about 20 s for a 19-minute lesson).
+
+Staff's «Пересоздать главы/субтитры» on the admin video page queues the same
+job with `{ regenerate: true }` (job id `chapters-regen-<videoId>`). The
+server first deletes the automatic chapters (only when the video has no
+manual ones) and clears the stamp, and/or deletes the automatic subtitle
+tracks; the job then ignores the stamp, makes chapters only if the stamp is
+clear, and remakes the missing tracks from the stored transcript.
+
+After every chapters job (and with `backfill-techniques` for all ready
+videos) the lesson's «Техники» mentions are rebuilt: the techniques of the
+club sport's glossary (`libs/sport-glossary`) named in its chapter titles,
+transcript and Russian translation, stored as `VideoTechniqueMention` rows.
 
 ### Titles on screen
 
@@ -109,21 +124,16 @@ scaled to 960 px wide. The heuristics live in `src/chapters.ts`:
 
 ### Chapters from speech
 
-For videos without titles on screen. ffmpeg extracts the audio (16 kHz mono,
-same input vetting as the transcode), [whisper.cpp](https://github.com/ggml-org/whisper.cpp)'s
-`whisper-cli` transcribes it (language auto-detected; `--prompt` with the
-words of the video's and courses' titles as a vocabulary list, so it spells
-the techniques they name — it heard «Kimura» as «Camorra» without; whole
-titles made it hallucinate «7. Octopus 2.0» over real speech), and a chat
-model behind any OpenAI-compatible `/chat/completions` endpoint splits the
-`[mm:ss] text` transcript into chapters named after techniques, positions or
-concepts (2–7 words, in the language the instructor speaks, an introduction
-allowed first; JSON mode). The prompt carries the same titles and tells the
-model a transcript word sounding like a technique named there is that
-technique, without inventing techniques. Transcript segments that repeat the
-one before word for word, or consist only of prompt words, are Whisper
-hallucinating over music and are dropped. `src/speech-chapters.ts` then
-checks the answer:
+For videos without titles on screen. The video's transcript (see
+[Transcripts and subtitles](#transcripts-and-subtitles): Whisper, technique
+names snapped to the glossary, hallucinations dropped) goes as `[mm:ss] text`
+to a chat model behind any OpenAI-compatible `/chat/completions` endpoint,
+which splits it into chapters named after techniques, positions or concepts
+(2–7 words, in the language the instructor speaks, an introduction allowed
+first; JSON mode). The prompt carries the video's titles and up to 80 of the
+sport's terms, and tells the model that a word sounding like one of them is
+that technique, without inventing techniques. `src/speech-chapters.ts`
+then checks the answer:
 
 - parsed leniently (a bare list, a Markdown code fence, text around the JSON;
   `start`/`time`/`timestamp` as `mm:ss`, `h:mm:ss` or seconds;
@@ -150,14 +160,14 @@ scan: the video stays unscanned and the backfill retries it.
 | Variable | |
 |---|---|
 | `WHISPER_CLI_PATH` | whisper.cpp CLI, default `whisper-cli` (on `PATH`) |
-| `WHISPER_MODEL_PATH` | ggml model, e.g. `ggml-small.bin` (multilingual). **Unset: the speech step is off** |
+| `WHISPER_MODEL_PATH` | ggml model, e.g. `ggml-small.bin` (multilingual). **Unset: no transcripts, so no subtitles or speech chapters** |
 | `CHAPTERS_LLM_BASE_URL` | OpenAI-compatible API root (…`/v1`). Unset: off |
 | `CHAPTERS_LLM_MODEL` | model name at that API. Unset: off |
 | `CHAPTERS_LLM_API_KEY` | sent as `Authorization: Bearer …`; optional (local servers) |
 
-Without `WHISPER_*` the speech step is off; with only the `CHAPTERS_LLM_*`
+Without `WHISPER_*` there are no transcripts; with only the `CHAPTERS_LLM_*`
 variables the model still reviews OCR titles. The worker logs at startup
-what is on (`chaptersLlm`, `speechChapters`).
+what is on (`chaptersLlm`, `whisper`).
 
 ```bash
 # OpenRouter
@@ -188,6 +198,40 @@ and set `WHISPER_MODEL_PATH` to it.
 one that compiles whisper.cpp in. Alternatively run the backfill from a host
 that has both.
 
+### Glossary
+
+Technique names are snapped to their spelling in a glossary
+(`src/term-snap.ts`) in OCR titles, in the transcript before the model reads
+it, and in the model's titles: «Komura»/«Camorra»/«Khmer» → «Kimura»,
+«Inside Sankakuh»/«Inside Sankal» → «Inside Sankaku», «Omaplata» →
+«Omoplata», «Darcy choke» → «Darce choke», «Комура» → «Кимура» (keeping the
+Russian case ending: «комуру» → «кимуру»). Known mishearings too short to
+snap by spelling are replaced by a per-sport list (`SPORT_MISHEARINGS`:
+«ghee» → «gi», «no ghee» → «no-gi»). The log line carries them:
+`snapped: ["Komura→Kimura ×2"]`.
+
+- **Terms:** the sport's list for the club's `WorkspaceType`
+  (`libs/sport-glossary/src/glossary.ts`: 230 grappling terms, 49 of them Russian;
+  short lists for fitness, yoga, dance; none for custom clubs), plus the
+  club's own words — uncommon words of its course and video titles, and its
+  staff's chapter titles (`source = 'manual'`; up to 3 words as a phrase).
+  Automatic chapters are never used, so a misreading cannot confirm itself.
+- **Match:** a span of 1–3 words against a term of as many words, in the same
+  script — one changed letter from 5 letters up (one added or dropped from
+  6), two edits from 7, or the same consonant skeleton (Cyrillic
+  transliterated) from 6 letters with at most 60% of the letters different.
+- **Never changed:** ordinary words — the ~10k most common English words
+  (`src/common-english-words.ts`, generated from SCOWL size 10 + 20 via the
+  `wordlist-english` package) and a hand-written list of common Russian ones
+  — so «camera», «comma», «guard», «drill» stay; glossary words themselves;
+  words under 4 letters; an English term with an ending («Kimuras»,
+  «sprawled»); a Russian term declined («кимуру»).
+- **Whisper's prompt** holds only terms relevant to the titles: with the 45
+  commonest grappling terms it wrote the Kimura of «Octopus 2.0 · Vol 4 ·
+  часть 3» as «commuter» — an ordinary word nothing may correct afterwards.
+
+Rescan videos to apply it to existing automatic chapters (see Backfill).
+
 ### Backfill
 
 For videos the worker has not scanned (from before chapters, or whose scan
@@ -196,7 +240,8 @@ with `chaptersScannedAt` null, one at a time. A video that already has
 chapters is only stamped, not downloaded. Idempotent — a finished scan stamps
 the video, so a re-run only revisits failures. Prints a summary (created
 from titles / from speech, no chapters, kept existing, failed) and exits
-non-zero if any video failed. Same environment as the worker.
+non-zero if any video failed. Same environment as the worker. Like the job,
+it transcribes and subtitles a video that has no transcript yet.
 
 `--rescan-auto` scans again every `ready` video that has no manual chapter
 — after switching to a better model (OpenRouter) or improving the prompts.
@@ -217,4 +262,94 @@ npx nx run @clubspace/video-worker:backfill-chapters -- --rescan-auto --video=<i
 # production, inside the running worker container
 docker compose -f docker-compose.prod.yml --env-file .env.production \
   exec video-worker node apps/video-worker/scripts/backfill-chapters.js [--rescan-auto] [--video <id>]
+```
+
+## Transcripts and subtitles
+
+Every video gets a transcript once, and every video with speech (a
+transcript of 40 words or more) gets automatic subtitles — in the spoken
+language and in Russian, the members' language. Both are made by the
+`video-chapters` job (before the chapter chain, which reuses the transcript)
+and by `backfill-transcripts`.
+
+- **Transcript:** ffmpeg extracts the audio (16 kHz mono, same input vetting
+  as the transcode), [whisper.cpp](https://github.com/ggml-org/whisper.cpp)'s
+  `whisper-cli` transcribes it (language auto-detected; `--prompt` with the
+  words of the video's and courses' titles plus the glossary terms sharing a
+  word with them, ≈ 200 tokens at most — see [Glossary](#glossary)).
+  Segments that repeat the one before word for word, or consist only of
+  prompt words, are Whisper hallucinating over music and are dropped;
+  technique names are snapped to the glossary. Stored as `VideoTranscript`
+  (`language`, `segments: [{ from, to, text }]` in seconds) — also for a
+  silent video or one without audio (empty, language `und`), so it is never
+  downloaded again for it. A stored transcript is read back, not redone.
+- **Cues** (`src/subtitles.ts`): a segment shorter than 1 s or 3 words joins
+  the one before (within 1 s, while the two fit 84 characters); a segment is
+  cut into cues of at most two lines of 42 characters and about 6 s — but
+  never into cues under 5 words — each timed by its share of the letters.
+  WebVTT, `HH:MM:SS.mmm`, two balanced lines; `-->` and `<`/`>` cannot
+  appear in a cue. The app's parser (`apps/mobile/src/features/video/subtitle-vtt.ts`)
+  reads them back cue for cue (`src/subtitles.spec.ts`).
+- **Russian:** when the speech is not Russian, the chat model
+  (`CHAPTERS_LLM_*`) translates whole sentences — segments joined up to a
+  full stop, at most 300 characters; Whisper often cuts mid-sentence, and a
+  7B model given half-sentences merged them and shifted every later line —
+  15 per request, as JSON `{"cues":[{"id","text"}]}` by id. The prompt asks
+  for natural spoken Russian, as a Russian-speaking coach would say it, short
+  enough to read; the sport's terms the way Russian-speaking athletes say
+  them — each request lists the terms its phrases say from the bilingual
+  glossary (`SPORT_RUSSIAN_TERMS` in `libs/sport-glossary/src/glossary.ts`, per
+  `WorkspaceType`; grappling: gi → ги, crossface → кроссфейс, crucifix →
+  крусификс, octopus guard → октопус-гард, half guard → полугард, …) —
+  other names kept in Latin letters as the instructor says them; each phrase
+  on its own, nothing added or dropped. The answer is then put right where
+  the English said a term: its known mistranslations («крестный захват»,
+  «крест», «осьминог», «гее», with case endings) and the term left in Latin
+  letters become the glossary's form (`fixTerminology`; an ending after a
+  preposition is carried over: «перекрёстным захватом» → «кроссфейсом»). An
+  answer that is not JSON is asked again once with the shape spelled out;
+  phrases an answer left out are asked for again in lists of 3, twice; still
+  missing → no Russian track (never a track with holes). Each sentence's
+  translation is spread over its cues by their share of the letters, so the
+  times stay those of the speech. The
+  translated cues are also stored as `VideoTranscript.translations`
+  (`{ "ru": [{ from, to, text }] }`) for search inside videos.
+- **Tracks:** uploaded like a staff upload (`subtitles/<videoId>/<lang>/<uuid>.vtt`,
+  the anonymously readable prefix) and stored as `VideoSubtitle` rows with
+  `source = 'auto'`, labelled «English (авто)», «Русский (авто)» (the
+  language's own name). A language that has a track is left alone; staff's
+  tracks (`source = 'manual'`, every upload through the admin) are never
+  replaced, and an upload replaces an automatic track. The Russian track
+  becomes the default only when the video has no default track.
+- **Never fails the job:** a failed or unusable step is logged
+  (`subtitles: { en: 'created', ru: 'translation unusable' }`) and the
+  chapter chain runs on.
+
+The worker's storage account needs write access to `subtitles/*`
+(`deploy/minio-init.sh`); re-run `minio-init` after upgrading an existing
+install. It cannot delete there, so a redone automatic track leaves its old
+file behind (unreferenced).
+
+### Backfill
+
+For videos from before transcripts: every `ready` video without a
+`VideoTranscript`, one at a time — transcribed from the stored upload, then
+subtitled. Chapters are left to `backfill-chapters`. Idempotent: a re-run only
+revisits videos whose transcript failed. Prints a summary and exits non-zero
+if any video failed. Same environment as the worker; needs `WHISPER_*`.
+
+`--redo-auto-subtitles` rebuilds the automatic tracks of transcribed videos
+from their stored transcript, without a download — after a better chat model
+or prompt. Staff's tracks stay. `--video <id>` (repeatable, or
+comma-separated) limits either mode to those videos.
+
+```bash
+# dev (reads the root .env, like `nx serve`)
+npx nx run @clubspace/video-worker:backfill-transcripts
+npx nx run @clubspace/video-worker:backfill-transcripts -- --video=<id>,<id>
+npx nx run @clubspace/video-worker:backfill-transcripts -- --redo-auto-subtitles
+
+# production, inside the running worker container
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec video-worker node apps/video-worker/scripts/backfill-transcripts.js [--redo-auto-subtitles] [--video <id>]
 ```

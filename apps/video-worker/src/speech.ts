@@ -3,6 +3,7 @@ import { promises as fs } from 'fs'
 import { join } from 'path'
 
 import type { Chapter } from './chapters.js'
+import type { RussianTerm } from '@clubspace/sport-glossary'
 import {
     buildChapterPrompt,
     type ChapterContext,
@@ -13,15 +14,30 @@ import {
     parseWhisperJson,
     retryMessages,
     type SpeechChapters,
+    type Transcript,
     whisperPrompt,
 } from './speech-chapters.js'
+import {
+    buildTranslationPrompt,
+    type Cue,
+    fixTerminology,
+    parseTranslation,
+    type Phrase,
+    termsIn,
+    TRANSLATION_BATCH,
+    translatedCues,
+    translationRetryMessages,
+    unitsOf,
+} from './subtitles.js'
+import { type Glossary, type Snap, snapTerms } from './term-snap.js'
 import { buildTitleReviewPrompt, parseTitleReview } from './title-review.js'
 
-// The chapter steps' outside tools: ffmpeg for the audio, whisper.cpp's CLI
-// for the transcript, any OpenAI-compatible chat endpoint (OpenRouter,
-// Ollama, …) to name the chapters and to vet titles read off the screen. All
-// optional: without the endpoint OCR titles go unreviewed and there is no
-// speech step; without Whisper there is no speech step.
+// The outside tools of the chapter and subtitle steps: ffmpeg for the audio,
+// whisper.cpp's CLI for the transcript, any OpenAI-compatible chat endpoint
+// (OpenRouter, Ollama, …) to name chapters, vet titles read off the screen and
+// translate subtitles. All optional: without Whisper there is no transcript
+// (so no subtitles and no speech chapters); without the endpoint OCR titles go
+// unreviewed, there are no speech chapters and no translation.
 
 // A local 7B model needs a while for an hour of transcript.
 const LLM_TIMEOUT_MS = 5 * 60_000
@@ -32,10 +48,9 @@ export interface LlmConfig {
     apiKey?: string
 }
 
-export interface SpeechConfig {
-    whisperCliPath: string
-    whisperModelPath: string
-    llm: LlmConfig
+export interface WhisperConfig {
+    cliPath: string
+    modelPath: string
 }
 
 /** The chat endpoint, when both its URL and model are set. */
@@ -48,23 +63,12 @@ export const llmConfigFrom = (env: {
         ? { baseUrl: env.baseUrl, model: env.model, ...(env.apiKey && { apiKey: env.apiKey }) }
         : null
 
-/** The speech step's settings, or why it is off. */
-export const speechConfigFrom = (env: {
+/** Whisper, when a model is set. */
+export const whisperConfigFrom = (env: {
     whisperCliPath: string
     whisperModelPath?: string
-    chaptersLlm: { baseUrl?: string; model?: string; apiKey?: string }
-}): { config: SpeechConfig } | { disabled: string } => {
-    if (!env.whisperModelPath) return { disabled: 'WHISPER_MODEL_PATH is not set' }
-    const llm = llmConfigFrom(env.chaptersLlm)
-    if (!llm) return { disabled: 'CHAPTERS_LLM_BASE_URL or CHAPTERS_LLM_MODEL is not set' }
-    return {
-        config: {
-            whisperCliPath: env.whisperCliPath,
-            whisperModelPath: env.whisperModelPath,
-            llm,
-        },
-    }
-}
+}): WhisperConfig | null =>
+    env.whisperModelPath ? { cliPath: env.whisperCliPath, modelPath: env.whisperModelPath } : null
 
 /** Runs a tool to completion; rejects with the end of its stderr. */
 export const runTool = (
@@ -103,9 +107,14 @@ export const runTool = (
  * 402 when the account is out of credits, 401, 429, 5xx). An operational
  * state of the endpoint rather than of the video — callers warn instead of
  * reporting each video, and the backfill retries once it is back.
+ * `transient`: worth asking again in a while (unreachable, timed out — a
+ * local Ollama busy with another request — 429 or 5xx), unlike a refusal.
  */
 export class LlmUnavailableError extends Error {
-    constructor(message: string) {
+    constructor(
+        message: string,
+        readonly transient: boolean,
+    ) {
         super(message)
         this.name = 'LlmUnavailableError'
     }
@@ -116,6 +125,7 @@ export const requestChat = async (
     llm: LlmConfig,
     messages: ChatMessage[],
     fetchImpl: typeof fetch = fetch,
+    timeoutMs = LLM_TIMEOUT_MS,
 ): Promise<string> => {
     let response: Response
     try {
@@ -132,16 +142,20 @@ export const requestChat = async (
                 temperature: 0,
                 response_format: { type: 'json_object' },
             }),
-            signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+            signal: AbortSignal.timeout(timeoutMs),
         })
     } catch (error) {
         throw new LlmUnavailableError(
             `chapters LLM unreachable: ${error instanceof Error ? error.message : String(error)}`,
+            true,
         )
     }
     if (!response.ok) {
         const detail = (await response.text()).slice(0, 300)
-        throw new LlmUnavailableError(`chapters LLM answered HTTP ${response.status}: ${detail}`)
+        throw new LlmUnavailableError(
+            `chapters LLM answered HTTP ${response.status}: ${detail}`,
+            response.status === 429 || response.status >= 500,
+        )
     }
     const body = (await response.json()) as {
         choices?: Array<{ message?: { content?: unknown } }>
@@ -163,25 +177,24 @@ export const reviewTitles = async (
         chapters,
     )
 
-export interface SpeechScan extends SpeechChapters {
-    language: string | null
-    segments: number
+/** What Whisper heard, technique names snapped to the glossary. */
+export interface Heard {
+    transcript: Transcript
+    snaps: Snap[]
 }
 
-/** Chapters from what is said in a video file. */
-export const scanSpeechChapters = async (options: {
-    config: SpeechConfig
+/** The transcript of a video file's first audio stream. */
+export const transcribeVideo = async (options: {
+    whisper: WhisperConfig
     context: ChapterContext
+    glossary: Glossary
     ffmpegBinary: string
     // Input options placed before `-i`: the probe's whitelists and demuxer.
     inputArgs: string[]
     inputPath: string
-    /** The video's length; the transcript's end when unknown. */
-    durationSec: number | null
     workdir: string
     timeoutMs: number
-    fetchImpl?: typeof fetch
-}): Promise<SpeechScan> => {
+}): Promise<Heard> => {
     const wavPath = join(options.workdir, 'speech.wav')
     const outputPrefix = join(options.workdir, 'speech')
     try {
@@ -208,13 +221,16 @@ export const scanSpeechChapters = async (options: {
             ],
             { label: 'ffmpeg audio', timeoutMs: options.timeoutMs },
         )
-        // The titles' words as a vocabulary hint (see whisperPrompt).
-        const prompt = whisperPrompt(options.context)
+        // A vocabulary hint (see whisperPrompt).
+        const prompt = whisperPrompt(
+            options.context,
+            options.glossary.terms.map((term) => term.canonical),
+        )
         await runTool(
-            options.config.whisperCliPath,
+            options.whisper.cliPath,
             [
                 '-m',
-                options.config.whisperModelPath,
+                options.whisper.modelPath,
                 '-f',
                 wavPath,
                 '-l',
@@ -229,29 +245,120 @@ export const scanSpeechChapters = async (options: {
             ],
             { label: 'whisper-cli', timeoutMs: options.timeoutMs },
         )
-        const transcript = parseWhisperJson(
-            await fs.readFile(`${outputPrefix}.json`, 'utf8'),
-            prompt,
-        )
-        const scan = { language: transcript.language, segments: transcript.segments.length }
-        if (!hasSpeech(transcript)) return { ...scan, chapters: [], rejected: 'no speech' }
-
-        // hasSpeech: there are segments.
-        const { segments } = transcript
-        const durationSec = options.durationSec ?? segments[segments.length - 1].endSec
-        const messages = buildChapterPrompt(transcript, durationSec, options.context)
-        const answer = await requestChat(options.config.llm, messages, options.fetchImpl)
-        const result = parseChapterAnswer(answer, transcript, durationSec)
-        if (result.rejected !== NOT_A_CHAPTER_LIST) return { ...scan, ...result }
-        // Not JSON at all: once more, with the shape spelled out.
-        const retry = await requestChat(
-            options.config.llm,
-            [...messages, ...retryMessages(answer)],
-            options.fetchImpl,
-        )
-        return { ...scan, ...parseChapterAnswer(retry, transcript, durationSec) }
+        const heard = parseWhisperJson(await fs.readFile(`${outputPrefix}.json`, 'utf8'), prompt)
+        // Technique names put right before anyone reads them.
+        const snaps: Snap[] = []
+        const segments = heard.segments.map((segment) => {
+            const snapped = snapTerms(segment.text, options.glossary)
+            snaps.push(...snapped.snaps)
+            return { ...segment, text: snapped.text }
+        })
+        return { transcript: { ...heard, segments }, snaps }
     } finally {
         await fs.rm(wavPath, { force: true })
         await fs.rm(`${outputPrefix}.json`, { force: true })
     }
+}
+
+export interface SpeechChapterScan extends SpeechChapters {
+    /** Misheard terms put right in the titles. */
+    snaps: Snap[]
+}
+
+/** Chapters named by the chat model from a transcript. */
+export const chaptersFromTranscript = async (options: {
+    llm: LlmConfig
+    transcript: Transcript
+    context: ChapterContext
+    glossary: Glossary
+    /** The video's length; the transcript's end when unknown. */
+    durationSec: number | null
+    fetchImpl?: typeof fetch
+}): Promise<SpeechChapterScan> => {
+    const { transcript } = options
+    if (!hasSpeech(transcript)) return { chapters: [], rejected: 'no speech', snaps: [] }
+
+    // hasSpeech: there are segments.
+    const { segments } = transcript
+    const durationSec = options.durationSec ?? segments[segments.length - 1].endSec
+    const messages = buildChapterPrompt(
+        transcript,
+        durationSec,
+        options.context,
+        options.glossary.sportTerms,
+    )
+    const answer = await requestChat(options.llm, messages, options.fetchImpl)
+    let result = parseChapterAnswer(answer, transcript, durationSec)
+    if (result.rejected === NOT_A_CHAPTER_LIST) {
+        // Not JSON at all: once more, with the shape spelled out.
+        const retry = await requestChat(
+            options.llm,
+            [...messages, ...retryMessages(answer)],
+            options.fetchImpl,
+        )
+        result = parseChapterAnswer(retry, transcript, durationSec)
+    }
+    const snaps: Snap[] = []
+    const chapters = result.chapters.map((chapter) => {
+        const snapped = snapTerms(chapter.title, options.glossary)
+        snaps.push(...snapped.snaps)
+        return { ...chapter, title: snapped.text }
+    })
+    return { ...result, chapters, snaps }
+}
+
+// What a batch's answer left out is asked for again in lists this short — a
+// local model that drops phrases from fifteen keeps all of three — for this
+// many rounds.
+const RETRY_BATCH = 3
+const RETRY_ROUNDS = 2
+
+/**
+ * The cues in Russian. Whole phrases are translated (unitsOf), in batches
+ * the model answers by id, and each phrase's translation is spread over its
+ * own cues, keeping their times. Each request lists the sport's terms its
+ * phrases say, and the answers' mistranslated terms are put right
+ * (fixTerminology). An answer that is no usable JSON is asked again once
+ * with the shape spelled out; phrases an answer leaves out are asked for
+ * again in short lists. Null when phrases are still missing: a track with
+ * holes is worse than none.
+ */
+export const translateCues = async (options: {
+    llm: LlmConfig
+    context: ChapterContext
+    cues: readonly Cue[]
+    terms: readonly RussianTerm[]
+    fetchImpl?: typeof fetch
+}): Promise<Cue[] | null> => {
+    const prompt = (phrases: readonly Phrase[]) =>
+        buildTranslationPrompt(
+            options.context,
+            phrases,
+            termsIn(phrases.map((phrase) => phrase.text).join('\n'), options.terms),
+        )
+    const ask = async (messages: ChatMessage[]) =>
+        parseTranslation(await requestChat(options.llm, messages, options.fetchImpl))
+    const phrases = unitsOf(options.cues)
+    const translations = new Map<number, string>()
+    for (let from = 0; from < phrases.length; from += TRANSLATION_BATCH) {
+        const batch = phrases.slice(from, from + TRANSLATION_BATCH)
+        const messages = prompt(batch)
+        const answer = await requestChat(options.llm, messages, options.fetchImpl)
+        let texts = parseTranslation(answer)
+        if (texts.size === 0) texts = await ask([...messages, ...translationRetryMessages(answer)])
+        for (let round = 0; round < RETRY_ROUNDS; round += 1) {
+            const missing = batch.filter((phrase) => !texts.has(phrase.id))
+            for (let at = 0; at < missing.length; at += RETRY_BATCH) {
+                for (const [id, text] of await ask(prompt(missing.slice(at, at + RETRY_BATCH)))) {
+                    texts.set(id, text)
+                }
+            }
+        }
+        for (const phrase of batch) {
+            const text = texts.get(phrase.id)
+            if (text === undefined) return null
+            translations.set(phrase.id, fixTerminology(phrase.text, text, options.terms))
+        }
+    }
+    return translatedCues(options.cues, translations)
 }

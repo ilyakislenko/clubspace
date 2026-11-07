@@ -12,6 +12,7 @@ import { SkipThrottle } from '@nestjs/throttler'
 import { CourseAccessService } from '../../domains/playlist/services/course-access.service'
 import { FilesService } from '../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { proxyHlsPlaylist } from '../../shared/utils/hls-playlist-proxy'
 import { verifyPlaybackToken } from '../../shared/utils/playback-token.util'
 
 /**
@@ -79,67 +80,11 @@ export class GetVideoManifestController {
         // narrowed to another audience stops playback within the token's life.
         await this.courseAccess.assertCanWatchVideo(video, payload.userId)
 
-        const bucket =
-            video.hlsBucket ?? this.filesService.getDefaultBucketName()
-
-        // Allow only keys under this video's HLS prefix to be served.
-        const masterDir = video.hlsMasterKey
-            .split('/')
-            .slice(0, -1)
-            .join('/')
-        const allowedPrefix = masterDir ? `${masterDir}/` : ''
-
-        let key = video.hlsMasterKey
-        if (subPath) {
-            const decoded = decodeURIComponent(subPath)
-            // Fail CLOSED: if the prefix can't be derived (master key has no
-            // directory), reject rather than serving an unrestricted key.
-            // Otherwise only allow keys under this video's own HLS prefix.
-            if (
-                !allowedPrefix ||
-                decoded.includes('..') ||
-                !decoded.startsWith(allowedPrefix)
-            ) {
-                throw new HttpException(
-                    'Invalid path',
-                    HttpStatus.BAD_REQUEST,
-                )
-            }
-            key = decoded
-        }
-
-        const manifest = await this.filesService.getObjectText({ bucket, key })
-        const playlistDir = key.split('/').slice(0, -1).join('/')
-
-        const lines = manifest.split(/\r?\n/)
-        const rewritten = await Promise.all(
-            lines.map(async (line) => {
-                const trimmed = line.trim()
-                if (!trimmed || trimmed.startsWith('#')) return line
-                if (
-                    trimmed.startsWith('http://') ||
-                    trimmed.startsWith('https://')
-                ) {
-                    return line
-                }
-
-                const childKey = playlistDir
-                    ? `${playlistDir}/${trimmed}`
-                    : trimmed
-
-                if (trimmed.endsWith('.m3u8')) {
-                    // Recurse through this same endpoint so we can sign segments
-                    // referenced inside the variant playlist as well.
-                    return `manifest.m3u8?token=${encodeURIComponent(token)}&path=${encodeURIComponent(childKey)}`
-                }
-
-                return await this.filesService.getPresignedGetUrl({
-                    bucket,
-                    key: childKey,
-                })
-            }),
-        )
-
-        return rewritten.join('\n')
+        return await proxyHlsPlaylist(this.filesService, {
+            bucket: video.hlsBucket ?? this.filesService.getDefaultBucketName(),
+            masterKey: video.hlsMasterKey,
+            subPath,
+            token,
+        })
     }
 }

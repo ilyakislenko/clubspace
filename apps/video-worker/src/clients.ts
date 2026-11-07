@@ -7,9 +7,10 @@ import { pipeline } from 'stream/promises'
 import { PrismaClient } from '@clubspace/prisma-client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { environment } from './environment.js'
-import type { ChapterSourceFile } from './make-chapters.js'
 import { assertInputSize, assertTranscodable, probeVideo, restrictedInputArgs } from './probe.js'
+import type { SubtitleStore } from './subtitles.js'
 import type { ThumbnailStore } from './thumbnail.js'
+import type { ChapterSourceFile } from './video-text.js'
 
 // Connections and storage helpers shared by the worker (main.ts) and its
 // maintenance scripts (scripts/). Opens clients on import, so — like main.ts —
@@ -37,6 +38,20 @@ export const ffmpegBinary =
 export const thumbnailStore: ThumbnailStore = {
     upload: (key, filePath) =>
         uploadFile(environment.s3Storage.s3BucketName, key, filePath, 'image/jpeg'),
+    publicUrl: (key) => getPublicObjectUrl(environment.s3Storage.s3BucketName, key),
+}
+
+// Automatic subtitles too: under subtitles/, beside the ones staff upload,
+// and served from the same public URL.
+export const subtitleStore: SubtitleStore = {
+    upload: async (key, body) => {
+        await s3Client.putObject({
+            Bucket: environment.s3Storage.s3BucketName,
+            Key: key,
+            Body: body,
+            ContentType: 'text/vtt; charset=utf-8',
+        })
+    },
     publicUrl: (key) => getPublicObjectUrl(environment.s3Storage.s3BucketName, key),
 }
 

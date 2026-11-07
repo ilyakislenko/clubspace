@@ -151,12 +151,25 @@ describe('describeVideo / whisperPrompt', () => {
                 courses: [{ title: 'Octopus 2.0', lessonTitle: null }],
             }),
         ).toBe('Octopus, часть')
+        // About 200 tokens: a six-letter Latin word is 2 plus a separator.
         const many = Array.from(
-            { length: 40 },
+            { length: 100 },
             (_, idx) =>
                 `term${String.fromCharCode(97 + Math.floor(idx / 26))}${String.fromCharCode(97 + (idx % 26))}`,
         )
-        expect(whisperPrompt({ videoTitle: many.join(' '), courses: [] }).split(', ')).toHaveLength(30)
+        expect(whisperPrompt({ videoTitle: many.join(' '), courses: [] }).split(', ')).toHaveLength(66)
+    })
+
+    it('adds the glossary terms that share a word with the titles', () => {
+        expect(
+            whisperPrompt(
+                {
+                    videoTitle: 'Octopus 2.0 · Vol 4 · часть 3',
+                    courses: [{ title: 'Octopus 2.0', lessonTitle: null }],
+                },
+                ['Kimura', 'Octopus Guard', '50/50 Octopus', 'Armbar'],
+            ),
+        ).toBe('Octopus, часть, Octopus Guard')
     })
 })
 
@@ -293,6 +306,18 @@ describe('buildChapterPrompt', () => {
             { positionSec: 0, title: 'Удержание в маунте' },
             { positionSec: 90, title: 'Выход мостом' },
         ])
+    })
+
+    it('lists the sport’s technique names in the transcript’s script', () => {
+        const vocabulary = ['Kimura', 'Americana', 'кимура', 'омоплата']
+        const [english] = buildChapterPrompt(LESSON, 600, CONTEXT, vocabulary)
+        expect(english.content).toContain(
+            '- Technique names of this sport, spelled right: Kimura, Americana.',
+        )
+        const [russian] = buildChapterPrompt({ ...LESSON, language: 'ru' }, 600, CONTEXT, vocabulary)
+        expect(russian.content).toContain('spelled right: кимура, омоплата.')
+        const [none] = buildChapterPrompt(LESSON, 600, CONTEXT)
+        expect(none.content).not.toContain('Technique names of this sport')
     })
 
     it('falls back to the transcript’s language when it is unknown', () => {

@@ -37,9 +37,12 @@ const MAX_TITLE_WORDS = 10
 // VideoTimestamp.title is VarChar(255).
 const TITLE_MAX_LENGTH = 255
 const MIN_CHAPTERS = 2
-// Whisper's prompt is capped at half its text context; a vocabulary list
-// needs nowhere near that.
-const MAX_PROMPT_WORDS = 30
+// Whisper reads at most half its 448-token text context as a prompt; a
+// vocabulary list stays well inside that.
+const PROMPT_TOKENS = 200
+// Sport terms listed for the chat model: the common ones, a few hundred
+// tokens at most.
+const MAX_VOCABULARY = 80
 
 /** What the model is asked for: a chapter a minute at most, three on a short clip. */
 export const maxSpeechChapters = (durationSec: number) =>
@@ -137,33 +140,72 @@ export const describeVideo = (context: ChapterContext) => [
     ),
 ]
 
+const CYRILLIC = /\p{Script=Cyrillic}/u
+
+// Whisper's tokens are about four Latin or two Cyrillic letters, plus the
+// separator.
+const promptTokens = (term: string) => Math.ceil(term.length / (CYRILLIC.test(term) ? 2 : 4)) + 1
+
 /**
- * Whisper's --prompt: the words of the video's and courses' titles as a
- * vocabulary list, so it spells the techniques they name («Kimura», heard as
- * «Camorra» without). Words of 4+ letters only — given a whole title like
- * «Octopus 2.0 · Vol 2 · часть 7», Whisper wrote «7. Octopus 2.0» over the
- * lesson's real speech.
+ * Whisper's --prompt: a vocabulary list, so it spells techniques as they are
+ * written («Kimura», heard as «Camorra» without). First the words of the
+ * video's and courses' titles, then the glossary terms that share a word
+ * with them («Octopus» → «Octopus Guard»), until about PROMPT_TOKENS.
+ *
+ * Only relevant terms, not the sport's whole list: on «Octopus 2.0 · Vol 4 ·
+ * часть 3» a prompt of the 45 commonest grappling terms made Whisper write
+ * the Kimura as «commuter» — an ordinary word nothing can put right after —
+ * while «Octopus, часть, Octopus Guard» got «Kimura». And words only: given
+ * a whole title, Whisper wrote «7. Octopus 2.0» over a lesson's real speech.
  */
-export const whisperPrompt = (context: ChapterContext) => {
+export const whisperPrompt = (context: ChapterContext, glossaryTerms: readonly string[] = []) => {
     const titles = [
         context.videoTitle,
         ...context.courses.flatMap((course) => [course.title, course.lessonTitle ?? '']),
     ]
-    const words = new Map<string, string>()
-    for (const word of titles.flatMap((title) => title.match(/\p{L}{4,}/gu) ?? [])) {
-        if (!words.has(word.toLowerCase())) words.set(word.toLowerCase(), word)
+    const titleWords = titles.flatMap((title) => title.match(/\p{L}{4,}/gu) ?? [])
+    const lowerTitleWords = new Set(titleWords.map((word) => word.toLowerCase()))
+    const candidates = [
+        ...titleWords,
+        ...glossaryTerms.filter(
+            (term) =>
+                !/\d/.test(term) &&
+                term
+                    .toLowerCase()
+                    .split(/[^\p{L}]+/u)
+                    .some((word) => lowerTitleWords.has(word)),
+        ),
+    ]
+    const terms = new Map<string, string>()
+    let budget = PROMPT_TOKENS
+    for (const term of candidates) {
+        if (terms.has(term.toLowerCase())) continue
+        budget -= promptTokens(term)
+        if (budget < 0) break
+        terms.set(term.toLowerCase(), term)
     }
-    return [...words.values()].slice(0, MAX_PROMPT_WORDS).join(', ')
+    return [...terms.values()].join(', ')
 }
 
-/** The request: rules in the system message, the timed transcript in the user one. */
+/**
+ * The request: rules in the system message, the timed transcript in the user
+ * one, with the sport's technique names (`vocabulary`, in the transcript's
+ * script) so the model can recognise a name the recognizer turned into an
+ * ordinary word — Whisper heard «Kimura grip» as «commuter grip», which no
+ * spelling rule may touch.
+ */
 export const buildChapterPrompt = (
     transcript: Transcript,
     durationSec: number,
     context: ChapterContext,
+    vocabulary: readonly string[] = [],
 ): ChatMessage[] => {
     const language = languageName(transcript.language)
     const max = maxSpeechChapters(durationSec)
+    const russian = transcript.language === 'ru'
+    const terms = vocabulary
+        .filter((term) => CYRILLIC.test(term) === russian)
+        .slice(0, MAX_VOCABULARY)
     return [
         {
             role: 'system',
@@ -176,6 +218,11 @@ export const buildChapterPrompt = (
                 // Worded this firmly on purpose: told only to fix "plainly
                 // misheard" names, a 7B model kept «Camorra» for «Kimura».
                 "- Speech recognition often mishears technique names. The video and course titles are spelled correctly: where the transcript has a word that sounds like a technique named in them, the instructor said that technique — use the title's spelling in your chapter titles. Do not name techniques the instructor does not talk about.",
+                ...(terms.length > 0
+                    ? [
+                          `- Technique names of this sport, spelled right: ${terms.join(', ')}. A word that makes no sense in the sport but sounds like one of these is that technique (a "dark choke" is a Darce choke): name it so.`,
+                      ]
+                    : []),
                 '- The first chapter may be a short introduction.',
                 '- "start" must be one of the [mm:ss] timestamps in the transcript.',
                 `- Between 2 and ${max} chapters, at least ${MIN_GAP_SEC} seconds apart. If the whole video teaches a single thing, answer with an empty list.`,

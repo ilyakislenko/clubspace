@@ -430,6 +430,7 @@ export class VideoService {
             label: created.label,
             publicUrl: created.publicUrl,
             isDefault: created.isDefault,
+            source: created.source,
         }
     }
 
@@ -979,6 +980,7 @@ const serializeVideo = (video: {
         id: string
         positionSec: number
         title: string
+        source: string
     }>
     subtitles?: Array<{
         id: string
@@ -986,6 +988,7 @@ const serializeVideo = (video: {
         label: string
         publicUrl: string
         isDefault: boolean
+        source: string
     }>
 }) => ({
     id: video.id,
@@ -1038,6 +1041,7 @@ const serializeVideo = (video: {
         id: ts.id,
         positionSec: ts.positionSec,
         title: ts.title,
+        source: ts.source,
     })) ?? [],
     subtitles: video.subtitles?.map((s) => ({
         id: s.id,
@@ -1045,6 +1049,7 @@ const serializeVideo = (video: {
         label: s.label,
         publicUrl: s.publicUrl,
         isDefault: s.isDefault,
+        source: s.source,
     })) ?? [],
     createdAt: video.createdAt.toISOString(),
     updatedAt: video.updatedAt.toISOString(),
