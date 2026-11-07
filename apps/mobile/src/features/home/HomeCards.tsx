@@ -1,5 +1,5 @@
 import { agree, cap } from "@clubspace/ui-kit/brand"
-import React, { type ReactNode } from "react"
+import React, { useState, type ReactNode } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import type { Announcement } from "../../shared/api/announcements"
@@ -10,6 +10,7 @@ import type { PendingFreezeRequest } from "../../shared/api/member-subscriptions
 import type { PersonalTraining } from "../../shared/api/personal-trainings"
 import type { MySubscription } from "../../shared/api/subscriptions"
 import { Chevron } from "../../shared/components/Chevron"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -25,8 +26,12 @@ import {
 import type { RecentEntry } from "../profile/preferences-store"
 import { formatNextDue } from "../reviews/review-helpers"
 import {
+  COACH_TODAY_ROWS,
+  canMarkClassNow,
+  coachTodayView,
   eventStatusLine,
   formatEventWhen,
+  isClassInProgress,
   pickNextTraining,
   type CoachClassToday,
   type MyNextEvent,
@@ -358,40 +363,126 @@ export function FreezeRequestsCard({
 
 /**
  * «Сегодня вы ведёте»: the coach's own classes today and the ones they run
- * as a substitute, each with a mark button.
+ * as a substitute. The class on now and the next ones (at most three); the
+ * finished ones fold into «Прошло: N». «Отметить» only on a class that has
+ * started or starts within half an hour; the others open on a tap all the
+ * same. `onAll` opens today's schedule when more classes follow; without it
+ * (no club schedule) the rest unfold in place.
  */
 export function CoachTodayCard({
   classes,
-  onMark,
+  now,
+  onOpen,
+  onAll,
   grow,
 }: {
   classes: CoachClassToday[]
-  onMark: (c: CoachClassToday) => void
+  now: Date
+  onOpen: (c: CoachClassToday) => void
+  onAll?: () => void
   grow?: boolean
 }) {
+  const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
+  const [showFinished, setShowFinished] = useState(false)
+  const [showAll, setShowAll] = useState(false)
+  const view = coachTodayView(
+    classes,
+    now,
+    showAll ? classes.length : COACH_TODAY_ROWS,
+  )
+  const finishedCount = view.finished.length
+  // More classes than the rows: today's schedule, or (no schedule) unfold.
+  const footer = onAll
+    ? view.hidden > 0 && {
+        label: `Все ${vocabulary.session.nomPl} сегодня (${classes.length}) →`,
+        onPress: onAll,
+      }
+    : (view.hidden > 0 || showAll) &&
+      classes.length - finishedCount > COACH_TODAY_ROWS && {
+        label: showAll ? "Свернуть" : `Ещё ${view.hidden}`,
+        onPress: () => setShowAll((v) => !v),
+      }
+
+  const row = (c: CoachClassToday) => {
+    const mark = canMarkClassNow(c, now)
+    const live = isClassInProgress(c, now)
+    // The gym alone: the city and address live on the class's own screen.
+    const sub = [c.gymName, c.note].filter(Boolean).join(" · ")
+    return (
+      <Pressable
+        key={c.key}
+        onPress={() => onOpen(c)}
+        accessibilityRole="button"
+        accessibilityLabel={`${mark ? "Отметить" : "Открыть"}: ${c.startTime}, ${c.groupName}${sub ? `, ${sub}` : ""}${live ? ", идёт сейчас" : ""}`}
+        style={styles.classRow}
+      >
+        <View style={styles.classBody}>
+          <View style={styles.classLine}>
+            <Text style={[styles.classTime, live && styles.classTimeLive]}>
+              {c.startTime}
+            </Text>
+            <Text style={styles.classTitle} numberOfLines={1}>
+              {c.groupName}
+            </Text>
+          </View>
+          {sub ? (
+            <Text style={styles.classSub} numberOfLines={1}>
+              {sub}
+            </Text>
+          ) : null}
+        </View>
+        {mark ? (
+          <View style={styles.markButton}>
+            <Text style={styles.markButtonText}>Отметить</Text>
+          </View>
+        ) : (
+          <Chevron style={styles.chev} />
+        )}
+      </Pressable>
+    )
+  }
+
   return (
     <HomeCard title="Сегодня вы ведёте" grow={grow}>
       {classes.length === 0 ? (
         <Text style={styles.muted}>Сегодня занятий по расписанию нет</Text>
       ) : (
-        classes.map((c) => (
-          <View key={c.key} style={styles.classRow}>
-            <Text style={styles.classText} numberOfLines={2}>
-              {[c.startTime, c.groupName, c.gymName, c.note]
-                .filter(Boolean)
-                .join(" · ")}
+        <>
+          {view.rows.map(row)}
+          {view.rows.length === 0 && (
+            <Text style={styles.muted}>
+              На сегодня все {vocabulary.session.nomPl} позади
             </Text>
+          )}
+          {footer && (
             <Pressable
-              onPress={() => onMark(c)}
+              onPress={footer.onPress}
               accessibilityRole="button"
-              accessibilityLabel={`Отметить: ${c.startTime}, ${c.groupName}`}
-              style={styles.markButton}
+              style={styles.footerLink}
             >
-              <Text style={styles.markButtonText}>Отметить</Text>
+              <Text style={styles.link}>{footer.label}</Text>
             </Pressable>
-          </View>
-        ))
+          )}
+          {finishedCount > 0 && (
+            <Pressable
+              onPress={() => setShowFinished((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel={`Прошло: ${finishedCount}`}
+              accessibilityState={{ expanded: showFinished }}
+              style={styles.finishedToggle}
+            >
+              <Text style={styles.muted}>Прошло: {finishedCount}</Text>
+              <Icon
+                name={showFinished ? "chevron-up" : "chevron-down"}
+                size={14}
+                color={theme.colors.muted}
+              />
+            </Pressable>
+          )}
+          {showFinished && view.finished.map(row)}
+        </>
       )}
     </HomeCard>
   )
@@ -659,20 +750,41 @@ const makeStyles = (theme: Theme) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing(3),
-      paddingVertical: theme.spacing(1),
-    },
-    classText: { ...theme.typography.body, color: theme.colors.text, flex: 1 },
-    markButton: {
-      paddingHorizontal: theme.spacing(4),
       paddingVertical: theme.spacing(2),
+    },
+    classBody: { flex: 1, gap: 2 },
+    classLine: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: theme.spacing(2),
+    },
+    classTime: { ...theme.typography.bodyStrong, color: theme.colors.text },
+    classTimeLive: { color: theme.colors.accent },
+    classTitle: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+      flexShrink: 1,
+    },
+    classSub: { ...theme.typography.caption, color: theme.colors.muted },
+    markButton: {
+      paddingHorizontal: theme.spacing(3),
+      paddingVertical: theme.spacing(1) + 2,
       borderRadius: theme.radius.full,
       backgroundColor: theme.colors.accent,
     },
     markButtonText: {
       color: theme.colors.accentText,
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: "600",
     },
+    finishedToggle: {
+      alignSelf: "flex-start",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(1),
+      paddingVertical: theme.spacing(1),
+    },
+    footerLink: { alignSelf: "flex-start", paddingVertical: theme.spacing(1) },
     chev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
     banner: {
       padding: theme.spacing(4),

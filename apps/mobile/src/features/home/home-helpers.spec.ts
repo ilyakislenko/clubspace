@@ -1,9 +1,13 @@
 import type { ScheduleEvent } from "../../shared/api/groups"
 import {
+  canMarkClassNow,
+  coachTodayView,
   eventStatusLine,
   formatEventWhen,
   greetingName,
+  isClassInProgress,
   isCoachView,
+  type CoachClassToday,
   pickCoachClassesToday,
   pickNextEvent,
   pickNextTraining,
@@ -468,7 +472,12 @@ describe("pickCoachClassesToday with substitutions", () => {
 
   it("lists today's class the viewer substitutes in, noted «Замена»", () => {
     const out = pickCoachClassesToday([], now, [], "c2", [
-      sub({ slotId: "x1", groupName: "Дети", startAt: "2026-10-27T15:00:00Z" }),
+      sub({
+        slotId: "x1",
+        groupName: "Дети",
+        startAt: "2026-10-27T15:00:00Z",
+        endAt: "2026-10-27T16:30:00Z",
+      }),
       // Not today, or not approved: left out.
       sub({ slotId: "x2", startAt: "2026-10-28T15:00:00Z", sessionDate: "2026-10-28" }),
       sub({ slotId: "x3", status: "PENDING" }),
@@ -482,11 +491,133 @@ describe("pickCoachClassesToday with substitutions", () => {
         sessionDate: "2026-10-27",
         sessionId: null,
         startTime: "18:00",
+        startsAt: Date.parse("2026-10-27T15:00:00Z"),
+        endsAt: Date.parse("2026-10-27T16:30:00Z"),
         note: "Замена",
       },
     ])
     // Without a known viewer nothing is theirs.
     expect(pickCoachClassesToday([], now, [], null, [sub({})])).toEqual([])
+  })
+})
+
+describe("pickCoachClassesToday start and end", () => {
+  // Tue 27 Oct 2026, 12:00 in Moscow.
+  const now = new Date("2026-10-27T09:00:00Z")
+
+  it("ends a group class after its slot's length", () => {
+    const [c] = pickCoachClassesToday(
+      [
+        {
+          id: "g",
+          name: "Группа",
+          role: "coach",
+          timezone: "Europe/Moscow",
+          gym: null,
+          slots: [
+            {
+              id: "s1",
+              dayOfWeek: 2,
+              startTime: "19:00",
+              durationMin: 90,
+              effectiveFrom: null,
+              effectiveUntil: null,
+            },
+          ],
+          exceptions: [],
+        } as never,
+      ],
+      now,
+    )
+    expect(c).toMatchObject({
+      startsAt: Date.parse("2026-10-27T16:00:00Z"),
+      endsAt: Date.parse("2026-10-27T17:30:00Z"),
+    })
+  })
+
+  it("gives a personal session without a confirmed length an hour", () => {
+    const [c] = pickCoachClassesToday(
+      [],
+      now,
+      [
+        {
+          id: "p1",
+          status: "CONFIRMED",
+          member: { userId: "m1", displayName: "Анна" },
+          coach: { userId: "me", displayName: "Я" },
+          gym: null,
+          timezone: "Europe/Moscow",
+          confirmedStartAt: "2026-10-27T15:30:00Z",
+          confirmedDurationMin: null,
+          sessionId: "sess1",
+        } as never,
+      ],
+      "me",
+    )
+    expect(c!.endsAt - c!.startsAt).toBe(60 * 60_000)
+  })
+})
+
+describe("coachTodayView", () => {
+  const at = (hhmm: string) => Date.parse(`2026-10-27T${hhmm}:00Z`)
+  const cls = (key: string, start: string, end: string): CoachClassToday => ({
+    key,
+    groupName: key,
+    gymName: null,
+    slotId: key,
+    sessionDate: "2026-10-27",
+    sessionId: null,
+    startTime: start,
+    startsAt: at(start),
+    endsAt: at(end),
+  })
+  const day = [
+    cls("a", "08:00", "09:00"),
+    cls("b", "09:30", "10:30"),
+    cls("c", "10:00", "11:00"),
+    cls("d", "12:00", "13:00"),
+    cls("e", "14:00", "15:00"),
+    cls("f", "18:00", "19:00"),
+  ]
+
+  it("folds finished classes and shows the one in progress, then the next ones", () => {
+    const view = coachTodayView(day, new Date(at("10:45")))
+    expect(view.finished.map((c) => c.key)).toEqual(["a", "b"])
+    expect(view.rows.map((c) => c.key)).toEqual(["c", "d", "e"])
+    expect(view.hidden).toBe(1)
+  })
+
+  it("counts a class ending right now as finished", () => {
+    const view = coachTodayView(day, new Date(at("09:00")))
+    expect(view.finished.map((c) => c.key)).toEqual(["a"])
+    expect(view.rows[0]!.key).toBe("b")
+  })
+
+  it("lists everything when it fits, and nothing hidden", () => {
+    const view = coachTodayView(day.slice(0, 2), new Date(at("07:00")))
+    expect(view).toEqual({ rows: day.slice(0, 2), finished: [], hidden: 0 })
+  })
+
+  it("ends with only finished classes in the evening", () => {
+    const view = coachTodayView(day, new Date(at("20:00")))
+    expect(view.rows).toEqual([])
+    expect(view.finished).toHaveLength(6)
+    expect(view.hidden).toBe(0)
+  })
+
+  it("offers marking from 30 minutes before the start, and after it", () => {
+    const d = day[3]! // 12:00–13:00
+    expect(canMarkClassNow(d, new Date(at("11:29")))).toBe(false)
+    expect(canMarkClassNow(d, new Date(at("11:30")))).toBe(true)
+    expect(canMarkClassNow(d, new Date(at("12:30")))).toBe(true)
+    expect(canMarkClassNow(d, new Date(at("20:00")))).toBe(true)
+  })
+
+  it("tells a class in progress", () => {
+    const d = day[3]!
+    expect(isClassInProgress(d, new Date(at("11:59")))).toBe(false)
+    expect(isClassInProgress(d, new Date(at("12:00")))).toBe(true)
+    expect(isClassInProgress(d, new Date(at("13:00")))).toBe(false)
   })
 })
 

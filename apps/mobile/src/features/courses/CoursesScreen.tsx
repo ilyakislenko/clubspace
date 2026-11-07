@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react"
+import React, { useCallback, useMemo, useRef, useState } from "react"
 import {
   FlatList,
   ScrollView,
@@ -8,7 +8,9 @@ import {
 } from "react-native"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { showAlert } from "../../shared/alert"
+import { CountBadge } from "../../shared/components/CountBadge"
 import { Pressable } from "../../shared/components/Pressable"
+import { Sheet, SheetRow } from "../../shared/components/Sheet"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -39,7 +41,9 @@ import {
   togglePinnedCourse,
 } from "../profile/preferences-store"
 import type { TabScreenProps } from "../../app/navigation"
-import { DrillModeButton } from "../video/DrillMode"
+import { DrillModeButton, isDrillRunning, useDrill } from "../video/DrillMode"
+import { DrillModal } from "../video/DrillModal"
+import { useMyReviews } from "../reviews/use-my-reviews"
 import { useFocusEffect } from "@react-navigation/native"
 
 type Props = TabScreenProps<"Courses">
@@ -69,6 +73,14 @@ export function CoursesScreen({ navigation }: Props) {
   const [sort, setSort] = useState<"recent" | "alphabetical">("recent")
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [pinnedIds, setPinnedIds] = useState<string[]>([])
+  // The «Ещё» sheet, and the drill timer opened from it.
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [drillOpen, setDrillOpen] = useState(false)
+  // A dismissal this visit wins over a re-read that beats the write.
+  const tipsDismissed = useRef(false)
+  const drillRunning = isDrillRunning(useDrill().phase)
+  // Same key as Home's «Повторение» card: the due count for «Повторить».
+  const reviewsDue = useMyReviews(workspace?.workspaceId ?? null).view?.dueCount ?? 0
 
   // Read-through cache: paints the last course list instantly (works offline),
   // then revalidates on focus / pull-to-refresh / realtime invalidation. We
@@ -118,7 +130,9 @@ export function CoursesScreen({ navigation }: Props) {
       ]).then(([offline, recents, prefs, pinned]) => {
         setOfflineCount(offline.length)
         setHasRecents(recents.length > 0)
-        if (!prefs.onboardingSeen) setShowOnboarding(true)
+        if (!prefs.onboardingSeen && !tipsDismissed.current) {
+          setShowOnboarding(true)
+        }
         setPinnedIds(pinned)
       })
     }, []),
@@ -164,8 +178,15 @@ export function CoursesScreen({ navigation }: Props) {
   }
 
   const dismissOnboarding = async () => {
+    tipsDismissed.current = true
     setShowOnboarding(false)
     await setPreferences({ onboardingSeen: true })
+  }
+
+  // The sheet closes first: the tab stays mounted under the pushed screen.
+  const openFromMenu = (go: () => void) => {
+    setMoreOpen(false)
+    go()
   }
 
   return (
@@ -178,7 +199,8 @@ export function CoursesScreen({ navigation }: Props) {
           </Text>
           <Text style={styles.headerTitle}>Видео</Text>
         </View>
-        <DrillModeButton />
+        {/* A running drill keeps its timer in sight; otherwise it sits in «Ещё». */}
+        {drillRunning && <DrillModeButton />}
       </View>
 
       {showOnboarding && !noCourses && !searching && (
@@ -201,7 +223,7 @@ export function CoursesScreen({ navigation }: Props) {
         </Pressable>
       )}
 
-      {/* Study shortcuts, one scrollable row so the header never crowds. */}
+      {/* The everyday study shortcuts; the rest wait behind «Ещё». */}
       {!searching && (
         <ScrollView
           horizontal
@@ -232,79 +254,33 @@ export function CoursesScreen({ navigation }: Props) {
             <Text style={styles.shortcutText}>Техники</Text>
           </Pressable>
           <Pressable
-            onPress={() => navigation.navigate("MyVideoNotes")}
-            accessibilityRole="button"
-            accessibilityLabel="Мои заметки к видео"
-            style={({ pressed }) => [
-              styles.shortcut,
-              pressed && styles.shortcutPressed,
-            ]}
-          >
-            <Text style={styles.shortcutText}>Заметки</Text>
-          </Pressable>
-          <Pressable
             onPress={() => navigation.navigate("Reviews")}
             accessibilityRole="button"
-            accessibilityLabel="Повторение закладок"
+            accessibilityLabel={
+              reviewsDue > 0
+                ? `Повторение закладок, пора повторить: ${reviewsDue}`
+                : "Повторение закладок"
+            }
             style={({ pressed }) => [
               styles.shortcut,
+              styles.shortcutWithBadge,
               pressed && styles.shortcutPressed,
             ]}
           >
             <Text style={styles.shortcutText}>Повторить</Text>
+            <CountBadge count={reviewsDue} />
           </Pressable>
           <Pressable
-            onPress={() => navigation.navigate("StudyPlans")}
+            onPress={() => setMoreOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Мои планы"
+            accessibilityLabel="Ещё: заметки, планы, разборы и другое"
             style={({ pressed }) => [
               styles.shortcut,
               pressed && styles.shortcutPressed,
             ]}
           >
-            <Text style={styles.shortcutText}>Планы</Text>
+            <Text style={styles.shortcutText}>Ещё</Text>
           </Pressable>
-          <Pressable
-            onPress={() => navigation.navigate("MyVideoReviews")}
-            accessibilityRole="button"
-            accessibilityLabel="Разбор видео: отправить своё видео на разбор"
-            style={({ pressed }) => [
-              styles.shortcut,
-              pressed && styles.shortcutPressed,
-            ]}
-          >
-            <Text style={styles.shortcutText}>Разборы</Text>
-          </Pressable>
-          {hasRecents && (
-            <Pressable
-              onPress={() => navigation.navigate("ContinueWatching")}
-              accessibilityRole="button"
-              accessibilityLabel="Продолжить просмотр"
-              style={({ pressed }) => [
-                styles.shortcut,
-                pressed && styles.shortcutPressed,
-              ]}
-            >
-              <Text style={styles.shortcutText}>Продолжить</Text>
-            </Pressable>
-          )}
-          {offlineDownloads && (
-            <Pressable
-              onPress={() => navigation.navigate("OfflineLibrary")}
-              accessibilityRole="button"
-              accessibilityLabel={`Загруженные${
-                offlineCount > 0 ? `, ${offlineCount}` : ""
-              }`}
-              style={({ pressed }) => [
-                styles.shortcut,
-                pressed && styles.shortcutPressed,
-              ]}
-            >
-              <Text style={styles.shortcutText}>
-                Загруженные{offlineCount > 0 ? ` · ${offlineCount}` : ""}
-              </Text>
-            </Pressable>
-          )}
         </ScrollView>
       )}
 
@@ -503,6 +479,50 @@ export function CoursesScreen({ navigation }: Props) {
       )}
       </KeyboardAvoidingContainer>
       </CenteredColumn>
+
+      {moreOpen && (
+        <Sheet title="Ещё" onClose={() => setMoreOpen(false)}>
+          <View>
+            <SheetRow
+              label="Мои заметки"
+              onPress={() => openFromMenu(() => navigation.navigate("MyVideoNotes"))}
+            />
+            <SheetRow
+              label="Мои планы"
+              onPress={() => openFromMenu(() => navigation.navigate("StudyPlans"))}
+            />
+            <SheetRow
+              label="Разборы"
+              accessibilityLabel="Разбор видео: отправить своё видео на разбор"
+              onPress={() =>
+                openFromMenu(() => navigation.navigate("MyVideoReviews"))
+              }
+            />
+            {hasRecents && (
+              <SheetRow
+                label="Продолжить просмотр"
+                onPress={() =>
+                  openFromMenu(() => navigation.navigate("ContinueWatching"))
+                }
+              />
+            )}
+            {offlineDownloads && (
+              <SheetRow
+                label={`Загруженные${offlineCount > 0 ? ` (${offlineCount})` : ""}`}
+                onPress={() =>
+                  openFromMenu(() => navigation.navigate("OfflineLibrary"))
+                }
+              />
+            )}
+            <SheetRow
+              label="⏱ Дрилл-таймер"
+              accessibilityLabel="Открыть дрилл-таймер"
+              onPress={() => openFromMenu(() => setDrillOpen(true))}
+            />
+          </View>
+        </Sheet>
+      )}
+      {drillOpen && <DrillModal onClose={() => setDrillOpen(false)} />}
     </SafeAreaView>
   )
 }
@@ -543,6 +563,11 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderColor: theme.colors.border,
   },
   shortcutPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
+  shortcutWithBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(1) + 2,
+  },
   shortcutText: {
     fontSize: 13,
     color: theme.colors.text,

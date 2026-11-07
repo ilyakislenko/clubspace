@@ -29,7 +29,7 @@ export const CALENDAR_PAGES = CALENDAR_HORIZON_DAYS / WEEK_DAYS
 // The axis when there is nothing to fit it to.
 export const DEFAULT_AXIS: TimeAxis = { startHour: 8, endHour: 21 }
 // A personal session without a confirmed length still gets an hour.
-const DEFAULT_PERSONAL_MIN = 60
+export const DEFAULT_PERSONAL_MIN = 60
 const DAY_MIN = 24 * 60
 
 export type CalendarItem =

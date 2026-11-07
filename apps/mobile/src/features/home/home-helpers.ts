@@ -18,7 +18,10 @@ import {
   zonedWallTimeToDate,
   type NextAcrossGroups,
 } from "../schedule/schedule-helpers"
-import { shortPersonName } from "../schedule/schedule-calendar"
+import {
+  DEFAULT_PERSONAL_MIN,
+  shortPersonName,
+} from "../schedule/schedule-calendar"
 
 /** First name for the greeting, or null when the member hasn't set one. */
 export const greetingName = (
@@ -214,6 +217,9 @@ export type CoachClassToday = {
   sessionDate: string | null
   sessionId: string | null
   startTime: string
+  // When it starts and ends (epoch ms): what is on now, what is over.
+  startsAt: number
+  endsAt: number
   // «Замена» on a class the viewer runs for another coach; «Замена: И.
   // Фамилия» on their own group's class somebody else runs.
   note?: string
@@ -239,6 +245,8 @@ const pickCoachPersonalToday = (
       return []
     }
     const at = new Date(pt.confirmedStartAt)
+    const endsAt =
+      at.getTime() + (pt.confirmedDurationMin ?? DEFAULT_PERSONAL_MIN) * 60_000
     const today = zonedParts(now, pt.timezone)
     const day = zonedParts(at, pt.timezone)
     if (
@@ -259,6 +267,8 @@ const pickCoachPersonalToday = (
           sessionDate: null,
           sessionId: pt.sessionId,
           startTime: `${pad2(day.hour)}:${pad2(day.minute)}`,
+          startsAt: at.getTime(),
+          endsAt,
         },
       },
     ]
@@ -293,6 +303,8 @@ const pickSubstitutionsToday = (
           sessionDate: s.sessionDate,
           sessionId: null,
           startTime: `${pad2(day.hour)}:${pad2(day.minute)}`,
+          startsAt: at.getTime(),
+          endsAt: new Date(s.endAt).getTime(),
           note: "Замена",
         },
       },
@@ -331,8 +343,9 @@ export const pickCoachClassesToday = (
         const [year, month, day] = dateStr.split("-").map(Number)
         return slots.map((slot) => {
           const { hour, minute } = parseHHMM(slot.startTime)
+          const at = zonedWallTimeToDate(year!, month!, day!, hour, minute, g.timezone)
           return {
-            at: zonedWallTimeToDate(year!, month!, day!, hour, minute, g.timezone),
+            at,
             item: {
               key: `${slot.id}:${dateStr}`,
               groupName: g.name,
@@ -341,6 +354,8 @@ export const pickCoachClassesToday = (
               sessionDate: dateStr,
               sessionId: null,
               startTime: slot.startTime,
+              startsAt: at.getTime(),
+              endsAt: at.getTime() + slot.durationMin * 60_000,
               ...(substituteOf.has(`${slot.id}:${dateStr}`)
                 ? {
                     note: `Замена: ${shortPersonName(substituteOf.get(`${slot.id}:${dateStr}`)!)}`,
@@ -356,4 +371,46 @@ export const pickCoachClassesToday = (
     .sort((a, b) => a.at.getTime() - b.at.getTime())
     .map((x) => x.item)
 }
+
+/** Rows «Сегодня вы ведёте» shows before «Все тренировки сегодня». */
+export const COACH_TODAY_ROWS = 3
+/** «Отметить» appears this long before a class starts. */
+export const MARK_LEAD_MIN = 30
+
+export type CoachTodayView = {
+  // What is on now, then what comes next; at most `limit`.
+  rows: CoachClassToday[]
+  // Over already, earliest first: folded into «Прошло: N».
+  finished: CoachClassToday[]
+  // Later classes beyond the rows.
+  hidden: number
+}
+
+/**
+ * Splits today's classes (earliest first, as {@link pickCoachClassesToday}
+ * returns them) into the rows the block shows — in progress, then upcoming —
+ * the finished ones and how many later ones don't fit.
+ */
+export const coachTodayView = (
+  classes: readonly CoachClassToday[],
+  now: Date,
+  limit = COACH_TODAY_ROWS,
+): CoachTodayView => {
+  const t = now.getTime()
+  const finished = classes.filter((c) => c.endsAt <= t)
+  const open = classes.filter((c) => c.endsAt > t)
+  return {
+    rows: open.slice(0, limit),
+    finished,
+    hidden: Math.max(0, open.length - limit),
+  }
+}
+
+/** A class is markable once it has started or starts within the lead time. */
+export const canMarkClassNow = (c: CoachClassToday, now: Date): boolean =>
+  c.startsAt - MARK_LEAD_MIN * 60_000 <= now.getTime()
+
+/** A class that has started and not yet ended. */
+export const isClassInProgress = (c: CoachClassToday, now: Date): boolean =>
+  c.startsAt <= now.getTime() && now.getTime() < c.endsAt
 

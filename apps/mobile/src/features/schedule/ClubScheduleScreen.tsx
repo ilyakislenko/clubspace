@@ -9,7 +9,10 @@ import {
   View,
 } from "react-native"
 import { RefreshControl } from "../../shared/components/RefreshControl"
+import { CountBadge } from "../../shared/components/CountBadge"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
+import { Sheet, SheetRow } from "../../shared/components/Sheet"
 import {
   CenteredColumn,
   DASHBOARD_WIDTH,
@@ -52,14 +55,14 @@ import type { Theme } from "../../shared/theme"
 import { useResponsive } from "../../shared/useResponsive"
 import type { AppNavigation } from "../../app/navigation"
 import {
+  needsMyAction,
   upcomingConfirmed,
   viewerRole,
 } from "../personal-training/personal-training-helpers"
 import { isStaffWorkspace } from "../retention/retention-helpers"
-import { DirectionChips } from "../directions/DirectionChips"
+import { useDirections } from "../directions/useDirections"
 import { resolveDirectionFilter } from "../directions/direction-helpers"
 import { DirectionTag } from "../directions/DirectionTag"
-import { useDirections } from "../directions/useDirections"
 import {
   MY_GROUPS_FILTER,
   filterSchedule,
@@ -67,6 +70,7 @@ import {
   formatTimezoneLabel,
   resolveScheduleFilter,
   scheduleChips,
+  scheduleFilterSummary,
   scheduleGyms,
 } from "./club-schedule-buckets"
 import { spotsLine, withMyBooking } from "./class-booking-helpers"
@@ -77,6 +81,7 @@ import { rsvpStateFor, type RsvpState } from "./drop-in-helpers"
 import { loadGymFilter, saveGymFilter } from "./gym-filter-store"
 import { MyBookingsPanel } from "./MyBookingsPanel"
 import { OccurrenceSheet, Pill } from "./OccurrenceSheet"
+import { ScheduleFilterSheet } from "./ScheduleFilterSheet"
 import {
   CALENDAR_HORIZON_DAYS,
   CALENDAR_PAGES,
@@ -123,9 +128,10 @@ const isoDate = (d: Date): string => {
  * columns on a time axis) paged sideways by week; phones a day strip over the
  * picked day's list, or the same week grid in compact form. Days count from
  * the club's today; the schedule is fetched two weeks at a time as the member
- * pages forward.
+ * pages forward. A new `todayStamp` (Home's «Все тренировки сегодня») brings
+ * the calendar back to today.
  */
-export function ClubScheduleScreen() {
+export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
   const navigation = useNavigation<AppNavigation>()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -142,6 +148,9 @@ export function ClubScheduleScreen() {
   // and its week is the grid's page.
   const [dayOffset, setDayOffset] = useState(0)
   const [phoneView, setPhoneView] = useState<"day" | "week">("day")
+  useEffect(() => {
+    if (todayStamp) setDayOffset(0)
+  }, [todayStamp])
   const fetchWindow = fetchWindowOf(dayOffset)
 
   // «Все» (null) or one direction — the server narrows the classes and
@@ -315,6 +324,9 @@ export function ClubScheduleScreen() {
 
   // The class whose sheet is open (by occurrenceId).
   const [openOccurrenceId, setOpenOccurrenceId] = useState<string | null>(null)
+  // The «Фильтр» sheet and the «Ещё» menu.
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   if (!workspace) {
     return null
@@ -442,6 +454,38 @@ export function ClubScheduleScreen() {
   const pickGym = (id: string | null) => {
     setStoredGym(id)
     void saveGymFilter(workspace.workspaceId, id)
+  }
+  // «Мои группы» / gyms to pick from, or null when there is no choice.
+  const gymChoice = gyms.length >= 2 || ownGroupIds.size > 0 ? chips : null
+  const filterSummary = scheduleFilterSummary({
+    directions,
+    directionId,
+    chips: gymChoice,
+    filterId,
+  })
+  // The zone note only matters when the phone's clock reads differently.
+  const showTzNote =
+    !!known && !nothingScheduled && foreignTzSuffix(clubTz, new Date(now)) !== ""
+
+  // The «Ещё» menu. Staff answer personal requests rather than make them:
+  // their entry counts the ones waiting on them.
+  const awaitingMe = meId
+    ? (personalList.data?.data ?? []).filter((pt) => needsMyAction(pt, meId))
+        .length
+    : 0
+  const personalEntry = isStaff
+    ? (!!personalList.data?.canOffer || coachesAvailable > 0 || awaitingMe > 0) && {
+        label: `${cap(vocabulary.personalSession.nomPl)} — заявки`,
+        count: awaitingMe,
+      }
+    : coachesAvailable > 0 && {
+        label: `${cap(vocabulary.personalSession.nom)} с ${vocabulary.coach.ins}`,
+        count: 0,
+      }
+  const showMyBookings = hasBookingClasses && !workspace.isOwner
+  const openFromMenu = (route: "PersonalTrainings" | "MyClassBookings") => {
+    setMoreOpen(false)
+    navigation.navigate(route)
   }
 
   const guestsLineOf = (s: ScheduleSession): string | null =>
@@ -738,10 +782,9 @@ export function ClubScheduleScreen() {
           />
         }
       >
-        {known && !nothingScheduled && (
-          <Text style={styles.subtitle}>
-            Время указано по часовому поясу клуба (
-            {formatTimezoneLabel(clubTz)}).
+        {showTzNote && (
+          <Text style={styles.tzNote}>
+            Время указано по часовому поясу клуба ({formatTimezoneLabel(clubTz)})
           </Text>
         )}
 
@@ -751,60 +794,58 @@ export function ClubScheduleScreen() {
           <ErrorRetry message={error} onRetry={refetch} />
         )}
 
-        <DirectionChips
-          directions={directions}
-          selectedId={directionId}
-          onSelect={setPickedDirection}
-        />
-
-        {(gyms.length >= 2 || ownGroupIds.size > 0) && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.chipsScroll}
-            contentContainerStyle={styles.chips}
-          >
-            {chips.map((g) => {
-              const selected = g.id === filterId
-              return (
-                <Pressable
-                  key={g.id ?? "all"}
-                  onPress={() => pickGym(g.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  style={[styles.chip, selected && styles.chipSelected]}
-                >
-                  <Text
-                    style={[styles.chipText, selected && styles.chipTextSelected]}
-                  >
-                    {g.name}
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </ScrollView>
-        )}
-
-        {(coachesAvailable > 0 || (hasBookingClasses && !workspace.isOwner)) && (
-          <View style={styles.links}>
-            {coachesAvailable > 0 && (
+        {(filterSummary || personalEntry || showMyBookings) && (
+          <View style={styles.toolbar}>
+            {filterSummary && (
               <Pressable
-                onPress={() => navigation.navigate("PersonalTrainings")}
+                onPress={() => setFilterOpen(true)}
                 accessibilityRole="button"
-                style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
+                accessibilityLabel={`Фильтр: ${filterSummary.label}`}
+                style={[
+                  styles.toolButton,
+                  styles.filterButton,
+                  filterSummary.active && styles.toolButtonActive,
+                ]}
               >
-                <Text style={styles.personalLinkText}>
-                  {cap(vocabulary.personalSession.nom)} с {vocabulary.coach.ins} →
+                <Icon
+                  name="options-outline"
+                  size={16}
+                  color={
+                    filterSummary.active ? theme.colors.accent : theme.colors.text
+                  }
+                />
+                <Text
+                  style={[
+                    styles.toolButtonText,
+                    styles.filterText,
+                    filterSummary.active && styles.toolButtonTextActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {filterSummary.label}
                 </Text>
+                <Icon
+                  name="chevron-down"
+                  size={14}
+                  color={
+                    filterSummary.active ? theme.colors.accent : theme.colors.muted
+                  }
+                />
               </Pressable>
             )}
-            {hasBookingClasses && !workspace.isOwner && (
+            {(personalEntry || showMyBookings) && (
               <Pressable
-                onPress={() => navigation.navigate("MyClassBookings")}
+                onPress={() => setMoreOpen(true)}
                 accessibilityRole="button"
-                style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
+                accessibilityLabel={
+                  awaitingMe > 0 && personalEntry
+                    ? `Ещё, заявок ждут ответа: ${awaitingMe}`
+                    : "Ещё"
+                }
+                style={styles.toolButton}
               >
-                <Text style={styles.personalLinkText}>Мои записи на {vocabulary.session.nomPl} →</Text>
+                <Text style={styles.toolButtonText}>Ещё</Text>
+                <CountBadge count={personalEntry ? personalEntry.count : 0} />
               </Pressable>
             )}
           </View>
@@ -860,6 +901,42 @@ export function ClubScheduleScreen() {
         )}
       </ScrollView>
       </CenteredColumn>
+
+      {filterOpen && (
+        <ScheduleFilterSheet
+          directions={directions}
+          directionId={directionId}
+          onDirection={setPickedDirection}
+          chips={gymChoice}
+          filterId={filterId}
+          onFilter={pickGym}
+          onReset={() => {
+            setPickedDirection(null)
+            pickGym(null)
+          }}
+          onClose={() => setFilterOpen(false)}
+        />
+      )}
+
+      {moreOpen && (
+        <Sheet title="Ещё" onClose={() => setMoreOpen(false)}>
+          <View>
+            {personalEntry && (
+              <SheetRow
+                label={personalEntry.label}
+                count={personalEntry.count}
+                onPress={() => openFromMenu("PersonalTrainings")}
+              />
+            )}
+            {showMyBookings && (
+              <SheetRow
+                label={`Мои записи на ${vocabulary.session.nomPl}`}
+                onPress={() => openFromMenu("MyClassBookings")}
+              />
+            )}
+          </View>
+        </Sheet>
+      )}
 
       {openSession && (
         <OccurrenceSheet
@@ -1176,10 +1253,35 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     padding: theme.spacing(5),
     gap: theme.spacing(3),
   },
-  subtitle: {
-    ...theme.typography.body,
+  tzNote: {
+    ...theme.typography.caption,
     color: theme.colors.muted,
   },
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(2),
+  },
+  toolButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(1) + 2,
+    height: 36,
+    paddingHorizontal: theme.spacing(3),
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  // The filter takes what the row leaves and cuts its summary short.
+  filterButton: { flexShrink: 1 },
+  toolButtonActive: {
+    backgroundColor: theme.colors.accentSoft,
+    borderColor: theme.colors.accent,
+  },
+  toolButtonText: { color: theme.colors.text, fontSize: 14, fontWeight: "600" },
+  toolButtonTextActive: { color: theme.colors.accent },
+  filterText: { flexShrink: 1 },
   empty: {
     width: "100%",
     maxWidth: READABLE_WIDTH,
@@ -1261,11 +1363,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   toggleItemSelected: { backgroundColor: theme.colors.accent },
   toggleText: { color: theme.colors.text, fontSize: 13, fontWeight: "600" },
   toggleTextSelected: { color: theme.colors.accentText },
-  links: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    columnGap: theme.spacing(5),
-  },
   dayLoading: { paddingVertical: theme.spacing(6) },
   dayRows: { gap: theme.spacing(1) },
   row: {
@@ -1339,31 +1436,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     alignItems: "center",
     gap: theme.spacing(1),
   },
-  personalLink: {
-    alignSelf: "flex-start",
-    paddingVertical: theme.spacing(1),
-  },
-  personalLinkText: {
-    color: theme.colors.accent,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  chipsScroll: { flexGrow: 0 },
-  chips: { gap: theme.spacing(2) },
-  chip: {
-    paddingHorizontal: theme.spacing(3),
-    paddingVertical: theme.spacing(2),
-    borderRadius: theme.radius.full,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-  },
-  chipSelected: {
-    backgroundColor: theme.colors.accent,
-    borderColor: theme.colors.accent,
-  },
-  chipText: { color: theme.colors.text, fontSize: 14, fontWeight: "500" },
-  chipTextSelected: { color: theme.colors.accentText, fontWeight: "700" },
   eventTitleRow: {
     flexDirection: "row",
     alignItems: "center",

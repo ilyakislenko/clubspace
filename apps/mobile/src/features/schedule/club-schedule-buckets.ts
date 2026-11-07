@@ -165,3 +165,34 @@ export const filterSchedule = (
   filter === MY_GROUPS_FILTER
     ? filterScheduleByGroups(schedule, ownGroupIds)
     : filterScheduleByGym(schedule, filter)
+
+/**
+ * The «Фильтр» button's label: the picked direction (when the club has
+ * directions) and the picked gym/group chip (when there is a choice), joined
+ * by « · ». `active` once either differs from «everything». Null when the club
+ * offers nothing to filter by.
+ */
+export const scheduleFilterSummary = (opts: {
+  directions: readonly { id: string; name: string }[]
+  directionId: string | null
+  // The gym/group chips, or null when there is no gym or group to pick.
+  chips: ReadonlyArray<{ id: string | null; name: string }> | null
+  filterId: string | null
+}): { label: string; active: boolean } | null => {
+  const parts: string[] = []
+  if (opts.directions.length > 0) {
+    parts.push(
+      opts.directions.find((d) => d.id === opts.directionId)?.name ??
+        "Все направления",
+    )
+  }
+  const chip =
+    opts.chips?.find((c) => c.id === opts.filterId) ??
+    opts.chips?.find((c) => c.id === null)
+  if (chip) parts.push(chip.name)
+  if (parts.length === 0) return null
+  return {
+    label: parts.join(" · "),
+    active: !!opts.directionId || !!opts.filterId,
+  }
+}

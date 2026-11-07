@@ -150,7 +150,9 @@ export function PersonalTrainingsScreen() {
           {toggleError && <Text style={styles.danger}>{toggleError}</Text>}
         </View>
       )}
-      {coachesAvailable > 0 ? (
+      {/* A coach who runs personal sessions answers requests first; booking
+          one with somebody else is the small link under the list. */}
+      {canOffer ? null : coachesAvailable > 0 ? (
         <Pressable
           onPress={() => navigation.navigate("PersonalTrainingRequest")}
           accessibilityRole="button"
@@ -219,6 +221,17 @@ export function PersonalTrainingsScreen() {
             side={side}
             main={main}
           />
+          {canOffer && coachesAvailable > 0 && (
+            <Pressable
+              onPress={() => navigation.navigate("PersonalTrainingRequest")}
+              accessibilityRole="button"
+              style={styles.secondaryLink}
+            >
+              <Text style={styles.secondaryLinkText}>
+                Записаться к другому {coach.dat} →
+              </Text>
+            </Pressable>
+          )}
         </ScrollView>
       </CenteredColumn>
     </View>
@@ -313,6 +326,12 @@ const makeStyles = (theme: Theme) =>
       fontSize: 16,
       fontWeight: "700",
       textAlign: "center",
+    },
+    secondaryLink: { alignSelf: "flex-start", paddingVertical: theme.spacing(1) },
+    secondaryLinkText: {
+      color: theme.colors.accent,
+      fontSize: 14,
+      fontWeight: "600",
     },
     section: { gap: theme.spacing(2) },
     sectionTitle: { ...theme.typography.label, color: theme.colors.muted },

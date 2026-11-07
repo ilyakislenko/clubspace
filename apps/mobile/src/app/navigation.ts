@@ -17,7 +17,8 @@ import type {
 // the root stack above them, so a pushed screen covers the tab bar.
 export type MainTabParamList = {
   Home: undefined
-  Schedule: undefined
+  // today: a fresh stamp sends the club schedule back to today's day.
+  Schedule: { today?: number } | undefined
   Courses: undefined
   Progress: undefined
   Profile: undefined

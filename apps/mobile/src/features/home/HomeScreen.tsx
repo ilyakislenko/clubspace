@@ -366,9 +366,10 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const cardsGrow = sizeClass !== "expanded"
 
   // Per render: Home is a tab and stays mounted, so «today» can't be memoized.
+  const now = new Date()
   const coachClasses = pickCoachClassesToday(
     groups.data ?? [],
-    new Date(),
+    now,
     personalRequests,
     meId ?? null,
     substitutions.data ?? [],
@@ -377,8 +378,9 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     (coachesAnyGroup || coachClasses.length > 0) && (
     <CoachTodayCard
       classes={coachClasses}
+      now={now}
       grow={cardsGrow}
-      onMark={(c) =>
+      onOpen={(c) =>
         c.sessionId
           ? navigation.navigate("SessionRoster", {
               sessionId: c.sessionId,
@@ -389,6 +391,12 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               sessionDate: c.sessionDate!,
               groupName: c.groupName,
             })
+      }
+      // The club schedule, back on today (the tab keeps the day it was on).
+      onAll={
+        isFeatureEnabled(workspace, "schedule")
+          ? () => navigation.navigate("Schedule", { today: Date.now() })
+          : undefined
       }
     />
   )
