@@ -1906,15 +1906,22 @@ model TfaPermission {
   @@id([groupId, methodId])
 }
 
+// One per user and type: the pending row while it is set up, then the
+// confirmed one.
 model TfaMethod {
   id      String            @id @default(uuid()) @db.Uuid
   type    TfaMethodTypeEnum
   enabled Boolean           @default(false)
   secret  String
+  // TOTP time step of the last accepted code; a code is accepted only from a
+  // later step, so one code can't be used twice.
+  lastUsedTimeStep Int?
 
   userId         String          @db.Uuid
   user           User            @relation(fields: [userId], references: [id])
   tfaPermissions TfaPermission[]
+
+  @@unique([userId, type])
 }
 
 model EmailTemplate {

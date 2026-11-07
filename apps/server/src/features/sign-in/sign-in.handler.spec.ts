@@ -525,6 +525,39 @@ describe('SignInHandler — authenticator (TOTP)', () => {
         expect(prisma.user.update).not.toHaveBeenCalled()
     })
 
+    // Mobile/web clients send the e-mailed code alone first; that round must
+    // not push a correct user (or their network) towards the lockout.
+    it('gives back the attempt when only the TOTP is missing', async () => {
+        const { handler, prisma, audit } = build(baseUser(), enrolled)
+        await expect(runWithTotp(handler, CODE)).rejects.toBeInstanceOf(
+            TfaCodeRequiredError,
+        )
+        const throttleCalls = prisma.signInThrottle.updateMany.mock.calls.map(
+            (call) => call[0],
+        )
+        expect(throttleCalls.map((args) => args.data)).toEqual([
+            { failedAttempts: { increment: 1 } },
+            { failedAttempts: { decrement: 1 } },
+        ])
+        expect(throttleCalls[1].where).toMatchObject({
+            userId: 'user-1',
+            ipHash: ipHash(OWN_IP),
+            failedAttempts: { gt: 0 },
+        })
+        const accountCalls = prisma.user.updateMany.mock.calls.map((call) => call[0])
+        expect(accountCalls.map((args) => args.data)).toEqual([
+            { signInFailedAttempts: { increment: 1 } },
+            { signInFailedAttempts: { decrement: 1 } },
+        ])
+        expect(accountCalls[1].where).toEqual({
+            id: 'user-1',
+            signInFailedAttempts: { gt: 0 },
+        })
+        expect(audit.record).not.toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'auth.lockout' }),
+        )
+    })
+
     it('never tells a wrong e-mailed code that the account has an authenticator', async () => {
         const { handler, tfaAuthenticator } = build(baseUser(), enrolled)
         await expect(runWithTotp(handler, '000000')).rejects.toBeInstanceOf(
@@ -539,8 +572,9 @@ describe('SignInHandler — authenticator (TOTP)', () => {
             TfaCodeInvalidError,
         )
         expect(tokens.generateToken).not.toHaveBeenCalled()
-        // The ticket claimed before the comparison stays spent, and the
-        // lockouts start once the tickets run out (as after a wrong code).
+        // The ticket claimed before the comparison stays spent (nothing is
+        // given back), and the lockouts start once the tickets run out (as
+        // after a wrong code).
         expect(prisma.signInThrottle.updateMany.mock.calls[0][0].data).toEqual({
             failedAttempts: { increment: 1 },
         })
@@ -553,6 +587,11 @@ describe('SignInHandler — authenticator (TOTP)', () => {
         expect(audit.record).toHaveBeenCalledWith(
             expect.objectContaining({ action: 'auth.lockout' }),
         )
+        const decrements = [
+            ...prisma.signInThrottle.updateMany.mock.calls,
+            ...prisma.user.updateMany.mock.calls,
+        ].filter((call) => JSON.stringify(call[0].data).includes('decrement'))
+        expect(decrements).toEqual([])
     })
 
     it('signs in with both codes and marks the session', async () => {

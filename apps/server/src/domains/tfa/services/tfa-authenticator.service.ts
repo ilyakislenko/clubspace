@@ -24,21 +24,27 @@ export class TfaAuthenticatorService {
     }
 
     // Against the confirmed authenticator, or with `pending` against the one
-    // being set up. False when there is none.
+    // being set up. The method and the exact (stored) secret the code matched,
+    // or null when there is none or the code is wrong.
+    //
+    // A code is accepted once: its time step must be later than the last
+    // accepted one, and is recorded with a conditional write so two requests
+    // racing with the same code can't both pass. (otplib's functional
+    // `verify` drops `afterTimeStep`, so the step is compared here.)
     async verifyCode(payload: {
         userId: string
         code: string
         pending?: boolean
-    }): Promise<boolean> {
+    }): Promise<TfaCodeMatch | null> {
         const tfaMethod = await this.prisma.tfaMethod.findFirst({
             where: {
                 userId: payload.userId,
                 type: 'GOOGLE',
                 enabled: !payload.pending,
             },
-            select: { secret: true },
+            select: { id: true, secret: true, lastUsedTimeStep: true },
         })
-        if (!tfaMethod) return false
+        if (!tfaMethod) return null
 
         const decodedSecret = decrypt(
             tfaMethod.secret,
@@ -50,7 +56,35 @@ export class TfaAuthenticatorService {
             secret: decodedSecret,
             epochTolerance: EPOCH_TOLERANCE_SECONDS,
         })
+        if (!result.valid || !('timeStep' in result)) return null
+        const { timeStep } = result
+        if (
+            tfaMethod.lastUsedTimeStep !== null &&
+            timeStep <= tfaMethod.lastUsedTimeStep
+        ) {
+            return null
+        }
 
-        return result.valid
+        const { count } = await this.prisma.tfaMethod.updateMany({
+            where: {
+                id: tfaMethod.id,
+                secret: tfaMethod.secret,
+                OR: [
+                    { lastUsedTimeStep: null },
+                    { lastUsedTimeStep: { lt: timeStep } },
+                ],
+            },
+            data: { lastUsedTimeStep: timeStep },
+        })
+        if (count === 0) return null
+
+        return { methodId: tfaMethod.id, secret: tfaMethod.secret }
     }
+}
+
+// Identifies the exact secret a code was checked against: the row keeps its
+// id when a restarted enrolment replaces the pending secret.
+export interface TfaCodeMatch {
+    methodId: string
+    secret: string
 }

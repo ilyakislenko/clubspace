@@ -338,19 +338,22 @@ export class SignInHandler
 
     // An account with an authenticator (platform admins) proves it after the
     // e-mailed code. It is asked for only once that code was right, so the
-    // question never tells a guesser which accounts have one. A wrong one
-    // counts like a wrong code; the e-mailed code stays valid for the retry.
-    // True when it was proven (the session then carries the `mfa` claim).
+    // question never tells a guesser which accounts have one. Being asked is
+    // not a failed attempt: the ticket claimed for the e-mailed code is given
+    // back. A wrong one counts like a wrong code; the e-mailed code stays
+    // valid for the retry. True when it was proven (the session then carries
+    // the `mfa` claim).
     private async verifySecondFactor(
         userId: string,
         totp: string | undefined,
-        attempts: SignInAttempts,
+        attempts: UserSignInAttempts,
         ipHash: string,
     ): Promise<boolean> {
         if (!(await this.tfaAuthenticator.isEnabled(userId))) {
             return false
         }
         if (!totp) {
+            await attempts.release(ipHash)
             throw new TfaCodeRequiredError()
         }
         if (!(await this.tfaAuthenticator.verifyCode({ userId, code: totp }))) {

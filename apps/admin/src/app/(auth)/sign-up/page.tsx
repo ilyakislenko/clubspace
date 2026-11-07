@@ -17,7 +17,7 @@ import {
   storeAuthTokens,
 } from "../../../shared/api/client"
 import { environment } from "../../../environments/environment"
-import { errorMessage, retryAfterSeconds } from "../../../shared/lib/error-message"
+import { errorCode, errorMessage, retryAfterSeconds } from "../../../shared/lib/error-message"
 import { inputClsFull } from "../../../shared/lib/input-class"
 import { pluralRu } from "../../../shared/lib/plural-ru"
 import {
@@ -45,6 +45,10 @@ export default function SignUp() {
   const [step, setStep] = useState<Step>("email")
   const [email, setEmail] = useState("")
   const [code, setCode] = useState("")
+  // The account has an authenticator app (platform admins): the server asked
+  // for its code after accepting the e-mailed one; both go in again.
+  const [needsTotp, setNeedsTotp] = useState(false)
+  const [totp, setTotp] = useState("")
   const [resendIn, setResendIn] = useState(0)
   // The server refused a code inside its resend cooldown: the notice counts
   // down with the button instead of freezing on the first number.
@@ -112,7 +116,15 @@ export default function SignUp() {
   const verifyCode = (event: FormEvent) => {
     event.preventDefault()
     void run(async () => {
-      storeAuthTokens(await getAuthApi().signIn({ email, code }))
+      try {
+        storeAuthTokens(
+          await getAuthApi().signIn({ email, code, ...(needsTotp ? { totp } : {}) }),
+        )
+      } catch (e) {
+        if (errorCode(e) !== "TFA_CODE_REQUIRED") throw e
+        setNeedsTotp(true)
+        return
+      }
       setStep("club")
     }, "Не удалось войти. Попробуйте ещё раз.")
   }
@@ -245,6 +257,26 @@ export default function SignUp() {
               onChange={(e) => setCode(e.target.value)}
               required
             />
+            {needsTotp ? (
+              <label className="grid gap-2 text-sm font-medium">
+                Код из приложения-аутентификатора
+                <input
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="000000"
+                  maxLength={6}
+                  className="flex h-12 w-full rounded-md border border-input bg-transparent px-3 text-center font-mono text-2xl tracking-widest"
+                  value={totp}
+                  onChange={(e) => setTotp(e.target.value)}
+                  autoFocus
+                  required
+                />
+                <span className="text-xs font-normal text-muted-foreground">
+                  Google Authenticator, Яндекс Ключ или другое приложение,
+                  которое вы подключили к аккаунту.
+                </span>
+              </label>
+            ) : null}
             <Button type="submit" disabled={busy}>
               Продолжить
             </Button>

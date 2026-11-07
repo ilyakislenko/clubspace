@@ -1,9 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { generateSecret } from 'otplib'
-import { PrismaService, TfaMethodTypeEnum } from '../../../infrastructure/prisma'
+import { Prisma, PrismaService, TfaMethodTypeEnum } from '../../../infrastructure/prisma'
 import { encrypt } from '../../../shared/utils/encryption.util'
 import type { TfaConfig } from '../configs/tfa-module.config'
 import { TFA_CONFIG } from '../configs/tfa-module.config'
+import { TfaAlreadyEnabledError } from '../errors/tfa.errors'
+import type { TfaCodeMatch } from './tfa-authenticator.service'
 @Injectable()
 export class TfaService {
     constructor(
@@ -12,9 +14,10 @@ export class TfaService {
         private readonly prisma: PrismaService,
     ) {}
 
-    // Starts (or restarts) setting up an authenticator: a fresh secret on a
-    // method that stays disabled until confirmPendingTfaMethod, replacing an
-    // earlier unconfirmed one. A confirmed method is left alone.
+    // Starts (or restarts) setting up an authenticator: a fresh secret on the
+    // user's one method of this type, which stays disabled until
+    // confirmPendingTfaMethod. A confirmed method is never replaced
+    // (TfaAlreadyEnabledError).
     async createTfaMethod(payload: {
         userId: string
         type: TfaMethodTypeEnum
@@ -22,47 +25,49 @@ export class TfaService {
         const secret = generateSecret()
 
         const encryptedSecret = encrypt(secret, this.config.encryptionKey)
+        const { userId, type } = payload
+        const pending = { userId, type, enabled: false }
+        const data = { secret: encryptedSecret, lastUsedTimeStep: null }
 
-        await this.prisma.$transaction([
-            this.prisma.tfaPermission.deleteMany({
-                where: {
-                    method: {
-                        userId: payload.userId,
-                        type: payload.type,
-                        enabled: false,
-                    },
-                },
-            }),
-            this.prisma.tfaMethod.deleteMany({
-                where: {
-                    userId: payload.userId,
-                    type: payload.type,
-                    enabled: false,
-                },
-            }),
-            this.prisma.tfaMethod.create({
-                data: {
-                    secret: encryptedSecret,
-                    userId: payload.userId,
-                    type: payload.type,
-                    enabled: false,
-                },
-            }),
-        ])
+        try {
+            await this.prisma.tfaMethod.upsert({
+                where: { userId_type: { userId, type }, enabled: false },
+                create: { ...pending, secret: encryptedSecret },
+                update: data,
+            })
+        } catch (error) {
+            if (
+                !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+                error.code !== 'P2002'
+            ) {
+                throw error
+            }
+            // The row exists but did not match: either it was confirmed, or a
+            // concurrent start created the pending row first (then this one
+            // replaces its secret).
+            const { count } = await this.prisma.tfaMethod.updateMany({
+                where: pending,
+                data,
+            })
+            if (count === 0) throw new TfaAlreadyEnabledError()
+        }
 
         return { secret }
     }
 
-    // Called once the user proved the pending secret with a code. False when
-    // there was nothing pending (never started, or confirmed concurrently).
+    // Called once the user proved the pending secret with a code: enables
+    // exactly the secret that code was checked against. False when it is no
+    // longer pending (confirmed concurrently, or a restarted enrolment
+    // replaced the secret meanwhile).
     async confirmPendingTfaMethod(payload: {
         userId: string
-        type: TfaMethodTypeEnum
+        match: TfaCodeMatch
     }): Promise<boolean> {
         const { count } = await this.prisma.tfaMethod.updateMany({
             where: {
+                id: payload.match.methodId,
                 userId: payload.userId,
-                type: payload.type,
+                secret: payload.match.secret,
                 enabled: false,
             },
             data: { enabled: true },

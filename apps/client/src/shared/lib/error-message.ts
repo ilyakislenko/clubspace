@@ -5,7 +5,10 @@
 // axios rejection's `.message` is "Request failed with status code 400", so the
 // body is read first. Never surface axios' English boilerplate.
 type ApiErrorShape = {
-  response?: { status?: number; data?: { message?: unknown; error?: unknown } }
+  response?: {
+    status?: number
+    data?: { code?: unknown; message?: unknown; error?: unknown }
+  }
   request?: unknown
 }
 
@@ -57,4 +60,11 @@ export const errorMessage = (
     return "Нет подключения к интернету. Проверьте соединение и повторите."
   }
   return fallback
+}
+
+/** The API's error code (`TFA_CODE_REQUIRED`, …), or null. */
+export const errorCode = (error: unknown): string | null => {
+  if (typeof error !== "object" || error === null) return null
+  const code = (error as ApiErrorShape).response?.data?.code
+  return typeof code === "string" ? code : null
 }

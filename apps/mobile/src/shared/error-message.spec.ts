@@ -1,4 +1,4 @@
-import { errorMessage, retryAfterSeconds } from "./error-message"
+import { errorCode, errorMessage, retryAfterSeconds } from "./error-message"
 
 const axiosError = (over: Record<string, unknown>) =>
   Object.assign(new Error("Request failed with status code 400"), over)
@@ -93,5 +93,21 @@ describe("retryAfterSeconds", () => {
     expect(retryAfterSeconds(axiosError({ response: { status: 400, data: { metadata: {} } } }))).toBeNull()
     expect(retryAfterSeconds(new Error("boom"))).toBeNull()
     expect(retryAfterSeconds(null)).toBeNull()
+  })
+})
+
+describe("errorCode", () => {
+  it("reads the API's code from the response body", () => {
+    const e = axiosError({
+      response: { status: 400, data: { code: "TFA_CODE_REQUIRED", message: "…" } },
+    })
+    expect(errorCode(e)).toBe("TFA_CODE_REQUIRED")
+  })
+
+  it("is null without one", () => {
+    expect(errorCode(axiosError({ response: { status: 400, data: {} } }))).toBeNull()
+    expect(errorCode(axiosError({ response: { status: 503, data: "" } }))).toBeNull()
+    expect(errorCode(new Error("boom"))).toBeNull()
+    expect(errorCode(null)).toBeNull()
   })
 })

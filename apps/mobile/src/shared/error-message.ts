@@ -10,7 +10,7 @@ type ApiErrorShape = {
   config?: { method?: unknown; baseURL?: unknown; url?: unknown }
   response?: {
     status?: unknown
-    data?: { message?: unknown; error?: unknown; metadata?: unknown }
+    data?: { code?: unknown; message?: unknown; error?: unknown; metadata?: unknown }
   }
 }
 
@@ -83,4 +83,11 @@ export const retryAfterSeconds = (error: unknown): number | null => {
       ? (metadata as { retryAfterSeconds?: unknown }).retryAfterSeconds
       : undefined
   return typeof raw === "number" && raw > 0 ? Math.ceil(raw) : null
+}
+
+/** The API's error code (`TFA_CODE_REQUIRED`, …), or null. */
+export const errorCode = (error: unknown): string | null => {
+  if (typeof error !== "object" || error === null) return null
+  const code = (error as ApiErrorShape).response?.data?.code
+  return typeof code === "string" ? code : null
 }

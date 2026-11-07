@@ -23,6 +23,7 @@ jest.mock('./totp-uri', () => ({
 import {
     TfaAlreadyEnabledError,
     TfaCodeInvalidError,
+    TfaEnrollmentNotStartedError,
 } from '../../domains/tfa/errors/tfa.errors'
 import { ForbiddenError } from '../../shared/errors/shared.errors'
 import {
@@ -50,6 +51,8 @@ const member = {
     accessGranted: false,
 }
 
+const MATCH = { methodId: 'method-1', secret: 'encrypted-secret' }
+
 const build = (o: { enrolled?: boolean; validPendingCode?: string } = {}) => {
     const prisma = {
         user: {
@@ -64,7 +67,7 @@ const build = (o: { enrolled?: boolean; validPendingCode?: string } = {}) => {
         isEnabled: jest.fn().mockResolvedValue(o.enrolled ?? false),
         verifyCode: jest.fn(
             async ({ code, pending }: { code: string; pending?: boolean }) =>
-                pending === true && code === o.validPendingCode,
+                pending === true && code === o.validPendingCode ? MATCH : null,
         ),
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
@@ -151,9 +154,10 @@ describe('ConfirmPlatformMfaEnrollmentHandler', () => {
         await expect(confirm.execute(confirmWith('123456'))).resolves.toEqual({
             enrolled: true,
         })
+        // Exactly the secret the code was checked against.
         expect(tfa.confirmPendingTfaMethod).toHaveBeenCalledWith({
             userId: 'admin-1',
-            type: 'GOOGLE',
+            match: MATCH,
         })
         expect(audit.record).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -170,6 +174,17 @@ describe('ConfirmPlatformMfaEnrollmentHandler', () => {
             TfaCodeInvalidError,
         )
         expect(tfa.confirmPendingTfaMethod).not.toHaveBeenCalled()
+    })
+
+    // A restarted enrolment replaced the pending secret between the check and
+    // the confirmation: the new secret was never proven.
+    it('refuses when the checked secret is no longer the pending one', async () => {
+        const { confirm, tfa, audit } = build({ validPendingCode: '123456' })
+        tfa.confirmPendingTfaMethod.mockResolvedValue(false)
+        await expect(confirm.execute(confirmWith('123456'))).rejects.toBeInstanceOf(
+            TfaEnrollmentNotStartedError,
+        )
+        expect(audit.record).not.toHaveBeenCalled()
     })
 
     it('refuses once an authenticator is confirmed', async () => {

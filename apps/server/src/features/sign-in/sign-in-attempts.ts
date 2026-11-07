@@ -142,6 +142,27 @@ export class UserSignInAttempts implements SignInAttempts {
         await this.lockAccountIfExhausted()
     }
 
+    // Gives back the ticket claim took, for an attempt that turned out not to
+    // be a guess: the e-mailed code was right and the client only still has
+    // to send the authenticator code. Never below zero; a lock that started
+    // meanwhile (counter zeroed) is left alone.
+    async release(ipHash: string): Promise<void> {
+        const userId = this.user.id
+        await this.prisma.signInThrottle.updateMany({
+            where: {
+                userId,
+                ipHash,
+                failedAttempts: { gt: 0 },
+                ...unlocked(),
+            },
+            data: { failedAttempts: { decrement: 1 } },
+        })
+        await this.prisma.user.updateMany({
+            where: { id: userId, signInFailedAttempts: { gt: 0 } },
+            data: { signInFailedAttempts: { decrement: 1 } },
+        })
+    }
+
     private async lockAddressIfExhausted(ipHash: string): Promise<void> {
         await this.prisma.signInThrottle.updateMany({
             where: {

@@ -17,7 +17,7 @@ import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
 import { environment } from "../../shared/env"
-import { errorMessage, retryAfterSeconds } from "../../shared/error-message"
+import { errorCode, errorMessage, retryAfterSeconds } from "../../shared/error-message"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { peekPendingJoin } from "../join/pending-join"
@@ -35,6 +35,10 @@ export function SignInScreen() {
   const [step, setStep] = useState<"email" | "code">("email")
   const [email, setEmail] = useState("")
   const [code, setCode] = useState("")
+  // The account has an authenticator app (platform admins): the server asked
+  // for its code after accepting the e-mailed one; both go in again.
+  const [needsTotp, setNeedsTotp] = useState(false)
+  const [totp, setTotp] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cooldown, setCooldown] = useState(0)
@@ -81,18 +85,29 @@ export function SignInScreen() {
     }
   }
 
-  const verifyCode = async (value: string = code) => {
-    if (value.trim().length !== CODE_LENGTH || submitting) return
+  const isComplete = (value: string) => value.trim().length === CODE_LENGTH
+  const canVerify = isComplete(code) && (!needsTotp || isComplete(totp))
+
+  const verifyCode = async (value: string = code, totpValue: string = totp) => {
+    if (!isComplete(value) || (needsTotp && !isComplete(totpValue)) || submitting) {
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
       const response = await getAuthApi().signIn({
         email: email.trim(),
         code: value.trim(),
+        ...(needsTotp ? { totp: totpValue.trim() } : {}),
       })
       storeAuthTokens(response)
       await refresh()
     } catch (e) {
+      if (errorCode(e) === "TFA_CODE_REQUIRED") {
+        setNeedsTotp(true)
+        return
+      }
+      // The server tells a wrong e-mailed code from a wrong authenticator code.
       setError(
         errorMessage(e, "Неверный код. Проверьте письмо или запросите новый."),
       )
@@ -173,7 +188,11 @@ export function SignInScreen() {
                 <Text style={styles.muted}>Отправлено на</Text>
                 <Text style={styles.emailText}>{email}</Text>
                 <Pressable
-                  onPress={() => setStep("email")}
+                  onPress={() => {
+                    setStep("email")
+                    setNeedsTotp(false)
+                    setTotp("")
+                  }}
                   disabled={submitting}
                 >
                   <Text style={styles.link}>Изменить</Text>
@@ -186,7 +205,7 @@ export function SignInScreen() {
                 value={code}
                 onChangeText={(text) => {
                   setCode(text)
-                  if (text.trim().length === CODE_LENGTH) void verifyCode(text)
+                  if (isComplete(text)) void verifyCode(text)
                 }}
                 placeholder="000000"
                 placeholderTextColor={theme.colors.muted}
@@ -199,15 +218,43 @@ export function SignInScreen() {
                 // Chrome fills it from the email.
                 autoComplete="one-time-code"
                 textContentType="oneTimeCode"
-                autoFocus
+                autoFocus={!needsTotp}
                 editable={!submitting}
               />
+              {needsTotp && (
+                <>
+                  <Text style={styles.label}>Код из приложения-аутентификатора</Text>
+                  <TextInput
+                    style={[styles.input, styles.code]}
+                    value={totp}
+                    onChangeText={(text) => {
+                      setTotp(text)
+                      if (isComplete(text)) void verifyCode(code, text)
+                    }}
+                    placeholder="000000"
+                    placeholderTextColor={theme.colors.muted}
+                    keyboardType="number-pad"
+                    inputMode="numeric"
+                    maxLength={6}
+                    onSubmitEditing={() => void verifyCode()}
+                    returnKeyType="go"
+                    autoComplete="one-time-code"
+                    textContentType="oneTimeCode"
+                    autoFocus
+                    editable={!submitting}
+                  />
+                  <Text style={styles.muted}>
+                    Google Authenticator, Яндекс Ключ или другое приложение,
+                    которое вы подключили к аккаунту.
+                  </Text>
+                </>
+              )}
               <Pressable
                 onPress={() => void verifyCode()}
-                disabled={submitting || code.length !== CODE_LENGTH}
+                disabled={submitting || !canVerify}
                 style={({ pressed }) => [
                   styles.button,
-                  (code.length !== CODE_LENGTH || submitting) && styles.buttonDisabled,
+                  (!canVerify || submitting) && styles.buttonDisabled,
                   pressed && styles.buttonPressed,
                 ]}
               >

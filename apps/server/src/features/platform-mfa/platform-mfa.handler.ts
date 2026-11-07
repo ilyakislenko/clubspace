@@ -103,15 +103,15 @@ export class ConfirmPlatformMfaEnrollmentHandler
             throw new TfaAlreadyEnabledError()
         }
 
-        const valid = await this.tfaAuthenticator.verifyCode({
+        const match = await this.tfaAuthenticator.verifyCode({
             userId,
             code: payload.code,
             pending: true,
         })
-        if (!valid) {
+        if (!match) {
             throw new TfaCodeInvalidError()
         }
-        if (!(await this.tfa.confirmPendingTfaMethod({ userId, type: 'GOOGLE' }))) {
+        if (!(await this.tfa.confirmPendingTfaMethod({ userId, match }))) {
             throw new TfaEnrollmentNotStartedError()
         }
 
