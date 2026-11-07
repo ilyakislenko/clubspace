@@ -1,7 +1,10 @@
-// environment.ts reads required env vars at import; stub the one value the
+// environment.ts reads required env vars at import; stub the values the
 // guard reads.
 jest.mock('../../environments/environment', () => ({
-    environment: { consent: { personalDataVersion: 'v2' } },
+    environment: {
+        consent: { personalDataVersion: 'v2' },
+        platformAdminMfaRequired: false,
+    },
 }))
 
 import { SetMetadata } from '@nestjs/common'
@@ -9,6 +12,7 @@ import { JwtService } from '@nestjs/jwt'
 import { Reflector } from '@nestjs/core'
 
 import { TokensService } from '../../domains/tokens/services/tokens.service'
+import { environment } from '../../environments/environment'
 import { ActAsAllowed } from '../decorators/act-as.decorator'
 import { COACHING_ROLES, Roles } from '../decorators/roles.decorator'
 import { SKIP_CONSENT_CHECK } from '../decorators/skip-consent-check.decorator'
@@ -371,5 +375,92 @@ describe('AuthGuard session checks', () => {
         await expect(withToken(token, 1)).rejects.toBeInstanceOf(
             UnauthorizedError,
         )
+    })
+})
+
+// PLATFORM_ADMIN_MFA_REQUIRED: a super admin's powers — the bypass every club
+// guard and RoleGuard read off isSuperAdmin, and the /platform console — only
+// for a session whose access token carries the `mfa` claim.
+describe('AuthGuard super-admin second factor', () => {
+    type PlatformUser = {
+        isSuperAdmin: boolean
+        superAdminMfaMissing: boolean
+        role: { name: string } | null
+    }
+
+    const signIn = async (o: { mfa: boolean }) => {
+        const tokens = new TokensService(
+            {
+                jwt: {
+                    secret: 'test-secret-long-enough-for-hs256-token-signing',
+                    issuerUrl: 'http://localhost:3000',
+                    audienceUrl: 'http://localhost:3000',
+                    accessTokenTTL: 900,
+                    refreshTokenTTL: 3600,
+                },
+            } as never,
+            new JwtService(),
+            { refreshToken: { create: jest.fn() } } as never,
+        )
+        const token = await tokens.generateToken({
+            userId: 'u1',
+            sessionVersion: 0,
+            mfa: o.mfa,
+        })
+        const built = build(role('user', false), { tokens, isSuperAdmin: true })
+        built.req.headers = { authorization: `Bearer ${token}` }
+        return built
+    }
+
+    afterEach(() => {
+        environment.platformAdminMfaRequired = false
+    })
+
+    describe('when required', () => {
+        beforeEach(() => {
+            environment.platformAdminMfaRequired = true
+        })
+
+        it('makes a super admin without the claim an ordinary member', async () => {
+            const { guard, req, context, rolesService } = await signIn({
+                mfa: false,
+            })
+            await guard.canActivate(context as never)
+            const user = req.user as PlatformUser
+            expect(user.isSuperAdmin).toBe(false)
+            expect(user.superAdminMfaMissing).toBe(true)
+            // Resolved through the membership like anyone else.
+            expect(rolesService.getRole).toHaveBeenCalled()
+            expect(user.role?.name).toBe('user')
+        })
+
+        it('refuses a club the super admin is not a member of without the claim', async () => {
+            const { guard, context, rolesService } = await signIn({ mfa: false })
+            rolesService.getRole.mockRejectedValue(new Error('no member'))
+            rolesService.getRoleForWorkspaceOwner.mockResolvedValue(null)
+            await expect(guard.canActivate(context as never)).rejects.toBeInstanceOf(
+                ForbiddenError,
+            )
+        })
+
+        it('grants the powers to a session signed in with the authenticator', async () => {
+            const { guard, req, context, rolesService } = await signIn({
+                mfa: true,
+            })
+            await guard.canActivate(context as never)
+            const user = req.user as PlatformUser
+            expect(user.isSuperAdmin).toBe(true)
+            expect(user.superAdminMfaMissing).toBe(false)
+            expect(user.role?.name).toBe('super-admin')
+            expect(rolesService.getRole).not.toHaveBeenCalled()
+        })
+    })
+
+    it('keeps the old behaviour when not required', async () => {
+        const { guard, req, context } = await signIn({ mfa: false })
+        await guard.canActivate(context as never)
+        const user = req.user as PlatformUser
+        expect(user.isSuperAdmin).toBe(true)
+        expect(user.superAdminMfaMissing).toBe(false)
     })
 })

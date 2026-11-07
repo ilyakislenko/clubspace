@@ -7,6 +7,7 @@ export type ClientOptions = {
 export type SignInInput = {
     email: string;
     code: string;
+    totp?: string;
 };
 
 export type SignInOutputOutput = {
@@ -900,6 +901,26 @@ export type ResetPlatformDemoClubOutputOutput = {
         visits: number;
         subscriptions: number;
     };
+};
+
+export type GetPlatformMfaOutputOutput = {
+    enrolled: boolean;
+    required: boolean;
+    accessGranted: boolean;
+};
+
+export type StartPlatformMfaEnrollmentOutputOutput = {
+    secret: string;
+    otpauthUrl: string;
+    qrPngDataUrl: string;
+};
+
+export type ConfirmPlatformMfaEnrollmentInput = {
+    code: string;
+};
+
+export type ConfirmPlatformMfaEnrollmentOutputOutput = {
+    enrolled: true;
 };
 
 export type CreateVideoUploadInput = {
@@ -8942,6 +8963,45 @@ export type ResetPlatformDemoClubResponses = {
 };
 
 export type ResetPlatformDemoClubResponse = ResetPlatformDemoClubResponses[keyof ResetPlatformDemoClubResponses];
+
+export type GetPlatformMfaData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/platform/mfa';
+};
+
+export type GetPlatformMfaResponses = {
+    default: GetPlatformMfaOutputOutput;
+};
+
+export type GetPlatformMfaResponse = GetPlatformMfaResponses[keyof GetPlatformMfaResponses];
+
+export type StartPlatformMfaEnrollmentData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/platform/mfa/enrollment';
+};
+
+export type StartPlatformMfaEnrollmentResponses = {
+    default: StartPlatformMfaEnrollmentOutputOutput;
+};
+
+export type StartPlatformMfaEnrollmentResponse = StartPlatformMfaEnrollmentResponses[keyof StartPlatformMfaEnrollmentResponses];
+
+export type ConfirmPlatformMfaEnrollmentData = {
+    body: ConfirmPlatformMfaEnrollmentInput;
+    path?: never;
+    query?: never;
+    url: '/platform/mfa/enrollment/confirm';
+};
+
+export type ConfirmPlatformMfaEnrollmentResponses = {
+    default: ConfirmPlatformMfaEnrollmentOutputOutput;
+};
+
+export type ConfirmPlatformMfaEnrollmentResponse = ConfirmPlatformMfaEnrollmentResponses[keyof ConfirmPlatformMfaEnrollmentResponses];
 
 export type ListVideosData = {
     body?: never;

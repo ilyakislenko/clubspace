@@ -12,6 +12,9 @@ export class TfaService {
         private readonly prisma: PrismaService,
     ) {}
 
+    // Starts (or restarts) setting up an authenticator: a fresh secret on a
+    // method that stays disabled until confirmPendingTfaMethod, replacing an
+    // earlier unconfirmed one. A confirmed method is left alone.
     async createTfaMethod(payload: {
         userId: string
         type: TfaMethodTypeEnum
@@ -20,30 +23,51 @@ export class TfaService {
 
         const encryptedSecret = encrypt(secret, this.config.encryptionKey)
 
-        const allRequiredGroups = await this.prisma.tfaRequestGroup.findMany({
-            select: {
-                id: true,
-            },
-        })
-
-        await this.prisma.tfaMethod.create({
-            data: {
-                secret: encryptedSecret,
-                userId: payload.userId,
-                type: payload.type,
-                enabled: true,
-                tfaPermissions: {
-                    createMany: {
-                        data: allRequiredGroups.map((group) => ({
-                            groupId: group.id,
-                            enabled: true,
-                        })),
+        await this.prisma.$transaction([
+            this.prisma.tfaPermission.deleteMany({
+                where: {
+                    method: {
+                        userId: payload.userId,
+                        type: payload.type,
+                        enabled: false,
                     },
                 },
-            },
-        })
+            }),
+            this.prisma.tfaMethod.deleteMany({
+                where: {
+                    userId: payload.userId,
+                    type: payload.type,
+                    enabled: false,
+                },
+            }),
+            this.prisma.tfaMethod.create({
+                data: {
+                    secret: encryptedSecret,
+                    userId: payload.userId,
+                    type: payload.type,
+                    enabled: false,
+                },
+            }),
+        ])
 
         return { secret }
+    }
+
+    // Called once the user proved the pending secret with a code. False when
+    // there was nothing pending (never started, or confirmed concurrently).
+    async confirmPendingTfaMethod(payload: {
+        userId: string
+        type: TfaMethodTypeEnum
+    }): Promise<boolean> {
+        const { count } = await this.prisma.tfaMethod.updateMany({
+            where: {
+                userId: payload.userId,
+                type: payload.type,
+                enabled: false,
+            },
+            data: { enabled: true },
+        })
+        return count > 0
     }
 
     async disableTfaMethod(payload: { userId: string; methodId: string }) {
@@ -62,63 +86,6 @@ export class TfaService {
                 enabled: true,
             },
         })
-    }
-
-    async getTfaMethods(payload: { userId: string; onlyEnabled?: boolean }) {
-        const methods = await this.prisma.tfaMethod.findMany({
-            where: { userId: payload.userId, enabled: payload.onlyEnabled },
-            select: {
-                id: true,
-                type: true,
-                enabled: true,
-                tfaPermissions: {
-                    select: {
-                        enabled: true,
-                        group: {
-                            select: {
-                                id: true,
-                                key: true,
-                                alwaysEnabled: true,
-                            },
-                        },
-                    },
-                },
-            },
-        })
-
-        const allGroups = await this.prisma.tfaRequestGroup.findMany({})
-
-        for (const method of methods) {
-            if (method.tfaPermissions.length !== allGroups.length) {
-                await this.prisma.tfaPermission.createMany({
-                    data: allGroups.map((group) => ({
-                        groupId: group.id,
-                        methodId: method.id,
-                        enabled: true,
-                    })),
-                    skipDuplicates: true,
-                })
-
-                const updatedPermissions =
-                    await this.prisma.tfaPermission.findMany({
-                        where: { methodId: method.id },
-                        select: {
-                            enabled: true,
-                            group: {
-                                select: {
-                                    id: true,
-                                    key: true,
-                                    alwaysEnabled: true,
-                                },
-                            },
-                        },
-                    })
-
-                method.tfaPermissions = updatedPermissions
-            }
-        }
-
-        return methods
     }
 
     async deleteTfaMethod(payload: { userId: string; methodId: string }) {

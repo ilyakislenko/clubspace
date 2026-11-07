@@ -1340,6 +1340,70 @@
         }
       }
     },
+    "/platform/mfa": {
+      "get": {
+        "operationId": "getPlatformMfa",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPlatformMfaOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/mfa/enrollment": {
+      "post": {
+        "operationId": "startPlatformMfaEnrollment",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartPlatformMfaEnrollmentOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/mfa/enrollment/confirm": {
+      "post": {
+        "operationId": "confirmPlatformMfaEnrollment",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmPlatformMfaEnrollmentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmPlatformMfaEnrollmentOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/videos": {
       "post": {
         "operationId": "createUpload",
@@ -13802,6 +13866,10 @@
             "type": "string",
             "minLength": 6,
             "maxLength": 6
+          },
+          "totp": {
+            "type": "string",
+            "pattern": "^\\d{6}$"
           }
         },
         "required": [
@@ -18287,6 +18355,73 @@
           "workspaceId",
           "durationMs",
           "counts"
+        ],
+        "additionalProperties": false
+      },
+      "GetPlatformMfaOutput_Output": {
+        "type": "object",
+        "properties": {
+          "enrolled": {
+            "type": "boolean"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "accessGranted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enrolled",
+          "required",
+          "accessGranted"
+        ],
+        "additionalProperties": false
+      },
+      "StartPlatformMfaEnrollmentOutput_Output": {
+        "type": "object",
+        "properties": {
+          "secret": {
+            "type": "string"
+          },
+          "otpauthUrl": {
+            "type": "string"
+          },
+          "qrPngDataUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret",
+          "otpauthUrl",
+          "qrPngDataUrl"
+        ],
+        "additionalProperties": false
+      },
+      "ConfirmPlatformMfaEnrollmentInput": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "ConfirmPlatformMfaEnrollmentOutput_Output": {
+        "type": "object",
+        "properties": {
+          "enrolled": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "enrolled"
         ],
         "additionalProperties": false
       },

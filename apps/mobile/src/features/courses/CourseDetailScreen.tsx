@@ -19,7 +19,7 @@ import { RefreshControl } from "../../shared/components/RefreshControl"
 import { showAlert } from "../../shared/alert"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
-import { Sheet, SheetRow } from "../../shared/components/Sheet"
+import { Sheet, SheetRow, useSheetAction } from "../../shared/components/Sheet"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -105,7 +105,9 @@ export function CourseDetailScreen({ route, navigation }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<LessonFilter>("all")
-  const [menuOpen, setMenuOpen] = useState(false)
+  // «Ещё»: its choices run once it's dismissed — two of them open an alert,
+  // which iOS can't show over a dismissing sheet.
+  const menu = useSheetAction()
   // Locked lessons can't be downloaded, so they're not on offer.
   const bulkTargets = useMemo<BulkDownloadTarget[]>(
     () =>
@@ -248,7 +250,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
       headerRight: showMenu
         ? () => (
             <Pressable
-              onPress={() => setMenuOpen(true)}
+              onPress={menu.open}
               accessibilityRole="button"
               accessibilityLabel="Ещё"
               hitSlop={8}
@@ -263,7 +265,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
           )
         : undefined,
     })
-  }, [navigation, showMenu, styles, theme])
+  }, [navigation, showMenu, styles, theme, menu.open])
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -561,38 +563,28 @@ export function CourseDetailScreen({ route, navigation }: Props) {
       </KeyboardAvoidingContainer>
       </CenteredColumn>
 
-      {menuOpen && (
-        <Sheet title="Ещё" onClose={() => setMenuOpen(false)}>
+      {menu.mounted && (
+        <Sheet title="Ещё" {...menu.sheetProps}>
           {downloading ? (
             bulk.state.status === "downloading" && bulk.state.stopping ? (
               <Text style={styles.muted}>Остановка после текущего видео…</Text>
             ) : (
               <SheetRow
                 label="Остановить загрузку"
-                onPress={() => {
-                  setMenuOpen(false)
-                  bulk.stop()
-                }}
+                onPress={() => menu.run(bulk.stop)}
               />
             )
           ) : canStartDownload ? (
             <SheetRow
               label="Скачать весь курс"
-              onPress={() => {
-                // Its confirm is an alert: not on top of the sheet.
-                setMenuOpen(false)
-                void bulk.start()
-              }}
+              onPress={() => menu.run(() => void bulk.start())}
             />
           ) : null}
           {!downloading && downloadedIds.length > 0 && (
             <SheetRow
               label="Удалить загрузки"
               count={downloadedIds.length}
-              onPress={() => {
-                setMenuOpen(false)
-                confirmRemoveDownloads()
-              }}
+              onPress={() => menu.run(confirmRemoveDownloads)}
             />
           )}
         </Sheet>

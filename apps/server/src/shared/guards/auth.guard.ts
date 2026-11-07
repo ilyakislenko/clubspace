@@ -9,6 +9,7 @@ import { UsersService } from '../../domains/users/services/users.service'
 import { environment } from '../../environments/environment'
 import { UserStatus } from '../../infrastructure/prisma'
 import { resolveRequestWorkspaceId } from '../access/resolve-workspace-id'
+import { superAdminSessionAllowed } from '../access/super-admin-mfa'
 import {
     ACT_AS_ALLOWED,
     ACT_AS_HEADER,
@@ -64,7 +65,9 @@ export class AuthGuard {
                 throw new UnauthorizedError()
             }
 
-            let decodedToken: { sub: string; sv: number } | undefined = undefined
+            let decodedToken:
+                | { sub: string; sv: number; mfa?: true }
+                | undefined = undefined
 
             try {
                 // Access tokens only: a refresh token is refused here.
@@ -121,12 +124,15 @@ export class AuthGuard {
             // them, else the signed-in person. Everything below (roles,
             // membership, handlers) sees only this one.
             const userId = actor?.dependentId ?? decodedToken.sub
-            const isSuperAdmin = actor ? false : user.isSuperAdmin
+            const platformAccount = !actor && user.isSuperAdmin
+            const isSuperAdmin =
+                platformAccount && superAdminSessionAllowed(decodedToken)
 
             const basePayload: Partial<CurrentUserPayload> = {
                 userId,
                 workspaceId: workspaceId,
                 isSuperAdmin,
+                superAdminMfaMissing: platformAccount && !isSuperAdmin,
                 guardianId: actor ? decodedToken.sub : null,
             }
 

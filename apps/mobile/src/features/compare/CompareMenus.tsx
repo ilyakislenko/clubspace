@@ -1,12 +1,13 @@
 // The menus of «Сравнить рядом», each a `Sheet`: the speed of both sides, the
 // both-sides options («⋯» in the bottom bar) and one side's tools («⋯» on a
-// pane). A choice applies and closes the menu.
+// pane). A choice applies at once (an A/B mark lands on the moment of the
+// tap) and closes the menu; `onClose` fires once it's gone (`useSheetAction`).
 import React from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
-import { Sheet } from "../../shared/components/Sheet"
+import { Sheet, useSheetAction } from "../../shared/components/Sheet"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { formatPosition } from "../video/format-position"
@@ -61,15 +62,16 @@ export function CompareSpeedSheet({
   onSelect: (rate: number) => void
   onClose: () => void
 }) {
+  const sheet = useSheetAction({ initiallyOpen: true, onClosed: onClose })
   return (
-    <Sheet title="Скорость" onClose={onClose}>
+    <Sheet title="Скорость" {...sheet.sheetProps}>
       {COMPARE_RATES.map((option) => (
         <OptionRow
           key={option}
           role="radio"
           label={option === 1 ? "1x · обычная" : `${option}x`}
           selected={option === rate}
-          onPress={() => onSelect(option)}
+          onPress={() => sheet.apply(() => onSelect(option))}
         />
       ))}
     </Sheet>
@@ -95,8 +97,9 @@ export function CompareOptionsSheet({
   onAudioSide: (side: CompareSide) => void
   onClose: () => void
 }) {
+  const sheet = useSheetAction({ initiallyOpen: true, onClosed: onClose })
   return (
-    <Sheet title="Обе стороны" onClose={onClose}>
+    <Sheet title="Обе стороны" {...sheet.sheetProps}>
       <OptionRow
         role="switch"
         label="Синхронно"
@@ -109,19 +112,19 @@ export function CompareOptionsSheet({
         }
         selected={sync}
         disabled={!canSync}
-        onPress={onToggleSync}
+        onPress={() => sheet.apply(onToggleSync)}
       />
       <OptionRow
         role="radio"
         label="Звук слева"
         selected={audioSide === "left"}
-        onPress={() => onAudioSide("left")}
+        onPress={() => sheet.apply(() => onAudioSide("left"))}
       />
       <OptionRow
         role="radio"
         label="Звук справа"
         selected={audioSide === "right"}
-        onPress={() => onAudioSide("right")}
+        onPress={() => sheet.apply(() => onAudioSide("right"))}
       />
     </Sheet>
   )
@@ -146,27 +149,34 @@ export function ComparePaneSheet({
   onClearLoop: () => void
   onClose: () => void
 }) {
+  const sheet = useSheetAction({ initiallyOpen: true, onClosed: onClose })
   return (
-    <Sheet title={label} onClose={onClose}>
+    <Sheet title={label} {...sheet.sheetProps}>
       <OptionRow
         role="switch"
         label="Зеркально"
         selected={mirrored}
-        onPress={onToggleMirror}
+        onPress={() => sheet.apply(onToggleMirror)}
       />
       <OptionRow
         role="button"
         label="Отметить точку A"
         detail={loop ? formatPosition(loop.startSec) : undefined}
-        onPress={onSetA}
+        onPress={() => sheet.apply(onSetA)}
       />
       <OptionRow
         role="button"
         label="Отметить точку B"
         detail={loop?.endSec != null ? formatPosition(loop.endSec) : undefined}
-        onPress={onSetB}
+        onPress={() => sheet.apply(onSetB)}
       />
-      {loop && <OptionRow role="button" label="Сбросить A–B" onPress={onClearLoop} />}
+      {loop && (
+        <OptionRow
+          role="button"
+          label="Сбросить A–B"
+          onPress={() => sheet.apply(onClearLoop)}
+        />
+      )}
     </Sheet>
   )
 }

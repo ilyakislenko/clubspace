@@ -1,6 +1,10 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import {
+    isWorkspaceEntitled,
+    moduleEntitlementSelect,
+} from '../../domains/billing/module-entitlement'
 import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -42,6 +46,7 @@ export class GetWorkspaceOnboardingHandler
                 videosEnabled: true,
                 scheduleEnabled: true,
                 subscriptionEnabled: true,
+                ...moduleEntitlementSelect('ONLINE_PAYMENTS'),
             },
         })
         if (!workspace) {
@@ -106,6 +111,9 @@ export class GetWorkspaceOnboardingHandler
             ...(workspace.videosEnabled ? [] : ['video']),
             ...(workspace.scheduleEnabled ? [] : ['schedule']),
             ...(workspace.subscriptionEnabled ? [] : ['plans', 'payments']),
+            // Payment keys can only be saved with the «Онлайн-оплата» module:
+            // a club paying in person is not asked for them.
+            ...(isWorkspaceEntitled(workspace) ? [] : ['payments']),
         ])
         const steps = ONBOARDING_STEP_KEYS.filter((key) => !off.has(key)).map((key) => ({
             key,

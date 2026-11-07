@@ -1,5 +1,5 @@
-import React, { type ReactNode } from "react"
-import { Modal, ScrollView, StyleSheet, Text, View } from "react-native"
+import React, { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { Modal, Platform, ScrollView, StyleSheet, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import type { Theme } from "../theme"
@@ -13,14 +13,24 @@ import { Pressable } from "./Pressable"
  * A titled sheet: a bottom sheet on phones, a centered card on larger windows
  * (the shell of `ClubSwitcherSheet` / `OccurrenceSheet`). A tap outside or the
  * back gesture closes it; the body scrolls when it outgrows the window.
+ *
+ * `visible={false}` fades it out; `onDismiss` fires once it's gone. iOS can't
+ * present a modal, alert or share sheet while this one is still dismissing,
+ * so a choice that opens one waits for `onDismiss` — see `useSheetAction`.
+ * (Android and web drop the modal at once: there `onDismiss` fires right
+ * after `visible` turns false.)
  */
 export function Sheet({
   title,
+  visible = true,
   onClose,
+  onDismiss,
   children,
 }: {
   title: string
+  visible?: boolean
   onClose: () => void
+  onDismiss?: () => void
   children: ReactNode
 }) {
   const theme = useTheme()
@@ -29,12 +39,21 @@ export function Sheet({
   const { sizeClass, height } = useResponsive()
   const compact = sizeClass === "compact"
 
+  const onDismissRef = useRef(onDismiss)
+  useEffect(() => {
+    onDismissRef.current = onDismiss
+  })
+  useEffect(() => {
+    if (!visible && Platform.OS !== "ios") onDismissRef.current?.()
+  }, [visible])
+
   return (
     <Modal
-      visible
+      visible={visible}
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      onDismiss={Platform.OS === "ios" ? onDismiss : undefined}
       statusBarTranslucent
     >
       <Pressable
@@ -78,6 +97,77 @@ export function Sheet({
       </Pressable>
     </Modal>
   )
+}
+
+/**
+ * Open/close state of a `Sheet` whose choices may open something else (a
+ * modal, an alert, the share sheet, a screen): `run(action)` closes the sheet
+ * and runs `action` only once it's dismissed. `apply(action)` runs it now and
+ * closes — for in-place choices that open nothing (a setting, a mark at the
+ * current moment). Spread `sheetProps` on the `Sheet`; render it while
+ * `mounted` (it stays mounted while fading out).
+ *
+ * A sheet component the caller mounts and unmounts itself passes
+ * `initiallyOpen` and gets `onClosed` once it's gone, after which the caller
+ * unmounts it.
+ */
+export function useSheetAction({
+  initiallyOpen = false,
+  onClosed,
+}: { initiallyOpen?: boolean; onClosed?: () => void } = {}) {
+  const [phase, setPhase] = useState<"open" | "closing" | "closed">(
+    initiallyOpen ? "open" : "closed",
+  )
+  // Set from the close until the next open: a second tap on a row while the
+  // sheet fades out (iOS) is ignored, not run twice.
+  const closing = useRef(false)
+  const pending = useRef<(() => void) | null>(null)
+  const onClosedRef = useRef(onClosed)
+  useEffect(() => {
+    onClosedRef.current = onClosed
+  })
+
+  const open = useCallback(() => {
+    closing.current = false
+    pending.current = null
+    setPhase("open")
+  }, [])
+  const close = useCallback(() => {
+    closing.current = true
+    setPhase((p) => (p === "open" ? "closing" : p))
+  }, [])
+  const run = useCallback(
+    (action: () => void) => {
+      if (closing.current) return
+      pending.current = action
+      close()
+    },
+    [close],
+  )
+  const apply = useCallback(
+    (action: () => void) => {
+      if (closing.current) return
+      action()
+      close()
+    },
+    [close],
+  )
+  const onDismiss = useCallback(() => {
+    setPhase((p) => (p === "closing" ? "closed" : p))
+    const action = pending.current
+    pending.current = null
+    onClosedRef.current?.()
+    action?.()
+  }, [])
+
+  return {
+    mounted: phase !== "closed",
+    open,
+    close,
+    run,
+    apply,
+    sheetProps: { visible: phase === "open", onClose: close, onDismiss },
+  }
 }
 
 /** One destination in a sheet menu: label, optional count, chevron. */

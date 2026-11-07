@@ -67,14 +67,20 @@ export class RefreshTokenHandler
             throw new UserBlockedRefreshError()
         }
 
+        // A session signed in with the authenticator stays so across
+        // rotations (the claim is signed into the refresh token).
+        const mfa = refreshTokenPayload.mfa === true
+
         const accessToken = await this.tokens.generateToken({
             userId: user.id,
             sessionVersion: user.sessionVersion,
+            mfa,
         })
 
         const newRefreshToken = await this.tokens.generateStoredToken({
             userId: user.id,
             familyId: refreshTokenPayload.familyId,
+            mfa,
         })
 
         return {

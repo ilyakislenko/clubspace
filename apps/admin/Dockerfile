@@ -36,6 +36,9 @@ ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
 ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${NEXT_PUBLIC_SENTRY_ENVIRONMENT}
 ARG NEXT_PUBLIC_APP_RELEASE
 ENV NEXT_PUBLIC_APP_RELEASE=${NEXT_PUBLIC_APP_RELEASE}
+# The support address on the closed sign-up page (empty = only the demo link).
+ARG NEXT_PUBLIC_SUPPORT_EMAIL
+ENV NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL}
 COPY --from=deps /workspace/node_modules ./node_modules
 COPY . .
 # The build first compiles libs/api-client (dependsOn ^build): the typecheck

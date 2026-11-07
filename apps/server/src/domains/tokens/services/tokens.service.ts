@@ -22,12 +22,17 @@ export type AccessTokenClaims = {
     typ: 'access'
     // User.sessionVersion at issue time; AuthGuard refuses a stale one.
     sv: number
+    // Set when the sign-in also proved the account's authenticator (TOTP).
+    // Platform-admin powers need it (shared/access/super-admin-mfa.ts).
+    mfa?: true
 }
 
 export type RefreshTokenClaims = {
     sub: string
     jti: string
     typ: 'refresh'
+    // Carried by the refresh token so a rotated session keeps it.
+    mfa?: true
 }
 
 @Injectable()
@@ -42,6 +47,7 @@ export class TokensService {
     async generateToken(payload: {
         userId: string
         sessionVersion: number
+        mfa?: boolean
     }): Promise<string> {
         const signOptions: SignOptions = {
             issuer: this.config.jwt.issuerUrl,
@@ -51,7 +57,11 @@ export class TokensService {
         }
 
         return await this.jwt.signAsync(
-            { typ: 'access', sv: payload.sessionVersion },
+            {
+                typ: 'access',
+                sv: payload.sessionVersion,
+                ...(payload.mfa ? { mfa: true } : {}),
+            },
             { ...signOptions, secret: this.config.jwt.secret },
         )
     }
@@ -61,6 +71,7 @@ export class TokensService {
     async generateStoredToken(payload: {
         userId: string
         familyId?: string
+        mfa?: boolean
     }): Promise<string> {
         const signOptions: SignOptions = {
             jwtid: randomUUID(),
@@ -71,7 +82,7 @@ export class TokensService {
         }
 
         const refreshToken = await this.jwt.signAsync(
-            { typ: 'refresh' },
+            { typ: 'refresh', ...(payload.mfa ? { mfa: true } : {}) },
             { ...signOptions, secret: this.config.jwt.secret },
         )
 

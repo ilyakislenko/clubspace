@@ -1,4 +1,4 @@
-import { Body, Controller, Ip, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Ip, Post } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -6,9 +6,6 @@ import { ApiTags } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
 
 import { trackByClientIp } from '../../shared/guards/club-throttler.guard'
-import { TfaRequestGroupEnum } from '../../domains/tfa/interfaces/tfa.interfaces'
-import { TfaGroup } from '../../shared/decorators'
-import { TfaGuard } from '../../shared/guards/tfa.guard'
 import {
     SignInFeature,
     SignInFeatureInputSchema,
@@ -27,8 +24,6 @@ export class SignInController {
     @Post('sign-in')
     @ApiTags('Authentication')
     @ZodResponse({ type: SignInOutput })
-    @UseGuards(TfaGuard)
-    @TfaGroup(TfaRequestGroupEnum.AUTH)
     // Always per IP (trackByClientIp), sized for a gym on one Wi-Fi; OTP
     // brute force is stopped by the per-address and per-account lockouts in
     // the handler, not by this.

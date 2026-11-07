@@ -76,10 +76,12 @@ describe('RefreshTokenHandler', () => {
         expect(tokens.generateToken).toHaveBeenCalledWith({
             userId: 'u1',
             sessionVersion: 4,
+            mfa: false,
         })
         expect(tokens.generateStoredToken).toHaveBeenCalledWith({
             userId: 'u1',
             familyId: 'fam-1',
+            mfa: false,
         })
         expect(result).toMatchObject({
             userId: 'u1',
@@ -87,6 +89,25 @@ describe('RefreshTokenHandler', () => {
             refreshToken: 'new-refresh',
         })
         expect(result.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000))
+    })
+
+    // A session signed in with the authenticator keeps its platform powers
+    // across rotations.
+    it('keeps the mfa claim of the presented token', async () => {
+        const { handler, tokens } = build({ id: 'u1', status: 'ACTIVE' })
+        tokens.verifyStoredToken.mockResolvedValue({
+            jti: 'old-jti',
+            sub: 'u1',
+            familyId: 'fam-1',
+            mfa: true,
+        })
+        await run(handler)
+        expect(tokens.generateToken).toHaveBeenCalledWith(
+            expect.objectContaining({ mfa: true }),
+        )
+        expect(tokens.generateStoredToken).toHaveBeenCalledWith(
+            expect.objectContaining({ familyId: 'fam-1', mfa: true }),
+        )
     })
 
     it('consumes the presented token before rejecting a blocked user', async () => {

@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common'
 
 import { CurrentUserPayload } from '../decorators/current-user.decorator'
-import { ForbiddenError } from '../errors/shared.errors'
+import { ForbiddenError, PlatformMfaRequiredError } from '../errors/shared.errors'
 
 // Gate for platform-level endpoints (`/platform/*`) — the console that sits
 // ABOVE the per-workspace admin: it lists every club, creates new ones and
@@ -25,6 +25,9 @@ export class SuperAdminGuard implements CanActivate {
 
         if (!user) {
             throw new ForbiddenError({ message: 'Нужно войти в аккаунт' })
+        }
+        if (user.superAdminMfaMissing) {
+            throw new PlatformMfaRequiredError()
         }
         if (!user.isSuperAdmin) {
             throw new ForbiddenError({

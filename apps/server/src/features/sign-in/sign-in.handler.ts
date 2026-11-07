@@ -11,6 +11,8 @@ import { UserNoCompleteCodeError } from '../../domains/users/errors/users.errors
 import { UsersService } from '../../domains/users/services/users.service'
 import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
 import { StoreReviewMembershipService } from '../../domains/workspace/services/store-review-membership.service'
+import { TfaCodeInvalidError, TfaCodeRequiredError } from '../../domains/tfa/errors/tfa.errors'
+import { TfaAuthenticatorService } from '../../domains/tfa/services/tfa-authenticator.service'
 import { UserBlockedError } from '../../shared/errors/shared.errors'
 import { demoCodeMatches, isDemoAccountEmail } from '../../shared/utils/demo-mode.util'
 import { hasPrivilegedAccess } from '../../shared/utils/store-review-access.util'
@@ -62,13 +64,14 @@ export class SignInHandler
         private readonly audit: AuditService,
         private readonly storeReviewMembership: StoreReviewMembershipService,
         private readonly joinRequests: JoinRequestService,
+        private readonly tfaAuthenticator: TfaAuthenticatorService,
     ) {}
 
     async execute({
         payload,
         clientIp,
     }: SignInFeature): Promise<SignInFeatureResponse> {
-        const { email, code } = payload
+        const { email, code, totp } = payload
 
         const user = await this.usersService.getUserByEmail({
             email,
@@ -143,7 +146,9 @@ export class SignInHandler
             return await this.recordFailedAttempt(attempts, ipHash)
         }
 
-        const session = await this.issueSession(user)
+        const mfa = await this.verifySecondFactor(user.id, totp, attempts, ipHash)
+
+        const session = await this.issueSession(user, mfa)
         await this.fileRequestedJoin(user.email, user.id)
         return session
     }
@@ -331,16 +336,45 @@ export class SignInHandler
         return !!issuedAt && Date.now() - issuedAt.getTime() > CODE_TTL_MS
     }
 
+    // An account with an authenticator (platform admins) proves it after the
+    // e-mailed code. It is asked for only once that code was right, so the
+    // question never tells a guesser which accounts have one. A wrong one
+    // counts like a wrong code; the e-mailed code stays valid for the retry.
+    // True when it was proven (the session then carries the `mfa` claim).
+    private async verifySecondFactor(
+        userId: string,
+        totp: string | undefined,
+        attempts: SignInAttempts,
+        ipHash: string,
+    ): Promise<boolean> {
+        if (!(await this.tfaAuthenticator.isEnabled(userId))) {
+            return false
+        }
+        if (!totp) {
+            throw new TfaCodeRequiredError()
+        }
+        if (!(await this.tfaAuthenticator.verifyCode({ userId, code: totp }))) {
+            return await this.recordFailedAttempt(
+                attempts,
+                ipHash,
+                new TfaCodeInvalidError(),
+            )
+        }
+        return true
+    }
+
     private async recordFailedAttempt(
         attempts: SignInAttempts,
         ipHash: string,
+        error: Error = new InvalidCredentialsError(),
     ): Promise<never> {
         await attempts.afterFailure(ipHash)
-        throw new InvalidCredentialsError()
+        throw error
     }
 
     private async issueSession(
         user: SignInUser,
+        mfa = false,
     ): Promise<SignInFeatureResponse> {
         // Successful sign-in — burn the OTP so it can't be replayed and
         // reset brute-force state. (For the store-review account there is no
@@ -382,10 +416,12 @@ export class SignInHandler
         const accessToken = await this.tokensService.generateToken({
             userId: user.id,
             sessionVersion: user.sessionVersion,
+            mfa,
         })
 
         const refreshToken = await this.tokensService.generateStoredToken({
             userId: user.id,
+            mfa,
         })
 
         return {

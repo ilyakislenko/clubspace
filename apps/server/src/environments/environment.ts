@@ -118,6 +118,13 @@ export const environment = {
     // up env-var parsing. Nothing authenticates with it: sign-in compares the
     // emailed OTP against User.completeCode and never reads User.password.
     adminPassword: get('SUPER_ADMIN_PASSWORD').required(false).asString(),
+    // Platform-admin powers (the /platform console and the super-admin bypass
+    // of every club guard) only for a session signed in with the TOTP of an
+    // authenticator app — the `mfa` claim of the access token. Off in
+    // development so the local demo signs in by e-mail code alone.
+    platformAdminMfaRequired: get('PLATFORM_ADMIN_MFA_REQUIRED')
+        .default(isProduction ? 'true' : 'false')
+        .asBool(),
     // Opt-in "store review account": one email that signs in with a fixed
     // code, so Google Play / App Store reviewers (who can't read our mail) can
     // log in. Both or neither; validated at boot by resolveStoreReview.

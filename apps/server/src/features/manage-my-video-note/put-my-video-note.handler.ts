@@ -25,6 +25,7 @@ export class PutMyVideoNoteHandler
             this.courseAccess,
             userId,
             videoId,
+            { removal: payload.text === '' },
         )
         const where = { userId_videoId: { userId, videoId } }
         const updatedAt = new Date(payload.updatedAt)

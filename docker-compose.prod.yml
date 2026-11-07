@@ -340,6 +340,7 @@ services:
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
         NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
         NEXT_PUBLIC_APP_RELEASE: ${APP_RELEASE:-}
+        NEXT_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
     restart: unless-stopped
     logging: *default-logging
     networks:

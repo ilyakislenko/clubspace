@@ -1,4 +1,4 @@
-import { errorMessage, retryAfterSeconds } from "./error-message"
+import { errorCode, errorMessage, retryAfterSeconds } from "./error-message"
 
 // Shape of what axios rejects with: an Error carrying transport boilerplate,
 // plus the server's real explanation on `response.data`.
@@ -68,5 +68,19 @@ describe("retryAfterSeconds", () => {
     expect(retryAfterSeconds(axiosError({ metadata: {} }, 400))).toBeNull()
     expect(retryAfterSeconds(new Error("boom"))).toBeNull()
     expect(retryAfterSeconds(null)).toBeNull()
+  })
+})
+
+describe("errorCode", () => {
+  it("reads the API's code from the response body", () => {
+    expect(errorCode(axiosError({ code: "TFA_CODE_REQUIRED" }, 400))).toBe(
+      "TFA_CODE_REQUIRED",
+    )
+  })
+
+  it("is null without one", () => {
+    expect(errorCode(axiosError({ message: "x" }))).toBeNull()
+    expect(errorCode(new Error("boom"))).toBeNull()
+    expect(errorCode(null)).toBeNull()
   })
 })

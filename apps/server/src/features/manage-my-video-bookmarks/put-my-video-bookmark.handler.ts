@@ -41,6 +41,7 @@ export class PutMyVideoBookmarkHandler
             this.courseAccess,
             userId,
             videoId,
+            { removal: payload.deleted },
         )
         const updatedAt = new Date(payload.updatedAt)
         const data = {

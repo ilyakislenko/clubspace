@@ -411,18 +411,27 @@ export const gymCitiesDiffer = (addresses: Iterable<string>): boolean => {
   return cities.size > 1
 }
 
+const wordsOf = (s: string): string[] =>
+  lower(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+
 // «BJJ Взрослые · Дворец спорта» held at «СК «Дворец спорта»» reads
 // «BJJ Взрослые»: the row names the gym on its own line (or the filter does).
-// A trailing part naming the gym's city is dropped the same way.
+// The trailing part must be whole words of the gym's name, in a row — «Дети ·
+// А» keeps its «А» though «спорта» contains one. A trailing part naming the
+// gym's city is dropped the same way.
 export const withoutGymEcho = (groupName: string, gym: GymRef | null): string => {
   if (!gym) return groupName
   const cut = groupName.lastIndexOf(" · ")
   if (cut <= 0) return groupName
-  const tail = lower(groupName.slice(cut + 3))
-  if (!tail) return groupName
+  const tail = groupName.slice(cut + 3)
+  const tailWords = wordsOf(tail)
+  if (tailWords.length === 0) return groupName
+  const gymWords = wordsOf(gym.name)
+  const inGymName = gymWords.some((_, start) =>
+    tailWords.every((w, i) => gymWords[start + i] === w),
+  )
   const city = cityOfAddress(gym.address)
-  const echoes =
-    lower(gym.name).includes(tail) || (!!city && lower(city) === tail)
+  const echoes = inGymName || (!!city && lower(city) === lower(tail))
   return echoes ? groupName.slice(0, cut).trim() : groupName
 }
 

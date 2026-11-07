@@ -35,17 +35,20 @@ export const greetingName = (
 
 /**
  * The «nothing to show yet» card: when none of the club's cards can render
- * anything (no groups, attendance, subscription, announcement) and there is nothing to
- * continue watching, Home would otherwise be a bare header.
+ * anything (no class card, attendance, subscription, announcement) and there
+ * is nothing to continue watching, Home would otherwise be a bare header.
+ * `hasClassCard` is whether a class block («Ближайшая», «Сегодня вы ведёте»)
+ * is actually on screen — the groups feature alone isn't one: staff with no
+ * group of theirs get neither.
  */
 export const showHomeFallback = (opts: {
-  groupsOn: boolean
+  hasClassCard: boolean
   attendanceOn: boolean
   subscriptionOn: boolean
   hasRecents: boolean
   hasAnnouncement: boolean
 }): boolean =>
-  !opts.groupsOn &&
+  !opts.hasClassCard &&
   !opts.attendanceOn &&
   !opts.subscriptionOn &&
   !opts.hasRecents &&

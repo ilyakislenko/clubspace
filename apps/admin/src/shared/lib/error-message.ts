@@ -8,7 +8,9 @@
 // the trouble to write ("Free trial already used", "Cannot set access window
 // for workspace owner") and showed HTTP noise instead. Body first, Error second.
 type ApiErrorShape = {
-  response?: { data?: { message?: unknown; error?: unknown; metadata?: unknown } }
+  response?: {
+    data?: { message?: unknown; error?: unknown; metadata?: unknown; code?: unknown }
+  }
 }
 
 const readServerMessage = (error: unknown): string | null => {
@@ -60,4 +62,11 @@ export const retryAfterSeconds = (error: unknown): number | null => {
       ? (metadata as { retryAfterSeconds?: unknown }).retryAfterSeconds
       : undefined
   return typeof raw === "number" && raw > 0 ? Math.ceil(raw) : null
+}
+
+/** The API's error code (`TFA_CODE_REQUIRED`, `PLATFORM_MFA_REQUIRED`, …), or null. */
+export const errorCode = (error: unknown): string | null => {
+  if (typeof error !== "object" || error === null) return null
+  const code = (error as ApiErrorShape).response?.data?.code
+  return typeof code === "string" ? code : null
 }

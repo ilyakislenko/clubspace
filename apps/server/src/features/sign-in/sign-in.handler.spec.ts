@@ -34,8 +34,16 @@ jest.mock('../../domains/workspace/services/join-request.service', () => ({
 jest.mock('../../domains/demo/demo-access', () => ({
     isDemoOnlyAccount: jest.fn().mockResolvedValue(true),
 }))
+// otplib is ESM-only; the handler gets a stub.
+jest.mock('../../domains/tfa/services/tfa-authenticator.service', () => ({
+    TfaAuthenticatorService: class {},
+}))
 
 import { isDemoOnlyAccount } from '../../domains/demo/demo-access'
+import {
+    TfaCodeInvalidError,
+    TfaCodeRequiredError,
+} from '../../domains/tfa/errors/tfa.errors'
 import { UserNoCompleteCodeError } from '../../domains/users/errors/users.errors'
 import { environment } from '../../environments/environment'
 import { UserBlockedError } from '../../shared/errors/shared.errors'
@@ -74,7 +82,12 @@ const ipHash = (ip: string) => createHash('sha256').update(ip).digest('hex')
 
 const build = (
     user: unknown,
-    access: { owned?: unknown; roles?: string[] } = {},
+    access: {
+        owned?: unknown
+        roles?: string[]
+        // The account's authenticator app: none unless given.
+        tfa?: { enabled: boolean; validCode?: string }
+    } = {},
 ) => {
     const prisma = {
         user: {
@@ -126,6 +139,12 @@ const build = (
     const storeReviewMembership = {
         ensureDemoMembership: jest.fn().mockResolvedValue(undefined),
     }
+    const tfaAuthenticator = {
+        isEnabled: jest.fn().mockResolvedValue(access.tfa?.enabled ?? false),
+        verifyCode: jest.fn(
+            async ({ code }: { code: string }) => code === access.tfa?.validCode,
+        ),
+    }
     const handler = new SignInHandler(
         tokens as never,
         users as never,
@@ -133,8 +152,17 @@ const build = (
         audit as never,
         storeReviewMembership as never,
         { requestMembership: jest.fn() } as never,
+        tfaAuthenticator as never,
     )
-    return { handler, prisma, tokens, audit, storeReviewMembership, users }
+    return {
+        handler,
+        prisma,
+        tokens,
+        audit,
+        storeReviewMembership,
+        users,
+        tfaAuthenticator,
+    }
 }
 
 const run = (handler: SignInHandler, code = CODE, ip = OWN_IP) =>
@@ -441,9 +469,11 @@ describe('SignInHandler', () => {
         expect(tokens.generateToken).toHaveBeenCalledWith({
             userId: 'user-1',
             sessionVersion: 2,
+            mfa: false,
         })
         expect(tokens.generateStoredToken).toHaveBeenCalledWith({
             userId: 'user-1',
+            mfa: false,
         })
         expect(result).toMatchObject({
             userId: 'user-1',
@@ -468,6 +498,94 @@ describe('SignInHandler', () => {
                     completeCodeNextResendAt: null,
                 }),
             }),
+        )
+    })
+})
+
+// An account with an authenticator app (platform admins): the e-mailed code,
+// then its TOTP; the session then carries the `mfa` claim.
+describe('SignInHandler — authenticator (TOTP)', () => {
+    const TOTP = '654321'
+    const enrolled = { tfa: { enabled: true, validCode: TOTP } }
+    const runWithTotp = (handler: SignInHandler, code: string, totp?: string) =>
+        handler.execute(
+            new SignInFeature({ email: 'a@b.com', code, totp }, OWN_IP) as never,
+        )
+
+    it('asks for the TOTP once the e-mailed code is right, issuing nothing', async () => {
+        const { handler, tokens, prisma } = build(
+            baseUser({ isSuperAdmin: true }),
+            enrolled,
+        )
+        await expect(runWithTotp(handler, CODE)).rejects.toBeInstanceOf(
+            TfaCodeRequiredError,
+        )
+        expect(tokens.generateToken).not.toHaveBeenCalled()
+        // The e-mailed code is not burned: it comes back with the TOTP.
+        expect(prisma.user.update).not.toHaveBeenCalled()
+    })
+
+    it('never tells a wrong e-mailed code that the account has an authenticator', async () => {
+        const { handler, tfaAuthenticator } = build(baseUser(), enrolled)
+        await expect(runWithTotp(handler, '000000')).rejects.toBeInstanceOf(
+            InvalidCredentialsError,
+        )
+        expect(tfaAuthenticator.isEnabled).not.toHaveBeenCalled()
+    })
+
+    it('counts a wrong TOTP as a failed attempt toward the lockout', async () => {
+        const { handler, tokens, prisma, audit } = build(baseUser(), enrolled)
+        await expect(runWithTotp(handler, CODE, '111111')).rejects.toBeInstanceOf(
+            TfaCodeInvalidError,
+        )
+        expect(tokens.generateToken).not.toHaveBeenCalled()
+        // The ticket claimed before the comparison stays spent, and the
+        // lockouts start once the tickets run out (as after a wrong code).
+        expect(prisma.signInThrottle.updateMany.mock.calls[0][0].data).toEqual({
+            failedAttempts: { increment: 1 },
+        })
+        expect(prisma.user.updateMany.mock.calls[0][0].data).toEqual({
+            signInFailedAttempts: { increment: 1 },
+        })
+        expect(
+            prisma.user.updateMany.mock.calls[1][0].data.signInLockedUntil,
+        ).toBeInstanceOf(Date)
+        expect(audit.record).toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'auth.lockout' }),
+        )
+    })
+
+    it('signs in with both codes and marks the session', async () => {
+        const { handler, tokens, tfaAuthenticator } = build(
+            baseUser({ isSuperAdmin: true }),
+            enrolled,
+        )
+        await expect(runWithTotp(handler, CODE, TOTP)).resolves.toMatchObject({
+            accessToken: 'access-token',
+        })
+        expect(tfaAuthenticator.verifyCode).toHaveBeenCalledWith({
+            userId: 'user-1',
+            code: TOTP,
+        })
+        expect(tokens.generateToken).toHaveBeenCalledWith({
+            userId: 'user-1',
+            sessionVersion: 2,
+            mfa: true,
+        })
+        expect(tokens.generateStoredToken).toHaveBeenCalledWith({
+            userId: 'user-1',
+            mfa: true,
+        })
+    })
+
+    it('ignores a TOTP sent for an account without an authenticator', async () => {
+        const { handler, tokens, tfaAuthenticator } = build(
+            baseUser({ isSuperAdmin: true }),
+        )
+        await runWithTotp(handler, CODE, TOTP)
+        expect(tfaAuthenticator.verifyCode).not.toHaveBeenCalled()
+        expect(tokens.generateToken).toHaveBeenCalledWith(
+            expect.objectContaining({ mfa: false }),
         )
     })
 })

@@ -246,8 +246,9 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d media
 
 1. `https://admin.<домен>` → вход по `--admin-email` (`SUPER_ADMIN_EMAIL`), код
    придёт на почту. Этот адрес становится администратором платформы при
-   каждом старте сервера — доступ к ящику = доступ к платформе, включите в нём
-   двухфакторную защиту.
+   каждом старте сервера. Консоль платформы откроется не сразу: сначала
+   подключите приложение-аутентификатор в `/platform/security` и войдите снова
+   — см. «Двухфакторная защита администратора платформы» ниже.
 2. В `/platform` создайте клуб (название + e-mail владельца) или включите
    самостоятельную регистрацию клубов: `SELF_SERVE_SIGNUP_ENABLED=true` в
    `.env.production`, затем
@@ -278,6 +279,41 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d media
    `AI_CHAT_MONTHLY_QUESTIONS`, `AI_CHAT_TRIAL_MONTHLY_QUESTIONS`, по умолчанию
    `openai/gpt-4.1-mini`, 300 и 30) и перезапустите сервер
    (`docker compose -f docker-compose.prod.yml --env-file .env.production up -d server`).
+
+#### Двухфакторная защита администратора платформы
+
+С `PLATFORM_ADMIN_MFA_REQUIRED=true` (по умолчанию в production) права админа
+платформы — консоль `/platform` и доступ в любой клуб — есть только у сессии,
+вошедшей с кодом из письма **и** кодом из приложения-аутентификатора (Google
+Authenticator, Яндекс Ключ и т. п.). Без него админ платформы — обычный
+пользователь, а `/platform` предлагает подключить приложение:
+
+1. Войдите по коду из письма, откройте `/platform/security` → «Подключить
+   приложение», отсканируйте QR-код и введите код из приложения.
+2. «Выйти и войти снова»: после кода из письма вход попросит код из
+   приложения. Неверные коды из приложения считаются в ту же блокировку, что и
+   неверные коды из письма.
+
+Заменить подключённое приложение из админки нельзя (иначе его забрал бы любой,
+кто завладел сессией). Резервных кодов нет. **Телефон потерян** — сбросьте
+приложение на сервере и завершите все сессии аккаунта (замените адрес):
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production exec -T postgres \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+BEGIN;
+DELETE FROM "TfaPermission" WHERE "methodId" IN
+  (SELECT m.id FROM "TfaMethod" m JOIN "User" u ON u.id = m."userId" WHERE u.email = 'admin@example.com');
+DELETE FROM "TfaMethod" WHERE "userId" = (SELECT id FROM "User" WHERE email = 'admin@example.com');
+UPDATE "RefreshToken" SET "isRevoked" = true WHERE "userId" = (SELECT id FROM "User" WHERE email = 'admin@example.com');
+UPDATE "User" SET "sessionVersion" = "sessionVersion" + 1 WHERE email = 'admin@example.com';
+COMMIT;
+SQL
+```
+
+Затем войдите по коду из письма и подключите новое приложение (шаг 1). Если
+сервер недоступен из админки совсем, временно `PLATFORM_ADMIN_MFA_REQUIRED=false`
+в `.env.production` и перезапуск сервера — только на время восстановления.
 
 ### 9. Приложение: браузер (PWA), Android, iOS, пуши
 
@@ -579,7 +615,11 @@ rerun it with
 ## Your club, and the first students
 
 1. **Sign in to the admin panel** at `https://admin.<domain>` with
-   `SUPER_ADMIN_EMAIL`. The code arrives by email — there is no password.
+   `SUPER_ADMIN_EMAIL`. The code arrives by email — there is no password. With
+   `PLATFORM_ADMIN_MFA_REQUIRED=true` (the production default) the platform
+   console opens only for a sign-in that also gives an authenticator-app code:
+   set the app up at `/platform/security`, then sign out and in again. Lost
+   phone: see «Двухфакторная защита администратора платформы» above.
 2. **Create the club** in the platform console at `/platform`: name plus owner
    email. The club gets a key (a Cyrillic name is transliterated — "Академия
    БЖЖ" becomes `akademiya_bzhzh`) and a join code.

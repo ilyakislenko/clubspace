@@ -43,17 +43,26 @@ const describe = (error: unknown): { message: string; stack?: string } => {
   }
 };
 
-// Returns `report(error, { fatal })`: fire-and-forget, never throws, sends
-// each distinct message once per session (app launch). Offline or a server
-// error → the report is simply dropped.
-export const createErrorReporter = (deps: ErrorReporterDeps) => {
+/** `report(error, { fatal })` — see `createErrorReporter`. */
+export type ReportError = (
+  error: unknown,
+  options?: { fatal?: boolean },
+) => Promise<void>;
+
+// Returns `report(error, { fatal })`: never throws, sends each distinct
+// message once per session (app launch). The returned promise settles when
+// the send does and never rejects — offline or a server error → the report
+// is simply dropped. Callers that don't need to wait just ignore it.
+export const createErrorReporter = (deps: ErrorReporterDeps): ReportError => {
   const seen = new Set<string>();
 
-  return (error: unknown, options: { fatal?: boolean } = {}): void => {
+  return (error, options = {}) => {
     try {
       const { message: raw, stack } = describe(error);
       const message = (raw.trim() || 'Unknown error').slice(0, MAX_MESSAGE);
-      if (seen.has(message) || seen.size >= MAX_REPORTS_PER_SESSION) return;
+      if (seen.has(message) || seen.size >= MAX_REPORTS_PER_SESSION) {
+        return Promise.resolve();
+      }
       seen.add(message);
 
       let route: string | undefined;
@@ -70,9 +79,49 @@ export const createErrorReporter = (deps: ErrorReporterDeps) => {
         route,
         fatal: options.fatal,
       };
-      deps.send(report).catch(() => undefined);
+      return deps.send(report).then(
+        () => undefined,
+        () => undefined,
+      );
     } catch {
       // A reporter that throws would turn one error into two.
+      return Promise.resolve();
     }
   };
 };
+
+export type GlobalErrorHandler = (error: unknown, isFatal?: boolean) => void;
+
+// How long a fatal error may delay the native crash to get its report out.
+export const FATAL_REPORT_GRACE_MS = 1500;
+
+// Wraps RN's previous global handler: report first, then hand over. In
+// release a fatal error's `previous` kills the app, so it runs only once the
+// report is sent or `graceMs` passed, whichever comes first. Non-fatal
+// errors — and every error when `waitOnFatal` is off (dev: `previous` is the
+// red box) — hand over at once.
+export const reportThen =
+  (
+    previous: GlobalErrorHandler,
+    report: ReportError,
+    {
+      waitOnFatal,
+      graceMs = FATAL_REPORT_GRACE_MS,
+    }: { waitOnFatal: boolean; graceMs?: number },
+  ): GlobalErrorHandler =>
+  (error, isFatal) => {
+    const sent = report(error, { fatal: isFatal });
+    if (!isFatal || !waitOnFatal) {
+      previous(error, isFatal);
+      return;
+    }
+    let handedOver = false;
+    const handOver = () => {
+      if (handedOver) return;
+      handedOver = true;
+      clearTimeout(timer);
+      previous(error, isFatal);
+    };
+    const timer = setTimeout(handOver, graceMs);
+    void sent.then(handOver);
+  };

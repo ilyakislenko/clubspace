@@ -49,6 +49,8 @@ export type AuditAction =
     // account was locked after too many wrong codes.
     | 'auth.signIn'
     | 'auth.lockout'
+    // A platform admin confirmed an authenticator app (TOTP).
+    | 'auth.mfaEnrolled'
     // A user downloaded their own data (152-ФЗ ст. 14 / GDPR art. 15).
     | 'me.export'
     | 'content.report'

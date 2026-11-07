@@ -410,15 +410,9 @@ export function CompareScreen({ route, navigation }: Props) {
         <IconAction icon="ellipsis-horizontal" label="Ещё" onPress={() => setMenu("options")} />
       </View>
 
+      {/* Each menu closes itself, then applies; `onClose` once it's gone. */}
       {menu === "speed" && (
-        <CompareSpeedSheet
-          rate={rate}
-          onSelect={(r) => {
-            setRate(r)
-            setMenu(null)
-          }}
-          onClose={() => setMenu(null)}
-        />
+        <CompareSpeedSheet rate={rate} onSelect={setRate} onClose={() => setMenu(null)} />
       )}
       {menu === "options" && (
         <CompareOptionsSheet
@@ -426,14 +420,8 @@ export function CompareScreen({ route, navigation }: Props) {
           canSync={!!uris.right}
           leftLoopLeads={loops.left?.endSec != null}
           audioSide={audioSide}
-          onToggleSync={() => {
-            toggleSync()
-            setMenu(null)
-          }}
-          onAudioSide={(side) => {
-            setAudioSide(side)
-            setMenu(null)
-          }}
+          onToggleSync={toggleSync}
+          onAudioSide={setAudioSide}
           onClose={() => setMenu(null)}
         />
       )}
@@ -442,22 +430,10 @@ export function CompareScreen({ route, navigation }: Props) {
           label={SIDE_LABEL[menu]}
           mirrored={mirrored[menu]}
           loop={loops[menu]}
-          onToggleMirror={() => {
-            setSide(setMirrored, menu, !mirrored[menu])
-            setMenu(null)
-          }}
-          onSetA={() => {
-            setA(menu)
-            setMenu(null)
-          }}
-          onSetB={() => {
-            setB(menu)
-            setMenu(null)
-          }}
-          onClearLoop={() => {
-            setSide(setLoops, menu, null)
-            setMenu(null)
-          }}
+          onToggleMirror={() => setSide(setMirrored, menu, !mirrored[menu])}
+          onSetA={() => setA(menu)}
+          onSetB={() => setB(menu)}
+          onClearLoop={() => setSide(setLoops, menu, null)}
           onClose={() => setMenu(null)}
         />
       )}

@@ -12,7 +12,7 @@ import { RefreshControl } from "../../shared/components/RefreshControl"
 import { CountBadge } from "../../shared/components/CountBadge"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
-import { Sheet, SheetRow } from "../../shared/components/Sheet"
+import { Sheet, SheetRow, useSheetAction } from "../../shared/components/Sheet"
 import {
   CenteredColumn,
   DASHBOARD_WIDTH,
@@ -334,7 +334,7 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
   const [openOccurrenceId, setOpenOccurrenceId] = useState<string | null>(null)
   // The «Фильтр» sheet and the «Ещё» menu.
   const [filterOpen, setFilterOpen] = useState(false)
-  const [moreOpen, setMoreOpen] = useState(false)
+  const more = useSheetAction()
 
   if (!workspace) {
     return null
@@ -483,8 +483,9 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
   const showTzNote =
     !!known && !nothingScheduled && foreignTzSuffix(clubTz, new Date(now)) !== ""
 
-  // The «Ещё» menu. Staff answer personal requests rather than make them:
-  // their entry counts the ones waiting on them.
+  // The «Ещё» menu. Staff answer personal requests rather than make them;
+  // either side's entry counts the ones waiting on them (a member: a coach's
+  // counter-proposal). That one count is the badge, the row and the label.
   const awaitingMe = meId
     ? (personalList.data?.data ?? []).filter((pt) => needsMyAction(pt, meId))
         .length
@@ -494,15 +495,15 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
         label: `${cap(vocabulary.personalSession.nomPl)} — заявки`,
         count: awaitingMe,
       }
-    : coachesAvailable > 0 && {
+    : (coachesAvailable > 0 || awaitingMe > 0) && {
         label: `${cap(vocabulary.personalSession.nom)} с ${vocabulary.coach.ins}`,
-        count: 0,
+        count: awaitingMe,
       }
+  const personalCount = personalEntry ? personalEntry.count : 0
   const showMyBookings = hasBookingClasses && !workspace.isOwner
-  const openFromMenu = (route: "PersonalTrainings" | "MyClassBookings") => {
-    setMoreOpen(false)
-    navigation.navigate(route)
-  }
+  // The sheet closes first; the screen is pushed once it's gone.
+  const openFromMenu = (route: "PersonalTrainings" | "MyClassBookings") =>
+    more.run(() => navigation.navigate(route))
 
   const guestsLineOf = (s: ScheduleSession): string | null =>
     coachesSession(s) && (s.bookedGuests ?? 0) > 0
@@ -919,17 +920,17 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
             )}
             {(personalEntry || showMyBookings) && (
               <Pressable
-                onPress={() => setMoreOpen(true)}
+                onPress={more.open}
                 accessibilityRole="button"
                 accessibilityLabel={
-                  awaitingMe > 0 && personalEntry
-                    ? `Ещё, заявок ждут ответа: ${awaitingMe}`
+                  personalCount > 0
+                    ? `Ещё, заявок ждут ответа: ${personalCount}`
                     : "Ещё"
                 }
                 style={styles.toolButton}
               >
                 <Text style={styles.toolButtonText}>Ещё</Text>
-                <CountBadge count={personalEntry ? personalEntry.count : 0} />
+                <CountBadge count={personalCount} />
               </Pressable>
             )}
           </View>
@@ -1002,8 +1003,8 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
         />
       )}
 
-      {moreOpen && (
-        <Sheet title="Ещё" onClose={() => setMoreOpen(false)}>
+      {more.mounted && (
+        <Sheet title="Ещё" {...more.sheetProps}>
           <View>
             {personalEntry && (
               <SheetRow

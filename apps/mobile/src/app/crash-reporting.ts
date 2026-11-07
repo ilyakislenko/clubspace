@@ -4,8 +4,10 @@ import { Platform } from 'react-native';
 import { environment } from '../shared/env';
 import {
   createErrorReporter,
+  reportThen,
   type ClientErrorPlatform,
   type ClientErrorReport,
+  type GlobalErrorHandler,
 } from '../shared/error-reporter';
 import { navigationRef } from './navigation';
 
@@ -45,7 +47,6 @@ export const reportError = createErrorReporter({
     navigationRef.isReady() ? navigationRef.getCurrentRoute()?.name : undefined,
 });
 
-type GlobalErrorHandler = (error: unknown, isFatal?: boolean) => void;
 type RnErrorUtils = {
   getGlobalHandler: () => GlobalErrorHandler;
   setGlobalHandler: (handler: GlobalErrorHandler) => void;
@@ -62,7 +63,8 @@ let installed = false;
 
 // Global JS errors and unhandled promise rejections. Installed once, before
 // the first render; the previous handler keeps running (RN's red box in dev,
-// the native crash in release).
+// the native crash in release — after the fatal report is out, see
+// `reportThen`).
 export const installCrashReporting = () => {
   if (installed) return;
   installed = true;
@@ -89,10 +91,9 @@ export const installCrashReporting = () => {
   const errorUtils = g.ErrorUtils;
   if (errorUtils) {
     const previous = errorUtils.getGlobalHandler();
-    errorUtils.setGlobalHandler((error, isFatal) => {
-      reportError(error, { fatal: isFatal });
-      previous(error, isFatal);
-    });
+    errorUtils.setGlobalHandler(
+      reportThen(previous, reportError, { waitOnFatal: !__DEV__ }),
+    );
   }
 
   // In dev RN's own tracker feeds LogBox; replacing it there would hide the

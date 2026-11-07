@@ -5,6 +5,9 @@ import { emailSchema } from '../../shared/utils/email'
 export const SignInFeatureInputSchema = z.object({
     email: emailSchema,
     code: z.string().length(6),
+    // The authenticator-app code, for an account that has one. Sent after the
+    // server answered TFA_CODE_REQUIRED to the e-mailed code alone.
+    totp: z.string().regex(/^\d{6}$/).optional(),
 })
 
 export const SignInFeatureOutputSchema = z.object({

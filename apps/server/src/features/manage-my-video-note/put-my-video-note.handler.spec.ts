@@ -56,6 +56,16 @@ describe('PutMyVideoNoteHandler', () => {
         expect(prisma.videoNote.upsert).not.toHaveBeenCalled()
     })
 
+    it('still clears a note on a lesson that has since been locked', async () => {
+        const { prisma } = build()
+        const courseAccess = watchable()
+        courseAccess.assertCanWatchVideo.mockRejectedValue(
+            new ForbiddenError({ message: 'Урок пока закрыт' }),
+        )
+        await run(prisma, '', '2026-01-03T00:00:00.000Z', courseAccess)
+        expect(prisma.videoNote.upsert.mock.calls[0][0].update.text).toBe('')
+    })
+
     it('writes a note stamped with the video workspace and client updatedAt', async () => {
         const { prisma } = build()
         const res = await run(prisma, 'frames')

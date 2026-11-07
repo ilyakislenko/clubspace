@@ -109,6 +109,18 @@ describe('PutMyVideoBookmarkHandler', () => {
         expect(prisma.videoBookmark.update).not.toHaveBeenCalled()
     })
 
+    it('still takes a bookmark off a lesson that has since been locked', async () => {
+        const { prisma } = build()
+        const courseAccess = watchable()
+        courseAccess.assertCanWatchVideo.mockRejectedValue(
+            new ForbiddenError({ message: 'Урок пока закрыт' }),
+        )
+        await put(prisma, body({ deleted: true }), BM, courseAccess)
+        expect(prisma.videoBookmark.create.mock.calls[0][0].data.deletedAt).toEqual(
+            new Date('2026-01-03T00:00:00.000Z'),
+        )
+    })
+
     it('creates a new bookmark with the client id, video workspace and client updatedAt', async () => {
         const { prisma } = build()
         const res = await put(prisma)

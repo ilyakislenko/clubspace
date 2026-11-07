@@ -128,6 +128,12 @@ import { PlatformController } from '../features/platform/platform.controller'
 import { PlatformDemoClubController } from '../features/platform/platform-demo-club.controller'
 import { GetPlatformDemoClubHandler } from '../features/platform/get-platform-demo-club.handler'
 import { ResetPlatformDemoClubHandler } from '../features/platform/reset-platform-demo-club.handler'
+import { PlatformMfaController } from '../features/platform-mfa/platform-mfa.controller'
+import {
+    ConfirmPlatformMfaEnrollmentHandler,
+    GetPlatformMfaHandler,
+    StartPlatformMfaEnrollmentHandler,
+} from '../features/platform-mfa/platform-mfa.handler'
 import { DemoClubService } from '../domains/demo/demo-club.service'
 import { CreatePlatformWorkspaceHandler } from '../features/platform/create-platform-workspace.handler'
 import { GetPlatformOverviewHandler } from '../features/platform/get-platform-overview.handler'
@@ -711,6 +717,7 @@ const controllers: ModuleMetadata['controllers'] = [
     PlatformOnboardingHelpController,
     PlatformDemoRequestsController,
     PlatformDemoClubController,
+    PlatformMfaController,
     CreateVideoUploadController,
     CreateVideoThumbnailUploadController,
     CreateTagController,
@@ -895,6 +902,9 @@ const handlers: ModuleMetadata['providers'] = [
     GetPlatformOverviewHandler,
     GetPlatformDemoClubHandler,
     ResetPlatformDemoClubHandler,
+    GetPlatformMfaHandler,
+    StartPlatformMfaEnrollmentHandler,
+    ConfirmPlatformMfaEnrollmentHandler,
     UpdatePlatformWorkspaceHandler,
     ListPlatformAuditHandler,
     CreateVideoUploadHandler,

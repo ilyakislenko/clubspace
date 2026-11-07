@@ -21,6 +21,11 @@ export interface SendAuthCodeResponse {
 export interface SignInRequest {
   email: string
   code: string
+  /**
+   * The authenticator-app code. Sent again with `code` after the server
+   * answered TFA_CODE_REQUIRED (an account with an authenticator).
+   */
+  totp?: string
 }
 
 export interface SignInResponse {

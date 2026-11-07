@@ -1,4 +1,8 @@
-import { createErrorReporter, type ClientErrorReport } from './error-reporter';
+import {
+  createErrorReporter,
+  reportThen,
+  type ClientErrorReport,
+} from './error-reporter';
 
 const setup = (send = jest.fn(async (_r: ClientErrorReport) => undefined)) => {
   const report = createErrorReporter({
@@ -69,5 +73,78 @@ describe('createErrorReporter', () => {
       'plain string',
       '{"code":42}',
     ]);
+  });
+
+  it('resolves once the send settles, even when it fails', async () => {
+    const ok = setup();
+    await expect(ok.report(new Error('a'))).resolves.toBeUndefined();
+    const failing = setup(
+      jest.fn(async () => {
+        throw new Error('offline');
+      }),
+    );
+    await expect(failing.report(new Error('b'))).resolves.toBeUndefined();
+    // A duplicate is not sent and resolves at once.
+    await expect(ok.report(new Error('a'))).resolves.toBeUndefined();
+  });
+});
+
+describe('reportThen', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  // A send that stays pending until the test resolves it.
+  const pendingReport = () => {
+    let finish: () => void = () => undefined;
+    const report = jest.fn(
+      (_error: unknown, _options?: { fatal?: boolean }) =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    return { report, finish: () => finish() };
+  };
+
+  it('hands a fatal release error over only after the report is sent', async () => {
+    const previous = jest.fn();
+    const { report, finish } = pendingReport();
+    const error = new Error('boom');
+
+    reportThen(previous, report, { waitOnFatal: true })(error, true);
+    expect(report).toHaveBeenCalledWith(error, { fatal: true });
+    expect(previous).not.toHaveBeenCalled();
+
+    finish();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(previous).toHaveBeenCalledTimes(1);
+    expect(previous).toHaveBeenCalledWith(error, true);
+
+    // The grace timer is cleared: no second hand-over.
+    jest.advanceTimersByTime(5000);
+    expect(previous).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands a fatal error over after the grace period when the send hangs', () => {
+    const previous = jest.fn();
+    const { report } = pendingReport();
+
+    reportThen(previous, report, { waitOnFatal: true })(new Error('x'), true);
+    jest.advanceTimersByTime(1499);
+    expect(previous).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1);
+    expect(previous).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands non-fatal errors, and every error in dev, over at once', () => {
+    const previous = jest.fn();
+    const { report } = pendingReport();
+
+    reportThen(previous, report, { waitOnFatal: true })(new Error('a'), false);
+    expect(previous).toHaveBeenCalledTimes(1);
+
+    reportThen(previous, report, { waitOnFatal: false })(new Error('b'), true);
+    expect(previous).toHaveBeenCalledTimes(2);
+    expect(report).toHaveBeenCalledTimes(2);
   });
 });

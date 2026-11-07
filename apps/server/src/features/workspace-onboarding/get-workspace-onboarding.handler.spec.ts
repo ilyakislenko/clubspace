@@ -10,6 +10,9 @@ const WS = {
     videosEnabled: true,
     scheduleEnabled: true,
     subscriptionEnabled: true,
+    // A club on trial: every module is on.
+    billing: null,
+    moduleEntitlements: [],
 }
 
 const build = (
@@ -118,6 +121,25 @@ describe('GetWorkspaceOnboardingHandler', () => {
             'gym',
             'group',
             'schedule',
+            'members',
+            'video',
+        ])
+    })
+
+    it('drops the payments step when the club has no online-payments module', async () => {
+        const { handler } = build({
+            ws: {
+                ...WS,
+                billing: { status: 'ACTIVE' },
+                moduleEntitlements: [{ mode: 'OFF', compUntil: null, cancelAt: null }],
+            },
+        })
+        const out = await run(handler)
+        expect(out.steps.map((s) => s.key)).toEqual([
+            'gym',
+            'group',
+            'schedule',
+            'plans',
             'members',
             'video',
         ])

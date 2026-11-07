@@ -240,6 +240,26 @@ describe('WorkspaceMemberGuard', () => {
         ).rejects.toBeInstanceOf(ForbiddenError)
     })
 
+    // PLATFORM_ADMIN_MFA_REQUIRED: AuthGuard hands a super admin signed in
+    // without the authenticator over as an ordinary user — no bypass, no
+    // platform-access journal entry.
+    it('gives no bypass to a super admin whose session lacks the second factor', async () => {
+        const guard = build({ ownerId: 'someone-else', membership: null })
+        await expect(
+            guard.canActivate(
+                ctx({
+                    user: {
+                        userId: 'u1',
+                        isSuperAdmin: false,
+                        superAdminMfaMissing: true,
+                    },
+                    params: { workspaceId: 'ws-1' },
+                }),
+            ),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(platformAccess.noteAccess).not.toHaveBeenCalled()
+    })
+
     describe('@AllowExpiredAccess', () => {
         class Dummy {
             @AllowExpiredAccess()
