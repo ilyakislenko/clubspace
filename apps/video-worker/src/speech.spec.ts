@@ -418,13 +418,22 @@ describe('translateCues', () => {
         JSON.parse(bodyOf(fetchImpl, call).messages[1].content.split('\n').at(-1)).cues.map(
             (phrase: { id: number }) => phrase.id,
         )
-    const translate = (fetchImpl: jest.Mock) =>
+    const translate = (fetchImpl: jest.Mock, sleep = jest.fn(async () => undefined)) =>
         translateCues({
             llm: LLM,
             context: CONTEXT,
             cues: CUES,
             terms: SPORT_RUSSIAN_TERMS.GRAPPLING,
             fetchImpl: fetchImpl as never,
+            sleep,
+        })
+    // Answers every phrase it is asked for except those in `never`.
+    const answeringAllBut = (never: number[]) =>
+        jest.fn(async (_url: string, init: { body: string }) => {
+            const asked: Array<{ id: number }> = JSON.parse(
+                JSON.parse(init.body).messages[1].content.split('\n').at(-1),
+            ).cues
+            return russian(asked.map((phrase) => phrase.id).filter((id) => !never.includes(id)))
         })
 
     it('translates whole sentences and spreads them over their cues, times kept', async () => {
@@ -437,6 +446,18 @@ describe('translateCues', () => {
             CUES.map((cue) => [cue.startSec, cue.endSec]),
         )
         expect(translated?.slice(0, 2).map((cue) => cue.text)).toEqual(['перевод', '0'])
+    })
+
+    it('caps the answer so a model repeating itself is cut off, then asks again', async () => {
+        // A runaway answer reaches the cap mid-JSON; the batch is asked again.
+        const runaway = () => chatResponse('{"cues":[{"id":0,"text":"Да да да да да да')
+        const fetchImpl = jest
+            .fn()
+            .mockImplementationOnce(async () => runaway())
+            .mockImplementationOnce(async () => runaway())
+            .mockImplementation(async () => russian([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        expect(await translate(fetchImpl)).toHaveLength(CUES.length)
+        expect(bodyOf(fetchImpl, 0).max_tokens).toBe(4096)
     })
 
     it('asks again for phrases an answer left out, in short lists', async () => {
@@ -484,5 +505,40 @@ describe('translateCues', () => {
     it('gives up when phrases stay missing', async () => {
         const fetchImpl = jest.fn(async () => russian([0, 1]))
         await expect(translate(fetchImpl)).resolves.toBeNull()
+    })
+
+    it('keeps a few phrases the model never translates in the original language', async () => {
+        const translated = await translate(answeringAllBut([9]))
+        expect(translated).toHaveLength(CUES.length)
+        const sentence = (cues: readonly { unit: number; text: string }[]) =>
+            cues.filter((cue) => cue.unit === 9).map((cue) => cue.text).join(' ')
+        expect(sentence(translated ?? [])).toBe(sentence(CUES))
+        expect(translated?.[0]?.text).toBe('перевод')
+    })
+
+    it('asks a busy model again after a pause instead of dropping the track', async () => {
+        const sleep = jest.fn(async () => undefined)
+        const fetchImpl = jest
+            .fn()
+            .mockRejectedValueOnce(new TypeError('The operation was aborted due to timeout'))
+            .mockResolvedValueOnce(russian([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        expect(await translate(fetchImpl, sleep)).toHaveLength(CUES.length)
+        expect(sleep).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not retry a refusal such as an empty account', async () => {
+        const sleep = jest.fn(async () => undefined)
+        const fetchImpl = jest.fn(async () => new Response('no credits', { status: 402 }))
+        await expect(translate(fetchImpl, sleep)).rejects.toThrow('HTTP 402')
+        expect(sleep).not.toHaveBeenCalled()
+    })
+
+    it('gives up after the pauses when the model stays unreachable', async () => {
+        const sleep = jest.fn(async () => undefined)
+        const fetchImpl = jest.fn(async () => {
+            throw new TypeError('fetch failed')
+        })
+        await expect(translate(fetchImpl, sleep)).rejects.toThrow('unreachable')
+        expect(fetchImpl).toHaveBeenCalledTimes(3)
     })
 })

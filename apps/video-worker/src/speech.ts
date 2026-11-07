@@ -1,6 +1,7 @@
 import { spawn } from 'child_process'
 import { promises as fs } from 'fs'
 import { join } from 'path'
+import { setTimeout as pause } from 'timers/promises'
 
 import type { Chapter } from './chapters.js'
 import type { RussianTerm } from '@clubspace/sport-glossary'
@@ -120,12 +121,17 @@ export class LlmUnavailableError extends Error {
     }
 }
 
-/** Asks the model; resolves the message text of its answer. */
+/**
+ * Asks the model; resolves the message text of its answer. `maxTokens` caps
+ * the answer: a small model sometimes repeats itself without end, and an
+ * uncapped answer then runs until the timeout.
+ */
 export const requestChat = async (
     llm: LlmConfig,
     messages: ChatMessage[],
     fetchImpl: typeof fetch = fetch,
     timeoutMs = LLM_TIMEOUT_MS,
+    maxTokens?: number,
 ): Promise<string> => {
     let response: Response
     try {
@@ -141,6 +147,7 @@ export const requestChat = async (
                 // The same transcript should give the same chapters on a re-run.
                 temperature: 0,
                 response_format: { type: 'json_object' },
+                ...(maxTokens !== undefined && { max_tokens: maxTokens }),
             }),
             signal: AbortSignal.timeout(timeoutMs),
         })
@@ -309,9 +316,22 @@ export const chaptersFromTranscript = async (options: {
 
 // What a batch's answer left out is asked for again in lists this short — a
 // local model that drops phrases from fifteen keeps all of three — for this
-// many rounds.
+// many rounds, then once more one phrase at a time.
 const RETRY_BATCH = 3
 const RETRY_ROUNDS = 2
+// A busy local model times out now and then: the same request is asked again
+// after these pauses before the whole track gives up.
+const BUSY_RETRY_DELAYS_MS = [10_000, 30_000]
+// Phrases the model never translated stay in the original language, as long
+// as they are this small a share; above it the track is worse than none.
+const MAX_UNTRANSLATED_SHARE = 0.2
+// A batch is at most fifteen phrases of up to 300 characters; its Russian
+// fits in this many tokens with room to spare. An answer that runs past it is
+// the model repeating itself: cut there, it parses as nothing and the batch's
+// phrases are asked for again in shorter lists. Without the cap such an
+// answer ran into the timeout three times and lost the whole track.
+const TRANSLATION_MAX_TOKENS = 4096
+const TRANSLATION_TIMEOUT_MS = 3 * 60_000
 
 /**
  * The cues in Russian. Whole phrases are translated (unitsOf), in batches
@@ -320,8 +340,10 @@ const RETRY_ROUNDS = 2
  * phrases say, and the answers' mistranslated terms are put right
  * (fixTerminology). An answer that is no usable JSON is asked again once
  * with the shape spelled out; phrases an answer leaves out are asked for
- * again in short lists. Null when phrases are still missing: a track with
- * holes is worse than none.
+ * again in short lists, then singly. A request that fails because the model
+ * is busy or briefly unreachable is repeated after a pause. Phrases still
+ * missing keep their original text when they are at most a fifth of the
+ * lesson; otherwise null: a track that is mostly holes is worse than none.
  */
 export const translateCues = async (options: {
     llm: LlmConfig
@@ -329,36 +351,66 @@ export const translateCues = async (options: {
     cues: readonly Cue[]
     terms: readonly RussianTerm[]
     fetchImpl?: typeof fetch
+    sleep?: (ms: number) => Promise<void>
 }): Promise<Cue[] | null> => {
+    const sleep = options.sleep ?? pause
+    const chat = async (messages: ChatMessage[]): Promise<string> => {
+        for (let attempt = 0; ; attempt += 1) {
+            try {
+                return await requestChat(
+                    options.llm,
+                    messages,
+                    options.fetchImpl,
+                    TRANSLATION_TIMEOUT_MS,
+                    TRANSLATION_MAX_TOKENS,
+                )
+            } catch (error) {
+                const delay = BUSY_RETRY_DELAYS_MS[attempt]
+                if (!(error instanceof LlmUnavailableError && error.transient) || delay === undefined) {
+                    throw error
+                }
+                await sleep(delay)
+            }
+        }
+    }
     const prompt = (phrases: readonly Phrase[]) =>
         buildTranslationPrompt(
             options.context,
             phrases,
             termsIn(phrases.map((phrase) => phrase.text).join('\n'), options.terms),
         )
-    const ask = async (messages: ChatMessage[]) =>
-        parseTranslation(await requestChat(options.llm, messages, options.fetchImpl))
+    const ask = async (messages: ChatMessage[]) => parseTranslation(await chat(messages))
+    const askFor = async (phrases: readonly Phrase[], size: number, texts: Map<number, string>) => {
+        for (let at = 0; at < phrases.length; at += size) {
+            for (const [id, text] of await ask(prompt(phrases.slice(at, at + size)))) {
+                texts.set(id, text)
+            }
+        }
+    }
     const phrases = unitsOf(options.cues)
     const translations = new Map<number, string>()
+    let untranslated = 0
     for (let from = 0; from < phrases.length; from += TRANSLATION_BATCH) {
         const batch = phrases.slice(from, from + TRANSLATION_BATCH)
         const messages = prompt(batch)
-        const answer = await requestChat(options.llm, messages, options.fetchImpl)
+        const answer = await chat(messages)
         let texts = parseTranslation(answer)
         if (texts.size === 0) texts = await ask([...messages, ...translationRetryMessages(answer)])
+        const missing = () => batch.filter((phrase) => !texts.has(phrase.id))
         for (let round = 0; round < RETRY_ROUNDS; round += 1) {
-            const missing = batch.filter((phrase) => !texts.has(phrase.id))
-            for (let at = 0; at < missing.length; at += RETRY_BATCH) {
-                for (const [id, text] of await ask(prompt(missing.slice(at, at + RETRY_BATCH)))) {
-                    texts.set(id, text)
-                }
-            }
+            await askFor(missing(), RETRY_BATCH, texts)
         }
+        await askFor(missing(), 1, texts)
         for (const phrase of batch) {
             const text = texts.get(phrase.id)
-            if (text === undefined) return null
-            translations.set(phrase.id, fixTerminology(phrase.text, text, options.terms))
+            if (text === undefined) {
+                untranslated += 1
+                translations.set(phrase.id, phrase.text)
+            } else {
+                translations.set(phrase.id, fixTerminology(phrase.text, text, options.terms))
+            }
         }
     }
+    if (untranslated > phrases.length * MAX_UNTRANSLATED_SHARE) return null
     return translatedCues(options.cues, translations)
 }
