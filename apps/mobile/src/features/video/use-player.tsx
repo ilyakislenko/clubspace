@@ -39,6 +39,9 @@ export function usePlayer(uri: string | null): UsePlayerResult {
       get frameRate() {
         return player.videoTrack?.frameRate ?? null
       },
+      get videoSize() {
+        return player.videoTrack?.size ?? null
+      },
       get playbackRate() {
         return player.playbackRate
       },
@@ -47,6 +50,12 @@ export function usePlayer(uri: string | null): UsePlayerResult {
       },
       get playing() {
         return player.playing
+      },
+      get muted() {
+        return player.muted
+      },
+      set muted(m: boolean) {
+        player.muted = m
       },
       play: () => player.play(),
       pause: () => player.pause(),

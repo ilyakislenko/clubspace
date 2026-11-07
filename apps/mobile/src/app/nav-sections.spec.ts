@@ -50,6 +50,8 @@ describe("section lists", () => {
       "ClubInvite",
       "Favorites",
       "MyVideoNotes",
+      "StudyPlans",
+      "MyVideoReviews",
       "OfflineLibrary",
       "Settings",
     ])
@@ -207,6 +209,8 @@ describe("sections behind the videos, achievements and journal flags", () => {
     expect(routes).not.toContain("ContinueWatching")
     expect(routes).not.toContain("Favorites")
     expect(routes).not.toContain("MyVideoNotes")
+    expect(routes).not.toContain("StudyPlans")
+    expect(routes).not.toContain("MyVideoReviews")
     expect(routes).not.toContain("OfflineLibrary")
     expect(routes).toContain("Achievements")
   })

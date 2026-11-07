@@ -10,8 +10,16 @@ import {
   createSubtitle,
   createSubtitleUpload,
   deleteSubtitle,
+  getSubtitleCues,
+  type SubtitleCues,
   type VideoSubtitleTrack,
 } from "../../../shared/api/videos"
+import { formatTimestamp } from "./TimestampsSection"
+import {
+  isAutoSubtitle,
+  sourceBadgeClass,
+  subtitleSourceLabel,
+} from "./video-text-labels"
 
 type Props = {
   workspaceId: string
@@ -35,6 +43,29 @@ export function SubtitlesSection({
   const [subUploading, setSubUploading] = useState(false)
   const [subRemovingId, setSubRemovingId] = useState<string | null>(null)
   const subFileRef = useRef<HTMLInputElement | null>(null)
+  // «Просмотр»: the open track and its cues, read through the server.
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  const [preview, setPreview] = useState<SubtitleCues | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+
+  const togglePreview = async (subtitleId: string) => {
+    if (previewId === subtitleId) {
+      setPreviewId(null)
+      return
+    }
+    setPreviewId(subtitleId)
+    setPreview(null)
+    setPreviewLoading(true)
+    try {
+      const cues = await getSubtitleCues({ workspaceId, videoId, subtitleId })
+      setPreview(cues)
+    } catch (error) {
+      setPreviewId(null)
+      onError(errorMessage(error, "Не удалось открыть субтитры."))
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
 
   const handleFile = async (file: File) => {
     const language = subLanguage.trim() || "ru"
@@ -153,35 +184,78 @@ export function SubtitlesSection({
       ) : (
         <ul className="divide-y divide-border rounded-md border border-border">
           {subtitles.map((s) => (
-            <li key={s.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-              <code className="rounded bg-muted px-1.5 py-0.5 text-xs uppercase">
-                {s.language}
-              </code>
-              <span className="flex-1 truncate">{s.label}</span>
-              {(() => {
-                const safe = safeExternalUrl(s.publicUrl)
-                return safe ? (
-                  <a
-                    href={safe}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs text-muted-foreground hover:underline"
-                  >
-                    Файл
-                  </a>
-                ) : (
-                  <span className="text-xs text-muted-foreground/60">Файл</span>
-                )
-              })()}
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => void handleRemove(s.id)}
-                disabled={subRemovingId === s.id}
-              >
-                {subRemovingId === s.id ? "..." : "Удалить"}
-              </Button>
+            <li key={s.id} className="px-3 py-2 text-sm">
+              <div className="flex items-center gap-3">
+                <code className="rounded bg-muted px-1.5 py-0.5 text-xs uppercase">
+                  {s.language}
+                </code>
+                <span className="flex-1 truncate">{s.label}</span>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${sourceBadgeClass(isAutoSubtitle(s.source))}`}
+                >
+                  {subtitleSourceLabel(s.source)}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  aria-expanded={previewId === s.id}
+                  onClick={() => void togglePreview(s.id)}
+                >
+                  {previewId === s.id ? "Скрыть" : "Просмотр"}
+                </Button>
+                {(() => {
+                  const safe = safeExternalUrl(s.publicUrl)
+                  return safe ? (
+                    <a
+                      href={safe}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-muted-foreground hover:underline"
+                    >
+                      Файл
+                    </a>
+                  ) : (
+                    <span className="text-xs text-muted-foreground/60">Файл</span>
+                  )
+                })()}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void handleRemove(s.id)}
+                  disabled={subRemovingId === s.id}
+                >
+                  {subRemovingId === s.id ? "..." : "Удалить"}
+                </Button>
+              </div>
+              {previewId === s.id && (
+                <div className="mt-2 rounded-md bg-muted/50 p-2 text-xs">
+                  {previewLoading || !preview ? (
+                    <p className="text-muted-foreground">Загружаем…</p>
+                  ) : preview.cues.length === 0 ? (
+                    <p className="text-muted-foreground">В файле нет фраз.</p>
+                  ) : (
+                    <>
+                      <ol className="max-h-64 space-y-1 overflow-auto">
+                        {preview.cues.map((cue, i) => (
+                          <li key={i} className="flex gap-2">
+                            <code className="shrink-0 text-muted-foreground">
+                              {formatTimestamp(cue.from)}
+                            </code>
+                            <span className="whitespace-pre-line">{cue.text}</span>
+                          </li>
+                        ))}
+                      </ol>
+                      {preview.total > preview.cues.length && (
+                        <p className="mt-1 text-muted-foreground">
+                          Показаны первые {preview.cues.length} из {preview.total}.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>

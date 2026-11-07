@@ -106,6 +106,11 @@ const drop = async (q: OutboxOp[], id: string) => {
 
 export const pendingCount = async (): Promise<number> => (await load()).length
 
+/** A snapshot of the ops still waiting to be sent. */
+export const pendingOps = async (): Promise<readonly OutboxOp[]> => [
+  ...(await load()),
+]
+
 /**
  * Replay pending ops in order. Removes each on success; drops ops that fail
  * permanently (4xx); stops at the first transient failure (network / 5xx),

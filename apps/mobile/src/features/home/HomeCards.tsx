@@ -23,6 +23,7 @@ import {
   formatUpcomingLabel,
 } from "../schedule/schedule-helpers"
 import type { RecentEntry } from "../profile/preferences-store"
+import { formatNextDue } from "../reviews/review-helpers"
 import {
   eventStatusLine,
   formatEventWhen,
@@ -524,6 +525,41 @@ export function AnnouncementCard({
       <Text style={styles.muted} numberOfLines={2}>
         {item.body}
       </Text>
+    </HomeCard>
+  )
+}
+
+/** «Повторение»: saved bookmarks due for review; tap opens the round. */
+export function ReviewsCard({
+  due,
+  nextDueAt,
+  onPress,
+  grow,
+}: {
+  due: number
+  nextDueAt: string | null
+  onPress: () => void
+  grow?: boolean
+}) {
+  const styles = useThemedStyles(makeStyles)
+  const title = "Повторение"
+  const line = due > 0 ? `Повторить сегодня: ${due}` : "На сегодня всё"
+  // Per render: Home is a tab and stays mounted.
+  const sub =
+    due > 0
+      ? "Закладки и отрезки из видео"
+      : nextDueAt
+        ? `Следующее — ${formatNextDue(Date.parse(nextDueAt), Date.now())}`
+        : null
+  return (
+    <HomeCard
+      title={title}
+      onPress={onPress}
+      grow={grow}
+      accessibilityLabel={[title, line, sub].filter(Boolean).join(", ")}
+    >
+      <Text style={styles.strong}>{line}</Text>
+      {sub && <Text style={styles.muted}>{sub}</Text>}
     </HomeCard>
   )
 }

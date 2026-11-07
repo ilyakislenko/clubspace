@@ -18,7 +18,7 @@ import {
   type MyVideoNotesItem,
 } from "../../shared/api/video-study"
 import { useAuth } from "../../shared/auth-context"
-import { readResource, writeResource } from "../../shared/cache/resource-cache"
+import { writeResource } from "../../shared/cache/resource-cache"
 import {
   CenteredColumn,
   READABLE_WIDTH,
@@ -35,12 +35,17 @@ import type { Theme } from "../../shared/theme"
 import {
   flushStudyData,
   mergeVideoNotesIntoStudy,
-  readLocalStudy,
   studyFiles,
 } from "../profile/preferences-store"
-import { filterVideoNotes, overlayLocalStudy } from "../profile/study-merge"
+import {
+  myVideoNotesCacheKey,
+  readCachedVideoNotes,
+} from "./my-video-notes-cache"
 import type { RootStackParamList } from "../../app/navigation"
+import { DrawingThumb } from "./DrawingCanvas"
 import { formatBookmarkTime } from "./format-position"
+import { AddToPlanModal } from "../study-plans/AddToPlanModal"
+import { draftFromBookmark, type PlanItemDraft } from "../study-plans/plan-drafts"
 
 type Props = NativeStackScreenProps<RootStackParamList, "MyVideoNotes">
 
@@ -49,9 +54,6 @@ const SEARCH_DEBOUNCE_MS = 350
 const NOTE_LINES = 3
 const isLongNote = (text: string) =>
   text.length > 160 || text.split("\n").length > NOTE_LINES
-
-// The last unfiltered list, per club (and per profile — the cache is).
-const cacheKey = (workspaceId: string) => `my-video-notes:${workspaceId}`
 
 // Every lesson the member keeps a note or bookmarks on, searchable. Online it
 // asks the server (after sending notes written offline, so they're in it);
@@ -74,6 +76,8 @@ export function MyVideoNotesScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  // «Добавить в план» for a bookmark: what the picker would add.
+  const [planDraft, setPlanDraft] = useState<PlanItemDraft | null>(null)
   // Only the latest load may paint.
   const loadSeq = useRef(0)
   const searchRef = useRef(search)
@@ -98,24 +102,16 @@ export function MyVideoNotesScreen({ navigation }: Props) {
         if (flush) await flushStudyData()
         const response = await listMyVideoNotes({ workspaceId, q })
         if (!(await mergeVideoNotesIntoStudy(scope, response.items))) return
-        if (!q) await writeResource(cacheKey(workspaceId), response.items)
+        if (!q) await writeResource(myVideoNotesCacheKey(workspaceId), response.items)
         if (seq !== loadSeq.current) return
         setItems(response.items)
         setOffline(false)
         setError(null)
       } catch (err) {
-        const [cached, local] = await Promise.all([
-          readResource<MyVideoNotesItem[]>(cacheKey(workspaceId)),
-          readLocalStudy(),
-        ])
+        const cached = await readCachedVideoNotes(workspaceId, q)
         if (seq !== loadSeq.current) return
         if (cached) {
-          setItems(
-            filterVideoNotes(
-              overlayLocalStudy(cached.data, local.bookmarks, local.notes),
-              q,
-            ),
-          )
+          setItems(cached)
           setOffline(true)
           setError(null)
         } else {
@@ -176,6 +172,9 @@ export function MyVideoNotesScreen({ navigation }: Props) {
       title: item.video.title,
       startAt: bookmark?.positionSec,
       loopEndAt: bookmark?.endSec ?? undefined,
+      // A moment with a drawing opens paused on it, drawing shown.
+      drawingBookmarkId:
+        bookmark?.drawing && bookmark.endSec == null ? bookmark.id : undefined,
     })
 
   const renderItem = ({ item }: { item: MyVideoNotesItem }) => {
@@ -240,15 +239,19 @@ export function MyVideoNotesScreen({ navigation }: Props) {
                 key={b.id}
                 onPress={() => openVideo(item, b)}
                 accessibilityRole="button"
-                accessibilityLabel={`${b.label || "Закладка"}, ${formatBookmarkTime(b)} — открыть видео с этого места`}
+                accessibilityLabel={`${b.label || "Закладка"}, ${formatBookmarkTime(b)}${b.drawing ? ", с рисунком" : ""} — открыть видео с этого места`}
                 style={({ pressed }) => [
                   styles.bookmarkRow,
                   pressed && styles.pressed,
                 ]}
               >
                 <View style={styles.timeChip}>
-                  <Text style={styles.timeText}>{formatBookmarkTime(b)}</Text>
+                  <Text style={styles.timeText}>
+                    {formatBookmarkTime(b)}
+                    {b.drawing ? " ✎" : ""}
+                  </Text>
                 </View>
+                {b.drawing && <DrawingThumb strokes={b.drawing.strokes} />}
                 <View style={styles.bookmarkText}>
                   <Text
                     style={b.label ? styles.bookmarkLabel : styles.bookmarkLabelEmpty}
@@ -262,6 +265,15 @@ export function MyVideoNotesScreen({ navigation }: Props) {
                     </Text>
                   ) : null}
                 </View>
+                <Pressable
+                  onPress={() => setPlanDraft(draftFromBookmark(item.video.id, b))}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Добавить ${b.label || "закладку"} в план`}
+                  style={styles.addToPlan}
+                >
+                  <Text style={styles.addToPlanText}>В план</Text>
+                </Pressable>
               </Pressable>
             ))}
           </View>
@@ -337,6 +349,9 @@ export function MyVideoNotesScreen({ navigation }: Props) {
           />
         )}
       </CenteredColumn>
+      {planDraft && (
+        <AddToPlanModal draft={planDraft} onClose={() => setPlanDraft(null)} />
+      )}
     </SafeAreaView>
   )
 }
@@ -462,4 +477,13 @@ const makeStyles = (theme: Theme) =>
       color: theme.colors.muted,
       textAlign: "center",
     },
+    addToPlan: {
+      alignSelf: "center",
+      paddingHorizontal: theme.spacing(2),
+      paddingVertical: 4,
+      borderRadius: theme.radius.full,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    addToPlanText: { fontSize: 12, fontWeight: "600", color: theme.colors.accent },
   })

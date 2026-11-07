@@ -14,14 +14,24 @@ type Props = {
   onCancel: () => void
   // Also called when the countdown runs out.
   onPlayNow: () => void
+  // «lesson»: the course's next lesson; «planItem»: a study plan's next item.
+  kind?: "lesson" | "planItem"
 }
 
 /**
- * «Следующий урок через N с» — shown over the picture when a lesson ends.
- * Starting playback again (replay, seeking back and pressing play) counts as
- * «Отмена»: the student chose to stay on this lesson.
+ * «Следующий урок через N с» (or a plan's «Дальше через N с») — shown over the
+ * picture when a lesson or plan segment ends. Starting playback again (replay,
+ * seeking back and pressing play) counts as «Отмена»: the student chose to
+ * stay where they are.
  */
-export function NextLessonCountdown({ title, player, onCancel, onPlayNow }: Props) {
+export function NextLessonCountdown({
+  title,
+  player,
+  onCancel,
+  onPlayNow,
+  kind = "lesson",
+}: Props) {
+  const playNowLabel = kind === "lesson" ? "Смотреть сейчас" : "Сейчас"
   const styles = useThemedStyles(makeStyles)
   const [left, setLeft] = useState(COUNTDOWN_SEC)
   const latest = useRef({ onCancel, onPlayNow })
@@ -45,7 +55,9 @@ export function NextLessonCountdown({ title, player, onCancel, onPlayNow }: Prop
 
   return (
     <View style={styles.card} accessibilityLiveRegion="polite">
-      <Text style={styles.label}>Следующий урок через {left} с</Text>
+      <Text style={styles.label}>
+        {kind === "lesson" ? `Следующий урок через ${left} с` : `Дальше через ${left} с`}
+      </Text>
       <Text style={styles.title} numberOfLines={2}>
         {title}
       </Text>
@@ -54,7 +66,7 @@ export function NextLessonCountdown({ title, player, onCancel, onPlayNow }: Prop
           <Text style={styles.cancelText}>Отмена</Text>
         </Pressable>
         <Pressable onPress={onPlayNow} style={styles.playNow}>
-          <Text style={styles.playNowText}>Смотреть сейчас</Text>
+          <Text style={styles.playNowText}>{playNowLabel}</Text>
         </Pressable>
       </View>
     </View>

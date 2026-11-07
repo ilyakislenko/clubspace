@@ -12,8 +12,13 @@ export type PlayerHandle = {
   readonly duration: number | undefined
   // Frames per second of the current video track; null when unknown.
   readonly frameRate: number | null
+  // Pixel size of the current video track (places drawings on the picture
+  // inside its letterbox); null until known.
+  readonly videoSize: { width: number; height: number } | null
   playbackRate: number
   readonly playing: boolean
+  // Sound off (the compare screen plays one side's audio only).
+  muted: boolean
   play: () => void
   pause: () => void
   addListener: (event: "playToEnd", cb: () => void) => { remove: () => void }

@@ -162,6 +162,16 @@ export const routeForNotification = (
     // Always opened as the guardian (see profileForNotification).
     case "guardian.invite":
       return { name: "Children" }
+    // «Разбор видео»: a member sent a clip (staff), a coach answered (the
+    // member). The screen itself checks who may see the request.
+    case "videoReview.requested":
+    case "videoReview.answered":
+      return requestId
+        ? { name: "VideoReview", params: { requestId } }
+        : gated("MyVideoReviews")
+    // «Пора повторить»: due bookmark cards, opens «Повторение».
+    case "review.due":
+      return isFeatureOn("videos") ? { name: "Reviews" } : null
   }
 
   // Older rows and unknown kinds: a video id alone is still enough to open it.

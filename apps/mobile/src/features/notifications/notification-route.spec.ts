@@ -121,6 +121,23 @@ describe("routeForNotification", () => {
     })
   })
 
+  it.each(["videoReview.requested", "videoReview.answered"])(
+    "%s opens the review, or «Мои разборы» without an id",
+    (kind) => {
+      expect(routeForNotification({ kind, requestId: "r1" }, off)).toEqual({
+        name: "VideoReview",
+        params: { requestId: "r1" },
+      })
+      expect(routeForNotification({ kind }, on)).toEqual({ name: "MyVideoReviews" })
+      expect(routeForNotification({ kind }, off)).toBeNull()
+    },
+  )
+
+  it("opens «Повторение» for due cards while videos are on", () => {
+    expect(routeForNotification({ kind: "review.due" }, on)).toEqual({ name: "Reviews" })
+    expect(routeForNotification({ kind: "review.due" }, off)).toBeNull()
+  })
+
   it("opens a video by id", () => {
     expect(
       routeForNotification({ kind: "video.published", videoId: "v1" }, on),

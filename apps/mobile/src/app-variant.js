@@ -57,6 +57,10 @@ const APP_BACKGROUND = "#faf9fb"
 const CAMERA_PERMISSION =
   "Доступ к камере нужен, чтобы отсканировать QR-код клуба"
 
+// The iOS photo library prompt (NSPhotoLibraryUsageDescription).
+const PHOTOS_PERMISSION =
+  "Доступ к галерее нужен, чтобы отправить своё видео на разбор"
+
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
 
 const trimmed = (value) => {
@@ -236,6 +240,16 @@ function resolveAppConfig(env) {
           cameraPermission: CAMERA_PERMISSION,
           microphonePermission: false,
           recordAudioAndroid: false,
+        },
+      ],
+      // «Разбор видео»: the member picks a clip from the gallery. Library
+      // only — no camera or microphone strings for permissions never asked.
+      [
+        "expo-image-picker",
+        {
+          photosPermission: PHOTOS_PERMISSION,
+          cameraPermission: false,
+          microphonePermission: false,
         },
       ],
       ...(httpApi ? ["./plugins/with-android-cleartext"] : []),

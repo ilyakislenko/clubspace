@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react"
 import {
   FlatList,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -177,17 +178,6 @@ export function CoursesScreen({ navigation }: Props) {
           </Text>
           <Text style={styles.headerTitle}>Видео</Text>
         </View>
-        <Pressable
-          onPress={() => navigation.navigate("MyVideoNotes")}
-          accessibilityRole="button"
-          accessibilityLabel="Мои заметки к видео"
-          style={({ pressed }) => [
-            styles.shortcut,
-            pressed && styles.shortcutPressed,
-          ]}
-        >
-          <Text style={styles.shortcutText}>Заметки</Text>
-        </Pressable>
         <DrillModeButton />
       </View>
 
@@ -211,8 +201,80 @@ export function CoursesScreen({ navigation }: Props) {
         </Pressable>
       )}
 
-      {(hasRecents || offlineDownloads) && !searching && (
-        <View style={styles.shortcuts}>
+      {/* Study shortcuts, one scrollable row so the header never crowds. */}
+      {!searching && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.shortcutsScroll}
+          contentContainerStyle={styles.shortcuts}
+        >
+          <Pressable
+            onPress={() => navigation.navigate("VideoSearch")}
+            accessibilityRole="button"
+            accessibilityLabel="Поиск по видео: по сказанному, главам и названиям"
+            style={({ pressed }) => [
+              styles.shortcut,
+              pressed && styles.shortcutPressed,
+            ]}
+          >
+            <Text style={styles.shortcutText}>Поиск</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("Techniques")}
+            accessibilityRole="button"
+            accessibilityLabel="Техники: где их разбирают в видео"
+            style={({ pressed }) => [
+              styles.shortcut,
+              pressed && styles.shortcutPressed,
+            ]}
+          >
+            <Text style={styles.shortcutText}>Техники</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("MyVideoNotes")}
+            accessibilityRole="button"
+            accessibilityLabel="Мои заметки к видео"
+            style={({ pressed }) => [
+              styles.shortcut,
+              pressed && styles.shortcutPressed,
+            ]}
+          >
+            <Text style={styles.shortcutText}>Заметки</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("Reviews")}
+            accessibilityRole="button"
+            accessibilityLabel="Повторение закладок"
+            style={({ pressed }) => [
+              styles.shortcut,
+              pressed && styles.shortcutPressed,
+            ]}
+          >
+            <Text style={styles.shortcutText}>Повторить</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("StudyPlans")}
+            accessibilityRole="button"
+            accessibilityLabel="Мои планы"
+            style={({ pressed }) => [
+              styles.shortcut,
+              pressed && styles.shortcutPressed,
+            ]}
+          >
+            <Text style={styles.shortcutText}>Планы</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("MyVideoReviews")}
+            accessibilityRole="button"
+            accessibilityLabel="Разбор видео: отправить своё видео на разбор"
+            style={({ pressed }) => [
+              styles.shortcut,
+              pressed && styles.shortcutPressed,
+            ]}
+          >
+            <Text style={styles.shortcutText}>Разборы</Text>
+          </Pressable>
           {hasRecents && (
             <Pressable
               onPress={() => navigation.navigate("ContinueWatching")}
@@ -243,7 +305,7 @@ export function CoursesScreen({ navigation }: Props) {
               </Text>
             </Pressable>
           )}
-        </View>
+        </ScrollView>
       )}
 
       {/* The home screen was the one cached screen that never said it was
@@ -381,6 +443,22 @@ export function CoursesScreen({ navigation }: Props) {
             trimmedQuery ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyHint}>Ничего не найдено</Text>
+                {/* Maybe it's said in a lesson rather than in a course name. */}
+                {trimmedQuery.length >= 2 && (
+                  <Pressable
+                    onPress={() => navigation.navigate("VideoSearch", { q: trimmedQuery })}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [
+                      styles.shortcut,
+                      styles.searchInVideos,
+                      pressed && styles.shortcutPressed,
+                    ]}
+                  >
+                    <Text style={styles.shortcutText}>
+                      Искать в видео: {trimmedQuery}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             ) : (
               <View style={styles.empty}>
@@ -448,6 +526,8 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.text,
   },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  shortcutsScroll: { flexGrow: 0 },
+  searchInVideos: { marginTop: theme.spacing(3), alignSelf: "center" },
   shortcuts: {
     flexDirection: "row",
     gap: theme.spacing(2),

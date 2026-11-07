@@ -240,6 +240,20 @@ export const PROFILE_SECTIONS: readonly NavSection[] = [
     group: "training",
   },
   {
+    route: "StudyPlans",
+    icon: "list-outline",
+    label: "Мои планы",
+    feature: "videos",
+    group: "training",
+  },
+  {
+    route: "MyVideoReviews",
+    icon: "videocam-outline",
+    label: "Мои разборы",
+    feature: "videos",
+    group: "training",
+  },
+  {
     route: "OfflineLibrary",
     icon: "download-outline",
     label: "Загруженные",

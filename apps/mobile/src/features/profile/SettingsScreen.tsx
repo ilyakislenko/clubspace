@@ -337,6 +337,24 @@ export function SettingsScreen(_props: Props) {
               />
             }
           />
+          {isFeatureEnabled(workspace, "videos") && (
+            <Row
+              label="Повторение"
+              description="«Пора повторить» вечером, если есть закладки к повторению, а вы сегодня ещё не повторяли."
+              right={
+                <Switch
+                  accessibilityLabel="Напоминания о повторении закладок"
+                  disabled={!notif}
+                  value={notif?.reviewRemindersEnabled ?? true}
+                  onValueChange={(v) => updateNotif({ reviewRemindersEnabled: v })}
+                  trackColor={{
+                    true: theme.colors.accent,
+                    false: theme.colors.border,
+                  }}
+                />
+              }
+            />
+          )}
           {/* Not gated: access expiry comes from accessUntil, not the subscription feature. */}
           <Row
             label="Абонемент и доступ"

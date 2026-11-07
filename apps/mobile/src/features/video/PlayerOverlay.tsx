@@ -13,6 +13,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   Animated,
+  BackHandler,
   StyleSheet,
   Text,
   View,
@@ -22,14 +23,30 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
+import type { BookmarkDrawing, DrawingStroke } from "../../shared/api/video-study"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { BoostBadge } from "./BoostBadge"
 import { formatPosition } from "./format-position"
+import {
+  ChapterDrawer,
+  type PlayerBookmark,
+  type PlayerChapter,
+} from "./ChapterDrawer"
+import { chapterIndexAt, nextChapterTarget, prevChapterTarget } from "./chapter-nav"
+import { DrawingCanvas } from "./DrawingCanvas"
+import { DrawingEditor } from "./DrawingEditor"
+import {
+  containRect,
+  SHOWN_DRAWING_DRIFT_SEC,
+  type ShownDrawing,
+} from "./drawing-math"
+import type { SharedMoment } from "./moment-link"
 import { PlaybackRatePopover } from "./PlaybackSpeedPicker"
 import { clampSeek, frameStepTarget, positionOnTrack } from "./player-math"
 import type { PlayerHandle } from "./player-types"
 import { usePlayerGestures, type SeekFeedback } from "./use-player-gestures"
+import { PlanBar, type PlanBarProps } from "../study-plans/PlanBar"
 
 // Controls fade out this long after the last touch while playing.
 const AUTO_HIDE_MS = 3500
@@ -38,6 +55,13 @@ const POLL_MS = 250
 const SCRUB_SEEK_MS = 100
 // The speed popover sits this far above the bottom edge (clear of the bar).
 const POPOVER_BOTTOM = 96
+// The current-chapter line above the seek bar (videos with chapters only).
+const CHAPTER_ROW_HEIGHT = 20
+// The fullscreen top bar below the safe-area inset (40 px button + padding).
+const TOP_BAR_HEIGHT = 56
+// Inline the player sits inside the screen: the drawing toolbar needs no
+// safe-area padding there.
+const NO_INSETS = { top: 0, right: 0, bottom: 0, left: 0 }
 
 type Props = {
   player: PlayerHandle
@@ -57,6 +81,33 @@ type Props = {
   onAddBookmark: () => void
   // Keep the current A–B as a segment bookmark; offered once both are set.
   onSaveSegment: () => void
+  // The lesson's chapters (ordered by start); empty = no chapter UI at all.
+  chapters: ReadonlyArray<PlayerChapter>
+  // Listed with the chapters in the fullscreen «Главы» drawer.
+  bookmarks: ReadonlyArray<PlayerBookmark>
+  // Drawer taps, same as the side panel's: a chapter seeks (and plays); a
+  // bookmark opens like in the panel (segment loop, drawing on the frame).
+  onSeek: (sec: number) => void
+  onOpenBookmark: (bookmark: PlayerBookmark) => void
+  // «Поделиться моментом»: the player's own (this second, or the A–B) and the
+  // fullscreen drawer's rows.
+  onShareMoment: (moment: SharedMoment) => void
+  // A saved drawing shown over its paused frame; hidden on play, on leaving
+  // that frame, or ✕.
+  shownDrawing: ShownDrawing | null
+  onHideDrawing: () => void
+  // «Рисовать» → «Сохранить» on the frame at the current (whole) second, onto
+  // `bookmarkId` when an existing drawing was edited; null removes it.
+  onSaveDrawing: (drawing: BookmarkDrawing | null, bookmarkId: string | null) => void
+  // Where subtitles may go: `inset` px of controls covering the bottom (the
+  // seek bar with its chapter line), `hidden` while «Рисовать» or the
+  // fullscreen drawer takes the picture.
+  onSubtitleLayout: (layout: { inset: number; hidden: boolean }) => void
+  // Playing a study plan: «План: … · 3/7» with previous/next item.
+  plan?: PlanBarProps | null
+  // The fullscreen drawer's «В план» on chapters and bookmarks.
+  onAddChapterToPlan?: (index: number) => void
+  onAddBookmarkToPlan?: (bookmarkId: string) => void
 }
 
 type Snapshot = { time: number; duration: number | undefined; playing: boolean }
@@ -83,18 +134,44 @@ export function PlayerOverlay({
   onClearLoop,
   onAddBookmark,
   onSaveSegment,
+  chapters,
+  bookmarks,
+  onSeek,
+  onOpenBookmark,
+  onShareMoment,
+  shownDrawing,
+  onHideDrawing,
+  onSaveDrawing,
+  onSubtitleLayout,
+  plan,
+  onAddChapterToPlan,
+  onAddBookmarkToPlan,
 }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
   const [controlsVisible, setControlsVisible] = useState(true)
   const [speedOpen, setSpeedOpen] = useState(false)
+  // The fullscreen «Главы» drawer.
+  const [drawerOpen, setDrawerOpen] = useState(false)
   // Position under the finger while dragging the seek bar.
   const [scrubTime, setScrubTime] = useState<number | null>(null)
   const [snapshot, setSnapshot] = useState<Snapshot>(() => readSnapshot(player))
   // Bumped by every control press: restarts the auto-hide countdown.
   const [interaction, setInteraction] = useState(0)
-  const [height, setHeight] = useState(0)
+  // The player's size: the picture's letterboxed rect (drawings) and the
+  // popover's room.
+  const [size, setSize] = useState({ width: 0, height: 0 })
+  // The bottom control bar's height, for lifting subtitles over it.
+  const [barHeight, setBarHeight] = useState(0)
+  // «Рисовать» is open (it owns every touch until saved or cancelled), with
+  // the drawing it edits: the one shown, or the one already saved on this
+  // second's bookmark — never a blank sheet over an existing drawing.
+  const [drawingSeed, setDrawingSeed] = useState<{
+    bookmarkId: string | null
+    strokes: readonly DrawingStroke[]
+  } | null>(null)
+  const drawingMode = drawingSeed !== null
   const lastScrubSeek = useRef(0)
 
   const refresh = useCallback(() => setSnapshot(readSnapshot(player)), [player])
@@ -119,12 +196,68 @@ export function PlayerOverlay({
   }, [controlsVisible, refresh])
 
   useEffect(() => {
-    if (!controlsVisible || !snapshot.playing || speedOpen || scrubTime != null) {
+    if (
+      !controlsVisible ||
+      !snapshot.playing ||
+      speedOpen ||
+      drawerOpen ||
+      scrubTime != null
+    ) {
       return
     }
     const id = setTimeout(() => setControlsVisible(false), AUTO_HIDE_MS)
     return () => clearTimeout(id)
-  }, [controlsVisible, snapshot.playing, speedOpen, scrubTime, interaction])
+  }, [controlsVisible, snapshot.playing, speedOpen, drawerOpen, scrubTime, interaction])
+
+  // The drawer is fullscreen-only: leaving fullscreen drops it.
+  useEffect(() => {
+    if (!fullscreen) setDrawerOpen(false)
+  }, [fullscreen])
+
+  // Android back closes the drawer before it leaves fullscreen: subscribed
+  // after the screen's fullscreen handler, so it runs first (newest wins).
+  useEffect(() => {
+    if (!drawerOpen) return
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      setDrawerOpen(false)
+      return true
+    })
+    return () => sub.remove()
+  }, [drawerOpen])
+
+  // Back leaves «Рисовать» without saving (before fullscreen or the lesson).
+  useEffect(() => {
+    if (!drawingMode) return
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      setDrawingSeed(null)
+      return true
+    })
+    return () => sub.remove()
+  }, [drawingMode])
+
+  // A shown drawing belongs to its paused frame: playing on, or moving off
+  // that frame, hides it. Playing hides it at once; the frame check arms only
+  // once the player has settled there paused — the seek that brings a drawing
+  // up lands a moment after it is shown. The callback goes through a ref so
+  // re-renders don't restart the poll.
+  const hideDrawingRef = useRef(onHideDrawing)
+  hideDrawingRef.current = onHideDrawing
+  useEffect(() => {
+    if (!shownDrawing) return
+    let armed = false
+    const id = setInterval(() => {
+      if (player.playing) {
+        hideDrawingRef.current()
+        return
+      }
+      const onFrame =
+        Math.abs(player.currentTime - shownDrawing.positionSec) <=
+        SHOWN_DRAWING_DRIFT_SEC
+      if (!armed) armed = onFrame
+      else if (!onFrame) hideDrawingRef.current()
+    }, POLL_MS)
+    return () => clearInterval(id)
+  }, [shownDrawing, player])
 
   // Wraps a control's handler: keeps the controls up and the readout fresh.
   const act = (fn: () => void) => () => {
@@ -155,15 +288,71 @@ export function PlayerOverlay({
       )
     })
 
+  // Chapter jumps keep the play/pause state, like the seek bar. The target is
+  // picked from the player's live time, not the last polled readout.
+  const jumpChapter = (
+    pick: (chapters: Props["chapters"], time: number) => number | null,
+  ) =>
+    act(() => {
+      const target = pick(chapters, player.currentTime)
+      if (target != null) player.currentTime = clampSeek(target, player.duration)
+    })
+
+  // A drawer row: the screen seeks/loops (and plays), the drawer closes.
+  const fromDrawer = (fn: () => void) => {
+    fn()
+    setDrawerOpen(false)
+    setInteraction((n) => n + 1)
+    refresh()
+  }
+
+  // Bookmarks keep whole seconds, so the frame snaps to one before drawing:
+  // what is drawn on is exactly the frame the bookmark reopens.
+  const startDrawing = act(() => {
+    player.pause()
+    const second = clampSeek(Math.round(player.currentTime), player.duration)
+    player.currentTime = second
+    const saved = bookmarks.find(
+      (b) => b.endSec === null && b.positionSec === Math.round(second) && b.drawing,
+    )
+    setSpeedOpen(false)
+    setDrawerOpen(false)
+    setDrawingSeed(
+      shownDrawing
+        ? { bookmarkId: shownDrawing.bookmarkId, strokes: shownDrawing.drawing.strokes }
+        : { bookmarkId: saved?.id ?? null, strokes: saved?.drawing?.strokes ?? [] },
+    )
+  })
+
   const time = scrubTime ?? snapshot.time
   const loopSet = loopA != null || loopB != null
   const iconColor = theme.colors.onOverlay
+  const hasChapters = chapters.length > 0
+  // While scrubbing, `time` is under the thumb: so is this chapter.
+  const chapterIndex = chapterIndexAt(chapters, time)
+  const chapter = chapterIndex >= 0 ? chapters[chapterIndex] : null
+  const nextTarget = nextChapterTarget(chapters, time)
+  // Where the picture sits in the player (contain letterboxing).
+  const pictureRect = containRect(size, player.videoSize)
+  const showControls = controlsVisible && !drawingMode
+  const subtitleInset = showControls ? barHeight : 0
+  const subtitlesHidden = drawingMode || (drawerOpen && fullscreen)
+  const subtitleLayoutRef = useRef(onSubtitleLayout)
+  subtitleLayoutRef.current = onSubtitleLayout
+  useEffect(() => {
+    subtitleLayoutRef.current({ inset: subtitleInset, hidden: subtitlesHidden })
+  }, [subtitleInset, subtitlesHidden])
 
   return (
     <View
       style={StyleSheet.absoluteFill}
       pointerEvents="box-none"
-      onLayout={(e) => setHeight(e.nativeEvent.layout.height)}
+      onLayout={(e) =>
+        setSize({
+          width: e.nativeEvent.layout.width,
+          height: e.nativeEvent.layout.height,
+        })
+      }
     >
       {/* The gesture layer: tap toggles controls, double tap on a side third
           seeks ∓10 s, hold plays at 2x. Controls drawn after it take their
@@ -176,7 +365,15 @@ export function PlayerOverlay({
       {seekFeedback && <SeekRipple feedback={seekFeedback} />}
       {boosted && <BoostBadge />}
 
-      {controlsVisible && (
+      {shownDrawing && !drawingMode && (
+        <DrawingCanvas
+          strokes={shownDrawing.drawing.strokes}
+          rect={pictureRect}
+          mirrored={mirrored}
+        />
+      )}
+
+      {showControls && (
         <>
           {fullscreen && (
             <View
@@ -197,10 +394,23 @@ export function PlayerOverlay({
               <Text style={styles.title} numberOfLines={1}>
                 {title}
               </Text>
+              {plan && <PlanBar variant="overlay" {...plan} />}
+            </View>
+          )}
+          {!fullscreen && plan && (
+            <View style={styles.planInline} pointerEvents="box-none">
+              <PlanBar variant="overlay" {...plan} />
             </View>
           )}
 
           <View style={styles.centerRow} pointerEvents="box-none">
+            {hasChapters && (
+              <IconButton
+                icon="play-skip-back"
+                label="Предыдущая глава"
+                onPress={jumpChapter(prevChapterTarget)}
+              />
+            )}
             <IconButton
               icon="chevron-back"
               label="Кадр назад"
@@ -222,6 +432,14 @@ export function PlayerOverlay({
               label="Кадр вперёд"
               onPress={stepFrame(1)}
             />
+            {hasChapters && (
+              <IconButton
+                icon="play-skip-forward"
+                label="Следующая глава"
+                disabled={nextTarget == null}
+                onPress={jumpChapter(nextChapterTarget)}
+              />
+            )}
           </View>
 
           <View
@@ -233,12 +451,26 @@ export function PlayerOverlay({
                 paddingRight: theme.spacing(3) + insets.right,
               },
             ]}
+            onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
           >
+            {hasChapters && (
+              // Height kept even in the lead-in before chapter 1, so the bar
+              // doesn't jump when the first chapter starts.
+              <Text
+                style={[styles.chapterLabel, scrubTime != null && styles.chapterScrub]}
+                numberOfLines={1}
+              >
+                {chapter
+                  ? `${chapterIndex + 1}/${chapters.length} · ${chapter.title}`
+                  : ""}
+              </Text>
+            )}
             <SeekBar
               time={time}
               duration={snapshot.duration}
               loopA={loopA}
               loopB={loopB}
+              chapters={chapters}
               onScrub={(t) => {
                 setScrubTime(t)
                 const now = Date.now()
@@ -262,6 +494,17 @@ export function PlayerOverlay({
               <View style={styles.spacer} />
               {fullscreen && (
                 <>
+                  {hasChapters && (
+                    <ChipButton
+                      label="Главы"
+                      accessibilityLabel="Главы и закладки"
+                      active={drawerOpen}
+                      onPress={act(() => {
+                        setSpeedOpen(false)
+                        setDrawerOpen(true)
+                      })}
+                    />
+                  )}
                   <ChipButton
                     label={loopA != null ? `A ${formatPosition(loopA)}` : "A"}
                     accessibilityLabel="Отметить точку A"
@@ -295,11 +538,33 @@ export function PlayerOverlay({
                   />
                 </>
               )}
+              {!snapshot.playing && (
+                <ChipButton
+                  label="✎ Рисовать"
+                  accessibilityLabel="Рисовать на кадре"
+                  onPress={startDrawing}
+                />
+              )}
               <ChipButton
                 label={`${playbackRate}x`}
                 accessibilityLabel={`Скорость ${playbackRate}x, выбрать`}
                 active={speedOpen}
                 onPress={act(() => setSpeedOpen((v) => !v))}
+              />
+              <IconButton
+                icon="share-outline"
+                label={
+                  loopA != null && loopB != null
+                    ? "Поделиться отрезком A–B"
+                    : "Поделиться моментом"
+                }
+                onPress={act(() =>
+                  onShareMoment(
+                    loopA != null && loopB != null
+                      ? { startSec: loopA, endSec: loopB }
+                      : { startSec: player.currentTime, label: chapter?.title },
+                  ),
+                )}
               />
               <IconButton
                 icon="swap-horizontal"
@@ -324,12 +589,18 @@ export function PlayerOverlay({
               style={[
                 styles.speedPopover,
                 {
-                  bottom: POPOVER_BOTTOM + (fullscreen ? insets.bottom : 0),
+                  bottom:
+                    POPOVER_BOTTOM +
+                    (hasChapters ? CHAPTER_ROW_HEIGHT : 0) +
+                    (fullscreen ? insets.bottom : 0),
                   // Short inline players (phone portrait): scroll the list
                   // instead of spilling past the picture, where Android
                   // would not deliver touches.
                   maxHeight: Math.max(
-                    height - POPOVER_BOTTOM - theme.spacing(2),
+                    size.height -
+                      POPOVER_BOTTOM -
+                      (hasChapters ? CHAPTER_ROW_HEIGHT : 0) -
+                      theme.spacing(2),
                     0,
                   ),
                 },
@@ -345,6 +616,55 @@ export function PlayerOverlay({
           )}
         </>
       )}
+
+      {drawerOpen && fullscreen && (
+        <ChapterDrawer
+          chapters={chapters}
+          bookmarks={bookmarks}
+          currentChapter={chapterIndex}
+          insets={insets}
+          onSeek={(sec) => fromDrawer(() => onSeek(sec))}
+          onOpenBookmark={(b) => fromDrawer(() => onOpenBookmark(b))}
+          onShareMoment={onShareMoment}
+          onClose={() => setDrawerOpen(false)}
+          onAddChapterToPlan={onAddChapterToPlan}
+          onAddBookmarkToPlan={onAddBookmarkToPlan}
+        />
+      )}
+
+      {shownDrawing && !drawingMode && (
+        <View
+          style={[
+            styles.drawingClose,
+            {
+              top:
+                theme.spacing(2) +
+                (fullscreen ? insets.top + (showControls ? TOP_BAR_HEIGHT : 0) : 0),
+              right: theme.spacing(2) + (fullscreen ? insets.right : 0),
+            },
+          ]}
+        >
+          <ChipButton
+            label="✕ Рисунок"
+            accessibilityLabel="Скрыть рисунок"
+            onPress={onHideDrawing}
+          />
+        </View>
+      )}
+
+      {drawingSeed && (
+        <DrawingEditor
+          rect={pictureRect}
+          mirrored={mirrored}
+          initialStrokes={drawingSeed.strokes}
+          insets={fullscreen ? insets : NO_INSETS}
+          onSave={(drawing) => {
+            setDrawingSeed(null)
+            onSaveDrawing(drawing, drawingSeed.bookmarkId)
+          }}
+          onCancel={() => setDrawingSeed(null)}
+        />
+      )}
     </View>
   )
 }
@@ -354,21 +674,30 @@ function IconButton({
   label,
   onPress,
   active = false,
+  disabled = false,
 }: {
   icon: React.ComponentProps<typeof Icon>["name"]
   label: string
   onPress: () => void
   active?: boolean
+  disabled?: boolean
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityLabel={label}
-      accessibilityState={active ? { selected: true } : undefined}
+      accessibilityState={
+        active || disabled ? { selected: active, disabled } : undefined
+      }
       hitSlop={6}
-      style={[styles.iconButton, active && styles.active]}
+      style={[
+        styles.iconButton,
+        active && styles.active,
+        disabled && styles.disabled,
+      ]}
     >
       <Icon
         name={icon}
@@ -404,11 +733,13 @@ function ChipButton({
   )
 }
 
-function SeekBar({
+// Also the compare screen's per-side seek bar.
+export function SeekBar({
   time,
   duration,
   loopA,
   loopB,
+  chapters,
   onScrub,
   onSeek,
 }: {
@@ -416,6 +747,7 @@ function SeekBar({
   duration: number | undefined
   loopA: number | null
   loopB: number | null
+  chapters: ReadonlyArray<PlayerChapter>
   // Live position while dragging; null when the drag is cancelled.
   onScrub: (time: number | null) => void
   onSeek: (time: number) => void
@@ -457,6 +789,17 @@ function SeekBar({
     >
       <View style={styles.track} pointerEvents="none">
         <View style={[styles.trackFill, { width: progress }]} />
+        {/* Chapter starts: dark notches cut into the track (A/B are tall
+            light lines over it). One at 0:00 would mark nothing. */}
+        {!!duration &&
+          chapters.map((c) =>
+            c.positionSec > 0 && c.positionSec < duration ? (
+              <View
+                key={c.id}
+                style={[styles.chapterTick, { left: share(c.positionSec) ?? 0 }]}
+              />
+            ) : null,
+          )}
       </View>
       {markA && <View style={[styles.loopMark, { left: markA }]} pointerEvents="none" />}
       {markB && <View style={[styles.loopMark, { left: markB }]} pointerEvents="none" />}
@@ -505,6 +848,14 @@ const makeStyles = (theme: Theme) =>
       gap: theme.spacing(2),
       paddingBottom: theme.spacing(2),
       backgroundColor: theme.colors.overlayStrong,
+    },
+    // The plan bar over an inline (not fullscreen) picture.
+    planInline: {
+      position: "absolute",
+      top: theme.spacing(2),
+      left: theme.spacing(2),
+      right: theme.spacing(2),
+      alignItems: "flex-start",
     },
     title: {
       flex: 1,
@@ -577,6 +928,24 @@ const makeStyles = (theme: Theme) =>
       borderColor: theme.colors.accent,
     },
     activeText: { color: theme.colors.accentText },
+    disabled: { opacity: 0.4 },
+    chapterLabel: {
+      height: CHAPTER_ROW_HEIGHT,
+      lineHeight: CHAPTER_ROW_HEIGHT,
+      color: theme.colors.onOverlay,
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    // While scrubbing it names the chapter under the thumb.
+    chapterScrub: { fontWeight: "800" },
+    chapterTick: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      width: 3,
+      marginLeft: -1.5,
+      backgroundColor: theme.colors.playerBg,
+    },
     seekHit: { height: 32, justifyContent: "center" },
     track: {
       height: 4,
@@ -603,6 +972,11 @@ const makeStyles = (theme: Theme) =>
       backgroundColor: theme.colors.onOverlay,
     },
     speedPopover: { position: "absolute", right: theme.spacing(3) },
+    drawingClose: {
+      position: "absolute",
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.colors.overlayStrong,
+    },
     ripple: {
       position: "absolute",
       top: 0,

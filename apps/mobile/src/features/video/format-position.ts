@@ -21,3 +21,20 @@ export const formatBookmarkTime = (b: {
   b.endSec != null
     ? `${formatPosition(b.positionSec)}–${formatPosition(b.endSec)} ⟲`
     : formatPosition(b.positionSec)
+
+// What tapping a bookmark does, for screen readers: loop a segment, show the
+// drawing on its paused frame, or seek to its moment.
+export const bookmarkOpenLabel = (b: {
+  positionSec: number
+  endSec: number | null
+  label: string
+  drawing?: unknown
+}): string => {
+  const name = b.label ? `, ${b.label}` : ""
+  if (b.endSec != null) {
+    return `Повторять отрезок ${formatPosition(b.positionSec)}–${formatPosition(b.endSec)}${name}`
+  }
+  return b.drawing
+    ? `Показать рисунок на ${formatPosition(b.positionSec)}${name}`
+    : `Перейти к ${formatPosition(b.positionSec)}${name}`
+}

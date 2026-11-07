@@ -53,6 +53,7 @@ import {
   NextClassCard,
   NextEventCard,
   PersonalRequestsCard,
+  ReviewsCard,
   SubscriptionCard,
 } from "./HomeCards"
 import {
@@ -78,6 +79,7 @@ import { AgendaTodayCard } from "../agenda/AgendaTodayCard"
 import { useOpenAgendaItem } from "../agenda/use-open-agenda-item"
 import { ClubSwitcherButton } from "../clubs/ClubSwitcherButton"
 import { ActingAsPill } from "../children/ActingAsPill"
+import { useMyReviews } from "../reviews/use-my-reviews"
 
 export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const theme = useTheme()
@@ -238,6 +240,8 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       [workspaceId, todayFrom],
     ),
   )
+  // Same key as the «Повторение» screen, so each paints the other's data.
+  const reviews = useMyReviews(videosOn && workspaceId ? workspaceId : null)
 
   const resources = [
     me,
@@ -253,11 +257,12 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     freezeRequests,
     agenda,
     substitutions,
+    reviews.resource,
   ]
   const refreshing = resources.some((r) => r.refreshing)
-  // Guest bookings, personal sessions, the call list, freeze requests and the
-  // cross-club agenda (it shows its own retry) are bonuses on Home:
-  // never an error banner.
+  // Guest bookings, personal sessions, the call list, freeze requests, the
+  // cross-club agenda (it shows its own retry) and «Повторение» are bonuses on
+  // Home: never an error banner.
   const failed = resources.find(
     (r) =>
       r !== dropIns &&
@@ -268,6 +273,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       r !== agenda &&
       r !== events &&
       r !== substitutions &&
+      r !== reviews.resource &&
       r.error &&
       !r.data,
   )
@@ -427,6 +433,18 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
+  // Hidden until the member has saved something to review.
+  const reviewsView = reviews.view
+  const reviewsCard = reviewsView &&
+    (reviewsView.dueCount > 0 || reviewsView.totalCount > 0) && (
+    <ReviewsCard
+      due={reviewsView.dueCount}
+      nextDueAt={reviewsView.nextDueAt}
+      onPress={() => navigation.navigate("Reviews")}
+      grow={cardsGrow}
+    />
+  )
+
   const agendaCard = multiClub && (
     <AgendaTodayCard
       items={agenda.data}
@@ -460,6 +478,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       {!staffSide && coachRequests}
       {!staffSide && freezeRequestsCard}
       {checkIn}
+      {reviewsCard}
       {continueRow}
     </>
   )
@@ -548,6 +567,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               {checkIn}
               {subscriptionCard}
               {announcementCard}
+              {reviewsCard}
               {continueRow}
             </>
           ) : sizeClass === "medium" ? (
@@ -568,6 +588,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               </ResponsiveGrid>
               {checkIn}
               <ResponsiveGrid fill>
+                {reviewsCard}
                 {announcementCard}
                 {continueRow}
               </ResponsiveGrid>

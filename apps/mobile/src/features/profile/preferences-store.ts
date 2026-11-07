@@ -1,6 +1,7 @@
 import { type ThemeKey, type ThemeMode } from "@clubspace/ui-kit/util"
 
 import {
+  type BookmarkDrawing,
   getMyVideoNote,
   listMyVideoBookmarks,
   type MyVideoBookmark,
@@ -32,8 +33,13 @@ import {
   migrateStudyData,
   notePayload,
   type NotesMap,
+  pointBookmarkAt,
   visibleBookmarks,
 } from "./study-merge"
+import {
+  parseSubtitleChoice,
+  type SubtitleChoice,
+} from "../video/subtitle-choice"
 
 const ROOT = `${DOCUMENT_DIR}prefs/`
 const PREFERENCES_FILE = `${ROOT}preferences.json`
@@ -49,6 +55,8 @@ const USER_FILE_NAMES = {
   notes: "notes.json",
   bookmarks: "bookmarks.json",
   pinnedCourses: "pinned-courses.json",
+  // The subtitle language picked last (or Off), applied to every lesson.
+  subtitleChoice: "subtitle-choice.json",
 } as const
 const userFile = (name: keyof typeof USER_FILE_NAMES) =>
   `${userDir()}${USER_FILE_NAMES[name]}`
@@ -146,6 +154,24 @@ export const setPreferences = async (
     }
   })
   return next
+}
+
+// ---- Subtitle choice (per profile) ----
+
+/** The member's last subtitle choice; null = never chosen. */
+export const getSubtitleChoice = async (): Promise<SubtitleChoice | null> => {
+  await ensureRoot()
+  const raw = await safeReadString(userFile("subtitleChoice"))
+  if (!raw) return null
+  try {
+    return parseSubtitleChoice(JSON.parse(raw))
+  } catch {
+    return null
+  }
+}
+
+export const setSubtitleChoice = async (choice: SubtitleChoice) => {
+  await writeJson(userFile("subtitleChoice"), choice)
 }
 
 // ---- Favorites ----
@@ -457,6 +483,7 @@ export const addBookmark = async (
     endSec,
     label: "",
     note: "",
+    drawing: null,
     deleted: false,
     createdAt: now,
     updatedAt: now,
@@ -468,6 +495,60 @@ export const addBookmark = async (
     ])
   })
   return created
+}
+
+/**
+ * Keeps a drawing made on the frame at `positionSec` (whole seconds): on
+ * `bookmarkId` (the bookmark whose drawing was being edited) while it lives,
+ * else on the moment bookmark already at that second, else on a new one.
+ * `created` tells the screen to open the new bookmark's name field, like
+ * «+ закладка». A null drawing removes the one on that bookmark (null result:
+ * nothing there).
+ */
+export const saveBookmarkDrawing = async (
+  videoId: string,
+  positionSec: number,
+  drawing: BookmarkDrawing | null,
+  bookmarkId: string | null = null,
+): Promise<{ bookmark: MyVideoBookmark; created: boolean } | null> => {
+  const second = Math.max(0, Math.round(positionSec))
+  const now = new Date().toISOString()
+  return await updateStudy(studyFiles(), (data) => {
+    const list = data.bookmarks[videoId] ?? []
+    const existing =
+      list.find((b) => b.id === bookmarkId && !b.deleted) ??
+      pointBookmarkAt(list, second)
+    if (!existing && !drawing) return null
+    const saved: LocalBookmark = existing
+      ? {
+          ...existing,
+          drawing,
+          dirty: true,
+          updatedAt: nextStamp(existing.updatedAt),
+        }
+      : {
+          id: randomUuid(),
+          videoId,
+          positionSec: second,
+          endSec: null,
+          label: "",
+          note: "",
+          drawing,
+          deleted: false,
+          createdAt: now,
+          updatedAt: now,
+          dirty: true,
+        }
+    setBookmarkList(
+      data,
+      videoId,
+      existing
+        ? list.map((b) => (b.id === saved.id ? saved : b))
+        : [...list, saved],
+    )
+    const [bookmark] = visibleBookmarks([saved])
+    return { bookmark, created: !existing }
+  })
 }
 
 export const removeBookmark = async (videoId: string, bookmarkId: string) => {

@@ -130,6 +130,64 @@ export const deleteVideoTimestamp = async (params: {
   })
 }
 
+export const updateVideoTimestamp = async (params: {
+  workspaceId: string
+  videoId: string
+  timestampId: string
+  data: ApiTypes.UpdateVideoTimestampInput
+}): Promise<VideoTimestamp> => {
+  return await getApiClient().request<
+    VideoTimestamp,
+    ApiTypes.UpdateVideoTimestampInput
+  >({
+    method: "patch",
+    url: `/workspaces/${params.workspaceId}/videos/${params.videoId}/timestamps/${params.timestampId}`,
+    data: params.data,
+  })
+}
+
+// «Главы и субтитры»: what the worker made from the lesson (transcript,
+// automatic chapters and subtitles) and «Пересоздать».
+export type VideoTextStatus = ApiTypes.VideoTextStatusOutputOutput
+export type RegenerateVideoTextInput = ApiTypes.RegenerateVideoTextInput
+export type SubtitleCues = ApiTypes.SubtitleCuesOutputOutput
+
+export const getVideoTextStatus = async (params: {
+  workspaceId: string
+  videoId: string
+}): Promise<VideoTextStatus> => {
+  return await getApiClient().request<VideoTextStatus>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/videos/${params.videoId}/text-status`,
+  })
+}
+
+export const regenerateVideoText = async (params: {
+  workspaceId: string
+  videoId: string
+  data: RegenerateVideoTextInput
+}): Promise<ApiTypes.RegenerateVideoTextOutputOutput> => {
+  return await getApiClient().request<
+    ApiTypes.RegenerateVideoTextOutputOutput,
+    RegenerateVideoTextInput
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/videos/${params.videoId}/regenerate-text`,
+    data: params.data,
+  })
+}
+
+export const getSubtitleCues = async (params: {
+  workspaceId: string
+  videoId: string
+  subtitleId: string
+}): Promise<SubtitleCues> => {
+  return await getApiClient().request<SubtitleCues>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/videos/${params.videoId}/subtitles/${params.subtitleId}/cues`,
+  })
+}
+
 export const listVideos = async (params: {
   workspaceId: string
   curPage?: number

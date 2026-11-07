@@ -1,4 +1,5 @@
 import type {
+  BookmarkDrawing,
   MyVideoBookmark,
   MyVideoNote,
   MyVideoNotesItem,
@@ -19,7 +20,10 @@ import { randomUuid, UUID_RE } from "../../shared/uuid"
 // - a cleared note is an empty text with its own `updatedAt`, so a clear and
 //   an edit on two devices order like any other two edits.
 
-export type LocalBookmark = MyVideoBookmark & {
+export type LocalBookmark = Omit<MyVideoBookmark, "drawing"> & {
+  // Absent on records saved by a build without drawings: shown as none and
+  // not sent, so the server keeps whatever it has.
+  drawing?: BookmarkDrawing | null
   // Edited (or removed) here and not yet acknowledged by the server.
   dirty: boolean
 }
@@ -54,6 +58,7 @@ export const visibleBookmarks = (
       endSec: b.endSec,
       label: b.label,
       note: b.note,
+      drawing: b.drawing ?? null,
       deleted: false,
       createdAt: b.createdAt,
       updatedAt: b.updatedAt,
@@ -144,6 +149,7 @@ export const bookmarkPayload = (b: LocalBookmark) => ({
   endSec: b.endSec,
   label: b.label.slice(0, LABEL_MAX),
   note: b.note.slice(0, BOOKMARK_NOTE_MAX),
+  ...(b.drawing !== undefined && { drawing: b.drawing }),
   deleted: b.deleted,
   updatedAt: b.updatedAt,
 })
@@ -162,6 +168,16 @@ export const segmentBounds = (
   const endSec = Math.max(positionSec + 1, Math.ceil(Math.max(a, b)))
   return { positionSec, endSec }
 }
+
+/**
+ * The live moment bookmark (not a segment) at whole second `positionSec`, which
+ * a drawing saved there attaches to instead of adding a second bookmark.
+ */
+export const pointBookmarkAt = <B extends Omit<LocalBookmark, "dirty">>(
+  list: readonly B[],
+  positionSec: number,
+): B | undefined =>
+  list.find((b) => !b.deleted && b.endSec === null && b.positionSec === positionSec)
 
 // ---- One-time migration of the pre-sync files ----
 //
@@ -211,6 +227,7 @@ const migrateBookmark = (
         : null,
     label: str(raw.label, ""),
     note: str(raw.note, ""),
+    drawing: null,
     createdAt,
     updatedAt: str(raw.updatedAt, createdAt),
     deleted: false,

@@ -1,31 +1,44 @@
 import React, { useEffect, useState } from "react"
 import { StyleSheet, Text, View } from "react-native"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import type { Theme } from "../../shared/theme"
-import { formatBookmarkTime, formatPosition } from "./format-position"
+import type { BookmarkDrawing } from "../../shared/api/video-study"
+import { DrawingThumb } from "./DrawingCanvas"
+import {
+  bookmarkOpenLabel,
+  formatBookmarkTime,
+  formatPosition,
+} from "./format-position"
+import type { SharedMoment } from "./moment-link"
 
 type Timestamp = { id: string; positionSec: number; title: string }
-// endSec set = a saved A–B segment.
+// endSec set = a saved A–B segment; drawing = a sketch on its paused frame.
 type Bookmark = {
   id: string
   positionSec: number
   endSec: number | null
   label: string
   note: string
+  drawing: BookmarkDrawing | null
 }
 type BookmarkField = "label" | "note"
 
 type Props = {
   timestamps?: Timestamp[]
+  // Index into `timestamps` of the chapter playing now; -1 = none.
+  currentChapter: number
   bookmarks: Bookmark[]
   note: string
   onSeek: (sec: number) => void
-  // A segment's time: jump to its start and loop it A–B.
-  onPlaySegment: (startSec: number, endSec: number) => void
+  // A bookmark's time: seek, loop a segment A–B, or pause on its drawing.
+  onOpenBookmark: (bookmark: Bookmark) => void
+  // «Поделиться моментом» on chapter and bookmark rows.
+  onShareMoment: (moment: SharedMoment) => void
   onAddBookmark: () => void
   onRemoveBookmark: (id: string) => void
   onUpdateBookmark: (
@@ -36,6 +49,9 @@ type Props = {
   // The id of the just-added bookmark, so its name field opens for editing
   // immediately (otherwise a new bookmark reads as "Без названия").
   justAddedBookmarkId?: string | null
+  // «В план» on chapters and bookmarks (omitted = no button).
+  onAddChapterToPlan?: (index: number) => void
+  onAddBookmarkToPlan?: (bookmarkId: string) => void
 }
 
 // The study tools shown below the player: chapters (read-only seek targets),
@@ -44,15 +60,19 @@ type Props = {
 // instance directly — they call back into the screen.
 export function VideoStudyTools({
   timestamps,
+  currentChapter,
   bookmarks,
   note,
   onSeek,
-  onPlaySegment,
+  onOpenBookmark,
+  onShareMoment,
   onAddBookmark,
   onRemoveBookmark,
   onUpdateBookmark,
   onNoteChange,
   justAddedBookmarkId,
+  onAddChapterToPlan,
+  onAddBookmarkToPlan,
 }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -95,22 +115,49 @@ export function VideoStudyTools({
         <View style={styles.bookmarksBlock}>
           <Text style={styles.noteLabel}>Главы</Text>
           <View style={styles.bookmarkList}>
-            {timestamps.map((ts) => (
-              <Pressable
-                key={ts.id}
-                onPress={() => onSeek(ts.positionSec)}
-                style={styles.bookmarkRow}
-              >
-                <View style={styles.bookmarkTime}>
-                  <Text style={styles.bookmarkTimeText}>
-                    {formatPosition(ts.positionSec)}
+            {timestamps.map((ts, i) => {
+              const current = i === currentChapter
+              return (
+                <Pressable
+                  key={ts.id}
+                  onPress={() => onSeek(ts.positionSec)}
+                  accessibilityState={current ? { selected: true } : undefined}
+                  style={[styles.bookmarkRow, current && styles.chapterCurrent]}
+                >
+                  <View style={styles.bookmarkTime}>
+                    <Text style={styles.bookmarkTimeText}>
+                      {formatPosition(ts.positionSec)}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[styles.bookmarkLabel, current && styles.chapterCurrentText]}
+                    numberOfLines={1}
+                  >
+                    {ts.title}
                   </Text>
-                </View>
-                <Text style={styles.bookmarkLabel} numberOfLines={1}>
-                  {ts.title}
-                </Text>
-              </Pressable>
-            ))}
+                  <Pressable
+                    onPress={() => onShareMoment({ startSec: ts.positionSec, label: ts.title })}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Поделиться главой ${ts.title}`}
+                    style={styles.share}
+                  >
+                    <Icon name="share-outline" size={18} color={theme.colors.muted} />
+                  </Pressable>
+                  {onAddChapterToPlan && (
+                    <Pressable
+                      onPress={() => onAddChapterToPlan(i)}
+                      hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Добавить главу ${ts.title} в план`}
+                      style={styles.addToPlan}
+                    >
+                      <Text style={styles.addToPlanText}>В план</Text>
+                    </Pressable>
+                  )}
+                </Pressable>
+              )
+            })}
           </View>
         </View>
       )}
@@ -137,23 +184,24 @@ export function VideoStudyTools({
               <View key={b.id} style={styles.bookmarkCard}>
                 <View style={styles.bookmarkHead}>
                   <Pressable
-                    onPress={() =>
-                      b.endSec != null
-                        ? onPlaySegment(b.positionSec, b.endSec)
-                        : onSeek(b.positionSec)
-                    }
+                    onPress={() => onOpenBookmark(b)}
                     accessibilityRole="button"
-                    accessibilityLabel={
-                      b.endSec != null
-                        ? `Повторять отрезок ${formatPosition(b.positionSec)}–${formatPosition(b.endSec)}`
-                        : `Перейти к ${formatPosition(b.positionSec)}`
-                    }
+                    accessibilityLabel={bookmarkOpenLabel(b)}
                     style={styles.bookmarkTime}
                   >
                     <Text style={styles.bookmarkTimeText}>
                       {formatBookmarkTime(b)}
+                      {b.drawing ? " ✎" : ""}
                     </Text>
                   </Pressable>
+                  {b.drawing && (
+                    <Pressable
+                      onPress={() => onOpenBookmark(b)}
+                      accessibilityRole="none"
+                    >
+                      <DrawingThumb strokes={b.drawing.strokes} />
+                    </Pressable>
+                  )}
                   {editing?.id === b.id && editing.field === "label" ? (
                     <TextInput
                       value={draft}
@@ -183,6 +231,28 @@ export function VideoStudyTools({
                       </Text>
                     </Pressable>
                   )}
+                  {onAddBookmarkToPlan && (
+                    <Pressable
+                      onPress={() => onAddBookmarkToPlan(b.id)}
+                      hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityLabel="Добавить закладку в план"
+                      style={styles.addToPlan}
+                    >
+                      <Text style={styles.addToPlanText}>В план</Text>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    onPress={() =>
+                      onShareMoment({ startSec: b.positionSec, endSec: b.endSec, label: b.label })
+                    }
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel="Поделиться закладкой"
+                    style={styles.share}
+                  >
+                    <Icon name="share-outline" size={18} color={theme.colors.muted} />
+                  </Pressable>
                   <Pressable
                     onPress={() => onRemoveBookmark(b.id)}
                     hitSlop={8}
@@ -270,6 +340,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: theme.radius.md,
     backgroundColor: theme.colors.surfaceMuted,
   },
+  // The chapter playing now.
+  chapterCurrent: { backgroundColor: theme.colors.accentSoft },
+  chapterCurrentText: { fontWeight: "700" },
   bookmarkCard: {
     gap: theme.spacing(1),
     paddingVertical: theme.spacing(1) + 2,
@@ -316,6 +389,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.accent,
   },
+  share: { paddingHorizontal: theme.spacing(1), paddingVertical: 2 },
   bookmarkRemove: {
     paddingHorizontal: theme.spacing(2),
     paddingVertical: 4,
@@ -363,4 +437,13 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
     lineHeight: 20,
   },
+  addToPlan: {
+    paddingHorizontal: theme.spacing(2),
+    paddingVertical: 2,
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  addToPlanText: { fontSize: 12, fontWeight: "600", color: theme.colors.accent },
 })

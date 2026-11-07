@@ -23,6 +23,11 @@ import {
   initPendingJoinCapture,
   setPendingJoinRoutingEnabled,
 } from "../features/join/pending-join"
+import {
+  flushPendingMoment,
+  initPendingMomentCapture,
+  setPendingMomentRoutingEnabled,
+} from "../features/video/pending-moment"
 import { CourseDetailScreen } from "../features/courses/CourseDetailScreen"
 import { ContinueWatchingScreen } from "../features/courses/ContinueWatchingScreen"
 import { OfflineLibraryScreen } from "../features/offline/OfflineLibraryScreen"
@@ -49,6 +54,16 @@ import { ClubInviteScreen } from "../features/invite/ClubInviteScreen"
 import { AtRiskMembersScreen } from "../features/retention/AtRiskMembersScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
 import { MyVideoNotesScreen } from "../features/video/MyVideoNotesScreen"
+import { ReviewsScreen } from "../features/reviews/ReviewsScreen"
+import { StudyPlanScreen } from "../features/study-plans/StudyPlanScreen"
+import { StudyPlansScreen } from "../features/study-plans/StudyPlansScreen"
+import { VideoSearchScreen } from "../features/video-search/VideoSearchScreen"
+import { TechniqueScreen } from "../features/techniques/TechniqueScreen"
+import { TechniquesScreen } from "../features/techniques/TechniquesScreen"
+import { ClubVideoReviewsScreen } from "../features/video-reviews/ClubVideoReviewsScreen"
+import { MyVideoReviewsScreen } from "../features/video-reviews/MyVideoReviewsScreen"
+import { NewVideoReviewScreen } from "../features/video-reviews/NewVideoReviewScreen"
+import { VideoReviewScreen } from "../features/video-reviews/VideoReviewScreen"
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
 import { InvitationsScreen } from "../features/invitations/InvitationsScreen"
 import { ClubSettingsScreen } from "../features/clubs/ClubSettingsScreen"
@@ -61,6 +76,7 @@ import { useNetworkReconnect } from "../shared/cache/useNetworkReconnect"
 import { SettingsScreen } from "../features/profile/SettingsScreen"
 import { DrillProvider } from "../features/video/DrillMode"
 import { VideoScreen } from "../features/video/VideoScreen"
+import { CompareScreen } from "../features/compare/CompareScreen"
 import { ToastProvider } from "../shared/components/Toast"
 import { AuthProvider, useAuth } from "../shared/auth-context"
 import { brand } from "../shared/brand"
@@ -85,6 +101,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>()
 // Module scope, before the first render: a join link must be read before React
 // Navigation (on web) rewrites the URL.
 initPendingJoinCapture()
+initPendingMomentCapture()
 
 // The navigator's scene background is transparent so the app-wide
 // ThemedBackground (a gradient for glass, a flat colour otherwise) shows
@@ -125,14 +142,13 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
   useNetworkReconnect(admitted)
 
   // A join link held while signed out / without a club opens the join screen
-  // once the member is in and past the consent and lock screens.
-  useEffect(
-    () =>
-      setPendingJoinRoutingEnabled(
-        ready && admitted && !workspace?.accessExpired,
-      ),
-    [ready, admitted, workspace?.accessExpired],
-  )
+  // once the member is in and past the consent and lock screens; so does a
+  // shared lesson moment (native; the web routes it by URL).
+  const linksRoutable = ready && admitted && !workspace?.accessExpired
+  useEffect(() => {
+    setPendingJoinRoutingEnabled(linksRoutable)
+    setPendingMomentRoutingEnabled(linksRoutable)
+  }, [linksRoutable])
 
   // A screen asked for "after switching profile" (the join screen for a
   // child, «Дети» back as the guardian) opens once the new stack is up.
@@ -243,6 +259,12 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             })}
           />
           <Stack.Screen
+            name="Compare"
+            component={CompareScreen}
+            // Every pixel goes to the two pictures; the screen's own bar has Back.
+            options={{ title: "Сравнить", headerShown: false }}
+          />
+          <Stack.Screen
             name="Notifications"
             component={NotificationsScreen}
             options={{ title: "Уведомления" }}
@@ -271,6 +293,56 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="MyVideoNotes"
             component={MyVideoNotesScreen}
             options={{ title: "Мои заметки" }}
+          />
+          <Stack.Screen
+            name="Reviews"
+            component={ReviewsScreen}
+            options={{ title: "Повторение" }}
+          />
+          <Stack.Screen
+            name="StudyPlans"
+            component={StudyPlansScreen}
+            options={{ title: "Мои планы" }}
+          />
+          <Stack.Screen
+            name="StudyPlan"
+            component={StudyPlanScreen}
+            options={({ route }) => ({ title: route.params.title ?? "План" })}
+          />
+          <Stack.Screen
+            name="VideoSearch"
+            component={VideoSearchScreen}
+            options={{ title: "Поиск по видео" }}
+          />
+          <Stack.Screen
+            name="Techniques"
+            component={TechniquesScreen}
+            options={{ title: "Техники" }}
+          />
+          <Stack.Screen
+            name="Technique"
+            component={TechniqueScreen}
+            options={({ route }) => ({ title: route.params.title ?? "Техника" })}
+          />
+          <Stack.Screen
+            name="MyVideoReviews"
+            component={MyVideoReviewsScreen}
+            options={{ title: "Мои разборы" }}
+          />
+          <Stack.Screen
+            name="ClubVideoReviews"
+            component={ClubVideoReviewsScreen}
+            options={{ title: "Разборы учеников" }}
+          />
+          <Stack.Screen
+            name="NewVideoReview"
+            component={NewVideoReviewScreen}
+            options={{ title: "Видео на разбор" }}
+          />
+          <Stack.Screen
+            name="VideoReview"
+            component={VideoReviewScreen}
+            options={({ route }) => ({ title: route.params.title ?? "Разбор" })}
           />
           <Stack.Screen
             name="MyGroups"
@@ -454,8 +526,9 @@ export const App = () => {
                   // Web only: a native stack keeps history in memory, which
                   // leaves the whole PWA at "/" with a Back button that exits
                   // the site. Native deep-linking is a separate decision —
-                  // don't turn it on here by accident. (Join links are the one
-                  // exception, handled outside React Navigation: pending-join.)
+                  // don't turn it on here by accident. (Join links and shared
+                  // lesson moments are the exceptions, handled outside React
+                  // Navigation: pending-join, pending-moment.)
                   linking={isWeb ? webLinking : undefined}
                   documentTitle={{
                     formatter: (options) =>
@@ -465,6 +538,7 @@ export const App = () => {
                     syncActiveRoute()
                     flushPendingPush()
                     flushPendingJoin()
+                    flushPendingMoment()
                   }}
                   onStateChange={syncActiveRoute}
                 >

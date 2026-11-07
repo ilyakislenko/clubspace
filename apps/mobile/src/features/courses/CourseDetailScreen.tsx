@@ -14,41 +14,27 @@ import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import {
-  getCourse,
-  type CourseDetail,
-  type CourseVideo,
-} from "../../shared/api/courses"
+import { getCourse, type CourseDetail } from "../../shared/api/courses"
 import { CourseLessonRow } from "./CourseLessonRow"
 import { LockBadge } from "./LockBadge"
-import { getVideo } from "../../shared/api/videos"
 import { useAuth } from "../../shared/auth-context"
 import {
   CenteredColumn,
   READABLE_WIDTH,
 } from "../../shared/components/CenteredColumn"
-import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { errorMessage } from "../../shared/error-message"
 import { useOfflineDownloadsAllowed } from "../../shared/use-offline-downloads"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { cacheCourse, getCachedCourse } from "../offline/offline-store"
+import type { BulkDownloadTarget } from "../offline/bulk-download"
+import { BulkDownloadPanel } from "../offline/BulkDownloadPanel"
 import {
-  cacheCourse,
-  downloadVideoForOffline,
-  getCachedCourse,
-  listOfflineEntries,
-  offlineDownloadControls,
-} from "../offline/offline-store"
-import {
-  OfflineDownloadInterrupted,
-  type OfflineDownloadProgress,
-} from "../offline/offline-types"
-import {
-  canDownloadNow,
-  networkPolicyMessage,
-} from "../offline/network-policy"
+  useBulkDownload,
+  type BulkDownloadCopy,
+} from "../offline/use-bulk-download"
 import { useFocusEffect } from "@react-navigation/native"
 import {
   getCourseProgressSummary,
@@ -61,32 +47,10 @@ import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "CourseDetail">
 
-type BulkDownloadState =
-  | { status: "idle" }
-  | {
-      status: "downloading"
-      currentIndex: number
-      totalVideos: number
-      videoPhase: string
-    }
-  | {
-      status: "done"
-      downloaded: number
-      skipped: number
-      // Why the first skipped lesson failed (e.g. not enough space).
-      reason: string | null
-    }
-  | { status: "error"; message: string }
-
-const phaseLabel = (p: OfflineDownloadProgress): string => {
-  switch (p.phase) {
-    case "video":
-      return p.total > 0 ? `${Math.round((p.done / p.total) * 100)}%` : "видео"
-    case "thumbnail":
-      return "превью"
-    case "done":
-      return "готово"
-  }
+const COURSE_BULK_COPY: BulkDownloadCopy = {
+  confirmTitle: "Скачать весь курс?",
+  allDoneTitle: "Курс уже скачан",
+  allDoneMessage: "Все доступные видео уже в загруженном.",
 }
 
 type VideoProgressRow = {
@@ -127,12 +91,22 @@ export function CourseDetailScreen({ route, navigation }: Props) {
   const [filter, setFilter] = useState<
     "all" | "unwatched" | "in-progress"
   >("all")
-  const [offlineSet, setOfflineSet] = useState<Set<string>>(new Set())
-  const bulkStopRef = useRef(false)
-  const bulkCurrentRef = useRef<string | null>(null)
-  const [bulkState, setBulkState] = useState<BulkDownloadState>({
-    status: "idle",
+  // Locked lessons can't be downloaded, so they're not on offer.
+  const bulkTargets = useMemo<BulkDownloadTarget[]>(
+    () =>
+      course
+        ? course.videos
+            .filter((v) => v.status === "ready" && !v.lock)
+            .map((v) => ({ videoId: v.id, thumbnailUrl: v.thumbnailUrl, course }))
+        : [],
+    [course],
+  )
+  const bulk = useBulkDownload({
+    workspaceId: workspace?.workspaceId ?? null,
+    targets: bulkTargets,
+    copy: COURSE_BULK_COPY,
   })
+  const { offlineSet } = bulk
   const [isOfflineSource, setIsOfflineSource] = useState(false)
   const [progressByVideo, setProgressByVideo] = useState<
     Record<string, VideoProgressRow>
@@ -194,15 +168,6 @@ export function CourseDetailScreen({ route, navigation }: Props) {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [courseId, workspace]),
   )
-
-  useEffect(() => {
-    void (async () => {
-      const list = await listOfflineEntries()
-      setOfflineSet(
-        new Set(list.filter((e) => e.status === "ready").map((e) => e.videoId)),
-      )
-    })()
-  }, [course])
 
   useFocusEffect(
     useCallback(() => {
@@ -274,90 +239,6 @@ export function CourseDetailScreen({ route, navigation }: Props) {
     })
   }, [course, query, filter, progressByVideo])
 
-  const handleBulkDownload = async () => {
-    if (!course || !workspace) return
-    const policy = await canDownloadNow()
-    if (!policy.ok) {
-      showAlert("Загрузка недоступна", networkPolicyMessage(policy.reason))
-      return
-    }
-    const missing = course.videos.filter(
-      (v) => v.status === "ready" && !v.lock && !offlineSet.has(v.id),
-    )
-    if (missing.length === 0) {
-      showAlert("Курс уже скачан", "Все доступные видео уже в загруженном.")
-      return
-    }
-    showAlert(
-      "Скачать весь курс?",
-      `Будет скачано видео: ${missing.length}. Это может занять время и место на устройстве.`,
-      [
-        { text: "Отмена", style: "cancel" },
-        {
-          text: "Скачать",
-          onPress: async () => {
-            await runBulkDownload(missing)
-          },
-        },
-      ],
-    )
-  }
-
-  const runBulkDownload = async (videos: CourseVideo[]) => {
-    if (!course || !workspace) return
-    bulkStopRef.current = false
-    let downloaded = 0
-    let skipped = 0
-    let reason: string | null = null
-    for (let i = 0; i < videos.length; i++) {
-      if (bulkStopRef.current) break
-      const v = videos[i]
-      bulkCurrentRef.current = v.id
-      setBulkState({
-        status: "downloading",
-        currentIndex: i,
-        totalVideos: videos.length,
-        videoPhase: "подготовка",
-      })
-      try {
-        const videoDetail = await getVideo({
-          workspaceId: workspace.workspaceId,
-          videoId: v.id,
-        })
-        await downloadVideoForOffline({
-          videoId: v.id,
-          video: videoDetail,
-          course,
-          thumbnailUrl: v.thumbnailUrl,
-          onProgress: (p) =>
-            setBulkState({
-              status: "downloading",
-              currentIndex: i,
-              totalVideos: videos.length,
-              videoPhase: phaseLabel(p),
-            }),
-        })
-        downloaded += 1
-        setOfflineSet((prev) => new Set(prev).add(v.id))
-      } catch (err) {
-        if (err instanceof OfflineDownloadInterrupted) break
-        skipped += 1
-        reason ??= errorMessage(err, "Не удалось скачать.")
-      }
-    }
-    bulkCurrentRef.current = null
-    setBulkState({ status: "done", downloaded, skipped, reason })
-    setTimeout(() => setBulkState({ status: "idle" }), reason ? 8_000 : 4_000)
-  }
-
-  // Web: stop the whole run; the lesson in progress is discarded, finished
-  // ones stay.
-  const stopBulkDownload = () => {
-    bulkStopRef.current = true
-    const current = bulkCurrentRef.current
-    if (current) void offlineDownloadControls?.cancel(current)
-  }
-
   if (loading) {
     return (
       <SafeAreaView style={[styles.root, styles.center]}>
@@ -380,13 +261,6 @@ export function CourseDetailScreen({ route, navigation }: Props) {
       </SafeAreaView>
     )
   }
-
-  // Locked lessons can't be downloaded, so they don't count as "missing".
-  const downloadable = course.videos.filter(
-    (v) => v.status === "ready" && !v.lock,
-  )
-  const allReadyDownloaded =
-    downloadable.length > 0 && downloadable.every((v) => offlineSet.has(v.id))
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -463,70 +337,12 @@ export function CourseDetailScreen({ route, navigation }: Props) {
             )}
 
             {offlineDownloads && !course.lock && (
-              <>
-            <Pressable
-              onPress={handleBulkDownload}
-              disabled={
-                bulkState.status === "downloading" ||
-                allReadyDownloaded ||
-                isOfflineSource
-              }
-              style={({ pressed }) => [
-                styles.bulkButton,
-                pressed && styles.buttonPressed,
-                (bulkState.status === "downloading" ||
-                  allReadyDownloaded ||
-                  isOfflineSource) &&
-                  styles.buttonDisabled,
-              ]}
-            >
-              <Text style={styles.bulkButtonText}>
-                {allReadyDownloaded
-                  ? "Курс уже загружен"
-                  : "Скачать весь курс"}
-              </Text>
-            </Pressable>
-
-            {bulkState.status === "downloading" && (
-              <View style={styles.bulkProgress}>
-                <Text style={styles.muted}>
-                  {bulkState.currentIndex + 1} из {bulkState.totalVideos} ·{" "}
-                  {bulkState.videoPhase}
-                </Text>
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: `${
-                          ((bulkState.currentIndex +
-                            (bulkState.videoPhase === "готово" ? 1 : 0.5)) /
-                            bulkState.totalVideos) *
-                          100
-                        }%`,
-                      },
-                    ]}
-                  />
-                </View>
-                {offlineDownloadControls && (
-                  <Pressable
-                    onPress={stopBulkDownload}
-                    accessibilityRole="button"
-                    hitSlop={8}
-                  >
-                    <Text style={styles.bulkStop}>Остановить</Text>
-                  </Pressable>
-                )}
-              </View>
-            )}
-            {bulkState.status === "done" && (
-              <Text style={[styles.muted, styles.bulkDone]}>
-                Скачано: {bulkState.downloaded}, пропущено:{" "}
-                {bulkState.skipped}
-                {bulkState.reason ? `. ${bulkState.reason}` : ""}
-              </Text>
-            )}
-              </>
+              <BulkDownloadPanel
+                bulk={bulk}
+                label="Скачать весь курс"
+                allDownloadedLabel="Курс уже загружен"
+                disabled={isOfflineSource}
+              />
             )}
 
             <TextInput
@@ -693,46 +509,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.muted,
     overflow: "hidden",
   },
-  bulkButton: {
-    // A phone's full width; on a tablet a button, not a 700px slab.
-    width: "100%",
-    maxWidth: CONTROL_MAX_WIDTH,
-    alignSelf: "flex-start",
-    backgroundColor: theme.colors.text,
-    paddingHorizontal: theme.spacing(4),
-    paddingVertical: theme.spacing(3),
-    borderRadius: theme.radius.md,
-    alignItems: "center",
-    marginTop: theme.spacing(3),
-    ...theme.shadows.sm,
-  },
-  bulkButtonText: {
-    color: theme.colors.inverseText,
-    fontSize: 14,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  buttonDisabled: { opacity: 0.5 },
   buttonPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
-  bulkProgress: { gap: theme.spacing(1), marginTop: theme.spacing(2) },
-  progressTrack: {
-    height: 6,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderRadius: theme.radius.full,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: 6,
-    backgroundColor: theme.colors.accent,
-    borderRadius: theme.radius.full,
-  },
-  bulkDone: { marginTop: theme.spacing(1) },
-  bulkStop: {
-    color: theme.colors.danger,
-    fontSize: 13,
-    fontWeight: "600",
-    marginTop: theme.spacing(1),
-  },
   search: {
     borderWidth: 1,
     borderColor: theme.colors.border,

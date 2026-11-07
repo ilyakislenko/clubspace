@@ -42,6 +42,21 @@ export type RootStackParamList = {
     fullscreen?: boolean
     startAt?: number
     loopEndAt?: number
+    // Opened on a bookmark with a drawing (startAt = its moment): stay paused
+    // there with the drawing shown.
+    drawingBookmarkId?: string
+    // Playing a study plan: its id and the item on screen (startAt is the
+    // item's start); a segment item moves on to the next item at its end.
+    planId?: string
+    planItemIndex?: number
+  }
+  // «Сравнить рядом»: this lesson on the left from `startAt` (an A–B segment
+  // with `endAt`); the right side is picked on the screen.
+  Compare: {
+    videoId: string
+    title?: string
+    startAt?: number
+    endAt?: number
   }
   Notifications: undefined
   OfflineLibrary: undefined
@@ -50,6 +65,22 @@ export type RootStackParamList = {
   Favorites: undefined
   // The member's lesson notes and bookmarks across the club, searchable.
   MyVideoNotes: undefined
+  // «Повторение»: spaced repetition of those bookmarks, one card at a time.
+  Reviews: undefined
+  // «Разбор видео»: the member's own clips sent to the coaches, the staff's
+  // list of them, sending one, and one request (clip + comments).
+  MyVideoReviews: undefined
+  ClubVideoReviews: undefined
+  NewVideoReview: undefined
+  VideoReview: { requestId: string; title?: string }
+  // «Мои планы»: the member's study plans, and one plan's items.
+  StudyPlans: undefined
+  StudyPlan: { planId: string; title?: string }
+  // «Поиск по видео»: what's said, chapter and video titles; `q` prefilled.
+  VideoSearch: { q?: string } | undefined
+  // «Техники»: the club sport's techniques taught in lessons; one technique.
+  Techniques: undefined
+  Technique: { key: string; title?: string }
   MyGroups: undefined
   Gyms: undefined
   // `eventId`: scroll to and mark that event (Home's «Ближайшее событие»).

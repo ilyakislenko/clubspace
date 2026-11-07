@@ -9,6 +9,9 @@ import { getApiClient } from "./client"
 
 export type MyVideoBookmark =
   ApiTypes.ListMyVideoBookmarksOutputOutput["items"][number]
+// A sketch over the paused frame at the bookmark's moment (see drawing-math).
+export type BookmarkDrawing = NonNullable<MyVideoBookmark["drawing"]>
+export type DrawingStroke = BookmarkDrawing["strokes"][number]
 export type MyVideoNote = ApiTypes.GetMyVideoNoteOutputOutput
 export type MyVideoNotesItem =
   ApiTypes.ListMyVideoNotesOutputOutput["items"][number]

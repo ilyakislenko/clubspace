@@ -1,3 +1,4 @@
+import { useFocusEffect } from "@react-navigation/native"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import { useNetworkState } from "expo-network"
 import { usePlayer } from "./use-player"
@@ -22,7 +23,10 @@ import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getCourse, type CourseDetail } from "../../shared/api/courses"
-import type { MyVideoBookmark } from "../../shared/api/video-study"
+import type {
+  BookmarkDrawing,
+  MyVideoBookmark,
+} from "../../shared/api/video-study"
 import {
   getStreamingUri,
   getVideo,
@@ -58,11 +62,14 @@ import {
   addBookmark,
   getNote,
   getPreferences,
+  getSubtitleChoice,
   isFavorite,
   listBookmarks,
   recordRecent,
   removeBookmark,
+  saveBookmarkDrawing,
   setNote,
+  setSubtitleChoice,
   setPreferences,
   syncVideoStudy,
   toggleFavorite,
@@ -77,10 +84,31 @@ import {
   unmarkCompleted,
   type ProgressStatus,
 } from "./playback-progress"
+import { chapterIndexAt } from "./chapter-nav"
+import { choiceFromTrack, pickSubtitleTrack } from "./subtitle-choice"
+import { buildMomentLink, momentShareText } from "./moment-link"
+import { momentLinkBase } from "./pending-moment"
+import type { ShownDrawing } from "./drawing-math"
 import { DrillModeButton } from "./DrillMode"
 import { VideoStudyTools } from "./VideoStudyTools"
 import { HoldToBoostArea } from "./HoldToBoostArea"
 import { NextLessonCountdown } from "./NextLessonCountdown"
+import type { StudyPlan } from "../../shared/api/study-plans"
+import { AddToPlanModal } from "../study-plans/AddToPlanModal"
+import { PlanBar, type PlanBarProps } from "../study-plans/PlanBar"
+import {
+  draftFromBookmark,
+  draftFromChapter,
+  draftFromMoment,
+  type PlanItemDraft,
+} from "../study-plans/plan-drafts"
+import {
+  adjacentPlayableIndex,
+  planStep,
+  reachedItemEnd,
+  resolvePlanIndex,
+} from "../study-plans/plan-playback"
+import { loadStudyPlan } from "../study-plans/plan-store"
 import {
   AnchoredPlaybackSpeedPopover,
   type AnchorRect,
@@ -153,6 +181,10 @@ const paramSeconds = (value: unknown): number | null => {
 
 // After this long without edits, the lesson's notes/bookmarks are synced.
 const STUDY_SYNC_DEBOUNCE_MS = 2_500
+// How often the side panel re-checks which chapter is playing.
+const CHAPTER_POLL_MS = 1_000
+// How often a plan's segment item checks whether it reached its end.
+const PLAN_END_POLL_MS = 250
 
 export function VideoScreen({ route, navigation }: Props) {
   const theme = useTheme()
@@ -207,6 +239,12 @@ export function VideoScreen({ route, navigation }: Props) {
     a: loopA,
     b: loopB,
   })
+  // Opened on a bookmark with a drawing (e.g. from «Мои заметки»): the lesson
+  // stays paused on that frame and the drawing comes up once bookmarks load.
+  const pendingDrawingRef = useRef(route.params.drawingBookmarkId ?? null)
+  const holdPausedRef = useRef(!!route.params.drawingBookmarkId)
+  // A saved drawing over the paused frame (PlayerOverlay hides it on play).
+  const [shownDrawing, setShownDrawing] = useState<ShownDrawing | null>(null)
 
   const playableUri = offlineUri ?? streamingUrl
   const resumeAppliedRef = useRef(false)
@@ -227,6 +265,17 @@ export function VideoScreen({ route, navigation }: Props) {
   )
   // The «Следующий урок через N с» card, after the lesson played to the end.
   const [upNextVisible, setUpNextVisible] = useState(false)
+  // Playing a study plan («Мои планы»): the plan, the item on screen and the
+  // item the «Дальше» countdown leads to.
+  const planId = route.params.planId ?? null
+  const requestedPlanIndex = paramSeconds(route.params.planItemIndex)
+  const [plan, setPlan] = useState<StudyPlan | null>(null)
+  const [planIndex, setPlanIndex] = useState<number | null>(null)
+  const [planUpNext, setPlanUpNext] = useState<number | null>(null)
+  // The playing item's end was handled (countdown shown, or the plan done).
+  const planEndHandledRef = useRef(false)
+  // «Добавить в план»: what the picker would add.
+  const [planDraft, setPlanDraft] = useState<PlanItemDraft | null>(null)
 
   const nextLesson = useMemo(() => {
     if (!course) return null
@@ -258,14 +307,41 @@ export function VideoScreen({ route, navigation }: Props) {
     void isFavorite(videoId).then(setFavorite)
   }, [videoId])
 
+  // The track a lesson opens with follows the member's last choice (a
+  // language, or Off) — once per lesson, when its tracks are known.
   useEffect(() => {
     if (subtitleAutoPickedRef.current) return
     const tracks = video?.subtitles
     if (!tracks || tracks.length === 0) return
-    subtitleAutoPickedRef.current = true
-    const def = tracks.find((s) => s.isDefault) ?? tracks[0]
-    setActiveSubtitleId(def.id)
+    let cancelled = false
+    void getSubtitleChoice().then((choice) => {
+      if (cancelled || subtitleAutoPickedRef.current) return
+      subtitleAutoPickedRef.current = true
+      setActiveSubtitleId(pickSubtitleTrack(tracks, choice)?.id ?? null)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [video?.subtitles])
+
+  // A pick in «Субтитры» also becomes the choice for every other lesson.
+  const handleSelectSubtitle = (id: string | null) => {
+    subtitleAutoPickedRef.current = true
+    setActiveSubtitleId(id)
+    const track = video?.subtitles.find((s) => s.id === id) ?? null
+    void setSubtitleChoice(choiceFromTrack(track))
+  }
+
+  // Subtitles ride above the player's controls and step aside for drawing
+  // and the fullscreen drawer (PlayerOverlay reports both).
+  const [subtitleLayout, setSubtitleLayout] = useState({ inset: 0, hidden: false })
+  const getVideoSize = useCallback(() => {
+    try {
+      return player.videoSize
+    } catch {
+      return null
+    }
+  }, [player])
 
   const activeSubtitle = useMemo(() => {
     if (!activeSubtitleId || !video?.subtitles) return null
@@ -279,6 +355,21 @@ export function VideoScreen({ route, navigation }: Props) {
       return undefined
     }
   }, [player])
+
+  // The playing chapter, highlighted in the side panel's «Главы». Polled only
+  // for a lesson with chapters; the state changes once per chapter.
+  const chapters = video?.timestamps
+  const [currentChapter, setCurrentChapter] = useState(-1)
+  useEffect(() => {
+    if (!chapters || chapters.length === 0) return
+    const tick = () => {
+      const t = getCurrentTime()
+      if (typeof t === "number") setCurrentChapter(chapterIndexAt(chapters, t))
+    }
+    tick()
+    const id = setInterval(tick, CHAPTER_POLL_MS)
+    return () => clearInterval(id)
+  }, [chapters, getCurrentTime])
 
   useEffect(() => {
     void getProgressStatus(videoId, video?.duration).then(setProgressStatus)
@@ -336,6 +427,29 @@ export function VideoScreen({ route, navigation }: Props) {
       studyEditedRef.current = false
     }
   }, [videoId])
+
+  // Opened on a drawing bookmark: show it once the list has it.
+  useEffect(() => {
+    const id = pendingDrawingRef.current
+    const target = id ? bookmarks.find((b) => b.id === id) : undefined
+    if (!target) return
+    pendingDrawingRef.current = null
+    if (target.drawing && !builtInControls) {
+      setShownDrawing({
+        bookmarkId: target.id,
+        positionSec: target.positionSec,
+        drawing: target.drawing,
+      })
+    }
+  }, [bookmarks, builtInControls])
+
+  // A shown drawing goes with its bookmark: removed (here or on another
+  // device), or its drawing cleared, it leaves the picture too.
+  useEffect(() => {
+    if (!shownDrawing) return
+    const owner = bookmarks.find((b) => b.id === shownDrawing.bookmarkId)
+    if (!owner?.drawing) setShownDrawing(null)
+  }, [bookmarks, shownDrawing])
 
   useEffect(() => {
     if (online) void syncStudy()
@@ -406,7 +520,10 @@ export function VideoScreen({ route, navigation }: Props) {
       // Honour the "Автовоспроизведение" setting: only auto-start when it's on.
       // When off, the source is loaded (and resume position applied) but the
       // user presses play themselves.
-      if (prefs.autoplay) {
+      // Opened on a drawing: stay on its frame (once, like the start).
+      const holdOnDrawing = holdPausedRef.current
+      holdPausedRef.current = false
+      if (prefs.autoplay && !holdOnDrawing) {
         try {
           player.play()
         } catch {
@@ -510,6 +627,21 @@ export function VideoScreen({ route, navigation }: Props) {
   const showFullscreen =
     fullscreen && !!playableUri && !!video && !loading && !error
 
+  // A covered lesson (a plan, «Сравнить», any screen on top) never plays on
+  // underneath.
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        try {
+          player.pause()
+        } catch {
+          /* released on unmount */
+        }
+      },
+      [player],
+    ),
+  )
+
   // Fullscreen hides the header (and with it any back gesture); Android's
   // back button leaves fullscreen before it leaves the lesson.
   useEffect(() => {
@@ -525,12 +657,20 @@ export function VideoScreen({ route, navigation }: Props) {
     return () => sub.remove()
   }, [navigation, showFullscreen])
 
+  const planItem = plan && planIndex != null ? (plan.items[planIndex] ?? null) : null
+  const nextPlanIndex =
+    plan && planIndex != null ? adjacentPlayableIndex(plan.items, planIndex, 1) : null
+  const prevPlanIndex =
+    plan && planIndex != null ? adjacentPlayableIndex(plan.items, planIndex, -1) : null
+
   // Reaching the end offers the course's next lesson, unless an A–B loop is
-  // running (its end is the loop's business) or the setting is off. A lesson
-  // locked by plan/rank is skipped; under locked progression finishing this
-  // one is exactly what opens the next.
+  // running (its end is the loop's business), a study plan is playing (its
+  // own «Дальше» takes over) or the setting is off. A lesson locked by
+  // plan/rank is skipped; under locked progression finishing this one is
+  // exactly what opens the next.
+  const inPlan = planItem != null
   useEffect(() => {
-    if (!playableUri || !nextLesson) return
+    if (!playableUri || !nextLesson || inPlan) return
     if (nextLesson.lock && !course?.lockedProgression) return
     const sub = player.addListener("playToEnd", () => {
       const { a, b } = loopRef.current
@@ -540,7 +680,71 @@ export function VideoScreen({ route, navigation }: Props) {
       })
     })
     return () => sub.remove()
-  }, [player, playableUri, nextLesson, course?.lockedProgression])
+  }, [player, playableUri, nextLesson, course?.lockedProgression, inPlan])
+
+  // A study plan being played: load it (cached for offline) and find the
+  // item on screen. Keyed on the club id — the workspace object is refreshed
+  // on every return to the app — and a reload keeps the item on screen while
+  // it is still this lesson's. Without a plan the lesson simply plays alone.
+  const workspaceId = workspace?.workspaceId ?? null
+  useEffect(() => {
+    if (!planId || !workspaceId) return
+    let cancelled = false
+    loadStudyPlan(workspaceId, planId)
+      .then((loaded) => {
+        if (cancelled) return
+        setPlan(loaded)
+        setPlanIndex((prev) =>
+          prev != null && loaded.items[prev]?.videoId === videoId
+            ? prev
+            : resolvePlanIndex(loaded.items, requestedPlanIndex, videoId),
+        )
+      })
+      .catch(() => {
+        /* never opened online — nothing cached to follow */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [planId, workspaceId, videoId, requestedPlanIndex])
+
+  // The item is over — offer the next one (or say the plan is done).
+  const finishPlanItem = useCallback(() => {
+    if (planEndHandledRef.current) return
+    planEndHandledRef.current = true
+    if (nextPlanIndex != null) setPlanUpNext(nextPlanIndex)
+    else showToast("План пройден")
+  }, [nextPlanIndex, showToast])
+
+  // A new item on screen starts unhandled (a reload of the same item doesn't).
+  const planItemId = planItem?.id ?? null
+  useEffect(() => {
+    planEndHandledRef.current = false
+  }, [planItemId])
+
+  // A segment item ends at its endSec: pause there and count down.
+  useEffect(() => {
+    if (!playableUri || !planItem || planItem.endSec == null) return
+    const id = setInterval(() => {
+      if (planEndHandledRef.current) return
+      const t = getCurrentTime()
+      if (typeof t !== "number" || !reachedItemEnd(t, planItem)) return
+      try {
+        player.pause()
+      } catch {
+        /* noop */
+      }
+      finishPlanItem()
+    }, PLAN_END_POLL_MS)
+    return () => clearInterval(id)
+  }, [playableUri, player, planItem, getCurrentTime, finishPlanItem])
+
+  // A moment item (or a segment running to the end) ends with the lesson.
+  useEffect(() => {
+    if (!playableUri || !planItem) return
+    const sub = player.addListener("playToEnd", finishPlanItem)
+    return () => sub.remove()
+  }, [player, playableUri, planItem, finishPlanItem])
 
   const [retryNonce, setRetryNonce] = useState(0)
 
@@ -766,6 +970,24 @@ export function VideoScreen({ route, navigation }: Props) {
     if (feedback) showToast(feedback)
   }
 
+  // «Поделиться моментом» (the player, bookmark and chapter rows): a link
+  // that opens this lesson at the second — a segment loops A–B.
+  const handleShareMoment = async (moment: {
+    startSec: number
+    endSec?: number | null
+    label?: string | null
+  }) => {
+    if (!video) return
+    const url = buildMomentLink(momentLinkBase(), { videoId, ...moment })
+    const feedback = shareFeedback(
+      await shareText({
+        title: video.title,
+        message: momentShareText({ videoTitle: video.title, ...moment, url }),
+      }),
+    )
+    if (feedback) showToast(feedback)
+  }
+
   const handleToggleFavorite = async () => {
     const next = await toggleFavorite(videoId)
     setFavorite(next)
@@ -834,6 +1056,41 @@ export function VideoScreen({ route, navigation }: Props) {
     }
   }
 
+  // Another item of the plan: a seek within this lesson, or that lesson in
+  // this one's place (fullscreen kept).
+  const goToPlanItem = (index: number) => {
+    const target = plan?.items[index]
+    if (!plan || !target) return
+    setPlanUpNext(null)
+    const step = planStep(target, videoId)
+    if (step.kind === "seek") {
+      setLoopA(null)
+      setLoopB(null)
+      loopRef.current = { a: null, b: null }
+      setPlanIndex(index)
+      seekTo(step.startSec)
+      return
+    }
+    navigation.replace("Video", {
+      videoId: step.videoId,
+      title: target.video?.title ?? target.title,
+      startAt: step.startSec,
+      planId: plan.id,
+      planItemIndex: index,
+      fullscreen: showFullscreen || undefined,
+    })
+  }
+
+  // «В план» on a chapter (up to the next one) or a bookmark / segment.
+  const addChapterToPlan = (index: number) => {
+    if (!video?.timestamps) return
+    setPlanDraft(draftFromChapter(videoId, video.timestamps, index, video.duration))
+  }
+  const addBookmarkToPlan = (bookmarkId: string) => {
+    const bookmark = bookmarks.find((b) => b.id === bookmarkId)
+    if (bookmark) setPlanDraft(draftFromBookmark(videoId, bookmark))
+  }
+
   // After a local edit: show the store's list (the source of truth) and let
   // the edit reach the server shortly.
   const reloadBookmarks = async () => {
@@ -865,6 +1122,79 @@ export function VideoScreen({ route, navigation }: Props) {
     setLoopB(endSec)
     loopRef.current = { a: startSec, b: endSec }
     seekTo(startSec)
+  }
+
+  // Pause on a bookmark's frame and bring up its drawing.
+  const showDrawingAt = (b: {
+    id: string
+    positionSec: number
+    drawing: BookmarkDrawing
+  }) => {
+    try {
+      player.pause()
+      player.currentTime = Math.max(0, b.positionSec)
+    } catch {
+      /* noop */
+    }
+    setShownDrawing({ bookmarkId: b.id, positionSec: b.positionSec, drawing: b.drawing })
+  }
+
+  // A bookmark row's time (side panel, fullscreen drawer): a segment loops
+  // A–B, a moment with a drawing pauses on it (the web player can't show
+  // drawings — there it seeks like any moment), any other moment seeks.
+  const handleOpenBookmark = (b: {
+    id: string
+    positionSec: number
+    endSec: number | null
+    drawing: BookmarkDrawing | null
+  }) => {
+    if (b.endSec != null) handlePlaySegment(b.positionSec, b.endSec)
+    else if (b.drawing && !builtInControls) showDrawingAt({ ...b, drawing: b.drawing })
+    else seekTo(b.positionSec)
+  }
+
+  // «Сохранить» in «Рисовать»: onto the bookmark whose drawing was edited, else
+  // the moment bookmark at this second, else a new one (whose name field opens
+  // like «+ закладка»); null = cleared.
+  const handleSaveDrawing = async (
+    drawing: BookmarkDrawing | null,
+    bookmarkId: string | null,
+  ) => {
+    const saved = await saveBookmarkDrawing(
+      videoId,
+      readPlayerTime(),
+      drawing,
+      bookmarkId,
+    )
+    if (!saved) return
+    await reloadBookmarks()
+    const { bookmark, created } = saved
+    setShownDrawing(
+      drawing
+        ? { bookmarkId: bookmark.id, positionSec: bookmark.positionSec, drawing }
+        : null,
+    )
+    if (created) setJustAddedBookmarkId(bookmark.id)
+    haptics.light()
+    showToast(
+      !drawing
+        ? "Рисунок удалён"
+        : created
+          ? "Рисунок сохранён в новую закладку"
+          : "Рисунок сохранён в закладку",
+    )
+  }
+
+  // «Сравнить»: this lesson on the left from here — or from the A–B segment
+  // when one is set (leaving pauses the lesson, see the focus effect).
+  const openCompare = () => {
+    const segment = loopA != null && loopB != null && loopB > loopA
+    navigation.navigate("Compare", {
+      videoId,
+      title: video?.title,
+      startAt: segment ? loopA : readPlayerTime(),
+      endAt: segment ? loopB : undefined,
+    })
   }
 
   const handleRemoveBookmark = async (id: string) => {
@@ -984,10 +1314,12 @@ export function VideoScreen({ route, navigation }: Props) {
         contentFit="contain"
         mirrored={mirrored}
       />
-      {activeSubtitle && (
+      {activeSubtitle && !subtitleLayout.hidden && (
         <SubtitleOverlay
           url={activeSubtitle.publicUrl}
           getCurrentTime={getCurrentTime}
+          getVideoSize={getVideoSize}
+          bottomInset={subtitleLayout.inset}
         />
       )}
     </>
@@ -1004,6 +1336,27 @@ export function VideoScreen({ route, navigation }: Props) {
       }}
     />
   )
+
+  const planNext = plan && planUpNext != null ? plan.items[planUpNext] : null
+  const planUpNextCard = planNext && planUpNext != null && (
+    <NextLessonCountdown
+      kind="planItem"
+      title={planNext.title || planNext.video?.title || "Следующий фрагмент"}
+      player={player}
+      onCancel={() => setPlanUpNext(null)}
+      onPlayNow={() => goToPlanItem(planUpNext)}
+    />
+  )
+
+  const planBar: PlanBarProps | null =
+    plan && planIndex != null
+      ? {
+          title: plan.title,
+          position: `${planIndex + 1}/${plan.items.length}`,
+          onPrev: prevPlanIndex != null ? () => goToPlanItem(prevPlanIndex) : null,
+          onNext: nextPlanIndex != null ? () => goToPlanItem(nextPlanIndex) : null,
+        }
+      : null
 
   return (
     <SafeAreaView
@@ -1022,6 +1375,7 @@ export function VideoScreen({ route, navigation }: Props) {
         <HoldToBoostArea player={player} style={playerStyle}>
           {picture}
           {upNext}
+          {planUpNextCard}
         </HoldToBoostArea>
       ) : (
         <View style={playerStyle}>
@@ -1042,8 +1396,23 @@ export function VideoScreen({ route, navigation }: Props) {
             onClearLoop={handleClearLoop}
             onAddBookmark={() => void handleAddBookmark()}
             onSaveSegment={() => void handleSaveSegment()}
+            chapters={video.timestamps}
+            bookmarks={bookmarks}
+            onSeek={seekTo}
+            onOpenBookmark={handleOpenBookmark}
+            onShareMoment={(m) => void handleShareMoment(m)}
+            shownDrawing={shownDrawing}
+            onHideDrawing={() => setShownDrawing(null)}
+            onSaveDrawing={(drawing, bookmarkId) =>
+              void handleSaveDrawing(drawing, bookmarkId)
+            }
+            onSubtitleLayout={setSubtitleLayout}
+            plan={planBar}
+            onAddChapterToPlan={addChapterToPlan}
+            onAddBookmarkToPlan={addBookmarkToPlan}
           />
           {upNext}
+          {planUpNextCard}
         </View>
       )}
 
@@ -1065,6 +1434,20 @@ export function VideoScreen({ route, navigation }: Props) {
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
       >
+        {planBar && plan && (
+          <PlanBar
+            variant="panel"
+            {...planBar}
+            onOpen={() =>
+              navigation.navigate(
+                "StudyPlan",
+                { planId: plan.id, title: plan.title },
+                // Back to the plan screen it was opened from, not a second one.
+                { pop: true },
+              )
+            }
+          />
+        )}
         <View style={styles.titleRow}>
           <Text style={styles.title}>{video.title}</Text>
           <Pressable
@@ -1165,6 +1548,25 @@ export function VideoScreen({ route, navigation }: Props) {
           </Pressable>
           <DrillModeButton style={styles.iconAction} />
           <Pressable
+            onPress={() => setPlanDraft(draftFromMoment(videoId, readPlayerTime()))}
+            accessibilityRole="button"
+            accessibilityLabel="Добавить текущий момент в план"
+            style={styles.iconAction}
+          >
+            <Text style={styles.iconActionText}>В план</Text>
+          </Pressable>
+          {/* Two side-by-side pictures need the app's own player (native). */}
+          {!builtInControls && (
+            <Pressable
+              onPress={openCompare}
+              accessibilityRole="button"
+              accessibilityLabel="Сравнить с другим видео рядом"
+              style={styles.iconAction}
+            >
+              <Text style={styles.iconActionText}>Сравнить</Text>
+            </Pressable>
+          )}
+          <Pressable
             onPress={handleShare}
             accessibilityRole="button"
             accessibilityLabel="Поделиться"
@@ -1186,20 +1588,24 @@ export function VideoScreen({ route, navigation }: Props) {
         <VideoSubtitlePicker
           subtitles={video?.subtitles ?? []}
           activeId={activeSubtitleId}
-          onSelect={setActiveSubtitleId}
+          onSelect={handleSelectSubtitle}
         />
 
         <VideoStudyTools
           timestamps={video?.timestamps}
+          currentChapter={currentChapter}
           bookmarks={bookmarks}
           note={note}
           onSeek={seekTo}
-          onPlaySegment={handlePlaySegment}
+          onOpenBookmark={handleOpenBookmark}
+          onShareMoment={(m) => void handleShareMoment(m)}
           onAddBookmark={handleAddBookmark}
           onRemoveBookmark={(id) => void handleRemoveBookmark(id)}
           onUpdateBookmark={(id, patch) => void handleUpdateBookmark(id, patch)}
           justAddedBookmarkId={justAddedBookmarkId}
           onNoteChange={handleNoteChange}
+          onAddChapterToPlan={addChapterToPlan}
+          onAddBookmarkToPlan={addBookmarkToPlan}
         />
 
         {offlineDownloads && (
@@ -1234,6 +1640,9 @@ export function VideoScreen({ route, navigation }: Props) {
           onSelect={(rate) => void handleSelectRate(rate)}
           onClose={() => setSpeedAnchor(null)}
         />
+      )}
+      {planDraft && (
+        <AddToPlanModal draft={planDraft} onClose={() => setPlanDraft(null)} />
       )}
     </SafeAreaView>
   )

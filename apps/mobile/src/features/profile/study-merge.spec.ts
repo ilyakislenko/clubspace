@@ -10,6 +10,7 @@ import {
   mergePulledNote,
   migrateStudyData,
   overlayLocalStudy,
+  pointBookmarkAt,
   segmentBounds,
   visibleBookmarks,
 } from "./study-merge"
@@ -23,6 +24,7 @@ const row = (id: string, updatedMin: number, extra: Partial<LocalBookmark> = {})
   endSec: null,
   label: `label-${updatedMin}`,
   note: "",
+  drawing: null,
   deleted: false,
   createdAt: T(0),
   updatedAt: T(updatedMin),
@@ -234,6 +236,40 @@ describe("segmentBounds", () => {
   it("rounds the start down and the end up, keeping end after start", () => {
     expect(segmentBounds(72.6, 85.2)).toEqual({ positionSec: 72, endSec: 86 })
     expect(segmentBounds(10.2, 10.4)).toEqual({ positionSec: 10, endSec: 11 })
+  })
+})
+
+describe("bookmark drawings", () => {
+  const drawing = {
+    strokes: [
+      { tool: "arrow" as const, color: "red" as const, points: [0.1, 0.2, 0.3, 0.4] },
+    ],
+  }
+
+  it("sends a drawing, and an explicit null to remove one", () => {
+    expect(bookmarkPayload(local("a", 1, { drawing })).drawing).toEqual(drawing)
+    expect(bookmarkPayload(local("a", 1, { drawing: null }))).toHaveProperty(
+      "drawing",
+      null,
+    )
+  })
+
+  it("leaves the drawing out for a record saved before drawings existed", () => {
+    const old = local("a", 1)
+    delete old.drawing
+    expect(bookmarkPayload(old)).not.toHaveProperty("drawing")
+    expect(visibleBookmarks([old])[0].drawing).toBeNull()
+  })
+
+  it("finds the live moment bookmark at a second, not segments or tombstones", () => {
+    const list = [
+      local("seg", 1, { positionSec: 30, endSec: 40 }),
+      local("gone", 1, { positionSec: 30, deleted: true }),
+      local("other", 1, { positionSec: 31 }),
+      local("hit", 1, { positionSec: 30 }),
+    ]
+    expect(pointBookmarkAt(list, 30)?.id).toBe("hit")
+    expect(pointBookmarkAt(list, 29)).toBeUndefined()
   })
 })
 

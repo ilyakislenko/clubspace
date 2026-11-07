@@ -38,9 +38,11 @@ export function usePlayer(uri: string | null): UsePlayerResult {
   const pendingSeek = useRef<number | null>(null)
   const [failed, setFailed] = useState(false)
   const rateRef = useRef(1)
+  const mutedRef = useRef(false)
 
   const attachRef = useCallback((el: HTMLVideoElement | null) => {
     elRef.current = el
+    if (el) el.muted = mutedRef.current
     setVideoEl(el)
   }, [])
 
@@ -69,6 +71,12 @@ export function usePlayer(uri: string | null): UsePlayerResult {
       },
       // The DOM exposes no frame rate; the frame step falls back to 30 fps.
       frameRate: null,
+      get videoSize() {
+        const v = elRef.current
+        return v && v.videoWidth > 0
+          ? { width: v.videoWidth, height: v.videoHeight }
+          : null
+      },
       // The element's own rate: Plyr's speed menu changes it behind our back.
       get playbackRate() {
         return elRef.current?.playbackRate ?? rateRef.current
@@ -87,6 +95,14 @@ export function usePlayer(uri: string | null): UsePlayerResult {
       get playing() {
         const v = elRef.current
         return !!v && !v.paused && !v.ended
+      },
+      // Kept for an element attached later (Plyr mounts it after the handle).
+      get muted() {
+        return elRef.current?.muted ?? mutedRef.current
+      },
+      set muted(m: boolean) {
+        mutedRef.current = m
+        if (elRef.current) elRef.current.muted = m
       },
       play() {
         void elRef.current?.play().catch(() => undefined)
