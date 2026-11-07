@@ -261,6 +261,20 @@ export function SettingsScreen(_props: Props) {
               />
             }
           />
+          <Row
+            label="Следующий урок автоматически"
+            right={
+              <Switch
+                accessibilityLabel="Следующий урок автоматически"
+                value={prefs.autoplayNext}
+                onValueChange={(v) => update({ autoplayNext: v })}
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+              />
+            }
+          />
         </Section>
 
         {/* Notification settings are the signed-in guardian's (a child's

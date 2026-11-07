@@ -12,6 +12,8 @@ type Props = {
   onSetA: () => void
   onSetB: () => void
   onClear: () => void
+  // Keep the current A–B as a segment bookmark (offered once both are set).
+  onSaveSegment: () => void
 }
 
 export function VideoLoopControls({
@@ -20,6 +22,7 @@ export function VideoLoopControls({
   onSetA,
   onSetB,
   onClear,
+  onSaveSegment,
 }: Props) {
   const styles = useThemedStyles(makeStyles)
   return (
@@ -47,9 +50,19 @@ export function VideoLoopControls({
         </Pressable>
       </View>
       {loopA != null && loopB != null && (
-        <Text style={styles.loopHint}>
-          Отрезок зациклен. Снимите отметку, чтобы выключить.
-        </Text>
+        <View style={styles.segmentRow}>
+          <Text style={[styles.loopHint, styles.flex]}>
+            Отрезок зациклен. Снимите отметку, чтобы выключить.
+          </Text>
+          <Pressable
+            onPress={onSaveSegment}
+            accessibilityRole="button"
+            accessibilityLabel={`Сохранить отрезок ${formatPosition(loopA)}–${formatPosition(loopB)} в закладки`}
+            style={styles.saveSegmentButton}
+          >
+            <Text style={styles.saveSegmentText}>Сохранить отрезок</Text>
+          </Pressable>
+        </View>
       )}
     </View>
   )
@@ -63,6 +76,24 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
+  },
+  segmentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(2),
+  },
+  flex: { flex: 1 },
+  saveSegmentButton: {
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(1) + 2,
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.accent,
+  },
+  saveSegmentText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: theme.colors.accent,
   },
   loopHeader: {
     flexDirection: "row",

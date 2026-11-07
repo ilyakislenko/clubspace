@@ -1,4 +1,4 @@
-import { formatPosition } from "./format-position"
+import { formatBookmarkTime, formatPosition } from "./format-position"
 
 describe("formatPosition", () => {
   it("formats under a minute as 0:ss with a zero-padded second", () => {
@@ -19,5 +19,12 @@ describe("formatPosition", () => {
 
   it("clamps negative input to zero", () => {
     expect(formatPosition(-10)).toBe("0:00")
+  })
+})
+
+describe("formatBookmarkTime", () => {
+  it("shows a moment as its time and a segment as a looped range", () => {
+    expect(formatBookmarkTime({ positionSec: 72, endSec: null })).toBe("1:12")
+    expect(formatBookmarkTime({ positionSec: 72, endSec: 85 })).toBe("1:12–1:25 ⟲")
   })
 })

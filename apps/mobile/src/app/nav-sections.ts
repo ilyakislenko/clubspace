@@ -233,6 +233,13 @@ export const PROFILE_SECTIONS: readonly NavSection[] = [
     group: "training",
   },
   {
+    route: "MyVideoNotes",
+    icon: "bookmark-outline",
+    label: "Мои заметки",
+    feature: "videos",
+    group: "training",
+  },
+  {
     route: "OfflineLibrary",
     icon: "download-outline",
     label: "Загруженные",

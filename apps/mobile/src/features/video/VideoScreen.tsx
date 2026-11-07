@@ -1,4 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
+import { useNetworkState } from "expo-network"
 import { usePlayer } from "./use-player"
 
 import { SubtitleOverlay } from "./subtitle-overlay"
@@ -6,7 +7,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   AppState,
+  BackHandler,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -18,6 +21,7 @@ import { Pressable } from "../../shared/components/Pressable"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getCourse, type CourseDetail } from "../../shared/api/courses"
+import type { MyVideoBookmark } from "../../shared/api/video-study"
 import {
   getStreamingUri,
   getVideo,
@@ -51,7 +55,6 @@ import {
 } from "../offline/network-policy"
 import {
   addBookmark,
-  type Bookmark,
   getNote,
   getPreferences,
   isFavorite,
@@ -60,9 +63,11 @@ import {
   removeBookmark,
   setNote,
   setPreferences,
+  syncVideoStudy,
   toggleFavorite,
   updateBookmark,
 } from "../profile/preferences-store"
+import { segmentBounds } from "../profile/study-merge"
 import {
   getProgressStatus,
   getResumePosition,
@@ -73,7 +78,10 @@ import {
 } from "./playback-progress"
 import { DrillModeButton } from "./DrillMode"
 import { VideoStudyTools } from "./VideoStudyTools"
-import { useHoldToBoost } from "./use-hold-to-boost"
+import { HoldToBoostArea } from "./HoldToBoostArea"
+import { NextLessonCountdown } from "./NextLessonCountdown"
+import { PlaybackSpeedSheet } from "./PlaybackSpeedPicker"
+import { PlayerOverlay } from "./PlayerOverlay"
 import { VideoCourseNav } from "./VideoCourseNav"
 import {
   VideoDownloadControls,
@@ -132,6 +140,16 @@ const downloadStateFrom = (local: OfflineVideoState): DownloadState => {
   }
 }
 
+// A seconds route param. On web it arrives from the URL as a string.
+const paramSeconds = (value: unknown): number | null => {
+  if (value == null || value === "") return null
+  const n = Number(value)
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+// After this long without edits, the lesson's notes/bookmarks are synced.
+const STUDY_SYNC_DEBOUNCE_MS = 2_500
+
 export function VideoScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -157,7 +175,7 @@ export function VideoScreen({ route, navigation }: Props) {
   })
   const [note, setNoteText] = useState("")
   const [playbackRate, setPlaybackRate] = useState(1)
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
+  const [bookmarks, setBookmarks] = useState<MyVideoBookmark[]>([])
   const [justAddedBookmarkId, setJustAddedBookmarkId] = useState<string | null>(
     null,
   )
@@ -168,20 +186,47 @@ export function VideoScreen({ route, navigation }: Props) {
   const subtitleAutoPickedRef = useRef(false)
   const scrollRef = useRef<ScrollViewInstance>(null)
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
-  const [loopA, setLoopA] = useState<number | null>(null)
-  const [loopB, setLoopB] = useState<number | null>(null)
+  // Opened on a bookmark (startAt), or on a saved segment (startAt+loopEndAt),
+  // e.g. from «Мои заметки»: that start replaces the resume position once.
+  const startAt = paramSeconds(route.params.startAt)
+  const loopEndAt = paramSeconds(route.params.loopEndAt)
+  const startSegment =
+    startAt != null && loopEndAt != null && loopEndAt > startAt
+  const pendingStartRef = useRef(startAt)
+  const [loopA, setLoopA] = useState<number | null>(
+    startSegment ? startAt : null,
+  )
+  const [loopB, setLoopB] = useState<number | null>(
+    startSegment ? loopEndAt : null,
+  )
   const loopRef = useRef<{ a: number | null; b: number | null }>({
-    a: null,
-    b: null,
+    a: loopA,
+    b: loopB,
   })
 
   const playableUri = offlineUri ?? streamingUrl
   const resumeAppliedRef = useRef(false)
 
-  const { player, PlayerSurface, failed: playbackFailed } = usePlayer(
-    playableUri ?? null,
+  const {
+    player,
+    PlayerSurface,
+    failed: playbackFailed,
+    builtInControls,
+  } = usePlayer(playableUri ?? null)
+  const [mirrored, setMirrored] = useState(false)
+  const [speedSheetOpen, setSpeedSheetOpen] = useState(false)
+  // The app's own fullscreen (native only — Plyr has its own on web).
+  const [fullscreen, setFullscreen] = useState(
+    () => !builtInControls && !!route.params.fullscreen,
   )
-  const { boosted, holdProps } = useHoldToBoost(player, playbackRate)
+  // The «Следующий урок через N с» card, after the lesson played to the end.
+  const [upNextVisible, setUpNextVisible] = useState(false)
+
+  const nextLesson = useMemo(() => {
+    if (!course) return null
+    const i = course.videos.findIndex((v) => v.id === videoId)
+    return i >= 0 && i < course.videos.length - 1 ? course.videos[i + 1] : null
+  }, [course, videoId])
 
   // A stored copy that won't play (files gone or damaged) must not leave a
   // dead player on screen: say why and how to get it back.
@@ -231,16 +276,83 @@ export function VideoScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     void getProgressStatus(videoId, video?.duration).then(setProgressStatus)
-    void getNote(videoId).then(setNoteText)
-    void listBookmarks(videoId).then(setBookmarks)
   }, [videoId, video?.duration])
+
+  // Lesson notes and bookmarks: the device copy paints at once (offline too),
+  // then syncs with the server — now if online, on every return to the
+  // network or the foreground, a moment after each edit, and on leaving.
+  const network = useNetworkState()
+  const online = Boolean(network.isConnected && network.isInternetReachable)
+  const studyActiveRef = useRef(true)
+  // An edit made here hasn't been handed to a sync yet.
+  const studyEditedRef = useRef(false)
+  const studySyncTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  )
+
+  const syncStudy = useCallback(async () => {
+    studyEditedRef.current = false
+    const result = await syncVideoStudy(videoId)
+    if (!result || !studyActiveRef.current) return
+    // Reloaded from the store (not taken from the result) so an edit made
+    // while the sync ran is never painted over.
+    if (result.bookmarksChanged) {
+      const fresh = await listBookmarks(videoId)
+      if (studyActiveRef.current) setBookmarks(fresh)
+    }
+    if (result.noteChanged) {
+      const fresh = await getNote(videoId)
+      if (studyActiveRef.current) setNoteText(fresh)
+    }
+  }, [videoId])
+
+  const scheduleStudySync = () => {
+    studyEditedRef.current = true
+    clearTimeout(studySyncTimer.current)
+    studySyncTimer.current = setTimeout(() => {
+      void syncStudy()
+    }, STUDY_SYNC_DEBOUNCE_MS)
+  }
+
+  useEffect(() => {
+    studyActiveRef.current = true
+    void listBookmarks(videoId).then((list) => {
+      if (studyActiveRef.current) setBookmarks(list)
+    })
+    void getNote(videoId).then((text) => {
+      if (studyActiveRef.current) setNoteText(text)
+    })
+    return () => {
+      studyActiveRef.current = false
+      clearTimeout(studySyncTimer.current)
+      // The last edits go out on leaving.
+      if (studyEditedRef.current) void syncVideoStudy(videoId)
+      studyEditedRef.current = false
+    }
+  }, [videoId])
+
+  useEffect(() => {
+    if (online) void syncStudy()
+  }, [online, syncStudy])
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active" || (next === "background" && studyEditedRef.current)) {
+        void syncStudy()
+      }
+    })
+    return () => sub.remove()
+  }, [syncStudy])
 
   useEffect(() => {
     loopRef.current = { a: loopA, b: loopB }
   }, [loopA, loopB])
 
   useEffect(() => {
-    void getPreferences().then((p) => setPlaybackRate(p.defaultPlaybackRate))
+    void getPreferences().then((p) => {
+      setPlaybackRate(p.defaultPlaybackRate)
+      setMirrored(p.mirrorVideo)
+    })
   }, [])
 
   useEffect(() => {
@@ -273,13 +385,17 @@ export function VideoScreen({ route, navigation }: Props) {
         getPreferences(),
       ])
       if (cancelled || resumeAppliedRef.current) return
+      // A bookmark the lesson was opened on beats the resume position — once;
+      // a later source switch (stream ↔ download) resumes as usual.
+      const target = pendingStartRef.current ?? resumeAt
       try {
-        if (resumeAt > 0) {
-          ;(player as { currentTime: number }).currentTime = resumeAt
+        if (target > 0) {
+          ;(player as { currentTime: number }).currentTime = target
         }
       } catch {
         /* noop */
       }
+      pendingStartRef.current = null
       resumeAppliedRef.current = true
       // Honour the "Автовоспроизведение" setting: only auto-start when it's on.
       // When off, the source is loaded (and resume position applied) but the
@@ -382,6 +498,43 @@ export function VideoScreen({ route, navigation }: Props) {
       flushProgress()
     }
   }, [playableUri, player, videoId, video?.duration])
+
+  // Fullscreen only once there is a player to fill the screen with; the
+  // loading/error screens keep the header (and its back button).
+  const showFullscreen =
+    fullscreen && !!playableUri && !!video && !loading && !error
+
+  // Fullscreen hides the header (and with it any back gesture); Android's
+  // back button leaves fullscreen before it leaves the lesson.
+  useEffect(() => {
+    navigation.setOptions({
+      headerShown: !showFullscreen,
+      gestureEnabled: !showFullscreen,
+    })
+    if (!showFullscreen) return
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      setFullscreen(false)
+      return true
+    })
+    return () => sub.remove()
+  }, [navigation, showFullscreen])
+
+  // Reaching the end offers the course's next lesson, unless an A–B loop is
+  // running (its end is the loop's business) or the setting is off. A lesson
+  // locked by plan/rank is skipped; under locked progression finishing this
+  // one is exactly what opens the next.
+  useEffect(() => {
+    if (!playableUri || !nextLesson) return
+    if (nextLesson.lock && !course?.lockedProgression) return
+    const sub = player.addListener("playToEnd", () => {
+      const { a, b } = loopRef.current
+      if (a != null && b != null) return
+      void getPreferences().then((p) => {
+        if (p.autoplayNext) setUpNextVisible(true)
+      })
+    })
+    return () => sub.remove()
+  }, [player, playableUri, nextLesson, course?.lockedProgression])
 
   const [retryNonce, setRetryNonce] = useState(0)
 
@@ -630,16 +783,31 @@ export function VideoScreen({ route, navigation }: Props) {
     )
   }
 
-  const cyclePlaybackRate = async () => {
-    const rates = [1, 1.25, 1.5, 2, 0.5, 0.75]
-    const next = rates[(rates.indexOf(playbackRate) + 1) % rates.length] ?? 1
-    setPlaybackRate(next)
-    await setPreferences({ defaultPlaybackRate: next })
+  const handleSelectRate = async (rate: number) => {
+    setPlaybackRate(rate)
+    setSpeedSheetOpen(false)
+    await setPreferences({ defaultPlaybackRate: rate })
   }
+
+  const handleToggleMirror = async () => {
+    const next = !mirrored
+    setMirrored(next)
+    await setPreferences({ mirrorVideo: next })
+  }
+
+  // Same lesson switch as VideoCourseNav; leaving from fullscreen keeps it.
+  const openLesson = (id: string, title?: string) =>
+    navigation.replace("Video", {
+      videoId: id,
+      courseId: course?.id,
+      title,
+      fullscreen: showFullscreen || undefined,
+    })
 
   const handleNoteChange = async (text: string) => {
     setNoteText(text)
     await setNote(videoId, text)
+    scheduleStudySync()
   }
 
   const readPlayerTime = (): number => {
@@ -660,30 +828,50 @@ export function VideoScreen({ route, navigation }: Props) {
     }
   }
 
+  // After a local edit: show the store's list (the source of truth) and let
+  // the edit reach the server shortly.
+  const reloadBookmarks = async () => {
+    setBookmarks(await listBookmarks(videoId))
+    scheduleStudySync()
+  }
+
   const handleAddBookmark = async () => {
-    const position = readPlayerTime()
-    const created = await addBookmark(videoId, position)
-    setBookmarks((prev) =>
-      [...prev, created].sort((a, b) => a.position - b.position),
-    )
+    const created = await addBookmark(videoId, readPlayerTime())
+    await reloadBookmarks()
     setJustAddedBookmarkId(created.id)
     haptics.light()
     showToast("Закладка добавлена")
   }
 
+  // The current A–B as a segment bookmark; its name field opens like a new one.
+  const handleSaveSegment = async () => {
+    if (loopA == null || loopB == null) return
+    const { positionSec, endSec } = segmentBounds(loopA, loopB)
+    const created = await addBookmark(videoId, positionSec, endSec)
+    await reloadBookmarks()
+    setJustAddedBookmarkId(created.id)
+    haptics.light()
+    showToast("Отрезок сохранён в закладки")
+  }
+
+  const handlePlaySegment = (startSec: number, endSec: number) => {
+    setLoopA(startSec)
+    setLoopB(endSec)
+    loopRef.current = { a: startSec, b: endSec }
+    seekTo(startSec)
+  }
+
   const handleRemoveBookmark = async (id: string) => {
     await removeBookmark(videoId, id)
-    setBookmarks((prev) => prev.filter((b) => b.id !== id))
+    await reloadBookmarks()
   }
 
   const handleUpdateBookmark = async (
     id: string,
-    patch: Partial<Pick<Bookmark, "label" | "note">>,
+    patch: Partial<Pick<MyVideoBookmark, "label" | "note">>,
   ) => {
     await updateBookmark(videoId, id, patch)
-    setBookmarks((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, ...patch } : b)),
-    )
+    await reloadBookmarks()
     setJustAddedBookmarkId(null)
   }
 
@@ -777,45 +965,92 @@ export function VideoScreen({ route, navigation }: Props) {
   const lessonWatched = progressStatus.status === "watched"
   const markWatchedAsPrimary = !lessonWatched && progressStatus.ratio > 0.5
 
+  const playerStyle = showFullscreen
+    ? styles.playerFullscreen
+    : isWide
+      ? styles.playerColWide
+      : [styles.playerWrap, { maxHeight: Math.round(height * 0.55) }]
+
+  const picture = (
+    <>
+      <PlayerSurface
+        style={styles.player}
+        contentFit="contain"
+        mirrored={mirrored}
+      />
+      {activeSubtitle && (
+        <SubtitleOverlay
+          url={activeSubtitle.publicUrl}
+          getCurrentTime={getCurrentTime}
+        />
+      )}
+    </>
+  )
+
+  const upNext = upNextVisible && nextLesson && (
+    <NextLessonCountdown
+      title={nextLesson.title}
+      player={player}
+      onCancel={() => setUpNextVisible(false)}
+      onPlayNow={() => {
+        setUpNextVisible(false)
+        openLesson(nextLesson.id, nextLesson.title)
+      }}
+    />
+  )
+
   return (
-    <SafeAreaView style={styles.root} edges={["bottom"]}>
+    <SafeAreaView
+      style={styles.root}
+      edges={showFullscreen ? [] : ["bottom"]}
+    >
+      {showFullscreen && <StatusBar hidden animated />}
       <View style={[styles.layout, isWide && styles.layoutWide]}>
-      <View
-        style={
-          isWide
-            ? styles.playerColWide
-            : [styles.playerWrap, { maxHeight: Math.round(height * 0.55) }]
-        }
-        {...(playableUri ? holdProps : null)}
-      >
-        {playableUri ? (
-          <>
-            <PlayerSurface style={styles.player} contentFit="contain" />
-            {activeSubtitle && (
-              <SubtitleOverlay
-                url={activeSubtitle.publicUrl}
-                getCurrentTime={getCurrentTime}
-              />
-            )}
-            {boosted && (
-              <View style={styles.boostBadge} pointerEvents="none">
-                <Text style={styles.boostBadgeText}>2x ▶▶</Text>
-              </View>
-            )}
-          </>
-        ) : (
+      {!playableUri ? (
+        <View style={playerStyle}>
           <View style={[styles.player, styles.playerPlaceholder]}>
             <Text style={styles.muted}>Видео ещё не готово к просмотру.</Text>
           </View>
-        )}
-      </View>
+        </View>
+      ) : builtInControls ? (
+        <HoldToBoostArea player={player} style={playerStyle}>
+          {picture}
+          {upNext}
+        </HoldToBoostArea>
+      ) : (
+        <View style={playerStyle}>
+          {picture}
+          <PlayerOverlay
+            player={player}
+            title={video.title}
+            playbackRate={playbackRate}
+            onSelectRate={(rate) => void handleSelectRate(rate)}
+            mirrored={mirrored}
+            onToggleMirror={() => void handleToggleMirror()}
+            fullscreen={showFullscreen}
+            onToggleFullscreen={() => setFullscreen(!showFullscreen)}
+            loopA={loopA}
+            loopB={loopB}
+            onSetLoopA={handleSetLoopA}
+            onSetLoopB={handleSetLoopB}
+            onClearLoop={handleClearLoop}
+            onAddBookmark={() => void handleAddBookmark()}
+            onSaveSegment={() => void handleSaveSegment()}
+          />
+          {upNext}
+        </View>
+      )}
 
       {/* Notes and bookmark names are typed at the bottom of this panel. With
           edge-to-edge Android no longer shrinks the window for the keyboard,
           so the panel has to — and Android then scrolls the focused field
-          back into view on its own. */}
+          back into view on its own. Fullscreen only hides it, so drafts and
+          scroll position survive. */}
       <KeyboardAvoidingContainer
-        style={isWide ? styles.scrollWide : styles.scrollNarrow}
+        style={[
+          isWide ? styles.scrollWide : styles.scrollNarrow,
+          showFullscreen && styles.hidden,
+        ]}
       >
       <ScrollView
         ref={scrollRef}
@@ -891,12 +1126,28 @@ export function VideoScreen({ route, navigation }: Props) {
           </Pressable>
           )}
           <Pressable
-            onPress={cyclePlaybackRate}
+            onPress={() => setSpeedSheetOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel={`Скорость воспроизведения ${playbackRate}x, сменить`}
+            accessibilityLabel={`Скорость воспроизведения ${playbackRate}x, выбрать`}
             style={styles.iconAction}
           >
             <Text style={styles.iconActionText}>{playbackRate}x</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => void handleToggleMirror()}
+            accessibilityRole="button"
+            accessibilityLabel="Зеркально"
+            accessibilityState={{ selected: mirrored }}
+            style={[styles.iconAction, mirrored && styles.iconActionPrimary]}
+          >
+            <Text
+              style={[
+                styles.iconActionText,
+                mirrored && styles.iconActionTextPrimary,
+              ]}
+            >
+              Зеркально
+            </Text>
           </Pressable>
           <DrillModeButton style={styles.iconAction} />
           <Pressable
@@ -915,6 +1166,7 @@ export function VideoScreen({ route, navigation }: Props) {
           onSetA={handleSetLoopA}
           onSetB={handleSetLoopB}
           onClear={handleClearLoop}
+          onSaveSegment={() => void handleSaveSegment()}
         />
 
         <VideoSubtitlePicker
@@ -928,6 +1180,7 @@ export function VideoScreen({ route, navigation }: Props) {
           bookmarks={bookmarks}
           note={note}
           onSeek={seekTo}
+          onPlaySegment={handlePlaySegment}
           onAddBookmark={handleAddBookmark}
           onRemoveBookmark={(id) => void handleRemoveBookmark(id)}
           onUpdateBookmark={(id, patch) => void handleUpdateBookmark(id, patch)}
@@ -955,17 +1208,18 @@ export function VideoScreen({ route, navigation }: Props) {
           currentIndex={currentIndex}
           prevId={prevId}
           nextId={nextId}
-          onNavigate={(videoId, title) =>
-            navigation.replace("Video", {
-              videoId,
-              courseId: course?.id,
-              title,
-            })
-          }
+          onNavigate={openLesson}
         />
       </ScrollView>
       </KeyboardAvoidingContainer>
       </View>
+      {speedSheetOpen && (
+        <PlaybackSpeedSheet
+          rate={playbackRate}
+          onSelect={(rate) => void handleSelectRate(rate)}
+          onClose={() => setSpeedSheetOpen(false)}
+        />
+      )}
     </SafeAreaView>
   )
 }
@@ -994,21 +1248,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderLeftColor: theme.colors.border,
   },
   player: { width: "100%", height: "100%" },
-  // Shown while a held finger plays the video at 2x (use-hold-to-boost).
-  boostBadge: {
-    position: "absolute",
-    top: theme.spacing(3),
-    alignSelf: "center",
-    paddingHorizontal: theme.spacing(3),
-    paddingVertical: theme.spacing(1),
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.overlayStrong,
-  },
-  boostBadgeText: {
-    color: theme.colors.onOverlay,
-    fontSize: 14,
-    fontWeight: "700",
-  },
+  // The app's fullscreen: the picture takes the whole window.
+  playerFullscreen: { flex: 1, backgroundColor: theme.colors.playerBg },
+  hidden: { display: "none" },
   playerPlaceholder: {
     alignItems: "center",
     justifyContent: "center",

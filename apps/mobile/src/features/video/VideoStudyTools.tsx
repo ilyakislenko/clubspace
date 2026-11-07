@@ -6,10 +6,17 @@ import { TextInput } from "../../shared/components/TextInput"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import type { Theme } from "../../shared/theme"
-import { formatPosition } from "./format-position"
+import { formatBookmarkTime, formatPosition } from "./format-position"
 
 type Timestamp = { id: string; positionSec: number; title: string }
-type Bookmark = { id: string; position: number; label: string; note: string }
+// endSec set = a saved A–B segment.
+type Bookmark = {
+  id: string
+  positionSec: number
+  endSec: number | null
+  label: string
+  note: string
+}
 type BookmarkField = "label" | "note"
 
 type Props = {
@@ -17,6 +24,8 @@ type Props = {
   bookmarks: Bookmark[]
   note: string
   onSeek: (sec: number) => void
+  // A segment's time: jump to its start and loop it A–B.
+  onPlaySegment: (startSec: number, endSec: number) => void
   onAddBookmark: () => void
   onRemoveBookmark: (id: string) => void
   onUpdateBookmark: (
@@ -38,6 +47,7 @@ export function VideoStudyTools({
   bookmarks,
   note,
   onSeek,
+  onPlaySegment,
   onAddBookmark,
   onRemoveBookmark,
   onUpdateBookmark,
@@ -120,13 +130,21 @@ export function VideoStudyTools({
               <View key={b.id} style={styles.bookmarkCard}>
                 <View style={styles.bookmarkHead}>
                   <Pressable
-                    onPress={() => onSeek(b.position)}
+                    onPress={() =>
+                      b.endSec != null
+                        ? onPlaySegment(b.positionSec, b.endSec)
+                        : onSeek(b.positionSec)
+                    }
                     accessibilityRole="button"
-                    accessibilityLabel={`Перейти к ${formatPosition(b.position)}`}
+                    accessibilityLabel={
+                      b.endSec != null
+                        ? `Повторять отрезок ${formatPosition(b.positionSec)}–${formatPosition(b.endSec)}`
+                        : `Перейти к ${formatPosition(b.positionSec)}`
+                    }
                     style={styles.bookmarkTime}
                   >
                     <Text style={styles.bookmarkTimeText}>
-                      {formatPosition(b.position)}
+                      {formatBookmarkTime(b)}
                     </Text>
                   </Pressable>
                   {editing?.id === b.id && editing.field === "label" ? (

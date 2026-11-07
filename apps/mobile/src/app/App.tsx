@@ -48,6 +48,7 @@ import { LeaderboardScreen } from "../features/leaderboard/LeaderboardScreen"
 import { ClubInviteScreen } from "../features/invite/ClubInviteScreen"
 import { AtRiskMembersScreen } from "../features/retention/AtRiskMembersScreen"
 import { FavoritesScreen } from "../features/profile/FavoritesScreen"
+import { MyVideoNotesScreen } from "../features/video/MyVideoNotesScreen"
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
 import { InvitationsScreen } from "../features/invitations/InvitationsScreen"
 import { ClubSettingsScreen } from "../features/clubs/ClubSettingsScreen"
@@ -265,6 +266,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
             name="Favorites"
             component={FavoritesScreen}
             options={{ title: "Избранное" }}
+          />
+          <Stack.Screen
+            name="MyVideoNotes"
+            component={MyVideoNotesScreen}
+            options={{ title: "Мои заметки" }}
           />
           <Stack.Screen
             name="MyGroups"

@@ -12,3 +12,12 @@ export const formatPosition = (seconds: number): string => {
   const pad = (n: number) => String(n).padStart(2, "0")
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
 }
+
+// A bookmark's time chip: «1:12», or «1:12–1:25 ⟲» for a saved A–B segment.
+export const formatBookmarkTime = (b: {
+  positionSec: number
+  endSec: number | null
+}): string =>
+  b.endSec != null
+    ? `${formatPosition(b.positionSec)}–${formatPosition(b.endSec)} ⟲`
+    : formatPosition(b.positionSec)

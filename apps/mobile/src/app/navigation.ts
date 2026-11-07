@@ -31,12 +31,25 @@ export type RootStackParamList = {
   ScanJoinQr: undefined
   Main: NavigatorScreenParams<MainTabParamList> | undefined
   CourseDetail: { courseId: string; title?: string }
-  Video: { videoId: string; courseId?: string; title?: string }
+  // fullscreen: open straight into the player's fullscreen mode (autoplaying
+  // the next lesson from fullscreen keeps it).
+  // startAt: start here (seconds) instead of the resume position — a bookmark
+  // opened from «Мои заметки»; with loopEndAt it's a segment, looped A–B.
+  Video: {
+    videoId: string
+    courseId?: string
+    title?: string
+    fullscreen?: boolean
+    startAt?: number
+    loopEndAt?: number
+  }
   Notifications: undefined
   OfflineLibrary: undefined
   Settings: undefined
   ContinueWatching: undefined
   Favorites: undefined
+  // The member's lesson notes and bookmarks across the club, searchable.
+  MyVideoNotes: undefined
   MyGroups: undefined
   Gyms: undefined
   // `eventId`: scroll to and mark that event (Home's «Ближайшее событие»).

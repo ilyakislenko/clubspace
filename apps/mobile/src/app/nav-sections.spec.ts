@@ -49,6 +49,7 @@ describe("section lists", () => {
       "PersonalTrainings",
       "ClubInvite",
       "Favorites",
+      "MyVideoNotes",
       "OfflineLibrary",
       "Settings",
     ])
@@ -205,6 +206,7 @@ describe("sections behind the videos, achievements and journal flags", () => {
     const routes = routesWith("videos")
     expect(routes).not.toContain("ContinueWatching")
     expect(routes).not.toContain("Favorites")
+    expect(routes).not.toContain("MyVideoNotes")
     expect(routes).not.toContain("OfflineLibrary")
     expect(routes).toContain("Achievements")
   })

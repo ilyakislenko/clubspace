@@ -30,6 +30,7 @@ export const STACK_PATHS = {
   Settings: "settings",
   ContinueWatching: "continue-watching",
   Favorites: "favorites",
+  MyVideoNotes: "my-notes",
   MyGroups: "my-groups",
   Gyms: "gyms",
   Events: "events",

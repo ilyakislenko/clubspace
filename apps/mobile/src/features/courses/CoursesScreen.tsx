@@ -177,6 +177,17 @@ export function CoursesScreen({ navigation }: Props) {
           </Text>
           <Text style={styles.headerTitle}>Видео</Text>
         </View>
+        <Pressable
+          onPress={() => navigation.navigate("MyVideoNotes")}
+          accessibilityRole="button"
+          accessibilityLabel="Мои заметки к видео"
+          style={({ pressed }) => [
+            styles.shortcut,
+            pressed && styles.shortcutPressed,
+          ]}
+        >
+          <Text style={styles.shortcutText}>Заметки</Text>
+        </Pressable>
         <DrillModeButton />
       </View>
 
