@@ -14,6 +14,7 @@ import {
   Text,
   View,
   type ScrollViewInstance,
+  type ViewInstance,
 } from "react-native"
 import { showAlert } from "../../shared/alert"
 import { shareFeedback, shareText } from "../../shared/share"
@@ -80,7 +81,10 @@ import { DrillModeButton } from "./DrillMode"
 import { VideoStudyTools } from "./VideoStudyTools"
 import { HoldToBoostArea } from "./HoldToBoostArea"
 import { NextLessonCountdown } from "./NextLessonCountdown"
-import { PlaybackSpeedSheet } from "./PlaybackSpeedPicker"
+import {
+  AnchoredPlaybackSpeedPopover,
+  type AnchorRect,
+} from "./PlaybackSpeedPicker"
 import { PlayerOverlay } from "./PlayerOverlay"
 import { VideoCourseNav } from "./VideoCourseNav"
 import {
@@ -214,7 +218,9 @@ export function VideoScreen({ route, navigation }: Props) {
     builtInControls,
   } = usePlayer(playableUri ?? null)
   const [mirrored, setMirrored] = useState(false)
-  const [speedSheetOpen, setSpeedSheetOpen] = useState(false)
+  // Window frame of the side-panel speed chip while its popover is open.
+  const [speedAnchor, setSpeedAnchor] = useState<AnchorRect | null>(null)
+  const speedChipRef = useRef<ViewInstance>(null)
   // The app's own fullscreen (native only — Plyr has its own on web).
   const [fullscreen, setFullscreen] = useState(
     () => !builtInControls && !!route.params.fullscreen,
@@ -785,7 +791,7 @@ export function VideoScreen({ route, navigation }: Props) {
 
   const handleSelectRate = async (rate: number) => {
     setPlaybackRate(rate)
-    setSpeedSheetOpen(false)
+    setSpeedAnchor(null)
     await setPreferences({ defaultPlaybackRate: rate })
   }
 
@@ -1126,7 +1132,15 @@ export function VideoScreen({ route, navigation }: Props) {
           </Pressable>
           )}
           <Pressable
-            onPress={() => setSpeedSheetOpen(true)}
+            ref={speedChipRef}
+            onPress={() =>
+              // `measure` page coords match the statusBarTranslucent Modal;
+              // `measureInWindow` excludes the status bar on edge-to-edge
+              // Android (see KeyboardAvoidingContainer).
+              speedChipRef.current?.measure((_x, _y, width, height, pageX, pageY) =>
+                setSpeedAnchor({ x: pageX, y: pageY, width, height }),
+              )
+            }
             accessibilityRole="button"
             accessibilityLabel={`Скорость воспроизведения ${playbackRate}x, выбрать`}
             style={styles.iconAction}
@@ -1213,11 +1227,12 @@ export function VideoScreen({ route, navigation }: Props) {
       </ScrollView>
       </KeyboardAvoidingContainer>
       </View>
-      {speedSheetOpen && (
-        <PlaybackSpeedSheet
+      {speedAnchor && (
+        <AnchoredPlaybackSpeedPopover
+          anchor={speedAnchor}
           rate={playbackRate}
           onSelect={(rate) => void handleSelectRate(rate)}
-          onClose={() => setSpeedSheetOpen(false)}
+          onClose={() => setSpeedAnchor(null)}
         />
       )}
     </SafeAreaView>

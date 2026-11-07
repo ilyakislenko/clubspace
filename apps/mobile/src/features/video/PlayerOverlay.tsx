@@ -13,7 +13,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   Animated,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -27,7 +26,7 @@ import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { BoostBadge } from "./BoostBadge"
 import { formatPosition } from "./format-position"
-import { PlaybackRateList } from "./PlaybackSpeedPicker"
+import { PlaybackRatePopover } from "./PlaybackSpeedPicker"
 import { clampSeek, frameStepTarget, positionOnTrack } from "./player-math"
 import type { PlayerHandle } from "./player-types"
 import { usePlayerGestures, type SeekFeedback } from "./use-player-gestures"
@@ -321,7 +320,7 @@ export function PlayerOverlay({
           </View>
 
           {speedOpen && (
-            <View
+            <PlaybackRatePopover
               style={[
                 styles.speedPopover,
                 {
@@ -336,18 +335,13 @@ export function PlayerOverlay({
                 },
                 fullscreen && { right: theme.spacing(3) + insets.right },
               ]}
-            >
-              <ScrollView>
-                <PlaybackRateList
-                  rate={playbackRate}
-                  onSelect={(rate) => {
-                    onSelectRate(rate)
-                    setSpeedOpen(false)
-                    setInteraction((n) => n + 1)
-                  }}
-                />
-              </ScrollView>
-            </View>
+              rate={playbackRate}
+              onSelect={(rate) => {
+                onSelectRate(rate)
+                setSpeedOpen(false)
+                setInteraction((n) => n + 1)
+              }}
+            />
           )}
         </>
       )}
@@ -608,15 +602,7 @@ const makeStyles = (theme: Theme) =>
       marginLeft: -1,
       backgroundColor: theme.colors.onOverlay,
     },
-    speedPopover: {
-      position: "absolute",
-      right: theme.spacing(3),
-      width: 200,
-      padding: theme.spacing(2),
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surfaceElevated,
-      ...theme.shadows.sm,
-    },
+    speedPopover: { position: "absolute", right: theme.spacing(3) },
     ripple: {
       position: "absolute",
       top: 0,

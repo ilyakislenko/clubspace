@@ -1,12 +1,20 @@
 import React from "react"
-import { Modal, StyleSheet, Text, View } from "react-native"
+import {
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
-import { useResponsive } from "../../shared/useResponsive"
 import { PLAYBACK_RATES } from "./player-math"
 
 type ListProps = {
@@ -16,8 +24,7 @@ type ListProps = {
 
 /**
  * The speed choices as a single-choice list, the current one ticked. Shared
- * by the sheet below and the popover inside the player overlay (which can't
- * open a Modal without un-hiding the status bar in fullscreen).
+ * by the player overlay's popover and the side panel's anchored popover.
  */
 export function PlaybackRateList({ rate, onSelect }: ListProps) {
   const theme = useTheme()
@@ -52,20 +59,63 @@ export function PlaybackRateList({ rate, onSelect }: ListProps) {
   )
 }
 
+type PopoverProps = ListProps & { style?: StyleProp<ViewStyle> }
+
 /**
- * The speed picker as a sheet (the AbonementPickerSheet pattern): a bottom
- * sheet on phones, a centered card on larger windows.
+ * The speed list in a small floating card. The caller positions it: the
+ * player overlay places it absolutely above its chip, and
+ * {@link AnchoredPlaybackSpeedPopover} anchors it to a chip elsewhere.
  */
-export function PlaybackSpeedSheet({
+export function PlaybackRatePopover({ rate, onSelect, style }: PopoverProps) {
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <View style={[styles.popover, style]}>
+      <ScrollView>
+        <PlaybackRateList rate={rate} onSelect={onSelect} />
+      </ScrollView>
+    </View>
+  )
+}
+
+/** A chip's frame in screen coordinates (`measure` pageX/pageY). */
+export type AnchorRect = { x: number; y: number; width: number; height: number }
+
+const POPOVER_WIDTH = 200
+/** Natural height of the 7-option list; used only to pick above vs below. */
+const POPOVER_NATURAL_HEIGHT = 340
+
+/**
+ * The speed popover anchored to a chip outside the player (the lesson side
+ * panel): right-aligned to the chip, opening below it when the list fits,
+ * otherwise on whichever side has more room, scrolling if it still doesn't
+ * fit. Clamped to the window so it stays on screen on tablet and phone.
+ * Tapping outside or Android back closes it.
+ */
+export function AnchoredPlaybackSpeedPopover({
+  anchor,
   rate,
   onSelect,
   onClose,
-}: ListProps & { onClose: () => void }) {
+}: ListProps & { anchor: AnchorRect; onClose: () => void }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
-  const { sizeClass } = useResponsive()
-  const compact = sizeClass === "compact"
+  const window = useWindowDimensions()
+  const margin = theme.spacing(2)
+  const gap = theme.spacing(1)
+
+  const left = Math.min(
+    Math.max(anchor.x + anchor.width - POPOVER_WIDTH, margin + insets.left),
+    window.width - POPOVER_WIDTH - margin - insets.right,
+  )
+  const below = anchor.y + anchor.height + gap
+  const spaceBelow = window.height - below - margin - insets.bottom
+  const spaceAbove = anchor.y - gap - margin - insets.top
+  const openBelow = spaceBelow >= POPOVER_NATURAL_HEIGHT || spaceBelow >= spaceAbove
+  const vertical = openBelow
+    ? { top: below }
+    : { bottom: window.height - anchor.y + gap }
+  const maxHeight = Math.max(openBelow ? spaceBelow : spaceAbove, 0)
 
   return (
     <Modal
@@ -76,28 +126,24 @@ export function PlaybackSpeedSheet({
       statusBarTranslucent
     >
       <Pressable
-        style={[
-          styles.backdrop,
-          compact ? styles.backdropBottom : styles.backdropCenter,
-        ]}
+        style={styles.backdrop}
         onPress={onClose}
         onAccessibilityEscape={onClose}
-        // Structural, not a control: it only catches taps outside the sheet.
+        // Structural, not a control: it only catches taps outside the list.
         accessibilityRole="none"
       >
         <Pressable
-          style={[
-            styles.sheet,
-            compact ? styles.sheetBottom : styles.sheetCenter,
-            { paddingBottom: theme.spacing(5) + (compact ? insets.bottom : 0) },
-          ]}
+          style={[styles.anchored, { left }, vertical]}
           accessibilityRole="none"
           onPress={() => {
-            /* swallow, so a tap inside the sheet doesn't dismiss it */
+            /* swallow, so a tap on the card's padding doesn't dismiss it */
           }}
         >
-          <Text style={styles.title}>Скорость воспроизведения</Text>
-          <PlaybackRateList rate={rate} onSelect={onSelect} />
+          <PlaybackRatePopover
+            rate={rate}
+            onSelect={onSelect}
+            style={{ maxHeight }}
+          />
         </Pressable>
       </Pressable>
     </Modal>
@@ -119,25 +165,13 @@ const makeStyles = (theme: Theme) =>
     pressed: { opacity: 0.7 },
     optionText: { fontSize: 15, color: theme.colors.text },
     optionTextSelected: { fontWeight: "700" },
-    backdrop: { flex: 1, backgroundColor: theme.colors.overlay },
-    backdropBottom: { justifyContent: "flex-end" },
-    backdropCenter: {
-      justifyContent: "center",
-      alignItems: "center",
-      padding: theme.spacing(5),
-    },
-    sheet: {
-      width: "100%",
-      gap: theme.spacing(3),
+    backdrop: { flex: 1 },
+    popover: {
+      width: POPOVER_WIDTH,
+      padding: theme.spacing(2),
+      borderRadius: theme.radius.lg,
       backgroundColor: theme.colors.surfaceElevated,
-      paddingTop: theme.spacing(5),
-      paddingHorizontal: theme.spacing(5),
       ...theme.shadows.sm,
     },
-    sheetBottom: {
-      borderTopLeftRadius: theme.radius.lg,
-      borderTopRightRadius: theme.radius.lg,
-    },
-    sheetCenter: { maxWidth: 360, borderRadius: theme.radius.lg },
-    title: { fontSize: 20, fontWeight: "700", color: theme.colors.text },
+    anchored: { position: "absolute" },
   })
