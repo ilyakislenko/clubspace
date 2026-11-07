@@ -9,7 +9,8 @@ import type { Theme } from "../../shared/theme"
 import { formatPosition } from "./format-position"
 
 type Timestamp = { id: string; positionSec: number; title: string }
-type Bookmark = { id: string; position: number; label: string }
+type Bookmark = { id: string; position: number; label: string; note: string }
+type BookmarkField = "label" | "note"
 
 type Props = {
   timestamps?: Timestamp[]
@@ -18,7 +19,10 @@ type Props = {
   onSeek: (sec: number) => void
   onAddBookmark: () => void
   onRemoveBookmark: (id: string) => void
-  onRenameBookmark: (id: string, label: string) => void
+  onUpdateBookmark: (
+    id: string,
+    patch: Partial<Pick<Bookmark, BookmarkField>>,
+  ) => void
   onNoteChange: (text: string) => void
   // The id of the just-added bookmark, so its name field opens for editing
   // immediately (otherwise a new bookmark reads as "Без названия").
@@ -26,8 +30,9 @@ type Props = {
 }
 
 // The study tools shown below the player: chapters (read-only seek targets),
-// personal bookmarks (add/seek/remove) and a free-text note. None of these
-// touch the video player instance directly — they call back into the screen.
+// personal bookmarks (add/seek/remove, each with its own name and note) and a
+// free-text note for the whole video. None of these touch the video player
+// instance directly — they call back into the screen.
 export function VideoStudyTools({
   timestamps,
   bookmarks,
@@ -35,32 +40,36 @@ export function VideoStudyTools({
   onSeek,
   onAddBookmark,
   onRemoveBookmark,
-  onRenameBookmark,
+  onUpdateBookmark,
   onNoteChange,
   justAddedBookmarkId,
 }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const vocabulary = useVocabulary()
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{
+    id: string
+    field: BookmarkField
+  } | null>(null)
   const [draft, setDraft] = useState("")
 
   // Open the name field for a freshly-added bookmark so the user can name it
   // right away.
   useEffect(() => {
     if (justAddedBookmarkId) {
-      setEditingId(justAddedBookmarkId)
+      setEditing({ id: justAddedBookmarkId, field: "label" })
       setDraft("")
     }
   }, [justAddedBookmarkId])
 
-  const startEditing = (id: string, current: string) => {
-    setEditingId(id)
+  const startEditing = (id: string, field: BookmarkField, current: string) => {
+    setEditing({ id, field })
     setDraft(current)
   }
-  const commitEditing = (id: string) => {
-    onRenameBookmark(id, draft.trim())
-    setEditingId(null)
+  const commitEditing = () => {
+    if (!editing) return
+    onUpdateBookmark(editing.id, { [editing.field]: draft.trim() })
+    setEditing(null)
   }
 
   return (
@@ -108,51 +117,82 @@ export function VideoStudyTools({
         ) : (
           <View style={styles.bookmarkList}>
             {bookmarks.map((b) => (
-              <View key={b.id} style={styles.bookmarkRow}>
-                <Pressable
-                  onPress={() => onSeek(b.position)}
-                  style={styles.bookmarkTime}
-                >
-                  <Text style={styles.bookmarkTimeText}>
-                    {formatPosition(b.position)}
-                  </Text>
-                </Pressable>
-                {editingId === b.id ? (
+              <View key={b.id} style={styles.bookmarkCard}>
+                <View style={styles.bookmarkHead}>
+                  <Pressable
+                    onPress={() => onSeek(b.position)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Перейти к ${formatPosition(b.position)}`}
+                    style={styles.bookmarkTime}
+                  >
+                    <Text style={styles.bookmarkTimeText}>
+                      {formatPosition(b.position)}
+                    </Text>
+                  </Pressable>
+                  {editing?.id === b.id && editing.field === "label" ? (
+                    <TextInput
+                      value={draft}
+                      onChangeText={setDraft}
+                      onSubmitEditing={commitEditing}
+                      onBlur={commitEditing}
+                      placeholder="Название закладки"
+                      placeholderTextColor={theme.colors.mutedFaint}
+                      autoFocus
+                      returnKeyType="done"
+                      style={styles.bookmarkLabelInput}
+                    />
+                  ) : (
+                    <Pressable
+                      onPress={() => startEditing(b.id, "label", b.label)}
+                      style={styles.bookmarkLabelPress}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        b.label ? `Закладка ${b.label}, переименовать` : "Назвать закладку"
+                      }
+                    >
+                      <Text
+                        style={b.label ? styles.bookmarkLabel : styles.bookmarkLabelEmpty}
+                        numberOfLines={1}
+                      >
+                        {b.label || "Назвать…"}
+                      </Text>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    onPress={() => onRemoveBookmark(b.id)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Удалить закладку"
+                    style={styles.bookmarkRemove}
+                  >
+                    <Text style={styles.bookmarkRemoveText}>✕</Text>
+                  </Pressable>
+                </View>
+                {editing?.id === b.id && editing.field === "note" ? (
                   <TextInput
                     value={draft}
                     onChangeText={setDraft}
-                    onSubmitEditing={() => commitEditing(b.id)}
-                    onBlur={() => commitEditing(b.id)}
-                    placeholder="Название закладки"
+                    onBlur={commitEditing}
+                    placeholder="Что важно в этом моменте"
                     placeholderTextColor={theme.colors.mutedFaint}
                     autoFocus
-                    returnKeyType="done"
-                    style={styles.bookmarkLabelInput}
+                    multiline
+                    textAlignVertical="top"
+                    style={styles.bookmarkNoteInput}
                   />
                 ) : (
                   <Pressable
-                    onPress={() => startEditing(b.id, b.label)}
-                    style={styles.bookmarkLabelPress}
+                    onPress={() => startEditing(b.id, "note", b.note)}
                     accessibilityRole="button"
                     accessibilityLabel={
-                      b.label ? `Закладка ${b.label}, переименовать` : "Назвать закладку"
+                      b.note ? "Изменить заметку к закладке" : "Добавить заметку к закладке"
                     }
                   >
-                    <Text
-                      style={b.label ? styles.bookmarkLabel : styles.bookmarkLabelEmpty}
-                      numberOfLines={1}
-                    >
-                      {b.label || "Назвать…"}
+                    <Text style={b.note ? styles.bookmarkNote : styles.bookmarkNoteAdd}>
+                      {b.note || "+ Заметка"}
                     </Text>
                   </Pressable>
                 )}
-                <Pressable
-                  onPress={() => onRemoveBookmark(b.id)}
-                  hitSlop={8}
-                  style={styles.bookmarkRemove}
-                >
-                  <Text style={styles.bookmarkRemoveText}>✕</Text>
-                </Pressable>
               </View>
             ))}
           </View>
@@ -205,6 +245,18 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: theme.radius.md,
     backgroundColor: theme.colors.surfaceMuted,
   },
+  bookmarkCard: {
+    gap: theme.spacing(1),
+    paddingVertical: theme.spacing(1) + 2,
+    paddingHorizontal: theme.spacing(2),
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  bookmarkHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(2),
+  },
   bookmarkTime: {
     paddingHorizontal: theme.spacing(2),
     paddingVertical: 4,
@@ -246,6 +298,28 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   bookmarkRemoveText: {
     fontSize: 16,
     color: theme.colors.muted,
+  },
+  bookmarkNote: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.text,
+  },
+  bookmarkNoteAdd: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: theme.colors.accent,
+  },
+  bookmarkNoteInput: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.text,
+    minHeight: 56,
+    maxHeight: 140,
+    padding: theme.spacing(2),
+    borderWidth: 1,
+    borderColor: theme.colors.accent,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.surface,
   },
   noteBlock: { gap: theme.spacing(2) },
   noteLabel: { ...theme.typography.label },

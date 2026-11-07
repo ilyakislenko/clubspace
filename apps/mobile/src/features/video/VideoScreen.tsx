@@ -61,7 +61,7 @@ import {
   setNote,
   setPreferences,
   toggleFavorite,
-  updateBookmarkLabel,
+  updateBookmark,
 } from "../profile/preferences-store"
 import {
   getProgressStatus,
@@ -73,6 +73,7 @@ import {
 } from "./playback-progress"
 import { DrillModeButton } from "./DrillMode"
 import { VideoStudyTools } from "./VideoStudyTools"
+import { useHoldToBoost } from "./use-hold-to-boost"
 import { VideoCourseNav } from "./VideoCourseNav"
 import {
   VideoDownloadControls,
@@ -180,6 +181,7 @@ export function VideoScreen({ route, navigation }: Props) {
   const { player, PlayerSurface, failed: playbackFailed } = usePlayer(
     playableUri ?? null,
   )
+  const { boosted, holdProps } = useHoldToBoost(player, playbackRate)
 
   // A stored copy that won't play (files gone or damaged) must not leave a
   // dead player on screen: say why and how to get it back.
@@ -674,10 +676,13 @@ export function VideoScreen({ route, navigation }: Props) {
     setBookmarks((prev) => prev.filter((b) => b.id !== id))
   }
 
-  const handleRenameBookmark = async (id: string, label: string) => {
-    await updateBookmarkLabel(videoId, id, label)
+  const handleUpdateBookmark = async (
+    id: string,
+    patch: Partial<Pick<Bookmark, "label" | "note">>,
+  ) => {
+    await updateBookmark(videoId, id, patch)
     setBookmarks((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, label } : b)),
+      prev.map((b) => (b.id === id ? { ...b, ...patch } : b)),
     )
     setJustAddedBookmarkId(null)
   }
@@ -781,6 +786,7 @@ export function VideoScreen({ route, navigation }: Props) {
             ? styles.playerColWide
             : [styles.playerWrap, { maxHeight: Math.round(height * 0.55) }]
         }
+        {...(playableUri ? holdProps : null)}
       >
         {playableUri ? (
           <>
@@ -790,6 +796,11 @@ export function VideoScreen({ route, navigation }: Props) {
                 url={activeSubtitle.publicUrl}
                 getCurrentTime={getCurrentTime}
               />
+            )}
+            {boosted && (
+              <View style={styles.boostBadge} pointerEvents="none">
+                <Text style={styles.boostBadgeText}>2x ▶▶</Text>
+              </View>
             )}
           </>
         ) : (
@@ -919,9 +930,7 @@ export function VideoScreen({ route, navigation }: Props) {
           onSeek={seekTo}
           onAddBookmark={handleAddBookmark}
           onRemoveBookmark={(id) => void handleRemoveBookmark(id)}
-          onRenameBookmark={(id, label) =>
-            void handleRenameBookmark(id, label)
-          }
+          onUpdateBookmark={(id, patch) => void handleUpdateBookmark(id, patch)}
           justAddedBookmarkId={justAddedBookmarkId}
           onNoteChange={handleNoteChange}
         />
@@ -985,6 +994,21 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderLeftColor: theme.colors.border,
   },
   player: { width: "100%", height: "100%" },
+  // Shown while a held finger plays the video at 2x (use-hold-to-boost).
+  boostBadge: {
+    position: "absolute",
+    top: theme.spacing(3),
+    alignSelf: "center",
+    paddingHorizontal: theme.spacing(3),
+    paddingVertical: theme.spacing(1),
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.overlayStrong,
+  },
+  boostBadgeText: {
+    color: theme.colors.onOverlay,
+    fontSize: 14,
+    fontWeight: "700",
+  },
   playerPlaceholder: {
     alignItems: "center",
     justifyContent: "center",

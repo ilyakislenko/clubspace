@@ -312,16 +312,20 @@ export const setNote = async (videoId: string, text: string) => {
   await writeJson(userFile("notes"), notes)
 }
 
-// ---- Video bookmarks (timestamps with optional labels) ----
+// ---- Video bookmarks (timestamps with an optional label and note) ----
 
 export type Bookmark = {
   id: string
   position: number
   label: string
+  // The member's own note for this moment; "" when there is none.
+  note: string
   createdAt: string
 }
 
-type BookmarksMap = Record<string, Bookmark[]>
+// Bookmarks saved before notes existed have no `note` field on disk.
+type StoredBookmark = Omit<Bookmark, "note"> & { note?: string }
+type BookmarksMap = Record<string, StoredBookmark[]>
 
 const readBookmarks = async (): Promise<BookmarksMap> => {
   await ensureRoot()
@@ -344,7 +348,9 @@ const writeBookmarks = async (map: BookmarksMap) => {
 export const listBookmarks = async (videoId: string): Promise<Bookmark[]> => {
   const map = await readBookmarks()
   const list = map[videoId] ?? []
-  return [...list].sort((a, b) => a.position - b.position)
+  return list
+    .map((b) => ({ ...b, note: b.note ?? "" }))
+    .sort((a, b) => a.position - b.position)
 }
 
 export const addBookmark = async (
@@ -358,6 +364,7 @@ export const addBookmark = async (
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     position: Math.max(0, Math.round(position)),
     label,
+    note: "",
     createdAt: new Date().toISOString(),
   }
   map[videoId] = [...list, entry]
@@ -377,14 +384,14 @@ export const removeBookmark = async (videoId: string, bookmarkId: string) => {
   await writeBookmarks(map)
 }
 
-export const updateBookmarkLabel = async (
+export const updateBookmark = async (
   videoId: string,
   bookmarkId: string,
-  label: string,
+  patch: Partial<Pick<Bookmark, "label" | "note">>,
 ) => {
   const map = await readBookmarks()
   const list = map[videoId] ?? []
-  map[videoId] = list.map((b) => (b.id === bookmarkId ? { ...b, label } : b))
+  map[videoId] = list.map((b) => (b.id === bookmarkId ? { ...b, ...patch } : b))
   await writeBookmarks(map)
 }
 
