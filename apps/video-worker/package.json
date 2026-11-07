@@ -20,6 +20,13 @@
           "cwd": "{workspaceRoot}"
         }
       },
+      "backfill-thumbnails": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node --import tsx apps/video-worker/scripts/backfill-thumbnails.ts",
+          "cwd": "{workspaceRoot}"
+        }
+      },
       "test": {
         "executor": "@nx/jest:jest",
         "options": {

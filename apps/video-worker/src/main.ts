@@ -1,25 +1,30 @@
-import { S3 } from '@aws-sdk/client-s3'
 import * as Sentry from '@sentry/node'
 import { Queue, UnrecoverableError, Worker } from 'bullmq'
 import { spawn, type ChildProcessByStdio } from 'child_process'
 import { Readable } from 'stream'
-import ffmpegPath from 'ffmpeg-static'
-import { createWriteStream, promises as fs } from 'fs'
+import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join, relative, sep } from 'path'
-import { pipeline } from 'stream/promises'
 
-import { PrismaClient } from '@clubspace/prisma-client'
-import { PrismaPg } from '@prisma/adapter-pg'
+import {
+    downloadToFile,
+    ffmpegBinary,
+    getEndpoint,
+    getPublicObjectUrl,
+    prisma,
+    s3Client,
+    thumbnailStore,
+    uploadFile,
+} from './clients.js'
 import { environment } from './environment.js'
 import {
-    assertInputSize,
     assertTranscodable,
     type Demuxer,
     probeVideo,
     RejectedInputError,
     restrictedInputArgs,
 } from './probe.js'
+import { extractThumbnail, pickThumbnailTimeSec, publishThumbnail } from './thumbnail.js'
 
 // Same DSN variable as the server; empty disables reporting.
 if (environment.sentry.dsn) {
@@ -28,20 +33,6 @@ if (environment.sentry.dsn) {
         environment: environment.sentry.environment,
     })
 }
-
-const prisma = new PrismaClient({
-    adapter: new PrismaPg({ connectionString: environment.databaseUrl }),
-})
-
-const s3Client = new S3({
-    endpoint: environment.s3Storage.s3InternalUrl ?? getEndpoint(),
-    credentials: {
-        accessKeyId: environment.s3Storage.s3AccessKeyId,
-        secretAccessKey: environment.s3Storage.s3SecretAccessKey,
-    },
-    region: environment.s3Storage.s3Region,
-    forcePathStyle: environment.s3Storage.s3ForcePathStyle,
-})
 
 const connection = {
     host: environment.redis.host,
@@ -134,6 +125,19 @@ const worker = new Worker(
 
             const masterKey = `${outputPrefix}/master.m3u8`
 
+            // Before the row flips to ready, so the video shows up in lists
+            // with its cover. Never fails the job: a video without a cover
+            // still plays.
+            if (!video.thumbnailUrl) {
+                await makeThumbnail({
+                    videoId,
+                    inputPath,
+                    demuxer,
+                    durationSec: probe.durationSec,
+                    outputPath: join(workdir, 'thumbnail.jpg'),
+                })
+            }
+
             await prisma.video.update({
                 where: { id: videoId },
                 data: {
@@ -216,34 +220,41 @@ worker.on('failed', async (job, err) => {
         })
 })
 
-async function downloadToFile(bucket: string, key: string, filePath: string) {
-    const response = await s3Client.getObject({ Bucket: bucket, Key: key })
-    if (!response.Body) {
-        throw new Error('Empty S3 response body')
-    }
-    // Refuse before a single byte lands on disk: the size is in the headers.
+// Cuts the cover from the source already on disk. Logs and reports a failure
+// instead of throwing: see the call site.
+async function makeThumbnail(options: {
+    videoId: string
+    inputPath: string
+    demuxer: Demuxer
+    durationSec: number | null
+    outputPath: string
+}) {
     try {
-        assertInputSize(response.ContentLength, environment)
+        await extractThumbnail({
+            binary: ffmpegBinary,
+            // The upload is untrusted: same whitelists and pinned demuxer as
+            // the transcode.
+            inputArgs: restrictedInputArgs(options.demuxer),
+            inputPath: options.inputPath,
+            outputPath: options.outputPath,
+            atSec: pickThumbnailTimeSec(options.durationSec),
+        })
+        const outcome = await publishThumbnail(
+            prisma,
+            thumbnailStore,
+            options.videoId,
+            options.outputPath,
+        )
+        console.log('[video-worker] thumbnail', { videoId: options.videoId, outcome })
     } catch (error) {
-        ;(response.Body as Readable).destroy()
-        throw error
+        console.error('[video-worker] thumbnail failed', {
+            videoId: options.videoId,
+            error: error instanceof Error ? error.message : String(error),
+        })
+        Sentry.captureException(error, {
+            tags: { videoId: options.videoId, step: 'thumbnail' },
+        })
     }
-    await pipeline(response.Body as NodeJS.ReadableStream, createWriteStream(filePath))
-}
-
-async function uploadFile(bucket: string, key: string, filePath: string) {
-    const contentType = key.endsWith('.m3u8')
-        ? 'application/vnd.apple.mpegurl'
-        : key.endsWith('.ts')
-        ? 'video/mp2t'
-        : undefined
-
-    await s3Client.putObject({
-        Bucket: bucket,
-        Key: key,
-        Body: await fs.readFile(filePath),
-        ContentType: contentType,
-    })
 }
 
 // Best-effort removal of every object under hls/<videoId>/ — used to clean up
@@ -375,12 +386,8 @@ async function runFfmpeg(inputPath: string, demuxer: Demuxer, outputDir: string)
             join(outputDir, 'v%v', 'playlist.m3u8'),
         )
 
-        const binary =
-            environment.ffmpegPath ??
-            (ffmpegPath as unknown as string | null) ??
-            'ffmpeg'
         const ffmpegProcess: ChildProcessByStdio<null, Readable, Readable> =
-            spawn(binary, args, {
+            spawn(ffmpegBinary, args, {
                 stdio: ['ignore', 'pipe', 'pipe'],
             })
         let stderr = ''
@@ -426,30 +433,6 @@ async function runFfmpeg(inputPath: string, demuxer: Demuxer, outputDir: string)
             }
         })
     })
-}
-
-function getEndpoint() {
-    if (environment.s3Storage.s3AccelerateUrl) {
-        return environment.s3Storage.s3AccelerateUrl
-    }
-
-    if (environment.s3Storage.s3BucketName) {
-        const url = new URL(environment.s3Storage.s3UploadBucketUrl)
-        if (url.hostname.startsWith(environment.s3Storage.s3BucketName + '.')) {
-            return undefined
-        }
-    }
-
-    return environment.s3Storage.s3UploadBucketUrl
-}
-
-function getPublicObjectUrl(bucket: string, key: string) {
-    const host = environment.s3Storage.s3UploadBucketUrl
-        .replace('s3:', 'localhost:')
-        .replace(/\/$/, '')
-    const isVirtualHost = host.includes(bucket)
-    const baseUrl = isVirtualHost ? host : `${host}/${bucket}`
-    return `${baseUrl}/${key}`
 }
 
 async function shutdown() {

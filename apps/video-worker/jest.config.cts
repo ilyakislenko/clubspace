@@ -1,6 +1,7 @@
-// Jest config for video-worker specs. main.ts connects to Redis, Postgres and
-// S3 on import, so the logic worth testing lives in side-effect-free modules
-// (probe.ts) and main.ts is left to the transcode smoke run.
+// Jest config for video-worker specs. main.ts and clients.ts connect to Redis,
+// Postgres and S3 on import, so the logic worth testing lives in side-effect-free
+// modules (probe.ts, thumbnail.ts, hls-playlist.ts) and those two are left to the
+// transcode smoke run.
 module.exports = {
     displayName: '@clubspace/apps/video-worker',
     preset: '../../jest.preset.js',
@@ -26,8 +27,13 @@ module.exports = {
     coverageDirectory: 'test-output/jest/coverage',
 
     // See the note in apps/server/jest.config.cts on listing sources
-    // explicitly. main.ts is excluded for the reason given above.
-    collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/main.ts'],
+    // explicitly. main.ts and clients.ts are excluded for the reason given above.
+    collectCoverageFrom: [
+        'src/**/*.ts',
+        '!src/**/*.spec.ts',
+        '!src/main.ts',
+        '!src/clients.ts',
+    ],
 
     // A ratchet, not a target — see the note in apps/server/jest.config.cts.
     coverageThreshold: {

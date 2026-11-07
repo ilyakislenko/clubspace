@@ -558,7 +558,18 @@ export class PlaylistService {
                 orderBy: { updatedAt: 'desc' },
                 skip,
                 take: perPage,
-                include: { audience: { select: audienceRowSelect } },
+                include: {
+                    audience: { select: audienceRowSelect },
+                    // Only for the cover fallback: the first lesson, in
+                    // course order, that has a cover. Loaded with the page in
+                    // one round trip, not per course.
+                    videos: {
+                        where: { video: { thumbnailUrl: { not: null } } },
+                        orderBy: [{ order: 'asc' }, { videoId: 'asc' }],
+                        take: 1,
+                        select: { video: { select: { thumbnailUrl: true } } },
+                    },
+                },
             }),
             this.prisma.course.count({ where }),
         ])
@@ -608,15 +619,31 @@ const serializePlaylist = (playlist: {
     updatedAt: playlist.updatedAt.toISOString(),
 })
 
+// A course without its own cover shows its first lesson's (course order),
+// so the catalogue is not a wall of placeholders once videos have covers.
+// Read side only: the stored thumbnailUrl stays null, so serializePlaylist
+// (create/update responses) still tells the admin the course has no cover.
+const resolveCourseCover = (
+    courseCover: string | null,
+    lessonsInOrder: ReadonlyArray<{ video: { thumbnailUrl: string | null } }>,
+): string | null =>
+    courseCover ??
+    lessonsInOrder.find((lesson) => lesson.video.thumbnailUrl)?.video.thumbnailUrl ??
+    null
+
 // The member-facing read shape: the course plus why it is locked for this
-// viewer (null = open) and, for staff only, who it is meant for.
+// viewer (null = open) and, for staff only, who it is meant for. `videos`
+// are the course's lessons in course order — all of them, or only the first
+// with a cover.
 const serializePlaylistSummary = (
     playlist: Parameters<typeof serializePlaylist>[0] & {
         audience: AudienceRow[]
+        videos: ReadonlyArray<{ video: { thumbnailUrl: string | null } }>
     },
     viewer: CourseViewer,
 ) => ({
     ...serializePlaylist(playlist),
+    thumbnailUrl: resolveCourseCover(playlist.thumbnailUrl, playlist.videos),
     lock: evaluateCourseAudience(playlist.audience, viewer).lock,
     audienceSummary: viewer.isStaff ? describeAudience(playlist.audience) : null,
 })

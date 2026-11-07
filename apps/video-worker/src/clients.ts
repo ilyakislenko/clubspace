@@ -1,0 +1,105 @@
+import { S3 } from '@aws-sdk/client-s3'
+import ffmpegStaticPath from 'ffmpeg-static'
+import { createWriteStream, promises as fs } from 'fs'
+import { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
+
+import { PrismaClient } from '@clubspace/prisma-client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { environment } from './environment.js'
+import { assertInputSize } from './probe.js'
+import type { ThumbnailStore } from './thumbnail.js'
+
+// Connections and storage helpers shared by the worker (main.ts) and its
+// maintenance scripts (scripts/). Opens clients on import, so — like main.ts —
+// it is left out of the unit tests and their coverage.
+
+export const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: environment.databaseUrl }),
+})
+
+export const s3Client = new S3({
+    endpoint: environment.s3Storage.s3InternalUrl ?? getEndpoint(),
+    credentials: {
+        accessKeyId: environment.s3Storage.s3AccessKeyId,
+        secretAccessKey: environment.s3Storage.s3SecretAccessKey,
+    },
+    region: environment.s3Storage.s3Region,
+    forcePathStyle: environment.s3Storage.s3ForcePathStyle,
+})
+
+export const ffmpegBinary =
+    environment.ffmpegPath ?? (ffmpegStaticPath as unknown as string | null) ?? 'ffmpeg'
+
+// Covers go to the default bucket, where the server puts the ones coaches
+// upload.
+export const thumbnailStore: ThumbnailStore = {
+    upload: (key, filePath) =>
+        uploadFile(environment.s3Storage.s3BucketName, key, filePath, 'image/jpeg'),
+    publicUrl: (key) => getPublicObjectUrl(environment.s3Storage.s3BucketName, key),
+}
+
+export async function downloadToFile(bucket: string, key: string, filePath: string) {
+    const response = await s3Client.getObject({ Bucket: bucket, Key: key })
+    if (!response.Body) {
+        throw new Error('Empty S3 response body')
+    }
+    // Refuse before a single byte lands on disk: the size is in the headers.
+    try {
+        assertInputSize(response.ContentLength, environment)
+    } catch (error) {
+        ;(response.Body as Readable).destroy()
+        throw error
+    }
+    await pipeline(response.Body as NodeJS.ReadableStream, createWriteStream(filePath))
+}
+
+export async function downloadText(bucket: string, key: string) {
+    const response = await s3Client.getObject({ Bucket: bucket, Key: key })
+    if (!response.Body) {
+        throw new Error('Empty S3 response body')
+    }
+    return response.Body.transformToString()
+}
+
+export async function uploadFile(
+    bucket: string,
+    key: string,
+    filePath: string,
+    contentType = key.endsWith('.m3u8')
+        ? 'application/vnd.apple.mpegurl'
+        : key.endsWith('.ts')
+        ? 'video/mp2t'
+        : undefined,
+) {
+    await s3Client.putObject({
+        Bucket: bucket,
+        Key: key,
+        Body: await fs.readFile(filePath),
+        ContentType: contentType,
+    })
+}
+
+export function getEndpoint() {
+    if (environment.s3Storage.s3AccelerateUrl) {
+        return environment.s3Storage.s3AccelerateUrl
+    }
+
+    if (environment.s3Storage.s3BucketName) {
+        const url = new URL(environment.s3Storage.s3UploadBucketUrl)
+        if (url.hostname.startsWith(environment.s3Storage.s3BucketName + '.')) {
+            return undefined
+        }
+    }
+
+    return environment.s3Storage.s3UploadBucketUrl
+}
+
+export function getPublicObjectUrl(bucket: string, key: string) {
+    const host = environment.s3Storage.s3UploadBucketUrl
+        .replace('s3:', 'localhost:')
+        .replace(/\/$/, '')
+    const isVirtualHost = host.includes(bucket)
+    const baseUrl = isVirtualHost ? host : `${host}/${bucket}`
+    return `${baseUrl}/${key}`
+}

@@ -1112,7 +1112,7 @@ healthchecks.io) at `https://api.<domain>/readyz`.
   | Account | Used by | Allowed |
   |---|---|---|
   | `clubspace-server` (`S3_SERVER_*`) | API | read, write, delete objects in the bucket; list it. Presigned upload and playback URLs act with these rights |
-  | `clubspace-worker` (`S3_WORKER_*`) | video worker | read `raw/*`; write and delete `hls/*`; list `hls/` |
+  | `clubspace-worker` (`S3_WORKER_*`) | video worker | read `raw/*`; read, write and delete `hls/*`; list `hls/`; write (not delete) `thumbnails/*` for auto-generated covers |
 
   Neither can create buckets, change policies or reach the admin API. To rotate
   a secret, change it in `.env.production`, then
