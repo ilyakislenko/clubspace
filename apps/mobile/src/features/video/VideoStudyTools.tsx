@@ -76,6 +76,13 @@ export function VideoStudyTools({
     setEditing({ id, field })
     setDraft(current)
   }
+  // Saved on every keystroke, like the video note: Android keeps the field
+  // focused when the keyboard is hidden with Back, so a blur-only save would
+  // lose the text when the member then leaves the lesson.
+  const changeDraft = (text: string) => {
+    setDraft(text)
+    if (editing) onUpdateBookmark(editing.id, { [editing.field]: text })
+  }
   const commitEditing = () => {
     if (!editing) return
     onUpdateBookmark(editing.id, { [editing.field]: draft.trim() })
@@ -150,7 +157,7 @@ export function VideoStudyTools({
                   {editing?.id === b.id && editing.field === "label" ? (
                     <TextInput
                       value={draft}
-                      onChangeText={setDraft}
+                      onChangeText={changeDraft}
                       onSubmitEditing={commitEditing}
                       onBlur={commitEditing}
                       placeholder="Название закладки"
@@ -189,7 +196,7 @@ export function VideoStudyTools({
                 {editing?.id === b.id && editing.field === "note" ? (
                   <TextInput
                     value={draft}
-                    onChangeText={setDraft}
+                    onChangeText={changeDraft}
                     onBlur={commitEditing}
                     placeholder="Что важно в этом моменте"
                     placeholderTextColor={theme.colors.mutedFaint}
