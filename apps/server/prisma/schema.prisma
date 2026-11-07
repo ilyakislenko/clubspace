@@ -1188,6 +1188,11 @@ model Video {
   // upload completes. Summed per workspace for the plan's storage limit; null
   // for uploads that never completed.
   sizeBytes BigInt?
+  // When the video worker last looked for automatic chapters (titles on
+  // screen, then speech) and finished, whatever it found. Null: never
+  // scanned, or the scan failed — the backfill picks those up. Set once, so
+  // chapters staff delete are not generated again.
+  chaptersScannedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1234,6 +1239,11 @@ model VideoTimestamp {
   video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   positionSec Int
   title       String   @db.VarChar(255)
+  // Who made it: 'manual' (staff, through the API), or the video worker on a
+  // video with no chapters — 'ocr' (titles burned into the picture) or
+  // 'speech' (named from the instructor's speech). A staff edit makes it
+  // 'manual'.
+  source      String   @default("manual") @db.VarChar(16)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

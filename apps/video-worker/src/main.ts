@@ -8,6 +8,7 @@ import { join, relative, sep } from 'path'
 
 import {
     downloadToFile,
+    downloadVettedSource,
     ffmpegBinary,
     getEndpoint,
     getPublicObjectUrl,
@@ -17,6 +18,7 @@ import {
     uploadFile,
 } from './clients.js'
 import { environment } from './environment.js'
+import { makeChapters } from './make-chapters.js'
 import {
     assertTranscodable,
     type Demuxer,
@@ -24,7 +26,14 @@ import {
     RejectedInputError,
     restrictedInputArgs,
 } from './probe.js'
+import { llmConfigFrom, LlmUnavailableError, speechConfigFrom } from './speech.js'
 import { extractThumbnail, pickThumbnailTimeSec, publishThumbnail } from './thumbnail.js'
+
+// The chat endpoint vets OCR titles; with Whisper too, videos without titles
+// on screen get chapters from speech. Without either, OCR titles alone.
+const llmConfig = llmConfigFrom(environment.chaptersLlm)
+const speechSetup = speechConfigFrom(environment)
+const speechConfig = 'config' in speechSetup ? speechSetup.config : null
 
 // Same DSN variable as the server; empty disables reporting.
 if (environment.sentry.dsn) {
@@ -42,6 +51,9 @@ const connection = {
 }
 
 const readyQueue = new Queue('video-ready', { connection })
+// Automatic chapters run as their own job after the transcode, never inside
+// it: a restart mid-OCR must not re-run a finished transcode.
+const chaptersQueue = new Queue('video-chapters', { connection })
 
 console.log('[video-worker] starting...', {
     redis: {
@@ -58,6 +70,8 @@ console.log('[video-worker] starting...', {
     },
     concurrency: environment.concurrency,
     sentry: Boolean(environment.sentry.dsn),
+    chaptersLlm: llmConfig ? `${llmConfig.model} at ${llmConfig.baseUrl}` : 'off',
+    speechChapters: 'config' in speechSetup ? 'on' : `off: ${speechSetup.disabled}`,
   })
   
 
@@ -164,6 +178,10 @@ const worker = new Worker(
                 },
             )
 
+            // Its own job: the transcode is done whatever happens to the
+            // chapters, and a restart while they are read retries only them.
+            await enqueueChapters(videoId)
+
             console.log('[video-worker] job completed', { videoId })
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
@@ -256,6 +274,91 @@ async function makeThumbnail(options: {
         })
     }
 }
+
+// Queues the chapter scan for a transcoded video. The job id makes it
+// idempotent: a transcode re-run while the scan is queued adds nothing.
+// Never fails the transcode — the backfill picks up a video left unscanned.
+async function enqueueChapters(videoId: string) {
+    try {
+        await chaptersQueue.add(
+            'video-chapters',
+            { videoId },
+            { jobId: `chapters-${videoId}`, removeOnComplete: true, removeOnFail: true },
+        )
+    } catch (error) {
+        console.error('[video-worker] chapters not queued', {
+            videoId,
+            error: error instanceof Error ? error.message : String(error),
+        })
+        Sentry.captureException(error, { tags: { videoId, step: 'chapters' } })
+    }
+}
+
+// An unreachable or unpaid model (HTTP 402) is the same state for every
+// video: reported to Sentry once per process, a warning after that.
+let llmUnavailableReported = false
+
+// The `video-chapters` job: titles burned into the video, or else what the
+// instructor says (make-chapters.ts), stored only on a video with none. Safe
+// to re-run: a scanned video (Video.chaptersScannedAt) is skipped, and
+// makeChapters re-checks for chapters before every write. A failure is
+// logged and reported, never retried here — the backfill retries unscanned
+// videos.
+async function runChaptersJob(videoId: string) {
+    const video = await prisma.video.findUnique({
+        where: { id: videoId },
+        select: { status: true, rawBucket: true, rawKey: true, chaptersScannedAt: true },
+    })
+    if (!video || video.status !== 'ready' || video.chaptersScannedAt) {
+        console.log('[video-worker] chapters skipped', {
+            videoId,
+            reason: !video ? 'gone' : video.chaptersScannedAt ? 'scanned' : video.status,
+        })
+        return
+    }
+    const startedAt = Date.now()
+    const workdir = await fs.mkdtemp(join(tmpdir(), `chapters-${videoId}-`))
+    try {
+        const run = await makeChapters({
+            prisma,
+            videoId,
+            ffmpegBinary,
+            workdir,
+            llm: llmConfig,
+            speech: speechConfig,
+            loadSource: () => downloadVettedSource(video, join(workdir, 'source')),
+        })
+        console.log('[video-worker] chapters', { videoId, ...run, ms: Date.now() - startedAt })
+    } catch (error) {
+        const details = {
+            videoId,
+            error: error instanceof Error ? error.message : String(error),
+            ms: Date.now() - startedAt,
+        }
+        if (error instanceof LlmUnavailableError) {
+            console.warn('[video-worker] chapters: model unavailable', details)
+            if (llmUnavailableReported) return
+            llmUnavailableReported = true
+        } else {
+            console.error('[video-worker] chapters failed', details)
+        }
+        Sentry.captureException(error, { tags: { videoId, step: 'chapters' } })
+    } finally {
+        await fs.rm(workdir, { recursive: true, force: true })
+    }
+}
+
+// One scan at a time: each is a full decode, OCR and maybe Whisper, next to
+// the transcodes.
+const chaptersWorker = new Worker(
+    'video-chapters',
+    async (job) => {
+        const videoId = job.data?.videoId as string | undefined
+        if (!videoId) throw new Error('[video-worker] chapters job has no videoId')
+        await runChaptersJob(videoId)
+    },
+    { connection, concurrency: 1 },
+)
 
 // Best-effort removal of every object under hls/<videoId>/ — used to clean up
 // partial output when a transcode fails midway through the upload loop.
@@ -436,8 +539,10 @@ async function runFfmpeg(inputPath: string, demuxer: Demuxer, outputDir: string)
 }
 
 async function shutdown() {
-    await worker.close()
-    await readyQueue.close()
+    // Waits for the jobs in progress. A scan killed midway is not stamped:
+    // BullMQ re-runs it as a stalled job, or the backfill picks it up.
+    await Promise.all([worker.close(), chaptersWorker.close()])
+    await Promise.all([readyQueue.close(), chaptersQueue.close()])
     await prisma.$disconnect()
     // Deliver anything still queued before the container goes away.
     await Sentry.close(2000)

@@ -27,6 +27,13 @@
           "cwd": "{workspaceRoot}"
         }
       },
+      "backfill-chapters": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node --import tsx apps/video-worker/scripts/backfill-chapters.ts",
+          "cwd": "{workspaceRoot}"
+        }
+      },
       "test": {
         "executor": "@nx/jest:jest",
         "options": {

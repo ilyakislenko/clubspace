@@ -56,6 +56,12 @@ COPY --from=builder /workspace/node_modules ./node_modules
 # aliases) then needs an entry point there to load the compiled client.
 RUN printf '{"type":"module","main":"src/index.js"}\n' > libs/prisma-client/package.json
 
+# Chapter OCR (src/chapter-ocr.ts) runs tesseract.js — WebAssembly, no system
+# package — with its English model from @tesseract.js-data/eng, both in the
+# node_modules copied above. The worker never downloads the model, so fail the
+# build rather than ship an image without it.
+RUN test -s node_modules/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz
+
 # ffmpeg parses untrusted uploads, so it must not run as root. The image's
 # built-in `node` user only needs to read /app and write its scratch dirs
 # under /tmp.

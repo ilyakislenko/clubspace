@@ -7,7 +7,8 @@ import { pipeline } from 'stream/promises'
 import { PrismaClient } from '@clubspace/prisma-client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { environment } from './environment.js'
-import { assertInputSize } from './probe.js'
+import type { ChapterSourceFile } from './make-chapters.js'
+import { assertInputSize, assertTranscodable, probeVideo, restrictedInputArgs } from './probe.js'
 import type { ThumbnailStore } from './thumbnail.js'
 
 // Connections and storage helpers shared by the worker (main.ts) and its
@@ -52,6 +53,32 @@ export async function downloadToFile(bucket: string, key: string, filePath: stri
         throw error
     }
     await pipeline(response.Body as NodeJS.ReadableStream, createWriteStream(filePath))
+}
+
+/**
+ * A video's stored upload on disk, vetted exactly like the transcode does:
+ * what the chapter passes read (the `video-chapters` job and the backfill).
+ */
+export async function downloadVettedSource(
+    video: { rawBucket: string | null; rawKey: string | null },
+    inputPath: string,
+): Promise<ChapterSourceFile> {
+    if (!video.rawKey) throw new Error('no stored upload')
+    await downloadToFile(
+        video.rawBucket || environment.s3Storage.s3BucketName,
+        video.rawKey,
+        inputPath,
+    )
+    const probe = await probeVideo(inputPath, {
+        binary: environment.ffprobePath,
+        timeoutMs: 60_000,
+    })
+    return {
+        inputPath,
+        inputArgs: restrictedInputArgs(assertTranscodable(probe, environment)),
+        durationSec: probe.durationSec,
+        hasAudio: probe.hasAudio,
+    }
 }
 
 export async function downloadText(bucket: string, key: string) {
