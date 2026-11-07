@@ -1,9 +1,14 @@
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+
 import type { ScheduleEvent } from "../../shared/api/groups"
 import {
   canMarkClassNow,
+  coachNextAfterToday,
+  coachNextLine,
   coachTodayView,
   eventStatusLine,
   formatEventWhen,
+  formatBellCount,
   greetingName,
   isClassInProgress,
   isCoachView,
@@ -13,6 +18,7 @@ import {
   pickNextTraining,
   showCheckInButton,
   showHomeFallback,
+  showAnnouncementOnHome,
   showSubscriptionCard,
   type MyEventRegistration,
 } from "./home-helpers"
@@ -742,5 +748,111 @@ describe("formatEventWhen", () => {
     expect(formatEventWhen(new Date("2026-11-14T12:00:00Z"), "Asia/Tomsk", now)).toBe(
       "14 ноября в 19:00",
     )
+  })
+})
+
+describe("coachNextAfterToday / coachNextLine", () => {
+  // Tue 27 Oct 2026 in Moscow; a 19:00 class today, a 12:00 one tomorrow.
+  const slot = (id: string, dayOfWeek: number, startTime: string) => ({
+    id,
+    dayOfWeek,
+    startTime,
+    durationMin: 60,
+    effectiveFrom: null,
+    effectiveUntil: null,
+  })
+  const group = (over: Record<string, unknown>) =>
+    ({
+      id: "g",
+      name: "Дети 6–9",
+      role: "coach",
+      timezone: "Europe/Moscow",
+      gym: null,
+      slots: [slot("s1", 2, "19:00"), slot("s2", 3, "12:00")],
+      exceptions: [],
+      ...over,
+    }) as never
+  const next = (groups: never[], now: Date) =>
+    coachNextAfterToday(groups, pickCoachClassesToday(groups, now), now)
+
+  it("stays empty while a class today is still ahead or on", () => {
+    expect(next([group({})], new Date("2026-10-27T15:00:00Z"))).toBeNull()
+    expect(next([group({})], new Date("2026-10-27T16:30:00Z"))).toBeNull()
+  })
+
+  const sport = vocabularyForWorkspaceType("GRAPPLING").session
+  const msk = "Europe/Moscow"
+
+  it("names the next own class once today is over", () => {
+    const found = next([group({})], new Date("2026-10-27T17:00:00Z"))
+    expect(found).not.toBeNull()
+    expect(coachNextLine(found!, sport, msk)).toBe(
+      "Следующая — завтра в 12:00, Дети 6–9",
+    )
+    expect(
+      coachNextLine(found!, vocabularyForWorkspaceType("YOGA").session, msk),
+    ).toBe("Следующее — завтра в 12:00, Дети 6–9")
+  })
+
+  it("looks past a day with no class", () => {
+    const found = next(
+      [group({ slots: [slot("s3", 5, "18:00")] })],
+      new Date("2026-10-27T09:00:00Z"),
+    )
+    expect(coachNextLine(found!, sport, msk)).toBe(
+      "Следующая — в пятницу в 18:00, Дети 6–9",
+    )
+  })
+
+  it("adds the club's zone on a device elsewhere", () => {
+    const found = next([group({})], new Date("2026-10-27T17:00:00Z"))
+    expect(coachNextLine(found!, sport, "Asia/Tomsk")).toBe(
+      "Следующая — завтра в 12:00 GMT+3, Дети 6–9",
+    )
+  })
+
+  it("ignores groups the coach only trains in", () => {
+    expect(
+      next([group({ role: "student" })], new Date("2026-10-27T17:00:00Z")),
+    ).toBeNull()
+  })
+})
+
+describe("showAnnouncementOnHome", () => {
+  const now = new Date("2026-11-08T12:00:00Z")
+  const item = (over: Record<string, unknown>) => ({
+    pinned: false,
+    publishedAt: "2026-11-05T12:00:00Z",
+    createdAt: "2026-11-01T12:00:00Z",
+    ...over,
+  }) as never
+
+  it("shows a fresh announcement", () => {
+    expect(showAnnouncementOnHome(item({}), now)).toBe(true)
+  })
+
+  it("drops one older than a week unless it is pinned", () => {
+    const old = { publishedAt: "2026-10-20T12:00:00Z" }
+    expect(showAnnouncementOnHome(item(old), now)).toBe(false)
+    expect(showAnnouncementOnHome(item({ ...old, pinned: true }), now)).toBe(true)
+  })
+
+  it("falls back to the creation date when unpublished", () => {
+    expect(showAnnouncementOnHome(item({ publishedAt: null }), now)).toBe(true)
+    expect(
+      showAnnouncementOnHome(
+        item({ publishedAt: null, createdAt: "2026-10-01T00:00:00Z" }),
+        now,
+      ),
+    ).toBe(false)
+  })
+})
+
+describe("formatBellCount", () => {
+  it("is empty without unread, a digit up to 9, then «9+»", () => {
+    expect(formatBellCount(0)).toBeNull()
+    expect(formatBellCount(3)).toBe("3")
+    expect(formatBellCount(9)).toBe("9")
+    expect(formatBellCount(50)).toBe("9+")
   })
 })

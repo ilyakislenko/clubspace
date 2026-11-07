@@ -5,9 +5,12 @@ import type { AtRiskSummary } from "../../shared/api/retention"
 import type { Theme } from "../../shared/theme"
 import { useThemedStyles } from "../../shared/theme-context"
 import { HomeCard } from "../home/HomeCards"
-import { callListBody, callListTitle } from "./retention-helpers"
+import { callListReason, callListTitle } from "./retention-helpers"
 
-/** Home card for staff: how many students to call, and why. */
+/**
+ * Home card for staff: how many students to call and the main reason; the
+ * breakdown is on «Кому позвонить».
+ */
 export function CallListCard({
   summary,
   onPress,
@@ -19,19 +22,21 @@ export function CallListCard({
 }) {
   const styles = useThemedStyles(makeStyles)
   const title = callListTitle(summary.total)
+  const reason = callListReason(summary)
   return (
     <HomeCard
-      title={title}
       onPress={onPress}
-      accessibilityLabel={title}
+      accessibilityLabel={reason ? `${title}, ${reason}` : title}
       grow={grow}
     >
-      <Text style={styles.body}>{callListBody(summary)}</Text>
+      <Text style={styles.title}>{title}</Text>
+      {reason && <Text style={styles.reason}>{reason}</Text>}
     </HomeCard>
   )
 }
 
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({
-    body: { ...theme.typography.body, color: theme.colors.muted },
+    title: { ...theme.typography.bodyStrong, color: theme.colors.text },
+    reason: { ...theme.typography.caption, color: theme.colors.muted },
   })

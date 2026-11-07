@@ -1,5 +1,12 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import {
   ActivityIndicator,
   FlatList,
@@ -10,13 +17,23 @@ import {
 } from "react-native"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { showAlert } from "../../shared/alert"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
+import { Sheet, SheetRow } from "../../shared/components/Sheet"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getCourse, type CourseDetail } from "../../shared/api/courses"
 import { CourseLessonRow } from "./CourseLessonRow"
 import { LockBadge } from "./LockBadge"
+import {
+  courseAction,
+  courseMetaLine,
+  lessonProgress,
+  stripCourseTitle,
+  type LessonProgress,
+  type PlaybackEntry,
+} from "./course-detail"
 import { useAuth } from "../../shared/auth-context"
 import {
   CenteredColumn,
@@ -26,22 +43,28 @@ import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { errorMessage } from "../../shared/error-message"
 import { useOfflineDownloadsAllowed } from "../../shared/use-offline-downloads"
+import { CONTROL_MAX_WIDTH, useResponsive } from "../../shared/useResponsive"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
-import { cacheCourse, getCachedCourse } from "../offline/offline-store"
-import type { BulkDownloadTarget } from "../offline/bulk-download"
-import { BulkDownloadPanel } from "../offline/BulkDownloadPanel"
+import {
+  cacheCourse,
+  getCachedCourse,
+  removeOffline,
+} from "../offline/offline-store"
+import {
+  bulkResultMessage,
+  type BulkDownloadTarget,
+} from "../offline/bulk-download"
 import {
   useBulkDownload,
+  type BulkDownload,
   type BulkDownloadCopy,
 } from "../offline/use-bulk-download"
 import { useFocusEffect } from "@react-navigation/native"
 import {
-  getCourseProgressSummary,
   getProgressMap,
   markCompleted,
   unmarkCompleted,
-  type ProgressStatus,
 } from "../video/playback-progress"
 import type { RootStackParamList } from "../../app/navigation"
 
@@ -53,28 +76,21 @@ const COURSE_BULK_COPY: BulkDownloadCopy = {
   allDoneMessage: "Все доступные видео уже в загруженном.",
 }
 
-type VideoProgressRow = {
-  status: ProgressStatus["status"]
-  ratio: number
-}
+// A short course is scanned by eye; search and filters only pay off past this.
+const FINDER_MIN_LESSONS = 9
 
-const computeRow = (
-  entry: { position: number; completed?: boolean } | undefined,
-  duration?: number | null,
-): VideoProgressRow | null => {
-  if (!entry) return null
-  if (entry.completed) return { status: "watched", ratio: 1 }
-  if (entry.position <= 0) return null
-  const ratio =
-    duration && duration > 0 ? Math.min(entry.position / duration, 1) : 0
-  if (ratio >= 0.9) return { status: "watched", ratio: 1 }
-  return { status: "in-progress", ratio }
-}
+type LessonFilter = "all" | "unwatched" | "in-progress"
 
+const FILTERS: readonly { key: LessonFilter; label: string }[] = [
+  { key: "all", label: "Все" },
+  { key: "unwatched", label: "Непросмотренные" },
+  { key: "in-progress", label: "В процессе" },
+]
 
 export function CourseDetailScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const { sizeClass } = useResponsive()
   const { courseId } = route.params
   // The lesson search sits under the course hero, so on a short screen the
   // matches land below the fold; focusing it scrolls it to the top.
@@ -88,9 +104,8 @@ export function CourseDetailScreen({ route, navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
-  const [filter, setFilter] = useState<
-    "all" | "unwatched" | "in-progress"
-  >("all")
+  const [filter, setFilter] = useState<LessonFilter>("all")
+  const [menuOpen, setMenuOpen] = useState(false)
   // Locked lessons can't be downloaded, so they're not on offer.
   const bulkTargets = useMemo<BulkDownloadTarget[]>(
     () =>
@@ -108,13 +123,9 @@ export function CourseDetailScreen({ route, navigation }: Props) {
   })
   const { offlineSet } = bulk
   const [isOfflineSource, setIsOfflineSource] = useState(false)
-  const [progressByVideo, setProgressByVideo] = useState<
-    Record<string, VideoProgressRow>
+  const [progressMap, setProgressMap] = useState<
+    Record<string, PlaybackEntry>
   >({})
-  const [courseProgress, setCourseProgress] = useState<{
-    watched: number
-    total: number
-  }>({ watched: 0, total: 0 })
 
   const loadCourse = async (): Promise<void> => {
     if (!workspace) return
@@ -169,48 +180,96 @@ export function CourseDetailScreen({ route, navigation }: Props) {
     }, [courseId, workspace]),
   )
 
+  // The store hands out its cached map and mutates it in place: copy it so a
+  // change re-renders.
+  const refreshProgress = useCallback(async () => {
+    setProgressMap({ ...(await getProgressMap()) })
+  }, [])
+
   useFocusEffect(
     useCallback(() => {
-      if (!course) return
-      void (async () => {
-        const map = await getProgressMap()
-        const byVideo: Record<string, VideoProgressRow> = {}
-        for (const v of course.videos) {
-          const row = computeRow(map[v.id], v.duration)
-          if (row) byVideo[v.id] = row
-        }
-        setProgressByVideo(byVideo)
-        const summary = await getCourseProgressSummary({
-          videos: course.videos.map((v) => ({
-            id: v.id,
-            duration: v.duration,
-          })),
-        })
-        setCourseProgress(summary)
-      })()
-    }, [course]),
+      void refreshProgress()
+    }, [refreshProgress]),
   )
+
+  const progressByVideo = useMemo(() => {
+    const byVideo: Record<string, LessonProgress> = {}
+    for (const v of course?.videos ?? []) {
+      const row = lessonProgress(progressMap[v.id], v.duration)
+      if (row) byVideo[v.id] = row
+    }
+    return byVideo
+  }, [course, progressMap])
+
+  const watchedCount = useMemo(
+    () =>
+      Object.values(progressByVideo).filter((p) => p.status === "watched")
+        .length,
+    [progressByVideo],
+  )
+
+  const action = useMemo(
+    () =>
+      course && !course.lock
+        ? courseAction(
+            course.videos.map((v) => ({
+              id: v.id,
+              duration: v.duration,
+              playable:
+                !v.lock && (v.status === "ready" || offlineSet.has(v.id)),
+            })),
+            progressMap,
+          )
+        : null,
+    [course, offlineSet, progressMap],
+  )
+
+  // Every downloaded lesson of the course, locked ones included.
+  const downloadedIds = useMemo(
+    () =>
+      offlineDownloads && course
+        ? course.videos.filter((v) => offlineSet.has(v.id)).map((v) => v.id)
+        : [],
+    [course, offlineDownloads, offlineSet],
+  )
+
+  const downloading = bulk.state.status === "downloading"
+  // A course loaded from the cache can't fetch lessons.
+  const canStartDownload =
+    !isOfflineSource && bulk.total > 0 && !bulk.allDownloaded
+  const showMenu =
+    offlineDownloads &&
+    !!course &&
+    !course.lock &&
+    (downloading || canStartDownload || downloadedIds.length > 0)
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: showMenu
+        ? () => (
+            <Pressable
+              onPress={() => setMenuOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Ещё"
+              hitSlop={8}
+              style={styles.headerButton}
+            >
+              <Icon
+                name="ellipsis-horizontal"
+                size={22}
+                color={theme.colors.text}
+              />
+            </Pressable>
+          )
+        : undefined,
+    })
+  }, [navigation, showMenu, styles, theme])
 
   const handleRefresh = async () => {
     setRefreshing(true)
     await loadCourse()
     setRefreshing(false)
   }
-
-  const refreshProgress = useCallback(async () => {
-    if (!course) return
-    const map = await getProgressMap()
-    const byVideo: Record<string, VideoProgressRow> = {}
-    for (const v of course.videos) {
-      const row = computeRow(map[v.id], v.duration)
-      if (row) byVideo[v.id] = row
-    }
-    setProgressByVideo(byVideo)
-    const summary = await getCourseProgressSummary({
-      videos: course.videos.map((v) => ({ id: v.id, duration: v.duration })),
-    })
-    setCourseProgress(summary)
-  }, [course])
 
   const handleToggleWatched = async (
     videoId: string,
@@ -224,8 +283,30 @@ export function CourseDetailScreen({ route, navigation }: Props) {
     await refreshProgress()
   }
 
+  const confirmRemoveDownloads = () => {
+    const ids = downloadedIds
+    showAlert(
+      "Удалить загрузки курса?",
+      `Видео: ${ids.length}. Их можно будет скачать снова.`,
+      [
+        { text: "Отмена", style: "cancel" },
+        {
+          text: "Удалить",
+          style: "destructive",
+          onPress: async () => {
+            for (const id of ids) await removeOffline(id)
+            bulk.refresh()
+          },
+        },
+      ],
+    )
+  }
+
+  const showFinder = (course?.videos.length ?? 0) >= FINDER_MIN_LESSONS
+
   const filteredVideos = useMemo(() => {
     if (!course) return []
+    if (!showFinder) return course.videos
     const q = query.trim().toLowerCase()
     return course.videos.filter((v) => {
       const status = progressByVideo[v.id]?.status
@@ -237,7 +318,13 @@ export function CourseDetailScreen({ route, navigation }: Props) {
         (v.description ?? "").toLowerCase().includes(q)
       )
     })
-  }, [course, query, filter, progressByVideo])
+  }, [course, showFinder, query, filter, progressByVideo])
+
+  // The lesson's place in the course, whatever the filter shows.
+  const orderById = useMemo(
+    () => new Map((course?.videos ?? []).map((v, i) => [v.id, i + 1])),
+    [course],
+  )
 
   if (loading) {
     return (
@@ -261,6 +348,22 @@ export function CourseDetailScreen({ route, navigation }: Props) {
       </SafeAreaView>
     )
   }
+
+  const openLesson = (
+    video: CourseDetail["videos"][number],
+    startAt?: number,
+  ) =>
+    navigation.navigate("Video", {
+      videoId: video.id,
+      courseId: course.id,
+      title: video.title,
+      ...(startAt != null ? { startAt } : {}),
+    })
+
+  const actionVideo = action
+    ? course.videos.find((v) => v.id === action.videoId)
+    : undefined
+  const total = course.videos.length
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -293,6 +396,24 @@ export function CourseDetailScreen({ route, navigation }: Props) {
               </View>
             ) : null}
             <Text style={styles.title}>{course.title}</Text>
+            <Text style={styles.muted}>
+              {courseMetaLine({
+                lessons: total,
+                watched: watchedCount,
+                downloaded: downloadedIds.length,
+                offline: isOfflineSource,
+              })}
+            </Text>
+            {watchedCount > 0 && total > 0 && (
+              <View style={styles.courseProgressTrack}>
+                <View
+                  style={[
+                    styles.courseProgressFill,
+                    { width: `${(watchedCount / total) * 100}%` },
+                  ]}
+                />
+              </View>
+            )}
             {course.description ? (
               <Text style={styles.description}>{course.description}</Text>
             ) : null}
@@ -310,105 +431,94 @@ export function CourseDetailScreen({ route, navigation }: Props) {
                 предыдущего хотя бы на 90%.
               </Text>
             ) : null}
-            <View style={styles.metaLine}>
-              <Text style={styles.muted}>Уроков: {course.videos.length}</Text>
-              {courseProgress.total > 0 && (
-                <Text style={styles.progressBadge}>
-                  Просмотрено {courseProgress.watched}/{courseProgress.total}
+
+            {action && actionVideo && (
+              <Pressable
+                onPress={() => openLesson(actionVideo, action.startAt)}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.primaryButtonText} numberOfLines={1}>
+                  {action.label}
                 </Text>
-              )}
-              {isOfflineSource && (
-                <Text style={[styles.muted, styles.offlineMark]}>офлайн</Text>
-              )}
-            </View>
-            {courseProgress.total > 0 && (
-              <View style={styles.courseProgressTrack}>
-                <View
+              </Pressable>
+            )}
+
+            <DownloadStatus bulk={bulk} />
+
+            {showFinder && (
+              <View
+                style={[
+                  styles.finder,
+                  sizeClass !== "compact" && styles.finderWide,
+                ]}
+                // The finder is a direct child of the list header, so its y
+                // is the list offset to scroll the search to.
+                onLayout={(e) => {
+                  searchY.current = e.nativeEvent.layout.y
+                }}
+              >
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Поиск по урокам"
+                  placeholderTextColor={theme.colors.muted}
                   style={[
-                    styles.courseProgressFill,
-                    {
-                      width: `${
-                        (courseProgress.watched / courseProgress.total) * 100
-                      }%`,
-                    },
+                    styles.search,
+                    sizeClass !== "compact" && styles.searchWide,
                   ]}
+                  autoCorrect={false}
+                  clearButtonMode="while-editing"
+                  onFocus={() => {
+                    // After the keyboard has opened and the list has shrunk.
+                    setTimeout(() => {
+                      listRef.current?.scrollToOffset({
+                        offset: Math.max(0, searchY.current - 8),
+                        animated: true,
+                      })
+                    }, 300)
+                  }}
                 />
+                <View style={styles.filterChips}>
+                  {FILTERS.map((option) => {
+                    const active = filter === option.key
+                    return (
+                      <Pressable
+                        key={option.key}
+                        onPress={() => setFilter(option.key)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Фильтр: ${option.label}`}
+                        accessibilityState={{ selected: active }}
+                        style={({ pressed }) => [
+                          styles.filterChip,
+                          active && styles.filterChipActive,
+                          pressed && styles.buttonPressed,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            active && styles.filterChipTextActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    )
+                  })}
+                </View>
               </View>
             )}
-
-            {offlineDownloads && !course.lock && (
-              <BulkDownloadPanel
-                bulk={bulk}
-                label="Скачать весь курс"
-                allDownloadedLabel="Курс уже загружен"
-                disabled={isOfflineSource}
-              />
-            )}
-
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Поиск по урокам"
-              placeholderTextColor={theme.colors.muted}
-              style={styles.search}
-              autoCorrect={false}
-              clearButtonMode="while-editing"
-              onLayout={(e) => {
-                searchY.current = e.nativeEvent.layout.y
-              }}
-              onFocus={() => {
-                // After the keyboard has opened and the list has shrunk.
-                setTimeout(() => {
-                  listRef.current?.scrollToOffset({
-                    offset: Math.max(0, searchY.current - 8),
-                    animated: true,
-                  })
-                }, 300)
-              }}
-            />
-
-            <View style={styles.filterChips}>
-              {(
-                [
-                  { key: "all", label: "Все" },
-                  { key: "unwatched", label: "Непросмотренные" },
-                  { key: "in-progress", label: "В процессе" },
-                ] as const
-              ).map((option) => {
-                const active = filter === option.key
-                return (
-                  <Pressable
-                    key={option.key}
-                    onPress={() => setFilter(option.key)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Фильтр: ${option.label}`}
-                    accessibilityState={{ selected: active }}
-                    style={({ pressed }) => [
-                      styles.filterChip,
-                      active && styles.filterChipActive,
-                      pressed && styles.buttonPressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.filterChipText,
-                        active && styles.filterChipTextActive,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                )
-              })}
-            </View>
           </View>
         }
         ListEmptyComponent={
           <View style={styles.center}>
             <Text style={styles.muted}>
-              {query.trim()
-                ? "Ничего не найдено."
-                : "В этом курсе пока нет видео."}
+              {total > 0 ? "Ничего не найдено." : "В этом курсе пока нет видео."}
             </Text>
           </View>
         }
@@ -422,7 +532,8 @@ export function CourseDetailScreen({ route, navigation }: Props) {
           return (
             <CourseLessonRow
               video={item}
-              index={index}
+              title={stripCourseTitle(item.title, course.title)}
+              number={orderById.get(item.id) ?? index + 1}
               offline={offline}
               progress={progress}
               showChapterHeader={showChapterHeader}
@@ -431,11 +542,7 @@ export function CourseDetailScreen({ route, navigation }: Props) {
                   showAlert("Урок пока закрыт", item.lock.reason)
                   return
                 }
-                navigation.navigate("Video", {
-                  videoId: item.id,
-                  courseId: course.id,
-                  title: item.title,
-                })
+                openLesson(item)
               }}
               onToggleWatched={
                 // Under locked progression only really watching counts.
@@ -453,7 +560,60 @@ export function CourseDetailScreen({ route, navigation }: Props) {
       />
       </KeyboardAvoidingContainer>
       </CenteredColumn>
+
+      {menuOpen && (
+        <Sheet title="Ещё" onClose={() => setMenuOpen(false)}>
+          {downloading ? (
+            bulk.state.status === "downloading" && bulk.state.stopping ? (
+              <Text style={styles.muted}>Остановка после текущего видео…</Text>
+            ) : (
+              <SheetRow
+                label="Остановить загрузку"
+                onPress={() => {
+                  setMenuOpen(false)
+                  bulk.stop()
+                }}
+              />
+            )
+          ) : canStartDownload ? (
+            <SheetRow
+              label="Скачать весь курс"
+              onPress={() => {
+                // Its confirm is an alert: not on top of the sheet.
+                setMenuOpen(false)
+                void bulk.start()
+              }}
+            />
+          ) : null}
+          {!downloading && downloadedIds.length > 0 && (
+            <SheetRow
+              label="Удалить загрузки"
+              count={downloadedIds.length}
+              onPress={() => {
+                setMenuOpen(false)
+                confirmRemoveDownloads()
+              }}
+            />
+          )}
+        </Sheet>
+      )}
     </SafeAreaView>
+  )
+}
+
+/** The running course download (or its result), only while there is one. */
+function DownloadStatus({ bulk }: { bulk: BulkDownload }) {
+  const styles = useThemedStyles(makeStyles)
+  const { state } = bulk
+  if (state.status === "idle") return null
+  return (
+    <Text style={styles.muted}>
+      {state.status === "downloading"
+        ? `Скачивание: ${state.currentIndex + 1} из ${state.totalVideos} · ${
+            state.stopping ? "остановка…" : state.videoPhase
+          }`
+        : bulkResultMessage(state)}
+    </Text>
   )
 }
 
@@ -464,9 +624,14 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   list: {
     padding: theme.spacing(5),
     paddingTop: theme.spacing(4),
-    gap: theme.spacing(2),
   },
-  header: { gap: theme.spacing(2), marginBottom: theme.spacing(4) },
+  header: { gap: theme.spacing(2), marginBottom: theme.spacing(3) },
+  headerButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   hero: {
     height: 180,
     borderRadius: theme.radius.lg,
@@ -492,24 +657,29 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.body,
     color: theme.colors.muted,
   },
-  metaLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing(2),
-    marginTop: theme.spacing(1),
-  },
   muted: { ...theme.typography.caption },
-  offlineMark: {
-    paddingHorizontal: theme.spacing(2),
-    paddingVertical: 3,
+  primaryButton: {
+    // A phone's full width; on a tablet a button, not a 700px slab.
+    width: "100%",
+    maxWidth: CONTROL_MAX_WIDTH,
+    alignSelf: "flex-start",
+    alignItems: "center",
+    backgroundColor: theme.colors.accent,
+    paddingHorizontal: theme.spacing(5),
+    paddingVertical: theme.spacing(3),
     borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surfaceMuted,
-    fontSize: 11,
+    marginTop: theme.spacing(2),
+    ...theme.shadows.sm,
+  },
+  primaryButtonText: {
+    color: theme.colors.accentText,
     fontWeight: "700",
-    color: theme.colors.muted,
-    overflow: "hidden",
+    fontSize: 14,
+    letterSpacing: 0.2,
   },
   buttonPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
+  finder: { gap: theme.spacing(2), marginTop: theme.spacing(3) },
+  finderWide: { flexDirection: "row", alignItems: "center" },
   search: {
     borderWidth: 1,
     borderColor: theme.colors.border,
@@ -519,13 +689,12 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 15,
     color: theme.colors.text,
     backgroundColor: theme.colors.surfaceMuted,
-    marginTop: theme.spacing(3),
   },
+  searchWide: { flex: 1 },
   filterChips: {
     flexDirection: "row",
+    flexWrap: "nowrap",
     gap: theme.spacing(2),
-    marginTop: theme.spacing(2),
-    flexWrap: "wrap",
   },
   filterChip: {
     paddingHorizontal: theme.spacing(3),
@@ -545,28 +714,16 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.muted,
   },
   filterChipTextActive: { color: theme.colors.inverseText },
-  progressBadge: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: theme.colors.success,
-    paddingHorizontal: theme.spacing(2),
-    paddingVertical: 3,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.successSoft,
-    overflow: "hidden",
-  },
   courseProgressTrack: {
-    height: 6,
+    height: 4,
     backgroundColor: theme.colors.surfaceMuted,
     borderRadius: theme.radius.full,
     overflow: "hidden",
-    marginTop: theme.spacing(2),
   },
   courseProgressFill: {
-    height: 6,
+    height: 4,
     backgroundColor: theme.colors.success,
     borderRadius: theme.radius.full,
   },
-  errorText: { color: theme.colors.danger, fontSize: 14, textAlign: "center" },
   lockBox: { gap: theme.spacing(1) },
 })

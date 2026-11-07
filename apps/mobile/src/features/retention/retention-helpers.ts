@@ -45,20 +45,29 @@ export const REASON_TONE: Record<
   declining: { fg: "textSecondary", bg: "surfaceMuted" },
 }
 
-const BODY_LABEL: Record<AtRiskReason, string> = {
-  lapsed: "кончился абонемент",
-  newcomer: "новички",
-  absent: "давно не были",
-  declining: "ходят реже",
+// «у 10 кончился абонемент» / «4 новичка» / «6 давно не были» / «1 ходит реже».
+const REASON_LINE: Record<AtRiskReason, (n: number) => string> = {
+  lapsed: (n) => `у ${n} кончился абонемент`,
+  newcomer: (n) => `${n} ${pluralRu(n, "новичок", "новичка", "новичков")}`,
+  absent: (n) => `${n} давно не ${pluralRu(n, "был", "были", "были")}`,
+  declining: (n) => `${n} ${pluralRu(n, "ходит", "ходят", "ходят")} реже`,
 }
 
+/** «21 ученику стоит позвонить». */
 export const callListTitle = (n: number): string =>
-  `Позвонить: ${n} ${pluralRu(n, "ученику", "ученикам", "ученикам")}`
+  `${n} ${pluralRu(n, "ученику", "ученикам", "ученикам")} стоит позвонить`
 
-export const callListBody = (summary: AtRiskSummary): string =>
-  REASON_ORDER.filter((r) => summary[r] > 0)
-    .map((r) => `${BODY_LABEL[r]}: ${summary[r]}`)
-    .join(" · ")
+/**
+ * The biggest reason (ties go to the higher-priority one) as one muted line;
+ * the full breakdown lives on «Кому позвонить». Null when no reason counts.
+ */
+export const callListReason = (summary: AtRiskSummary): string | null => {
+  let top: AtRiskReason | null = null
+  for (const r of REASON_ORDER) {
+    if (summary[r] > 0 && (top === null || summary[r] > summary[top])) top = r
+  }
+  return top === null ? null : REASON_LINE[top](summary[top])
+}
 
 /** Reason chips filter locally so the counts in the summary stay whole. */
 export const visibleEntries = (

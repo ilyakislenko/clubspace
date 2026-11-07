@@ -58,6 +58,8 @@ export type BulkDownload = {
   /** Checks the network policy, confirms and runs. */
   start: () => Promise<void>
   stop: () => void
+  /** Re-reads which lessons are on the device (after deleting copies). */
+  refresh: () => void
 }
 
 /**
@@ -174,5 +176,6 @@ export function useBulkDownload(params: {
     allDownloaded: targets.length > 0 && local === targets.length,
     start,
     stop,
+    refresh: refreshLocal,
   }
 }

@@ -43,7 +43,10 @@ import {
 } from "./drawing-math"
 import type { SharedMoment } from "./moment-link"
 import { PlaybackRatePopover } from "./PlaybackSpeedPicker"
-import { clampSeek, frameStepTarget, positionOnTrack } from "./player-math"
+import { SubtitlePopover } from "./VideoSubtitlePicker"
+import { subtitleMenuOptions } from "./subtitle-choice"
+import { PLAYBACK_RATES, clampSeek, frameStepTarget, positionOnTrack } from "./player-math"
+import { Sheet } from "../../shared/components/Sheet"
 import type { PlayerHandle } from "./player-types"
 import { usePlayerGestures, type SeekFeedback } from "./use-player-gestures"
 import { PlanBar, type PlanBarProps } from "../study-plans/PlanBar"
@@ -53,8 +56,13 @@ const AUTO_HIDE_MS = 3500
 const POLL_MS = 250
 // While dragging the seek bar, seek the picture at most this often.
 const SCRUB_SEEK_MS = 100
-// The speed popover sits this far above the bottom edge (clear of the bar).
+// The speed/subtitle popovers sit this far above the bottom edge (clear of
+// the bar).
 const POPOVER_BOTTOM = 96
+// One popover choice (15 pt text + padding + gap) and the card's padding:
+// what a popover needs to show every choice without scrolling.
+const POPOVER_ROW = 44
+const POPOVER_PADDING = 16
 // The current-chapter line above the seek bar (videos with chapters only).
 const CHAPTER_ROW_HEIGHT = 20
 // The fullscreen top bar below the safe-area inset (40 px button + padding).
@@ -74,6 +82,7 @@ type Props = {
   playbackRate: number
   onSelectRate: (rate: number) => void
   mirrored: boolean
+  // Fullscreen only: inline, «Зеркально» is in the lesson's «⋯» menu.
   onToggleMirror: () => void
   fullscreen: boolean
   onToggleFullscreen: () => void
@@ -98,7 +107,7 @@ type Props = {
   // fullscreen drawer's rows.
   onShareMoment: (moment: SharedMoment) => void
   // A saved drawing shown over its paused frame; hidden on play, on leaving
-  // that frame, or ✕.
+  // that frame, or «Скрыть рисунок».
   shownDrawing: ShownDrawing | null
   onHideDrawing: () => void
   // «Рисовать» → «Сохранить» on the frame at the current (whole) second, onto
@@ -108,6 +117,10 @@ type Props = {
   // seek bar with its chapter line), `hidden` while «Рисовать» or the
   // fullscreen drawer takes the picture.
   onSubtitleLayout: (layout: { inset: number; hidden: boolean }) => void
+  // The lesson's subtitle tracks (none = no CC button) and the one shown.
+  subtitles: ReadonlyArray<{ id: string; label: string }>
+  activeSubtitleId: string | null
+  onSelectSubtitle: (id: string | null) => void
   // Playing a study plan: «План: … · 3/7» with previous/next item.
   plan?: PlanBarProps | null
   // The fullscreen drawer's «В план» on chapters and bookmarks.
@@ -148,6 +161,9 @@ export function PlayerOverlay({
   onHideDrawing,
   onSaveDrawing,
   onSubtitleLayout,
+  subtitles,
+  activeSubtitleId,
+  onSelectSubtitle,
   plan,
   onAddChapterToPlan,
   onAddBookmarkToPlan,
@@ -156,7 +172,8 @@ export function PlayerOverlay({
   const styles = useThemedStyles(makeStyles)
   const insets = useSafeAreaInsets()
   const [controlsVisible, setControlsVisible] = useState(true)
-  const [speedOpen, setSpeedOpen] = useState(false)
+  // The open popover above the bottom bar.
+  const [menu, setMenu] = useState<"speed" | "subtitles" | null>(null)
   // The fullscreen «Главы» drawer.
   const [drawerOpen, setDrawerOpen] = useState(false)
   // Position under the finger while dragging the seek bar.
@@ -184,7 +201,7 @@ export function PlayerOverlay({
   const { boosted, seekFeedback, responderProps } = usePlayerGestures({
     player,
     onTap: () => {
-      setSpeedOpen(false)
+      setMenu(null)
       setControlsVisible((v) => !v)
     },
     onSeekBy: (seconds) => {
@@ -204,7 +221,7 @@ export function PlayerOverlay({
     if (
       !controlsVisible ||
       !snapshot.playing ||
-      speedOpen ||
+      menu != null ||
       drawerOpen ||
       scrubTime != null
     ) {
@@ -212,7 +229,7 @@ export function PlayerOverlay({
     }
     const id = setTimeout(() => setControlsVisible(false), AUTO_HIDE_MS)
     return () => clearTimeout(id)
-  }, [controlsVisible, snapshot.playing, speedOpen, drawerOpen, scrubTime, interaction])
+  }, [controlsVisible, snapshot.playing, menu, drawerOpen, scrubTime, interaction])
 
   // The drawer is fullscreen-only: leaving fullscreen drops it.
   useEffect(() => {
@@ -320,7 +337,7 @@ export function PlayerOverlay({
     const saved = bookmarks.find(
       (b) => b.endSec === null && b.positionSec === Math.round(second) && b.drawing,
     )
-    setSpeedOpen(false)
+    setMenu(null)
     setDrawerOpen(false)
     setDrawingSeed(
       shownDrawing
@@ -352,6 +369,44 @@ export function PlayerOverlay({
   useEffect(() => {
     subtitleLayoutRef.current({ inset: subtitleInset, hidden: subtitlesHidden })
   }, [subtitleInset, subtitlesHidden])
+
+  // The speed and subtitle popovers: above the bar. A short inline picture
+  // (phone portrait) can't hold the whole list, and Android drops touches past
+  // the player's edge: then the choices open as a sheet instead.
+  const chapterRow = hasChapters ? CHAPTER_ROW_HEIGHT : 0
+  const popoverRoom = Math.max(
+    size.height - POPOVER_BOTTOM - chapterRow - theme.spacing(2),
+    0,
+  )
+  const menuChoices =
+    menu === "speed"
+      ? PLAYBACK_RATES.length
+      : menu === "subtitles"
+        ? subtitleMenuOptions(subtitles).length
+        : 0
+  const menuAsSheet = popoverRoom < menuChoices * POPOVER_ROW + POPOVER_PADDING
+  const popoverStyle = menuAsSheet
+    ? styles.sheetChoices
+    : [
+        styles.popover,
+        {
+          bottom: POPOVER_BOTTOM + chapterRow + (fullscreen ? insets.bottom : 0),
+          maxHeight: popoverRoom,
+        },
+        fullscreen && { right: theme.spacing(3) + insets.right },
+      ]
+  const closeMenu = () => {
+    setMenu(null)
+    setInteraction((n) => n + 1)
+  }
+  const asMenu = (title: string, list: React.ReactNode) =>
+    menuAsSheet ? (
+      <Sheet title={title} onClose={closeMenu}>
+        {list}
+      </Sheet>
+    ) : (
+      list
+    )
 
   return (
     <View
@@ -510,7 +565,7 @@ export function PlayerOverlay({
                       accessibilityLabel="Главы и закладки"
                       active={drawerOpen}
                       onPress={act(() => {
-                        setSpeedOpen(false)
+                        setMenu(null)
                         setDrawerOpen(true)
                       })}
                     />
@@ -550,7 +605,7 @@ export function PlayerOverlay({
               )}
               {!snapshot.playing && (
                 <ChipButton
-                  label="✎ Рисовать"
+                  label="Рисовать"
                   accessibilityLabel="Рисовать на кадре"
                   onPress={startDrawing}
                 />
@@ -558,9 +613,20 @@ export function PlayerOverlay({
               <ChipButton
                 label={`${playbackRate}x`}
                 accessibilityLabel={`Скорость ${playbackRate}x, выбрать`}
-                active={speedOpen}
-                onPress={act(() => setSpeedOpen((v) => !v))}
+                active={menu === "speed"}
+                onPress={act(() => setMenu((m) => (m === "speed" ? null : "speed")))}
               />
+              {subtitles.length > 0 && (
+                // Filled while subtitles are on, like «Зеркально».
+                <IconButton
+                  icon="logo-closed-captioning"
+                  label={activeSubtitleId ? "Субтитры включены, выбрать" : "Субтитры"}
+                  active={activeSubtitleId != null}
+                  onPress={act(() =>
+                    setMenu((m) => (m === "subtitles" ? null : "subtitles")),
+                  )}
+                />
+              )}
               <IconButton
                 icon="share-outline"
                 label={
@@ -576,12 +642,14 @@ export function PlayerOverlay({
                   ),
                 )}
               />
-              <IconButton
-                icon="swap-horizontal"
-                label={mirrored ? "Отключить зеркало" : "Зеркально"}
-                active={mirrored}
-                onPress={act(onToggleMirror)}
-              />
+              {fullscreen && (
+                <IconButton
+                  icon="swap-horizontal"
+                  label={mirrored ? "Отключить зеркало" : "Зеркально"}
+                  active={mirrored}
+                  onPress={act(onToggleMirror)}
+                />
+              )}
               <IconButton
                 icon={fullscreen ? "contract" : "expand"}
                 label={
@@ -594,36 +662,31 @@ export function PlayerOverlay({
             </View>
           </View>
 
-          {speedOpen && (
-            <PlaybackRatePopover
-              style={[
-                styles.speedPopover,
-                {
-                  bottom:
-                    POPOVER_BOTTOM +
-                    (hasChapters ? CHAPTER_ROW_HEIGHT : 0) +
-                    (fullscreen ? insets.bottom : 0),
-                  // Short inline players (phone portrait): scroll the list
-                  // instead of spilling past the picture, where Android
-                  // would not deliver touches.
-                  maxHeight: Math.max(
-                    size.height -
-                      POPOVER_BOTTOM -
-                      (hasChapters ? CHAPTER_ROW_HEIGHT : 0) -
-                      theme.spacing(2),
-                    0,
-                  ),
-                },
-                fullscreen && { right: theme.spacing(3) + insets.right },
-              ]}
-              rate={playbackRate}
-              onSelect={(rate) => {
-                onSelectRate(rate)
-                setSpeedOpen(false)
-                setInteraction((n) => n + 1)
-              }}
-            />
-          )}
+          {menu === "speed" &&
+            asMenu(
+              "Скорость",
+              <PlaybackRatePopover
+                style={popoverStyle}
+                rate={playbackRate}
+                onSelect={(rate) => {
+                  onSelectRate(rate)
+                  closeMenu()
+                }}
+              />,
+            )}
+          {menu === "subtitles" &&
+            asMenu(
+              "Субтитры",
+              <SubtitlePopover
+                style={popoverStyle}
+                subtitles={subtitles}
+                activeId={activeSubtitleId}
+                onSelect={(id) => {
+                  onSelectSubtitle(id)
+                  closeMenu()
+                }}
+              />,
+            )}
         </>
       )}
 
@@ -655,7 +718,7 @@ export function PlayerOverlay({
           ]}
         >
           <ChipButton
-            label="✕ Рисунок"
+            label="Скрыть рисунок"
             accessibilityLabel="Скрыть рисунок"
             onPress={onHideDrawing}
           />
@@ -981,7 +1044,15 @@ const makeStyles = (theme: Theme) =>
       marginLeft: -1,
       backgroundColor: theme.colors.onOverlay,
     },
-    speedPopover: { position: "absolute", right: theme.spacing(3) },
+    popover: { position: "absolute", right: theme.spacing(3) },
+    // The popover's list inside a sheet: full width, the sheet is the card.
+    sheetChoices: {
+      width: "100%",
+      padding: 0,
+      backgroundColor: "transparent",
+      shadowOpacity: 0,
+      elevation: 0,
+    },
     drawingClose: {
       position: "absolute",
       borderRadius: theme.radius.full,

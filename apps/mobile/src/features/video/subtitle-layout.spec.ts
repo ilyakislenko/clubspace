@@ -2,6 +2,7 @@ import {
   choiceFromTrack,
   parseSubtitleChoice,
   pickSubtitleTrack,
+  subtitleMenuOptions,
 } from "./subtitle-choice"
 import {
   nextSubtitleFontStep,
@@ -68,5 +69,29 @@ describe("parseSubtitleChoice", () => {
     expect(parseSubtitleChoice(null)).toBeNull()
     expect(parseSubtitleChoice({ kind: "track", language: 1 })).toBeNull()
     expect(parseSubtitleChoice("ru")).toBeNull()
+  })
+})
+
+describe("subtitleMenuOptions", () => {
+  it("offers Off first and names automatic tracks by their language", () => {
+    expect(
+      subtitleMenuOptions([
+        { id: "ru", label: "Русский (авто)" },
+        { id: "en", label: "English (авто)" },
+      ]),
+    ).toEqual([
+      { id: null, label: "Выкл" },
+      { id: "ru", label: "Русский" },
+      { id: "en", label: "English" },
+    ])
+  })
+
+  it("keeps the suffix where two tracks would read the same", () => {
+    expect(
+      subtitleMenuOptions([
+        { id: "ru", label: "Русский" },
+        { id: "ru-auto", label: "Русский (авто)" },
+      ]).map((o) => o.label),
+    ).toEqual(["Выкл", "Русский", "Русский (авто)"])
   })
 })

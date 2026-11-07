@@ -2,11 +2,12 @@ import type {
   AtRiskContact,
   AtRiskList,
   AtRiskMember,
+  AtRiskSummary,
 } from "../../shared/api/retention"
 import {
   applyContact,
   callContact,
-  callListBody,
+  callListReason,
   callListTitle,
   contactLine,
   isStaffWorkspace,
@@ -60,23 +61,43 @@ describe("isStaffWorkspace", () => {
   })
 })
 
-describe("callListTitle / callListBody", () => {
-  it("declines the student count", () => {
-    expect(callListTitle(1)).toBe("Позвонить: 1 ученику")
-    expect(callListTitle(5)).toBe("Позвонить: 5 ученикам")
+describe("callListTitle / callListReason", () => {
+  const summary = (over: Partial<AtRiskSummary>): AtRiskSummary => ({
+    total: 0,
+    lapsed: 0,
+    newcomer: 0,
+    absent: 0,
+    declining: 0,
+    snoozed: 0,
+    ...over,
   })
 
-  it("lists the non-zero reasons in priority order", () => {
+  it("declines the student count", () => {
+    expect(callListTitle(1)).toBe("1 ученику стоит позвонить")
+    expect(callListTitle(5)).toBe("5 ученикам стоит позвонить")
+    expect(callListTitle(21)).toBe("21 ученику стоит позвонить")
+  })
+
+  it("names only the biggest reason", () => {
     expect(
-      callListBody({
-        total: 6,
-        lapsed: 2,
-        newcomer: 0,
-        absent: 3,
-        declining: 1,
-        snoozed: 0,
-      }),
-    ).toBe("кончился абонемент: 2 · давно не были: 3 · ходят реже: 1")
+      callListReason(summary({ total: 6, lapsed: 2, absent: 3, declining: 1 })),
+    ).toBe("3 давно не были")
+    expect(callListReason(summary({ total: 10, lapsed: 10 }))).toBe(
+      "у 10 кончился абонемент",
+    )
+    expect(callListReason(summary({ total: 1, declining: 1 }))).toBe(
+      "1 ходит реже",
+    )
+  })
+
+  it("breaks a tie by priority", () => {
+    expect(callListReason(summary({ total: 8, newcomer: 4, absent: 4 }))).toBe(
+      "4 новичка",
+    )
+  })
+
+  it("is null without a counted reason", () => {
+    expect(callListReason(summary({}))).toBeNull()
   })
 })
 

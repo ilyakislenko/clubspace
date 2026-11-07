@@ -22,12 +22,13 @@ import {
   formatDuration,
   formatNextSessionLabel,
   formatUpcomingLabel,
+  type NextAcrossGroups,
 } from "../schedule/schedule-helpers"
 import type { RecentEntry } from "../profile/preferences-store"
-import { formatNextDue } from "../reviews/review-helpers"
 import {
   COACH_TODAY_ROWS,
   canMarkClassNow,
+  coachNextLine,
   coachTodayView,
   eventStatusLine,
   formatEventWhen,
@@ -48,29 +49,42 @@ import {
   type AccessVariant,
 } from "../subscription/subscription-state"
 
-// A tappable (or plain) summary card. `onPress` adds the chevron. It grows to
-// its grid cell's height so a row of cards lines up; `grow={false}` where
-// there is no row to match (a column next to taller content would otherwise
-// stretch it to that height — Yoga's legacy flexGrow behaviour).
+// A tappable (or plain) summary card. `onPress` adds the chevron. One card on
+// Home is `prominent` (the role's main block: the coach's today, the member's
+// next class) — elevated, with a heading; the rest are quiet and lead with
+// their fact instead of a label. It grows to its grid cell's height so a row
+// of cards lines up; `grow={false}` where there is no row to match (a column
+// next to taller content would otherwise stretch it to that height — Yoga's
+// legacy flexGrow behaviour).
 export function HomeCard({
   title,
   onPress,
   children,
   accessibilityLabel,
   grow = true,
+  prominent = false,
 }: {
-  title: string
+  title?: string
   onPress?: () => void
   children: ReactNode
   accessibilityLabel?: string
   grow?: boolean
+  prominent?: boolean
 }) {
   const styles = useThemedStyles(makeStyles)
-  const style = grow ? styles.card : [styles.card, styles.cardNoGrow]
+  const style = [
+    styles.card,
+    prominent ? styles.cardProminent : styles.cardQuiet,
+    !grow && styles.cardNoGrow,
+  ]
   const body = (
     <>
       <View style={styles.cardText}>
-        <Text style={styles.cardTitle}>{title}</Text>
+        {title ? (
+          <Text style={prominent ? styles.cardHeading : styles.cardTitle}>
+            {title}
+          </Text>
+        ) : null}
         {children}
       </View>
       {onPress && <Chevron style={styles.chev} />}
@@ -123,7 +137,8 @@ export function AccessBanner({
 
 /**
  * The soonest class: across the member's groups, a guest booking, a place in
- * a «Запись на занятие» class or a personal session.
+ * a «Запись на занятие» class or a personal session. `prominent` when it is
+ * the viewer's main block (a member, not a coach who also trains).
  */
 export function NextClassCard({
   groups,
@@ -131,6 +146,7 @@ export function NextClassCard({
   classBookings,
   personal,
   onPress,
+  prominent,
 }: {
   groups: MyGroup[]
   bookings: DropInBooking[]
@@ -138,6 +154,7 @@ export function NextClassCard({
   // Confirmed sessions where the viewer is the student.
   personal: PersonalTraining[]
   onPress: () => void
+  prominent?: boolean
 }) {
   const styles = useThemedStyles(makeStyles)
   const { sizeClass } = useResponsive()
@@ -155,7 +172,7 @@ export function NextClassCard({
   if (!found) {
     if (groups.length === 0) {
       return (
-        <HomeCard title={title}>
+        <HomeCard title={title} prominent={prominent}>
           <Text style={styles.muted}>
             Вас пока не добавили в группу — это делает {vocabulary.coach.nom} или администратор
             клуба.
@@ -164,7 +181,7 @@ export function NextClassCard({
       )
     }
     return (
-      <HomeCard title={title} onPress={onPress}>
+      <HomeCard title={title} prominent={prominent} onPress={onPress}>
         <Text style={styles.muted}>
           В ближайшие две недели {vocabulary.session.genPl} нет.
         </Text>
@@ -177,6 +194,7 @@ export function NextClassCard({
     return (
       <HomeCard
         title={title}
+        prominent={prominent}
         onPress={onPress}
         accessibilityLabel={`${title}: ${label}, ${vocabulary.personalSession.nom}`}
       >
@@ -199,6 +217,7 @@ export function NextClassCard({
     return (
       <HomeCard
         title={title}
+        prominent={prominent}
         onPress={onPress}
         accessibilityLabel={`${title}: ${label}, ${booking.groupName}, гостевой визит`}
       >
@@ -225,6 +244,7 @@ export function NextClassCard({
     return (
       <HomeCard
         title={title}
+        prominent={prominent}
         onPress={onPress}
         accessibilityLabel={`${title}: ${label}, ${booking.groupName}, вы записаны`}
       >
@@ -246,6 +266,7 @@ export function NextClassCard({
   return (
     <HomeCard
       title={title}
+      prominent={prominent}
       onPress={onPress}
       accessibilityLabel={`${title}: ${formatNextSessionLabel(next)}, ${group.name}`}
     >
@@ -313,12 +334,13 @@ export function PersonalRequestsCard({
   onPress: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   return (
-    <HomeCard title="Заявки на персональные" onPress={onPress}>
+    <HomeCard onPress={onPress}>
       <Text style={styles.strong}>
-        {count}{" "}
-        {pluralRu(count, "заявка ждёт", "заявки ждут", "заявок ждут")} вашего
-        ответа
+        {count} {pluralRu(count, "заявка", "заявки", "заявок")} на{" "}
+        {vocabulary.personalSession.nomPl}{" "}
+        {pluralRu(count, "ждёт", "ждут", "ждут")} ответа
       </Text>
     </HomeCard>
   )
@@ -337,10 +359,16 @@ export function FreezeRequestsCard({
   const styles = useThemedStyles(makeStyles)
   const count = requests.length
   return (
-    <HomeCard title="Заявки на заморозку">
+    <HomeCard>
       <Text style={styles.strong}>
-        {count} {pluralRu(count, "заявка ждёт", "заявки ждут", "заявок ждут")}{" "}
-        вашего ответа
+        {count}{" "}
+        {pluralRu(
+          count,
+          "заявка на заморозку ждёт",
+          "заявки на заморозку ждут",
+          "заявок на заморозку ждут",
+        )}{" "}
+        ответа
       </Text>
       {requests.slice(0, FREEZE_REQUEST_ROWS).map((r) => (
         <Pressable
@@ -367,19 +395,25 @@ export function FreezeRequestsCard({
  * finished ones fold into «Прошло: N». «Отметить» only on a class that has
  * started or starts within half an hour; the others open on a tap all the
  * same. `onAll` opens today's schedule when more classes follow; without it
- * (no club schedule) the rest unfold in place.
+ * (no club schedule) the rest unfold in place. With nothing left to run
+ * today, `next` (the next own class on a later day) becomes the block's
+ * «Следующая — …» line instead of a separate «Ближайшая» card.
  */
 export function CoachTodayCard({
   classes,
   now,
+  next,
   onOpen,
   onAll,
+  onNext,
   grow,
 }: {
   classes: CoachClassToday[]
   now: Date
+  next: NextAcrossGroups | null
   onOpen: (c: CoachClassToday) => void
   onAll?: () => void
+  onNext: () => void
   grow?: boolean
 }) {
   const theme = useTheme()
@@ -444,18 +478,41 @@ export function CoachTodayCard({
     )
   }
 
+  const nextText = next && coachNextLine(next, vocabulary.session)
+  const nextRow = nextText && (
+    <Pressable
+      onPress={onNext}
+      accessibilityRole="button"
+      style={styles.classRow}
+    >
+      <Text style={[styles.classTitle, styles.nextLine]} numberOfLines={2}>
+        {nextText}
+      </Text>
+      <Chevron style={styles.chev} />
+    </Pressable>
+  )
+
   return (
-    <HomeCard title="Сегодня вы ведёте" grow={grow}>
+    <HomeCard
+      title={
+        classes.length === 0
+          ? `Сегодня ${vocabulary.session.genPl} нет`
+          : "Сегодня вы ведёте"
+      }
+      prominent
+      grow={grow}
+    >
       {classes.length === 0 ? (
-        <Text style={styles.muted}>Сегодня занятий по расписанию нет</Text>
+        nextRow
       ) : (
         <>
           {view.rows.map(row)}
-          {view.rows.length === 0 && (
-            <Text style={styles.muted}>
-              На сегодня все {vocabulary.session.nomPl} позади
-            </Text>
-          )}
+          {view.rows.length === 0 &&
+            (nextRow || (
+              <Text style={styles.muted}>
+                На сегодня все {vocabulary.session.nomPl} позади
+              </Text>
+            ))}
           {footer && (
             <Pressable
               onPress={footer.onPress}
@@ -593,7 +650,7 @@ export function SubscriptionCard({
   )
 }
 
-/** The newest (pinned first) announcement. */
+/** The newest (pinned first) announcement, while it is news. */
 export function AnnouncementCard({
   item,
   onPress,
@@ -606,72 +663,63 @@ export function AnnouncementCard({
   const styles = useThemedStyles(makeStyles)
   return (
     <HomeCard
-      title={item.pinned ? "Объявление · закреплено" : "Объявление"}
+      title={item.pinned ? "Закреплённое объявление" : "Объявление"}
       onPress={onPress}
       grow={grow}
     >
       <Text style={styles.strong} numberOfLines={2}>
         {item.title}
       </Text>
-      <Text style={styles.muted} numberOfLines={2}>
+      <Text style={styles.muted} numberOfLines={1}>
         {item.body}
       </Text>
     </HomeCard>
   )
 }
 
-/** «Повторение»: saved bookmarks due for review; tap opens the round. */
+/** «Повторение» with cards due today (Home shows it only then). */
 export function ReviewsCard({
   due,
-  nextDueAt,
   onPress,
   grow,
 }: {
   due: number
-  nextDueAt: string | null
   onPress: () => void
   grow?: boolean
 }) {
   const styles = useThemedStyles(makeStyles)
-  const title = "Повторение"
-  const line = due > 0 ? `Повторить сегодня: ${due}` : "На сегодня всё"
-  // Per render: Home is a tab and stays mounted.
-  const sub =
-    due > 0
-      ? "Закладки и отрезки из видео"
-      : nextDueAt
-        ? `Следующее — ${formatNextDue(Date.parse(nextDueAt), Date.now())}`
-        : null
+  const line = `Пора повторить: ${due} ${pluralRu(due, "карточку", "карточки", "карточек")}`
   return (
-    <HomeCard
-      title={title}
-      onPress={onPress}
-      grow={grow}
-      accessibilityLabel={[title, line, sub].filter(Boolean).join(", ")}
-    >
+    <HomeCard onPress={onPress} grow={grow} accessibilityLabel={line}>
       <Text style={styles.strong}>{line}</Text>
-      {sub && <Text style={styles.muted}>{sub}</Text>}
     </HomeCard>
   )
 }
 
-/** Resume the last video; «Все» when there's more than one to continue. */
+/**
+ * Resume the last video; «Все» when there's more than one to continue.
+ * `prominent` when it is a member's main block (no next class to show).
+ */
 export function ContinueRow({
   recent,
   count,
   onOpen,
   onAll,
+  prominent,
 }: {
   recent: RecentEntry
   count: number
   onOpen: () => void
   onAll: () => void
+  prominent?: boolean
 }) {
   const styles = useThemedStyles(makeStyles)
   return (
     <View style={styles.continueWrap}>
       <View style={styles.continueHeader}>
-        <Text style={styles.cardTitle}>Продолжить просмотр</Text>
+        <Text style={prominent ? styles.cardHeading : styles.cardTitle}>
+          Продолжить просмотр
+        </Text>
         {count > 1 && (
           <Pressable
             onPress={onAll}
@@ -687,7 +735,10 @@ export function ContinueRow({
         onPress={onOpen}
         accessibilityRole="button"
         accessibilityLabel={`Продолжить: ${recent.title}`}
-        style={styles.card}
+        style={[
+          styles.card,
+          prominent ? styles.cardProminent : styles.cardQuiet,
+        ]}
       >
         <View style={styles.cardText}>
           <Text style={styles.strong} numberOfLines={2}>
@@ -723,16 +774,30 @@ const makeStyles = (theme: Theme) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing(3),
-      backgroundColor: theme.colors.surfaceElevated,
       borderRadius: theme.radius.lg,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      padding: theme.spacing(4),
+      paddingHorizontal: theme.spacing(4),
+    },
+    // The role's main block: raised, roomier.
+    cardProminent: {
+      backgroundColor: theme.colors.surfaceElevated,
+      paddingVertical: theme.spacing(4),
       ...theme.shadows.sm,
+    },
+    // Everything else: flat and tighter, so the main block reads first.
+    cardQuiet: {
+      backgroundColor: theme.colors.surface,
+      paddingVertical: theme.spacing(3),
     },
     cardNoGrow: { flexGrow: 0 },
     cardText: { flex: 1, gap: 2 },
-    cardTitle: { ...theme.typography.label },
+    cardTitle: { ...theme.typography.captionStrong, color: theme.colors.muted },
+    cardHeading: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+      marginBottom: theme.spacing(1),
+    },
     strong: { ...theme.typography.bodyStrong, color: theme.colors.text },
     strongLarge: { ...theme.typography.heading, color: theme.colors.text },
     line: { ...theme.typography.body, color: theme.colors.text },
@@ -766,6 +831,7 @@ const makeStyles = (theme: Theme) =>
       flexShrink: 1,
     },
     classSub: { ...theme.typography.caption, color: theme.colors.muted },
+    nextLine: { flex: 1 },
     markButton: {
       paddingHorizontal: theme.spacing(3),
       paddingVertical: theme.spacing(1) + 2,

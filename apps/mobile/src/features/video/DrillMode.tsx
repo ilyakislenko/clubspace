@@ -1,8 +1,9 @@
 import React, { useState } from "react"
 import { StyleSheet, Text } from "react-native"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 
-import { useThemedStyles } from "../../shared/theme-context"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { formatClock, isDrillRunning, useDrill } from "./drill-context"
 import { DrillModal } from "./DrillModal"
@@ -16,6 +17,7 @@ type ButtonProps = {
 }
 
 export function DrillModeButton({ style }: ButtonProps) {
+  const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const [open, setOpen] = useState(false)
   const { phase, remaining } = useDrill()
@@ -31,13 +33,18 @@ export function DrillModeButton({ style }: ButtonProps) {
         }
         style={[styles.triggerButton, running && styles.triggerButtonRunning, style]}
       >
+        <Icon
+          name="timer-outline"
+          size={16}
+          color={running ? theme.colors.accentText : theme.colors.text}
+        />
         <Text
           style={[
             styles.triggerText,
             running && styles.triggerTextRunning,
           ]}
         >
-          {running ? `⏱ ${formatClock(remaining)}` : "⏱ Дрилл"}
+          {running ? formatClock(remaining) : "Дрилл"}
         </Text>
       </Pressable>
       {open && <DrillModal onClose={() => setOpen(false)} />}
@@ -47,6 +54,9 @@ export function DrillModeButton({ style }: ButtonProps) {
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   triggerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(1),
     paddingHorizontal: theme.spacing(3),
     paddingVertical: theme.spacing(2),
     borderRadius: theme.radius.full,

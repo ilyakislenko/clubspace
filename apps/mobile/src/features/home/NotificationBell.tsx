@@ -1,22 +1,25 @@
 import { useNavigation } from "@react-navigation/native"
 import React from "react"
-import { StyleSheet, Text, View } from "react-native"
+import { StyleSheet, View } from "react-native"
 
 import type { AppNavigation } from "../../app/navigation"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
-import { formatBadge } from "../notifications/unread"
 import { useUnreadNotificationsCount } from "../notifications/useUnreadNotificationsCount"
+import { formatBellCount } from "./home-helpers"
 
-/** The inbox entry on Home: a bell with the unread count. */
+/**
+ * The inbox entry on Home: a bell with a dot while something is unread. The
+ * inbox is club news as much as anything to act on, so no count on the icon;
+ * opening it marks everything seen.
+ */
 export function NotificationBell() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const navigation = useNavigation<AppNavigation>()
-  const count = useUnreadNotificationsCount()
-  const badge = formatBadge(count)
+  const unread = formatBellCount(useUnreadNotificationsCount())
 
   return (
     <Pressable
@@ -24,7 +27,7 @@ export function NotificationBell() {
       hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel={
-        badge ? `Уведомления, непрочитанных: ${badge}` : "Уведомления"
+        unread ? `Уведомления, непрочитанных: ${unread}` : "Уведомления"
       }
       style={styles.bell}
     >
@@ -33,11 +36,7 @@ export function NotificationBell() {
         size={24}
         color={theme.colors.text}
       />
-      {badge && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{badge}</Text>
-        </View>
-      )}
+      {unread && <View style={styles.dot} />}
     </Pressable>
   )
 }
@@ -54,21 +53,15 @@ const makeStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
-    badge: {
+    dot: {
       position: "absolute",
-      top: -2,
-      right: -2,
-      minWidth: 18,
-      paddingHorizontal: 4,
-      paddingVertical: 1,
+      top: 9,
+      right: 10,
+      width: 9,
+      height: 9,
       borderRadius: theme.radius.full,
+      borderWidth: 1.5,
+      borderColor: theme.colors.surfaceMuted,
       backgroundColor: theme.colors.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    badgeText: {
-      fontSize: 11,
-      fontWeight: "700",
-      color: theme.colors.accentText,
     },
   })

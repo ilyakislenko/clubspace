@@ -4,7 +4,14 @@ import { useNetworkState } from "expo-network"
 import { usePlayer } from "./use-player"
 
 import { SubtitleOverlay } from "./subtitle-overlay"
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import {
   ActivityIndicator,
   AppState,
@@ -15,11 +22,12 @@ import {
   Text,
   View,
   type ScrollViewInstance,
-  type ViewInstance,
 } from "react-native"
 import { showAlert } from "../../shared/alert"
 import { shareFeedback, shareText } from "../../shared/share"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
+import { Sheet } from "../../shared/components/Sheet"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getCourse, type CourseDetail } from "../../shared/api/courses"
@@ -86,10 +94,17 @@ import {
 } from "./playback-progress"
 import { chapterIndexAt } from "./chapter-nav"
 import { choiceFromTrack, pickSubtitleTrack } from "./subtitle-choice"
+import {
+  downloadMenuActions,
+  type DownloadAction,
+  type DownloadState,
+} from "./download-status"
 import { buildMomentLink, momentShareText } from "./moment-link"
 import { momentLinkBase } from "./pending-moment"
 import type { ShownDrawing } from "./drawing-math"
-import { DrillModeButton } from "./DrillMode"
+import { formatClock, isDrillRunning, useDrill } from "./drill-context"
+import { DrillModal } from "./DrillModal"
+import { MenuOption, MoreButton } from "./MenuOption"
 import { VideoStudyTools } from "./VideoStudyTools"
 import { HoldToBoostArea } from "./HoldToBoostArea"
 import { NextLessonCountdown } from "./NextLessonCountdown"
@@ -109,18 +124,11 @@ import {
   resolvePlanIndex,
 } from "../study-plans/plan-playback"
 import { loadStudyPlan } from "../study-plans/plan-store"
-import {
-  AnchoredPlaybackSpeedPopover,
-  type AnchorRect,
-} from "./PlaybackSpeedPicker"
 import { PlayerOverlay } from "./PlayerOverlay"
 import { VideoCourseNav } from "./VideoCourseNav"
-import {
-  VideoDownloadControls,
-  type DownloadState,
-} from "./VideoDownloadControls"
+import { VideoDownloadStatus } from "./VideoDownloadStatus"
 import { VideoLoopControls } from "./VideoLoopControls"
-import { VideoSubtitlePicker } from "./VideoSubtitlePicker"
+import { SubtitleMenuOptions } from "./VideoSubtitlePicker"
 import { useToast } from "../../shared/components/Toast"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { haptics } from "../../shared/haptics"
@@ -131,8 +139,8 @@ import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Video">
 
-// The percentage is drawn by VideoDownloadControls; the web store also
-// reports bytes and the projected size (checked against the browser's quota).
+// The progress line shows the percentage; the web store also reports bytes
+// and the projected size (checked against the browser's quota).
 const phaseLabel = (p: OfflineDownloadProgress): string => {
   switch (p.phase) {
     case "video":
@@ -159,8 +167,8 @@ const downloadStateFrom = (local: OfflineVideoState): DownloadState => {
     case "ready":
       return {
         status: "ready",
-        hint: local.accessExpiresAt
-          ? `Без интернета — до ${new Date(local.accessExpiresAt).toLocaleDateString("ru-RU")}; продлевается, когда вы онлайн`
+        accessUntil: local.accessExpiresAt
+          ? new Date(local.accessExpiresAt).toLocaleDateString("ru-RU")
           : undefined,
       }
     case "partial":
@@ -256,9 +264,17 @@ export function VideoScreen({ route, navigation }: Props) {
     builtInControls,
   } = usePlayer(playableUri ?? null)
   const [mirrored, setMirrored] = useState(false)
-  // Window frame of the side-panel speed chip while its popover is open.
-  const [speedAnchor, setSpeedAnchor] = useState<AnchorRect | null>(null)
-  const speedChipRef = useRef<ViewInstance>(null)
+  // The lesson's «⋯» menu, and the drill timer it opens.
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [drillOpen, setDrillOpen] = useState(false)
+  const drill = useDrill()
+
+  // The big title under the player names the lesson; the header names its
+  // course (or nothing), never the lesson a second time.
+  const courseTitle = course?.title ?? ""
+  useLayoutEffect(() => {
+    navigation.setOptions({ title: courseTitle })
+  }, [navigation, courseTitle])
   // The app's own fullscreen (native only — Plyr has its own on web).
   const [fullscreen, setFullscreen] = useState(
     () => !builtInControls && !!route.params.fullscreen,
@@ -776,7 +792,6 @@ export function VideoScreen({ route, navigation }: Props) {
         })
         if (cancelled) return
         setVideo(videoData)
-        navigation.setOptions({ title: videoData.title })
 
         if (courseId) {
           const courseData = await getCourse({
@@ -830,7 +845,6 @@ export function VideoScreen({ route, navigation }: Props) {
             const cachedCourse = await getCachedCourse(courseId)
             if (cachedCourse) setCourse(cachedCourse)
           }
-          navigation.setOptions({ title: cached.video.title })
           setOfflineUri(cached.videoUri)
           setIsOfflineSource(true)
           setDownload(
@@ -860,7 +874,7 @@ export function VideoScreen({ route, navigation }: Props) {
       cancelled = true
       clearTimeout(timeout)
     }
-  }, [workspace, videoId, courseId, navigation, retryNonce])
+  }, [workspace, videoId, courseId, retryNonce])
 
   const handleRetry = () => {
     setRetryNonce((n) => n + 1)
@@ -1013,7 +1027,6 @@ export function VideoScreen({ route, navigation }: Props) {
 
   const handleSelectRate = async (rate: number) => {
     setPlaybackRate(rate)
-    setSpeedAnchor(null)
     await setPreferences({ defaultPlaybackRate: rate })
   }
 
@@ -1238,6 +1251,29 @@ export function VideoScreen({ route, navigation }: Props) {
     ])
   }
 
+  // A choice in the lesson's «⋯»: the sheet closes first, then it runs.
+  const fromMenu = (fn: () => void) => () => {
+    setMoreOpen(false)
+    fn()
+  }
+
+  const runDownloadAction = (kind: DownloadAction["kind"]) => {
+    switch (kind) {
+      case "download":
+        void handleDownload()
+        return
+      case "pause":
+        handlePauseDownload()
+        return
+      case "cancel":
+        void handleCancelDownload()
+        return
+      case "remove":
+        handleConfirmRemoveOffline()
+        return
+    }
+  }
+
   if (loading || error || !video) {
     const fallbackTitle = route.params.title ?? "Загружаем видео…"
     return (
@@ -1295,11 +1331,16 @@ export function VideoScreen({ route, navigation }: Props) {
       ? course.videos[currentIndex + 1].id
       : null
 
-  // The "Отметить просмотренным" chip becomes a primary CTA once the user
-  // has watched more than half — that's the moment skipping the outro
-  // becomes a reasonable decision worth surfacing.
   const lessonWatched = progressStatus.status === "watched"
-  const markWatchedAsPrimary = !lessonWatched && progressStatus.ratio > 0.5
+  const subtitles = video.subtitles ?? []
+  const loopSet = loopA != null || loopB != null
+  const downloadActions = offlineDownloads
+    ? downloadMenuActions(download, {
+        canDownload: !!streamingUrl,
+        controllable: !!offlineDownloadControls,
+      })
+    : []
+  const drillRunning = isDrillRunning(drill.phase)
 
   const playerStyle = showFullscreen
     ? styles.playerFullscreen
@@ -1407,6 +1448,9 @@ export function VideoScreen({ route, navigation }: Props) {
               void handleSaveDrawing(drawing, bookmarkId)
             }
             onSubtitleLayout={setSubtitleLayout}
+            subtitles={subtitles}
+            activeSubtitleId={activeSubtitleId}
+            onSelectSubtitle={handleSelectSubtitle}
             plan={planBar}
             onAddChapterToPlan={addChapterToPlan}
             onAddBookmarkToPlan={addBookmarkToPlan}
@@ -1458,26 +1502,15 @@ export function VideoScreen({ route, navigation }: Props) {
             accessibilityState={{ selected: favorite }}
             style={styles.favoriteButton}
           >
-            <Text
-              style={[
-                styles.favoriteIcon,
-                favorite && { color: theme.colors.accent },
-              ]}
-            >
-              {favorite ? "★" : "☆"}
-            </Text>
+            <Icon
+              name={favorite ? "star" : "star-outline"}
+              size={26}
+              color={favorite ? theme.colors.accent : theme.colors.mutedFaint}
+            />
           </Pressable>
         </View>
 
-        {isOfflineSource && (
-          <View style={styles.offlineBadge}>
-            <Text style={styles.offlineBadgeText}>
-              Воспроизведение из загруженного
-            </Text>
-          </View>
-        )}
-
-        {course && currentIndex >= 0 && (
+        {course && currentIndex >= 0 && course.videos.length > 1 && (
           <Text style={styles.muted}>
             Урок {currentIndex + 1} из {course.videos.length}
           </Text>
@@ -1488,94 +1521,52 @@ export function VideoScreen({ route, navigation }: Props) {
 
         <View style={styles.actionsRow}>
           {/* Under locked progression only really watching a lesson opens the
-              next one (the server ignores a manual mark), so no button. */}
+              next one (the server ignores a manual mark), so no toggle. */}
           {!course?.lockedProgression && (
-          <Pressable
-            onPress={handleToggleWatched}
-            accessibilityRole="button"
-            accessibilityLabel={
-              lessonWatched
-                ? "Снять отметку о просмотре"
-                : "Отметить просмотренным"
-            }
-            accessibilityState={{ selected: lessonWatched }}
-            style={[
-              styles.iconAction,
-              markWatchedAsPrimary && styles.iconActionPrimary,
-            ]}
-          >
-            <Text
-              style={[
-                styles.iconActionText,
-                markWatchedAsPrimary && styles.iconActionTextPrimary,
-              ]}
+            <Pressable
+              onPress={handleToggleWatched}
+              accessibilityRole="switch"
+              accessibilityLabel="Просмотрено"
+              accessibilityState={{ checked: lessonWatched }}
+              style={[styles.action, lessonWatched && styles.actionOn]}
             >
-              {lessonWatched ? "✓ Посмотрено" : "Отметить просмотренным"}
-            </Text>
-          </Pressable>
+              <Icon
+                name={lessonWatched ? "checkmark-circle" : "checkmark-circle-outline"}
+                size={18}
+                color={lessonWatched ? theme.colors.accent : theme.colors.muted}
+              />
+              <Text style={[styles.actionText, lessonWatched && styles.actionTextOn]}>
+                Просмотрено
+              </Text>
+            </Pressable>
           )}
-          <Pressable
-            ref={speedChipRef}
-            onPress={() =>
-              // `measure` page coords match the statusBarTranslucent Modal;
-              // `measureInWindow` excludes the status bar on edge-to-edge
-              // Android (see KeyboardAvoidingContainer).
-              speedChipRef.current?.measure((_x, _y, width, height, pageX, pageY) =>
-                setSpeedAnchor({ x: pageX, y: pageY, width, height }),
-              )
-            }
-            accessibilityRole="button"
-            accessibilityLabel={`Скорость воспроизведения ${playbackRate}x, выбрать`}
-            style={styles.iconAction}
-          >
-            <Text style={styles.iconActionText}>{playbackRate}x</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => void handleToggleMirror()}
-            accessibilityRole="button"
-            accessibilityLabel="Зеркально"
-            accessibilityState={{ selected: mirrored }}
-            style={[styles.iconAction, mirrored && styles.iconActionPrimary]}
-          >
-            <Text
-              style={[
-                styles.iconActionText,
-                mirrored && styles.iconActionTextPrimary,
-              ]}
-            >
-              Зеркально
-            </Text>
-          </Pressable>
-          <DrillModeButton style={styles.iconAction} />
           <Pressable
             onPress={() => setPlanDraft(draftFromMoment(videoId, readPlayerTime()))}
             accessibilityRole="button"
             accessibilityLabel="Добавить текущий момент в план"
-            style={styles.iconAction}
+            style={styles.action}
           >
-            <Text style={styles.iconActionText}>В план</Text>
+            <Icon name="add" size={18} color={theme.colors.text} />
+            <Text style={styles.actionText}>В план</Text>
           </Pressable>
-          {/* Two side-by-side pictures need the app's own player (native). */}
-          {!builtInControls && (
+          {/* The app's player has its own share; Plyr (web) doesn't. */}
+          {builtInControls && (
             <Pressable
-              onPress={openCompare}
+              onPress={handleShare}
               accessibilityRole="button"
-              accessibilityLabel="Сравнить с другим видео рядом"
-              style={styles.iconAction}
+              accessibilityLabel="Поделиться"
+              style={styles.action}
             >
-              <Text style={styles.iconActionText}>Сравнить</Text>
+              <Icon name="share-outline" size={18} color={theme.colors.text} />
+              <Text style={styles.actionText}>Поделиться</Text>
             </Pressable>
           )}
-          <Pressable
-            onPress={handleShare}
-            accessibilityRole="button"
-            accessibilityLabel="Поделиться"
-            style={styles.iconAction}
-          >
-            <Text style={styles.iconActionText}>Поделиться</Text>
-          </Pressable>
+          <MoreButton onPress={() => setMoreOpen(true)} hint="Действия с уроком" />
         </View>
 
+        <VideoDownloadStatus download={download} playingOffline={isOfflineSource} />
+
+        {/* Only while an A–B point is set (started from «⋯»). */}
         <VideoLoopControls
           loopA={loopA}
           loopB={loopB}
@@ -1584,13 +1575,6 @@ export function VideoScreen({ route, navigation }: Props) {
           onClear={handleClearLoop}
           onSaveSegment={() => void handleSaveSegment()}
         />
-
-        <VideoSubtitlePicker
-          subtitles={video?.subtitles ?? []}
-          activeId={activeSubtitleId}
-          onSelect={handleSelectSubtitle}
-        />
-
         <VideoStudyTools
           timestamps={video?.timestamps}
           currentChapter={currentChapter}
@@ -1608,21 +1592,6 @@ export function VideoScreen({ route, navigation }: Props) {
           onAddBookmarkToPlan={addBookmarkToPlan}
         />
 
-        {offlineDownloads && (
-          <VideoDownloadControls
-            download={download}
-            canDownload={!!streamingUrl}
-            onDownload={handleDownload}
-            onRemoveOffline={handleConfirmRemoveOffline}
-            onPause={offlineDownloadControls ? handlePauseDownload : undefined}
-            onCancel={
-              offlineDownloadControls
-                ? () => void handleCancelDownload()
-                : undefined
-            }
-          />
-        )}
-
         <VideoCourseNav
           videos={course?.videos ?? []}
           currentIndex={currentIndex}
@@ -1633,14 +1602,52 @@ export function VideoScreen({ route, navigation }: Props) {
       </ScrollView>
       </KeyboardAvoidingContainer>
       </View>
-      {speedAnchor && (
-        <AnchoredPlaybackSpeedPopover
-          anchor={speedAnchor}
-          rate={playbackRate}
-          onSelect={(rate) => void handleSelectRate(rate)}
-          onClose={() => setSpeedAnchor(null)}
-        />
+      {moreOpen && (
+        <Sheet title="Урок" onClose={() => setMoreOpen(false)}>
+          <View>
+            <MenuOption
+              role="switch"
+              label="Зеркально"
+              selected={mirrored}
+              onPress={fromMenu(() => void handleToggleMirror())}
+            />
+            <MenuOption
+              role="switch"
+              label="A–B повтор"
+              selected={loopSet}
+              onPress={fromMenu(loopSet ? handleClearLoop : handleSetLoopA)}
+            />
+            {/* Two side-by-side pictures need the app's own player (native). */}
+            {!builtInControls && (
+              <MenuOption label="Сравнить" onPress={fromMenu(openCompare)} />
+            )}
+            <MenuOption
+              label="Дрилл-таймер"
+              detail={drillRunning ? `Идёт · ${formatClock(drill.remaining)}` : undefined}
+              onPress={fromMenu(() => setDrillOpen(true))}
+            />
+            {/* Native picks subtitles with the player's CC button. */}
+            {builtInControls && subtitles.length > 0 && (
+              <SubtitleMenuOptions
+                subtitles={subtitles}
+                activeId={activeSubtitleId}
+                onSelect={(id) => fromMenu(() => handleSelectSubtitle(id))()}
+              />
+            )}
+            {downloadActions.map((a) => (
+              <MenuOption
+                key={a.kind}
+                label={a.label}
+                detail={a.detail}
+                disabled={a.disabled}
+                destructive={a.destructive}
+                onPress={fromMenu(() => runDownloadAction(a.kind))}
+              />
+            ))}
+          </View>
+        </Sheet>
       )}
+      {drillOpen && <DrillModal onClose={() => setDrillOpen(false)} />}
       {planDraft && (
         <AddToPlanModal draft={planDraft} onClose={() => setPlanDraft(null)} />
       )}
@@ -1699,54 +1706,38 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     paddingHorizontal: theme.spacing(1),
     paddingTop: 2,
   },
-  favoriteIcon: {
-    fontSize: 28,
-    color: theme.colors.mutedFaint,
-    lineHeight: 28,
-  },
   description: {
     ...theme.typography.body,
     color: theme.colors.textSecondary,
   },
   muted: { ...theme.typography.caption },
-  offlineBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: theme.spacing(3),
-    paddingVertical: 5,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.successSoft,
-  },
-  offlineBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: theme.colors.success,
-    letterSpacing: 0.2,
-  },
   actionsRow: {
     flexDirection: "row",
+    alignItems: "center",
     gap: theme.spacing(2),
     flexWrap: "wrap",
   },
-  iconAction: {
+  // One quiet pill per action; «Просмотрено» when on is tinted, not filled.
+  action: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(1),
+    minHeight: 40,
     paddingHorizontal: theme.spacing(3),
-    paddingVertical: theme.spacing(2),
     borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surfaceMuted,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  iconActionPrimary: {
-    backgroundColor: theme.colors.accent,
-    borderColor: theme.colors.accent,
+  actionOn: {
+    backgroundColor: theme.colors.accentSoft,
+    borderColor: theme.colors.accentSoft,
   },
-  iconActionText: {
-    fontSize: 13,
+  actionText: {
+    fontSize: 14,
     fontWeight: "600",
     color: theme.colors.text,
   },
-  iconActionTextPrimary: {
-    color: theme.colors.accentText,
-  },
+  actionTextOn: { color: theme.colors.accent },
   primaryButton: {
     backgroundColor: theme.colors.accent,
     paddingHorizontal: theme.spacing(5),

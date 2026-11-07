@@ -75,7 +75,11 @@ const makeStyles = (theme: Theme) =>
     eyebrowRoot: { alignSelf: "flex-start", marginBottom: 4, maxWidth: "100%" },
     headerRoot: { maxWidth: 260 },
     nameRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-    eyebrow: { ...theme.typography.label, flexShrink: 1 },
+    eyebrow: {
+      ...theme.typography.captionStrong,
+      color: theme.colors.muted,
+      flexShrink: 1,
+    },
     headerTitle: { fontSize: 17, fontWeight: "600", color: theme.colors.text },
     headerClub: { fontSize: 12, color: theme.colors.muted, flexShrink: 1 },
     dot: {

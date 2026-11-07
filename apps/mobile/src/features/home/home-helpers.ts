@@ -1,3 +1,6 @@
+import { agree, type SessionNoun } from "@clubspace/ui-kit/brand"
+
+import type { Announcement } from "../../shared/api/announcements"
 import type { ClassBooking } from "../../shared/api/class-bookings"
 import type { ClassSubstitution } from "../../shared/api/class-substitutions"
 import type { DropInBooking } from "../../shared/api/drop-ins"
@@ -12,6 +15,8 @@ import {
   viewerRole,
 } from "../personal-training/personal-training-helpers"
 import {
+  findNextAcrossGroups,
+  formatNextSessionLabel,
   listTodaySlots,
   parseHHMM,
   zonedParts,
@@ -407,10 +412,65 @@ export const coachTodayView = (
 }
 
 /** A class is markable once it has started or starts within the lead time. */
-export const canMarkClassNow = (c: CoachClassToday, now: Date): boolean =>
+export const canMarkClassNow = (
+  c: Pick<CoachClassToday, "startsAt">,
+  now: Date,
+): boolean =>
   c.startsAt - MARK_LEAD_MIN * 60_000 <= now.getTime()
 
 /** A class that has started and not yet ended. */
 export const isClassInProgress = (c: CoachClassToday, now: Date): boolean =>
   c.startsAt <= now.getTime() && now.getTime() < c.endsAt
 
+/**
+ * The coach's next own group class once today holds nothing more to run (no
+ * class today, or all of them over): the today block's «Следующая — …» line.
+ * Null while a class today is still on or ahead.
+ */
+export const coachNextAfterToday = (
+  groups: readonly MyGroup[],
+  today: readonly CoachClassToday[],
+  now: Date,
+): NextAcrossGroups | null =>
+  today.some((c) => c.endsAt > now.getTime())
+    ? null
+    : findNextAcrossGroups(
+        groups.filter((g) => g.role === "coach"),
+        now,
+      )
+
+/**
+ * «Следующая — завтра в 12:00, Дети 6–9», plus the club's zone when it isn't
+ * the device's (`device` defaults to the device's own).
+ */
+export const coachNextLine = (
+  next: NextAcrossGroups,
+  session: SessionNoun,
+  device?: string,
+): string => {
+  const when = formatNextSessionLabel(next.next, device)
+  return `${agree(session, "Следующая", "Следующее")} — ${when.charAt(0).toLowerCase()}${when.slice(1)}, ${next.group.name}`
+}
+
+/** How long a non-pinned announcement stays on Home after it is published. */
+export const ANNOUNCEMENT_HOME_DAYS = 7
+
+/**
+ * Home shows the latest announcement only while it is news: pinned, or
+ * published within {@link ANNOUNCEMENT_HOME_DAYS}. Older ones stay in
+ * «Объявления».
+ */
+export const showAnnouncementOnHome = (
+  item: Pick<Announcement, "pinned" | "publishedAt" | "createdAt">,
+  now: Date,
+): boolean =>
+  item.pinned ||
+  now.getTime() - Date.parse(item.publishedAt ?? item.createdAt) <=
+    ANNOUNCEMENT_HOME_DAYS * 86_400_000
+
+/**
+ * The bell's count for its accessibility label: nothing for zero, «9+» past
+ * one digit (the bell itself shows only a dot).
+ */
+export const formatBellCount = (count: number): string | null =>
+  count <= 0 ? null : count > 9 ? "9+" : String(count)

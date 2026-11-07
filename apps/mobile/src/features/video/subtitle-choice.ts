@@ -52,3 +52,24 @@ export const parseSubtitleChoice = (value: unknown): SubtitleChoice | null => {
   }
   return null
 }
+
+// The worker names its automatic tracks «English (авто)», «Русский (авто)».
+const AUTO_SUFFIX = /\s*\((авто|auto)\)\s*$/i
+
+/**
+ * The subtitle menu: «Выкл», then each track by its language — «Русский
+ * (авто)» reads «Русский». The suffix stays only where dropping it would
+ * make two tracks look the same.
+ */
+export const subtitleMenuOptions = (
+  tracks: ReadonlyArray<{ id: string; label: string }>,
+): { id: string | null; label: string }[] => {
+  const plain = tracks.map((t) => t.label.replace(AUTO_SUFFIX, ""))
+  return [
+    { id: null, label: "Выкл" },
+    ...tracks.map((t, i) => ({
+      id: t.id,
+      label: plain.filter((p) => p === plain[i]).length > 1 ? t.label : plain[i],
+    })),
+  ]
+}

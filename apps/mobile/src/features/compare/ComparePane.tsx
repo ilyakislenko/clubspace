@@ -1,6 +1,7 @@
-// One side of «Сравнить рядом»: the picture, its own seek bar, frame step,
-// mirror and A–B. Purely presentational — CompareScreen owns both players and
-// every timing rule (sync, loops), so the two sides stay in one place.
+// One side of «Сравнить рядом»: the picture, its title (tap to pick another
+// clip), its own seek bar and frame step; mirror and A–B sit behind its «⋯».
+// Purely presentational — CompareScreen owns both players and every timing
+// rule (sync, loops), so the two sides stay in one place.
 import React, { type ComponentType } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 
@@ -28,6 +29,9 @@ export type PaneMedia =
 
 type Props = {
   label: string
+  // The picked clip's title: shown while it loads or after it failed, so the
+  // side can still be re-picked; the loaded video's own title wins.
+  clipTitle: string | undefined
   media: PaneMedia
   PlayerSurface: ComponentType<PlayerSurfaceProps>
   time: number
@@ -39,14 +43,13 @@ type Props = {
   onScrub: (time: number | null) => void
   onSeek: (time: number) => void
   onStepFrame: (direction: 1 | -1) => void
-  onToggleMirror: () => void
-  onSetA: () => void
-  onSetB: () => void
-  onClearLoop: () => void
+  // This side's tools: mirror, A–B.
+  onMore: () => void
 }
 
 export function ComparePane({
   label,
+  clipTitle,
   media,
   PlayerSurface,
   time,
@@ -58,27 +61,36 @@ export function ComparePane({
   onScrub,
   onSeek,
   onStepFrame,
-  onToggleMirror,
-  onSetA,
-  onSetB,
-  onClearLoop,
+  onMore,
 }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const ready = media.status === "ready"
+  const picked = media.status !== "empty"
+  const title = (ready ? media.title : clipTitle) || "Видео"
 
   return (
     <View style={styles.pane}>
       <View style={styles.head}>
         <Text style={styles.label}>{label}</Text>
-        <Text style={styles.title} numberOfLines={1}>
-          {ready ? media.title : ""}
-        </Text>
+        {picked && (
+          <Pressable
+            onPress={onPick}
+            accessibilityRole="button"
+            accessibilityLabel={`${label}: ${title}. Выбрать другое видео`}
+            hitSlop={6}
+            style={styles.titleButton}
+          >
+            <Text style={styles.title} numberOfLines={1}>
+              {title}
+            </Text>
+            <Icon name="chevron-down" size={14} color={theme.colors.onOverlay} />
+          </Pressable>
+        )}
         {ready && media.offline && <Text style={styles.badge}>загружено</Text>}
         {!audible && ready && (
           <Icon name="volume-mute" size={16} color={theme.colors.onOverlay} />
         )}
-        <SmallButton label="Выбрать" accessibilityLabel={`${label}: выбрать видео`} onPress={onPick} />
       </View>
 
       <View style={styles.picture}>
@@ -119,31 +131,7 @@ export function ComparePane({
             <View style={styles.spacer} />
             <IconAction icon="chevron-back" label={`${label}: кадр назад`} onPress={() => onStepFrame(-1)} />
             <IconAction icon="chevron-forward" label={`${label}: кадр вперёд`} onPress={() => onStepFrame(1)} />
-            <IconAction
-              icon="swap-horizontal"
-              label={mirrored ? `${label}: отключить зеркало` : `${label}: зеркально`}
-              active={mirrored}
-              onPress={onToggleMirror}
-            />
-            <SmallButton
-              label={loop ? `A ${formatPosition(loop.startSec)}` : "A"}
-              accessibilityLabel={`${label}: отметить точку A`}
-              active={!!loop}
-              onPress={onSetA}
-            />
-            <SmallButton
-              label={loop?.endSec != null ? `B ${formatPosition(loop.endSec)}` : "B"}
-              accessibilityLabel={`${label}: отметить точку B`}
-              active={loop?.endSec != null}
-              onPress={onSetB}
-            />
-            {loop && (
-              <IconAction
-                icon="close-circle-outline"
-                label={`${label}: сбросить A–B`}
-                onPress={onClearLoop}
-              />
-            )}
+            <IconAction icon="ellipsis-horizontal" label="Ещё" onPress={onMore} />
           </View>
         </View>
       )}
@@ -225,8 +213,16 @@ const makeStyles = (theme: Theme) =>
       fontWeight: "700",
       opacity: 0.7,
     },
-    title: {
+    titleButton: {
       flex: 1,
+      minWidth: 0,
+      minHeight: 36,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(1),
+    },
+    title: {
+      flexShrink: 1,
       color: theme.colors.onOverlay,
       fontSize: 13,
       fontWeight: "600",

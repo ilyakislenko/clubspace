@@ -1,10 +1,10 @@
 // «Сравнить рядом»: two clips side by side (stacked on a portrait phone) to
 // compare details — the lesson against another angle, another instructor, a
-// saved segment. Each side has its own seek bar, frame step, mirror and A–B;
-// the bar below plays/pauses both, locks them together («Синхронно», keeping
-// the offset they had), sets one slow speed for both and picks whose sound
-// plays. Both pictures are TextureView players (see use-player); expo-video
-// releases them when the screen unmounts.
+// saved segment. Each side has its own seek bar and frame step, with mirror
+// and A–B behind its «⋯». The bar below plays/pauses both and sets one slow
+// speed for both; its «⋯» locks them together («Синхронно», keeping the
+// offset they had) and picks whose sound plays. Both pictures are TextureView
+// players (see use-player); expo-video releases them when the screen unmounts.
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import { useNetworkState } from "expo-network"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -12,7 +12,6 @@ import {
   AppState,
   StatusBar,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from "react-native"
@@ -29,11 +28,11 @@ import { clampSeek, frameStepTarget } from "../video/player-math"
 import type { PlayerHandle } from "../video/player-types"
 import { usePlayer } from "../video/use-player"
 import { ComparePane, IconAction, SmallButton, type PaneMedia } from "./ComparePane"
+import { CompareOptionsSheet, ComparePaneSheet, CompareSpeedSheet } from "./CompareMenus"
 import { ComparePicker } from "./ComparePicker"
 import type { CompareClip } from "./compare-sources"
 import {
   clampSegment,
-  COMPARE_RATES,
   type CompareSide,
   driftCorrection,
   followerTarget,
@@ -107,6 +106,8 @@ export function CompareScreen({ route, navigation }: Props) {
   const [rate, setRate] = useState(1)
   const [audioSide, setAudioSide] = useState<CompareSide>("left")
   const [pickerSide, setPickerSide] = useState<CompareSide | null>(null)
+  // The open menu: the speed, the both-sides options, or one side's tools.
+  const [menu, setMenu] = useState<"speed" | "options" | CompareSide | null>(null)
 
   // Where a freshly picked clip starts (applied once its video has loaded).
   const pending = useRef<BySide<Segment | null>>({
@@ -366,6 +367,7 @@ export function CompareScreen({ route, navigation }: Props) {
           <ComparePane
             key={side}
             label={SIDE_LABEL[side]}
+            clipTitle={clips[side]?.title}
             media={media[side]}
             PlayerSurface={surfaces[side]}
             time={scrub[side] ?? snap[side].time}
@@ -387,10 +389,7 @@ export function CompareScreen({ route, navigation }: Props) {
               setSide(setScrub, side, null)
             }}
             onStepFrame={(direction) => stepFrame(side, direction)}
-            onToggleMirror={() => setSide(setMirrored, side, !mirrored[side])}
-            onSetA={() => setA(side)}
-            onSetB={() => setB(side)}
-            onClearLoop={() => setSide(setLoops, side, null)}
+            onMore={() => setMenu(side)}
           />
         ))}
       </View>
@@ -403,32 +402,65 @@ export function CompareScreen({ route, navigation }: Props) {
           onPress={togglePlay}
         />
         <SmallButton
-          label="Синхронно"
-          accessibilityLabel="Синхронно: перемотка одной стороны двигает другую"
-          active={sync}
-          disabled={!uris.right}
-          onPress={toggleSync}
+          label={`${rate}x`}
+          accessibilityLabel={`Скорость ${rate}x для обеих сторон, изменить`}
+          onPress={() => setMenu("speed")}
         />
-        <View style={styles.rates}>
-          {COMPARE_RATES.map((r) => (
-            <SmallButton
-              key={r}
-              label={`${r}x`}
-              accessibilityLabel={`Скорость ${r}x для обеих сторон`}
-              active={rate === r}
-              onPress={() => setRate(r)}
-            />
-          ))}
-        </View>
-        <SmallButton
-          label={audioSide === "left" ? "Звук: слева" : "Звук: справа"}
-          accessibilityLabel="Переключить, чей звук слышен"
-          onPress={() => setAudioSide(otherSide(audioSide))}
-        />
-        {sync && loops.left?.endSec != null && (
-          <Text style={styles.hint}>A–B слева ведёт обе стороны</Text>
-        )}
+        <View style={styles.spacer} />
+        <IconAction icon="ellipsis-horizontal" label="Ещё" onPress={() => setMenu("options")} />
       </View>
+
+      {menu === "speed" && (
+        <CompareSpeedSheet
+          rate={rate}
+          onSelect={(r) => {
+            setRate(r)
+            setMenu(null)
+          }}
+          onClose={() => setMenu(null)}
+        />
+      )}
+      {menu === "options" && (
+        <CompareOptionsSheet
+          sync={sync}
+          canSync={!!uris.right}
+          leftLoopLeads={loops.left?.endSec != null}
+          audioSide={audioSide}
+          onToggleSync={() => {
+            toggleSync()
+            setMenu(null)
+          }}
+          onAudioSide={(side) => {
+            setAudioSide(side)
+            setMenu(null)
+          }}
+          onClose={() => setMenu(null)}
+        />
+      )}
+      {(menu === "left" || menu === "right") && (
+        <ComparePaneSheet
+          label={SIDE_LABEL[menu]}
+          mirrored={mirrored[menu]}
+          loop={loops[menu]}
+          onToggleMirror={() => {
+            setSide(setMirrored, menu, !mirrored[menu])
+            setMenu(null)
+          }}
+          onSetA={() => {
+            setA(menu)
+            setMenu(null)
+          }}
+          onSetB={() => {
+            setB(menu)
+            setMenu(null)
+          }}
+          onClearLoop={() => {
+            setSide(setLoops, menu, null)
+            setMenu(null)
+          }}
+          onClose={() => setMenu(null)}
+        />
+      )}
 
       {pickerSide && pickerContext && (
         <ComparePicker
@@ -450,14 +482,11 @@ const makeStyles = (theme: Theme) =>
     column: { flexDirection: "column" },
     bar: {
       flexDirection: "row",
-      flexWrap: "wrap",
       alignItems: "center",
       gap: theme.spacing(2),
       paddingHorizontal: theme.spacing(3),
       paddingVertical: theme.spacing(2),
       backgroundColor: theme.colors.overlayStrong,
     },
-    rates: { flexDirection: "row", gap: theme.spacing(1) + 2 },
-    hint: { color: theme.colors.onOverlay, fontSize: 12, opacity: 0.8 },
-    hidden: { display: "none" },
+    spacer: { flex: 1 },
   })
