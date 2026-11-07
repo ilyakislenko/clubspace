@@ -191,6 +191,8 @@ model Workspace {
   plans         Plan[]
   watched       VideoWatched[]
   favorites     VideoFavorite[]
+  videoBookmarks VideoBookmark[]
+  videoNotes     VideoNote[]
   gyms          Gym[]
   directions    Direction[]
   directionManagers DirectionManager[]
@@ -328,6 +330,8 @@ model User {
   webPushSubscriptions    WebPushSubscription[]
   watched                 VideoWatched[]
   favorites               VideoFavorite[]
+  videoBookmarks          VideoBookmark[]
+  videoNotes              VideoNote[]
   coachOfGroups           Group[]                  @relation("GroupCoach")
   coachAssignments        GroupCoach[]             @relation("GroupCoaches")
   managedDirections       DirectionManager[]
@@ -1193,6 +1197,8 @@ model Video {
   courses    CourseVideo[]
   watched    VideoWatched[]
   favorites  VideoFavorite[]
+  bookmarks  VideoBookmark[]
+  notes      VideoNote[]
   timestamps VideoTimestamp[]
   subtitles  VideoSubtitle[]
 
@@ -1251,6 +1257,51 @@ model VideoFavorite {
   @@id([userId, videoId])
   @@index([userId, workspaceId, createdAt])
   @@index([videoId])
+}
+
+// A student's personal bookmark on a video. Offline-first: the id is
+// generated on the device and updatedAt comes from the client clock
+// (last-write-wins). endSec set = a saved A–B segment (endSec > positionSec).
+model VideoBookmark {
+  id          String   @id @db.Uuid
+  userId      String   @db.Uuid
+  videoId     String   @db.Uuid
+  workspaceId String   @db.Uuid
+  positionSec Int
+  endSec      Int?
+  label       String   @default("") @db.VarChar(255)
+  note        String   @default("") @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  // Tombstone: a deleted bookmark keeps its row so an older offline edit
+  // can't resurrect it (last-write-wins compares against updatedAt).
+  deletedAt   DateTime?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, videoId])
+  @@index([userId, workspaceId])
+}
+
+// A student's personal free-text note on a video (one per user+video).
+// updatedAt comes from the client clock (last-write-wins). A cleared note
+// keeps its row with empty text as a tombstone, so an older offline edit
+// can't bring it back.
+model VideoNote {
+  userId      String   @db.Uuid
+  videoId     String   @db.Uuid
+  workspaceId String   @db.Uuid
+  text        String   @db.Text
+  updatedAt   DateTime
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, videoId])
+  @@index([userId, workspaceId])
 }
 
 model VideoWatched {

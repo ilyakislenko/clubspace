@@ -410,6 +410,14 @@ import { SetVideoFavoriteController } from '../features/set-video-favorite/set-v
 import { SetVideoFavoriteHandler } from '../features/set-video-favorite/set-video-favorite.handler'
 import { ListMyFavoritesController } from '../features/list-my-favorites/list-my-favorites.controller'
 import { ListMyFavoritesHandler } from '../features/list-my-favorites/list-my-favorites.handler'
+import { MyVideoBookmarksController } from '../features/manage-my-video-bookmarks/my-video-bookmarks.controller'
+import { ListMyVideoBookmarksHandler } from '../features/manage-my-video-bookmarks/list-my-video-bookmarks.handler'
+import { PutMyVideoBookmarkHandler } from '../features/manage-my-video-bookmarks/put-my-video-bookmark.handler'
+import { MyVideoNoteController } from '../features/manage-my-video-note/my-video-note.controller'
+import { GetMyVideoNoteHandler } from '../features/manage-my-video-note/get-my-video-note.handler'
+import { PutMyVideoNoteHandler } from '../features/manage-my-video-note/put-my-video-note.handler'
+import { ListMyVideoNotesController } from '../features/list-my-video-notes/list-my-video-notes.controller'
+import { ListMyVideoNotesHandler } from '../features/list-my-video-notes/list-my-video-notes.handler'
 import { GroupScheduleController } from '../features/manage-group-schedule/group-schedule.controller'
 import { CreateGroupSlotHandler } from '../features/manage-group-schedule/create-group-slot.handler'
 import { UpdateGroupSlotHandler } from '../features/manage-group-schedule/update-group-slot.handler'
@@ -740,6 +748,9 @@ const controllers: ModuleMetadata['controllers'] = [
     SaveVideoProgressController,
     SetVideoFavoriteController,
     ListMyFavoritesController,
+    MyVideoBookmarksController,
+    MyVideoNoteController,
+    ListMyVideoNotesController,
     VideoTimestampsController,
     VideoSubtitlesController,
     GroupScheduleController,
@@ -924,6 +935,11 @@ const handlers: ModuleMetadata['providers'] = [
     SaveVideoProgressHandler,
     SetVideoFavoriteHandler,
     ListMyFavoritesHandler,
+    ListMyVideoBookmarksHandler,
+    PutMyVideoBookmarkHandler,
+    GetMyVideoNoteHandler,
+    PutMyVideoNoteHandler,
+    ListMyVideoNotesHandler,
     CreateVideoTimestampHandler,
     UpdateVideoTimestampHandler,
     DeleteVideoTimestampHandler,

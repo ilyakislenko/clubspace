@@ -118,6 +118,8 @@ const buildDelete = (o: {
         notificationPreferences: del(),
         videoFavorite: del(),
         videoWatched: del(),
+        videoBookmark: del(),
+        videoNote: del(),
         file: del(),
         workspaceMember: del(),
         groupMember: del(),
@@ -190,6 +192,13 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
             where: { userId: 'u1' },
         })
         expect(tx.videoWatched.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+        // Personal video study data (bookmarks incl. tombstones, notes).
+        expect(tx.videoBookmark.deleteMany).toHaveBeenCalledWith({
+            where: { userId: 'u1' },
+        })
+        expect(tx.videoNote.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },
         })
         expect(tx.trainingJournalEntry.deleteMany).toHaveBeenCalledWith({

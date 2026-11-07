@@ -2964,6 +2964,86 @@ export type ListMyFavoritesOutputOutput = {
     }>;
 };
 
+export type ListMyVideoBookmarksOutputOutput = {
+    items: Array<{
+        id: string;
+        videoId: string;
+        positionSec: number;
+        endSec: number | null;
+        label: string;
+        note: string;
+        createdAt: string;
+        updatedAt: string;
+        deleted: boolean;
+    }>;
+};
+
+export type PutMyVideoBookmarkInput = {
+    positionSec: number;
+    endSec: number | null;
+    label: string;
+    note: string;
+    updatedAt: string;
+    deleted?: boolean;
+};
+
+export type PutMyVideoBookmarkOutputOutput = {
+    id: string;
+    videoId: string;
+    positionSec: number;
+    endSec: number | null;
+    label: string;
+    note: string;
+    createdAt: string;
+    updatedAt: string;
+    deleted: boolean;
+};
+
+export type GetMyVideoNoteOutputOutput = {
+    text: string;
+    updatedAt: string | null;
+};
+
+export type PutMyVideoNoteInput = {
+    text: string;
+    updatedAt: string;
+};
+
+export type PutMyVideoNoteOutputOutput = {
+    text: string;
+    updatedAt: string | null;
+};
+
+export type ListMyVideoNotesOutputOutput = {
+    items: Array<{
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        };
+        course: {
+            id: string;
+            title: string;
+        } | null;
+        note: {
+            text: string;
+            updatedAt: string;
+        } | null;
+        bookmarks: Array<{
+            id: string;
+            videoId: string;
+            positionSec: number;
+            endSec: number | null;
+            label: string;
+            note: string;
+            createdAt: string;
+            updatedAt: string;
+            deleted: boolean;
+        }>;
+    }>;
+};
+
 export type CreateVideoTimestampInput = {
     positionSec: number;
     title: string;
@@ -9586,6 +9666,84 @@ export type List2Responses = {
 };
 
 export type List2Response = List2Responses[keyof List2Responses];
+
+export type ListMyVideoBookmarksData = {
+    body?: never;
+    path: {
+        videoId: string;
+    };
+    query?: never;
+    url: '/videos/{videoId}/my-bookmarks';
+};
+
+export type ListMyVideoBookmarksResponses = {
+    default: ListMyVideoBookmarksOutputOutput;
+};
+
+export type ListMyVideoBookmarksResponse = ListMyVideoBookmarksResponses[keyof ListMyVideoBookmarksResponses];
+
+export type PutMyVideoBookmarkData = {
+    body: PutMyVideoBookmarkInput;
+    path: {
+        videoId: string;
+        bookmarkId: string;
+    };
+    query?: never;
+    url: '/videos/{videoId}/my-bookmarks/{bookmarkId}';
+};
+
+export type PutMyVideoBookmarkResponses = {
+    default: PutMyVideoBookmarkOutputOutput;
+};
+
+export type PutMyVideoBookmarkResponse = PutMyVideoBookmarkResponses[keyof PutMyVideoBookmarkResponses];
+
+export type GetMyVideoNoteData = {
+    body?: never;
+    path: {
+        videoId: string;
+    };
+    query?: never;
+    url: '/videos/{videoId}/my-note';
+};
+
+export type GetMyVideoNoteResponses = {
+    default: GetMyVideoNoteOutputOutput;
+};
+
+export type GetMyVideoNoteResponse = GetMyVideoNoteResponses[keyof GetMyVideoNoteResponses];
+
+export type PutMyVideoNoteData = {
+    body: PutMyVideoNoteInput;
+    path: {
+        videoId: string;
+    };
+    query?: never;
+    url: '/videos/{videoId}/my-note';
+};
+
+export type PutMyVideoNoteResponses = {
+    default: PutMyVideoNoteOutputOutput;
+};
+
+export type PutMyVideoNoteResponse = PutMyVideoNoteResponses[keyof PutMyVideoNoteResponses];
+
+export type ListMyVideoNotesData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        q?: string;
+    };
+    url: '/workspaces/{workspaceId}/me/video-notes';
+};
+
+export type ListMyVideoNotesResponses = {
+    default: ListMyVideoNotesOutputOutput;
+};
+
+export type ListMyVideoNotesResponse = ListMyVideoNotesResponses[keyof ListMyVideoNotesResponses];
 
 export type Create4Data = {
     body: CreateVideoTimestampInput;

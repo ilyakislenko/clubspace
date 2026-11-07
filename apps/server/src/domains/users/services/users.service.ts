@@ -157,6 +157,8 @@ export class UsersService {
             tx.notificationPreferences.deleteMany({ where: { userId } }),
             tx.videoFavorite.deleteMany({ where: { userId } }),
             tx.videoWatched.deleteMany({ where: { userId } }),
+            tx.videoBookmark.deleteMany({ where: { userId } }),
+            tx.videoNote.deleteMany({ where: { userId } }),
             tx.file.deleteMany({ where: { userId } }),
             tx.workspaceMember.deleteMany({ where: { userId } }),
             tx.groupMember.deleteMany({ where: { userId } }),
