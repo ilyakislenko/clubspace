@@ -1,4 +1,3 @@
-import { compare } from 'bcrypt'
 import { createHash } from 'crypto'
 
 import { Logger } from '@nestjs/common'
@@ -20,6 +19,7 @@ import {
     isStoreReviewEmail,
     storeReviewCodeMatches,
 } from '../../shared/utils/store-review.util'
+import { consumeAccountCode, verifyIssuedCode } from './account-code'
 import {
     LOCKOUT_MS,
     PendingSignInAttempts,
@@ -32,15 +32,6 @@ import {
     SignInFeatureResponse,
     TooManySignInAttemptsError,
 } from './sign-in.feature'
-
-// OTP lifetime — long enough for a slow inbox / SMS, short enough that
-// a leaked code can't be redeemed later. 15 minutes is the industry
-// default (Google, GitHub, AWS).
-const CODE_TTL_MS = 15 * 60 * 1000
-
-// Compared against on the store-review path so it spends the same bcrypt time
-// as a normal account (which compares against its emailed code's hash).
-const DUMMY_HASH = '$2b$10$4ztxPTDvmLpKogYQGru0BOvy.ePGpMHLJgUIb6t8KWBwUhjJ2QVXW'
 
 type SignInUser = {
     id: string
@@ -129,22 +120,13 @@ export class SignInHandler
             })
         }
 
-        if (!user.completeCode) {
-            throw new UserNoCompleteCodeError()
-        }
-
-        // Code TTL — reject without bcrypt work if it's stale.
-        if (this.isCodeStale(user.completeCodeIssuedAt)) {
-            throw new InvalidCredentialsError()
-        }
-
-        await attempts.claim(ipHash)
-
-        const isCodeValid = await compare(code, user.completeCode)
-
-        if (!isCodeValid) {
-            return await this.recordFailedAttempt(attempts, ipHash)
-        }
+        await verifyIssuedCode({
+            attempts,
+            ipHash,
+            code,
+            codeHash: user.completeCode,
+            issuedAt: user.completeCodeIssuedAt,
+        })
 
         const mfa = await this.verifySecondFactor(user.id, totp, attempts, ipHash)
 
@@ -179,23 +161,14 @@ export class SignInHandler
         if (await attempts.isLocked(ipHash)) {
             throw new TooManySignInAttemptsError(LOCKOUT_MS / 60_000)
         }
-        if (this.isCodeStale(pending.codeIssuedAt)) {
-            throw new InvalidCredentialsError()
-        }
-
-        await attempts.claim(ipHash)
-
-        let matches: boolean
-        if (review) {
-            // Timing parity with a mailed code; the result is not used.
-            await compare(code, DUMMY_HASH)
-            matches = storeReviewCodeMatches(code)
-        } else {
-            matches = codeHash !== null && (await compare(code, codeHash))
-        }
-        if (!matches) {
-            return await this.recordFailedAttempt(attempts, ipHash)
-        }
+        await verifyIssuedCode({
+            attempts,
+            ipHash,
+            code,
+            codeHash,
+            issuedAt: pending.codeIssuedAt,
+            fixedMatches: review ? storeReviewCodeMatches : undefined,
+        })
 
         const user = await this.createProvenUser(pending.email, pending.language)
         if (review) {
@@ -305,21 +278,14 @@ export class SignInHandler
 
         // Like a normal account, it only signs in after a code was "requested"
         // (send-auth-code stamps completeCodeIssuedAt for these accounts).
-        if (!user.completeCodeIssuedAt) {
-            throw new UserNoCompleteCodeError()
-        }
-        if (this.isCodeStale(user.completeCodeIssuedAt)) {
-            throw new InvalidCredentialsError()
-        }
-
-        await attempts.claim(ipHash)
-
-        // Timing parity with a normal account; the result is not used.
-        await compare(code, DUMMY_HASH)
-
-        if (!fixed.matches(code)) {
-            return await this.recordFailedAttempt(attempts, ipHash)
-        }
+        await verifyIssuedCode({
+            attempts,
+            ipHash,
+            code,
+            codeHash: null,
+            issuedAt: user.completeCodeIssuedAt,
+            fixedMatches: fixed.matches,
+        })
 
         await this.audit.record({
             action: fixed.action,
@@ -330,10 +296,6 @@ export class SignInHandler
         })
         await fixed.afterAudit?.()
         return await this.issueSession(user)
-    }
-
-    private isCodeStale(issuedAt: Date | null): boolean {
-        return !!issuedAt && Date.now() - issuedAt.getTime() > CODE_TTL_MS
     }
 
     // An account with an authenticator (platform admins) proves it after the
@@ -357,56 +319,18 @@ export class SignInHandler
             throw new TfaCodeRequiredError()
         }
         if (!(await this.tfaAuthenticator.verifyCode({ userId, code: totp }))) {
-            return await this.recordFailedAttempt(
-                attempts,
-                ipHash,
-                new TfaCodeInvalidError(),
-            )
+            await attempts.afterFailure(ipHash)
+            throw new TfaCodeInvalidError()
         }
         return true
-    }
-
-    private async recordFailedAttempt(
-        attempts: SignInAttempts,
-        ipHash: string,
-        error: Error = new InvalidCredentialsError(),
-    ): Promise<never> {
-        await attempts.afterFailure(ipHash)
-        throw error
     }
 
     private async issueSession(
         user: SignInUser,
         mfa = false,
     ): Promise<SignInFeatureResponse> {
-        // Successful sign-in — burn the OTP so it can't be replayed and
-        // reset brute-force state. (For the store-review account there is no
-        // stored code; the write is a harmless no-op on those fields.)
-        // The resend cooldown goes too: it guards the mailbox while a code is
-        // pending, and kept after sign-in it refused the next sign-in on this
-        // address («чуть позже») for the rest of the minute.
-        await this.prisma.user.update({
-            where: { id: user.id },
-            data: {
-                completeCode: null,
-                completeCodeIssuedAt: null,
-                completeCodeNextResendAt: null,
-                signInFailedAttempts: 0,
-                signInLockedUntil: null,
-            },
-        })
-        // Wrong-code counters of this account's addresses go too, except
-        // locks still running: a success here must not unlock whoever was
-        // guessing from elsewhere.
-        await this.prisma.signInThrottle.deleteMany({
-            where: {
-                userId: user.id,
-                OR: [
-                    { lockedUntil: null },
-                    { lockedUntil: { lte: new Date() } },
-                ],
-            },
-        })
+        // Successful sign-in — burn the OTP and reset brute-force state.
+        await consumeAccountCode(this.prisma, user.id)
 
         await this.audit.record({
             action: 'auth.signIn',

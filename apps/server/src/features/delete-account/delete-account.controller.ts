@@ -1,8 +1,10 @@
 import {
+    Body,
     Controller,
-    Delete,
     HttpCode,
     HttpStatus,
+    Ip,
+    Post,
     UseGuards,
 } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
@@ -16,31 +18,41 @@ import { SkipConsentCheck } from '../../shared/decorators/skip-consent-check.dec
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import {
     DeleteAccountFeature,
+    DeleteAccountFeatureInputSchema,
     DeleteAccountFeatureOutputSchema,
     DeleteAccountFeatureResponse,
 } from './delete-account.feature'
+
+class DeleteAccountInput extends createZodDto(DeleteAccountFeatureInputSchema) {}
 
 class DeleteAccountOutput extends createZodDto(
     DeleteAccountFeatureOutputSchema,
 ) {}
 
 // Self-service account deletion (App Store 5.1.1(v)). A user permanently
-// deletes their own account and all cascading data. Blocked server-side for
+// deletes their own account and all cascading data, proving it is them with
+// a fresh code: the client first calls POST /send-auth-code for the
+// account's own address, then posts that code here. Blocked server-side for
 // club owners/coaches (they must hand off first). Withdrawing the
 // personal-data consent is this deletion, so it stays reachable without one.
+// A POST, not DELETE /me: the code travels in the body.
 @Controller('me')
 @UseGuards(AuthGuard)
 @SkipConsentCheck()
 export class DeleteAccountController {
     constructor(private bus: FeaturesBus) {}
 
-    @Delete()
+    @Post('delete-account')
     @HttpCode(HttpStatus.OK)
     @ZodResponse({ type: DeleteAccountOutput })
-    async delete(@CurrentUser() user: CurrentUserPayload) {
+    async deleteMyAccount(
+        @Body() input: DeleteAccountInput,
+        @CurrentUser() user: CurrentUserPayload,
+        @Ip() ip: string,
+    ) {
         return await this.bus.execute<
             DeleteAccountFeature,
             DeleteAccountFeatureResponse
-        >(new DeleteAccountFeature(user.userId))
+        >(new DeleteAccountFeature(input, user.userId, ip))
     }
 }

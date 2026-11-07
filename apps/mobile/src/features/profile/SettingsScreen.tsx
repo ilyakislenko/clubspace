@@ -53,6 +53,7 @@ import {
   type Preferences,
 } from "./preferences-store"
 import { confirmDeleteAccount } from "./confirm-delete-account"
+import { DeleteAccountModal } from "./DeleteAccountModal"
 import { myDataFileName, serializeMyData } from "./my-data-file"
 import { saveMyData } from "./save-my-data"
 import type { RootStackParamList } from "../../app/navigation"
@@ -84,6 +85,7 @@ export function SettingsScreen(_props: Props) {
   const [pushPermission, setPushPermission] =
     useState<Notifications.NotificationPermissionsStatus | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [deletingAccount, setDeletingAccount] = useState(false)
   const webPush = useWebPush()
 
   useEffect(() => {
@@ -137,7 +139,7 @@ export function SettingsScreen(_props: Props) {
   }
 
   const handleDeleteAccount = () =>
-    confirmDeleteAccount(() => signOut({ wipeLocal: true }))
+    confirmDeleteAccount(() => setDeletingAccount(true))
 
   // Always the signed-in guardian's own data, also in a child's profile; a
   // child's export is on «Дети».
@@ -577,6 +579,12 @@ export function SettingsScreen(_props: Props) {
         </Text>
       </ScrollView>
       </CenteredColumn>
+      {deletingAccount && (
+        <DeleteAccountModal
+          onClose={() => setDeletingAccount(false)}
+          onDeleted={() => signOut({ wipeLocal: true })}
+        />
+      )}
     </SafeAreaView>
   )
 }

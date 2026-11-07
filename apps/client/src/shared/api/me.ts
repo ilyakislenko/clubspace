@@ -11,9 +11,15 @@ export const fetchMe = async () => {
   })
 }
 
-export const deleteAccount = async () => {
-  return await getApiClient().request<ApiTypes.DeleteAccountOutputOutput>({
-    method: "delete",
-    url: "/me",
+// Deletes the account with a fresh code from POST /send-auth-code for the
+// account's own address.
+export const deleteAccount = async (code: string) => {
+  return await getApiClient().request<
+    ApiTypes.DeleteAccountOutputOutput,
+    ApiTypes.DeleteAccountInput
+  >({
+    method: "post",
+    url: "/me/delete-account",
+    data: { code },
   })
 }

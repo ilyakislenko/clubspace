@@ -18,6 +18,16 @@
 	@other not path /_expo/static/*
 	header @other Cache-Control "no-cache"
 
+	# Content-Security-Policy. The shell has no inline script (public/
+	# boot-splash.js, register-sw.js), so scripts are this origin only; styles
+	# keep 'unsafe-inline' for react-native-web's injected sheets and the
+	# shell's own <style>. HLS playlists come from the API, segments, images and
+	# offline downloads from object storage, live updates over the API's socket.
+	# Those origins come from the container's environment (docker-compose.prod.yml,
+	# service `pwa`) rather than being baked in: origins only, no path. An unset
+	# one is simply left out.
+	header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {$PWA_MEDIA_ORIGIN} {$PWA_ACCELERATE_ORIGIN}; media-src 'self' blob: {$PWA_API_ORIGIN} {$PWA_MEDIA_ORIGIN} {$PWA_ACCELERATE_ORIGIN}; font-src 'self' data:; connect-src 'self' {$PWA_API_ORIGIN} {$PWA_SOCKET_ORIGIN} {$PWA_MEDIA_ORIGIN} {$PWA_ACCELERATE_ORIGIN}; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
 	# Client-side routes (/join/<code>, /courses/…) are all the app shell.
 	try_files {path} /index.html
 	file_server

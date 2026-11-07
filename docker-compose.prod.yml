@@ -343,6 +343,11 @@ services:
         NEXT_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
     restart: unless-stopped
     logging: *default-logging
+    # Runtime: the Content-Security-Policy (apps/admin/src/proxy.ts) lets pages
+    # load media from, and upload to, the storage origin presigned URLs use.
+    environment:
+      S3_UPLOAD_BUCKET_URL: https://s3.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      S3_ACCELERATE_URL: ${S3_ACCELERATE_URL:-}
     networks:
       - bjj_net
     # Same probe as the image's HEALTHCHECK (apps/admin/Dockerfile), declared
@@ -396,6 +401,9 @@ services:
       GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
       SUPPORT_TELEGRAM_URL: ${SUPPORT_TELEGRAM_URL:-}
       DATA_HOSTED_IN_RU: ${DATA_HOSTED_IN_RU:-}
+      # Storage origin(s) for the Content-Security-Policy (apps/client/src/proxy.ts).
+      S3_UPLOAD_BUCKET_URL: https://s3.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      S3_ACCELERATE_URL: ${S3_ACCELERATE_URL:-}
     networks:
       - bjj_net
     healthcheck:
@@ -420,6 +428,13 @@ services:
         EXPO_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
     restart: unless-stopped
     logging: *default-logging
+    # Origins in the PWA's Content-Security-Policy (deploy/pwa.Caddyfile):
+    # the API above, its socket, and object storage. Origins only — no path.
+    environment:
+      PWA_API_ORIGIN: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      PWA_SOCKET_ORIGIN: wss://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      PWA_MEDIA_ORIGIN: https://s3.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      PWA_ACCELERATE_ORIGIN: ${S3_ACCELERATE_URL:-}
     networks:
       - bjj_net
     # Caddy image has no node — busybox wget, as in apps/mobile/Dockerfile.

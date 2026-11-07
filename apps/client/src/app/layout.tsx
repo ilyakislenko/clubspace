@@ -12,6 +12,11 @@ import { readMarketingConfig } from "../shared/lib/marketing"
 
 const brand = getInstanceBrand()
 
+// Every page renders per request: the Content-Security-Policy (src/proxy.ts)
+// carries a fresh nonce, and Next stamps it only on pages it renders for that
+// request — a prerendered page's scripts would carry none and be blocked.
+export const dynamic = "force-dynamic"
+
 // metadataBase makes canonical and Open Graph URLs (opengraph-image.png
 // included) absolute on this site's public address. Pages rendered per
 // request read SITE_URL at request time; without it Next falls back to

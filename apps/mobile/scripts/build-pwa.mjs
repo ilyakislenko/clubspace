@@ -16,7 +16,8 @@
 // The <head> lives in `public/index.html`, which Expo uses as its template (see
 // that file). Only the brand's name (home-screen title, link previews) and the
 // service-worker registration are patched into the export, so `expo start
-// --web` stays SW-free during dev.
+// --web` stays SW-free during dev. Every script is a file, never inline: the
+// PWA's Content-Security-Policy (deploy/pwa.Caddyfile) is `script-src 'self'`.
 import { execSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import {
@@ -69,6 +70,8 @@ const REQUIRED = [
   "icons/icon-maskable-512.png",
   "vendor/plyr.css",
   "vendor/plyr.svg",
+  "boot-splash.js",
+  "blank.mp4",
 ]
 for (const required of REQUIRED) {
   if (!existsSync(join(out, required))) {
@@ -79,10 +82,12 @@ for (const required of REQUIRED) {
   }
 }
 
+const REGISTER_SW_FILE = "register-sw.js"
 const REGISTER_SW =
-  "<script>if('serviceWorker' in navigator){window.addEventListener('load'," +
+  "if('serviceWorker' in navigator){window.addEventListener('load'," +
   "function(){navigator.serviceWorker.register('/service-worker.js')" +
-  ".catch(function(){})})}</script>"
+  ".catch(function(){})})}\n"
+const REGISTER_SW_TAG = `<script src="/${REGISTER_SW_FILE}" defer></script>`
 
 const indexPath = join(out, "index.html")
 const html = readFileSync(indexPath, "utf8")
@@ -115,14 +120,18 @@ const buildId = createHash("sha256")
   .update(bundles.join("|"))
   .digest("hex")
   .slice(0, 12)
-// The shell, its bundle, and the player assets a downloaded video needs.
+// The shell (its scripts included), its bundle, and the player assets a
+// downloaded video needs.
 const precache = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
+  "/boot-splash.js",
+  `/${REGISTER_SW_FILE}`,
   ...bundles,
   "/vendor/plyr.css",
   "/vendor/plyr.svg",
+  "/blank.mp4",
 ]
 
 const swPath = join(out, "service-worker.js")
@@ -172,13 +181,14 @@ const named = html
     `$1${attr}"`,
   )
   .replace(/(<meta property="og:site_name" content=")[^"]*"/, `$1${attr}"`)
-if (named.includes("serviceWorker")) {
+writeFileSync(join(out, REGISTER_SW_FILE), REGISTER_SW)
+if (named.includes(REGISTER_SW_TAG)) {
   console.log("[build-pwa] service worker already registered — skipping inject")
   writeFileSync(indexPath, named)
 } else {
   writeFileSync(
     indexPath,
-    named.replace("</body>", `  ${REGISTER_SW}\n</body>`),
+    named.replace("</body>", `  ${REGISTER_SW_TAG}\n</body>`),
   )
 }
 console.log(`[build-pwa] installs as «${identity.name}»`)

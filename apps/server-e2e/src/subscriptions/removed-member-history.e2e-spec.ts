@@ -1,4 +1,4 @@
-import { signIn } from '../support/actors'
+import { deleteAccount, signIn } from '../support/actors'
 import { addMember, createPlan, createWorkspace } from '../support/fixtures'
 import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
 
@@ -110,7 +110,7 @@ describe('abonements of a removed member', () => {
     it('account deletion keeps the sales, like payments', async () => {
         const { workspace, payer } = await setup()
         const actor = await signIn(ctx, payer.email!)
-        await ctx.http().delete('/me').set(...actor.auth).expect(200)
+        await deleteAccount(ctx, actor)
 
         const rows = await ctx.prisma.subscription.findMany({
             where: { workspaceId: workspace.id, userId: payer.id },

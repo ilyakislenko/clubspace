@@ -86,42 +86,12 @@ export class UsersService {
     // other guardian (a child profile has no login, so nobody could ever reach
     // or delete it again); deleting a dependent is the same purge.
     async deleteAccount(userId: string): Promise<void> {
-        const orphans = await this.prisma.user.findMany({
-            where: {
-                dependentOf: {
-                    some: { guardianId: userId },
-                    every: { guardianId: userId },
-                },
-                status: { not: UserStatus.DELETED },
-            },
-            select: { id: true },
+        const ids = await this.assertDeletable(userId)
+        const targets = await this.prisma.user.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, email: true },
         })
-        const ids = [userId, ...orphans.map((o) => o.id)]
 
-        const [ownedWorkspaces, coachedGroups, targets] = await Promise.all([
-            this.prisma.workspace.count({ where: { ownerId: { in: ids } } }),
-            this.prisma.group.count({ where: { coachId: { in: ids } } }),
-            this.prisma.user.findMany({
-                where: { id: { in: ids } },
-                select: { id: true, email: true },
-            }),
-        ])
-
-        if (ownedWorkspaces > 0 || coachedGroups > 0) {
-            // The words of the club whose group they lead (an account spans
-            // clubs; read only on refusal).
-            const coached =
-                coachedGroups > 0
-                    ? await this.prisma.group.findFirst({
-                          where: { coachId: { in: ids } },
-                          select: { workspace: { select: { type: true } } },
-                      })
-                    : null
-            const v = vocabularyForWorkspaceType(coached?.workspace.type)
-            throw new BadRequestError({
-                message: `Ваш аккаунт управляет клубом (владелец или ${v.coach.nom} группы). Передайте эти роли в админ-панели, затем удалите аккаунт.`,
-            })
-        }
 
         // Collected before the rows go: the files are deleted once they have.
         const clips = await this.prisma.reviewClip.findMany({
@@ -145,6 +115,45 @@ export class UsersService {
         })
         // Best effort (logged, never thrown): the account is gone either way.
         await deleteReviewClipFiles(this.files, clips)
+    }
+
+    // The refusal of deleteAccount on its own, so self-deletion can refuse
+    // before it asks for (and burns) the confirmation code. Returns the
+    // accounts the deletion covers: the user and their orphaned dependents.
+    async assertDeletable(userId: string): Promise<string[]> {
+        const orphans = await this.prisma.user.findMany({
+            where: {
+                dependentOf: {
+                    some: { guardianId: userId },
+                    every: { guardianId: userId },
+                },
+                status: { not: UserStatus.DELETED },
+            },
+            select: { id: true },
+        })
+        const ids = [userId, ...orphans.map((o) => o.id)]
+
+        const [ownedWorkspaces, coachedGroups] = await Promise.all([
+            this.prisma.workspace.count({ where: { ownerId: { in: ids } } }),
+            this.prisma.group.count({ where: { coachId: { in: ids } } }),
+        ])
+
+        if (ownedWorkspaces > 0 || coachedGroups > 0) {
+            // The words of the club whose group they lead (an account spans
+            // clubs; read only on refusal).
+            const coached =
+                coachedGroups > 0
+                    ? await this.prisma.group.findFirst({
+                          where: { coachId: { in: ids } },
+                          select: { workspace: { select: { type: true } } },
+                      })
+                    : null
+            const v = vocabularyForWorkspaceType(coached?.workspace.type)
+            throw new BadRequestError({
+                message: `Ваш аккаунт управляет клубом (владелец или ${v.coach.nom} группы). Передайте эти роли в админ-панели, затем удалите аккаунт.`,
+            })
+        }
+        return ids
     }
 
     private async purgeAccount(

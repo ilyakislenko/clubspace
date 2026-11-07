@@ -3,9 +3,9 @@
 import { Button } from "@clubspace/ui-kit/ui"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 
-import { clearAuthTokens } from "../../../shared/api/client"
+import { clearAuthTokens, getAuthApi } from "../../../shared/api/client"
 import { deleteAccount, fetchMe, type Me } from "../../../shared/api/me"
 import { errorMessage } from "../../../shared/lib/error-message"
 
@@ -22,6 +22,9 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // Deleting needs a fresh code mailed to the account's own address.
+  const [codeSent, setCodeSent] = useState(false)
+  const [code, setCode] = useState("")
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -51,17 +54,38 @@ export default function ProfilePage() {
     router.replace("/sign-in")
   }
 
-  const handleDeleteAccount = async () => {
+  const handleSendCode = async (email: string) => {
     setDeleting(true)
     setDeleteError(null)
     try {
-      await deleteAccount()
+      await getAuthApi().sendAuthCode({ email, language: "RU" })
+      setCodeSent(true)
+    } catch (err) {
+      setDeleteError(errorMessage(err, "Не удалось отправить код."))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleDeleteAccount = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteAccount(code.trim())
       clearAuthTokens()
       router.replace("/sign-in")
     } catch (err) {
       setDeleteError(errorMessage(err, "Не удалось удалить аккаунт."))
       setDeleting(false)
     }
+  }
+
+  const cancelDelete = () => {
+    setConfirmingDelete(false)
+    setCodeSent(false)
+    setCode("")
+    setDeleteError(null)
   }
 
   if (loading) {
@@ -141,25 +165,80 @@ export default function ProfilePage() {
               заметки и закладки будут удалены навсегда. Обезличенная история
               посещений и рангов сохранится в клубе.
             </p>
-            {deleteError && (
-              <p className="text-sm text-destructive">{deleteError}</p>
+            {codeSent ? (
+              <form className="grid gap-3" onSubmit={handleDeleteAccount}>
+                <label htmlFor="delete-code" className="text-sm">
+                  Мы отправили код на {me.email}. Введите его, чтобы
+                  подтвердить удаление.
+                </label>
+                <input
+                  id="delete-code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="000000"
+                  maxLength={6}
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  className="flex h-12 w-full max-w-xs rounded-md border border-input bg-transparent px-3 text-center text-2xl font-mono tracking-widest shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  autoFocus
+                  required
+                />
+                {deleteError && (
+                  <p className="text-sm text-destructive">{deleteError}</p>
+                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={deleting}
+                    onClick={cancelDelete}
+                  >
+                    Отмена
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="destructive"
+                    disabled={deleting || code.trim().length !== 6}
+                  >
+                    Удалить
+                  </Button>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                    disabled={deleting}
+                    onClick={() => void handleSendCode(me.email ?? "")}
+                  >
+                    Не пришёл код? Отправить ещё раз
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Для подтверждения мы отправим код на {me.email}.
+                </p>
+                {deleteError && (
+                  <p className="text-sm text-destructive">{deleteError}</p>
+                )}
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    disabled={deleting}
+                    onClick={cancelDelete}
+                  >
+                    Отмена
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    disabled={deleting}
+                    onClick={() => void handleSendCode(me.email ?? "")}
+                  >
+                    Отправить код
+                  </Button>
+                </div>
+              </>
             )}
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                disabled={deleting}
-                onClick={() => setConfirmingDelete(false)}
-              >
-                Отмена
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={deleting}
-                onClick={() => void handleDeleteAccount()}
-              >
-                Удалить
-              </Button>
-            </div>
           </>
         ) : (
           <>

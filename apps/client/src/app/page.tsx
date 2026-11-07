@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { headers } from "next/headers"
 import Link from "next/link"
 
 import {
@@ -72,6 +73,8 @@ export default async function LandingPage() {
   const [pricing, selfServe] = await Promise.all([getPublicPricing(), getSelfServeConfig()])
   const { admin } = readSiteLinks()
   const marketing = readMarketingConfig()
+  // The request's CSP nonce (src/proxy.ts); the Metrika snippet needs it.
+  const nonce = (await headers()).get("x-nonce") ?? undefined
 
   const trialDays = pricing?.trialDays ?? selfServe?.trialDays ?? 30
   const trialLabel = `Попробовать ${trialDays} ${pluralRu(trialDays, "день", "дня", "дней")}`
@@ -375,6 +378,7 @@ export default async function LandingPage() {
       {marketing.metrikaId && (
         <>
           <script
+            nonce={nonce}
             // Static snippet; the id is validated as digits in readMarketingConfig.
             dangerouslySetInnerHTML={{ __html: metrikaSnippet(marketing.metrikaId) }}
           />

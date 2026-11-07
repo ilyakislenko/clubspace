@@ -582,6 +582,54 @@ signing secret silently accepts forged tokens and playback URLs.
 There is no admin password to set anywhere. Sign-in is OTP-only.
 </details>
 
+## Content-Security-Policy
+
+Every page of `admin.`, `app.` and `pwa.` carries a `Content-Security-Policy`
+header. Nothing to configure for the standard stack — the origins it allows are
+derived from `DOMAIN` / `PUBLIC_PORT_SUFFIX` like every other URL.
+
+| | Where it is set | Scripts | Talks to |
+|---|---|---|---|
+| `admin.` | `apps/admin/src/proxy.ts` (per request) | `'self'` + a fresh nonce + `'strict-dynamic'` | `api.` (HTTPS + WebSocket), `s3.`, the Sentry ingest when `NEXT_PUBLIC_SENTRY_DSN` is set |
+| `app.` | `apps/client/src/proxy.ts` (per request) | same | same, plus `mc.yandex.ru` only while `YANDEX_METRIKA_ID` is set |
+| `pwa.` | `deploy/pwa.Caddyfile` (static) | `'self'` only — the shell has no inline script | `api.` (HTTPS + WebSocket), `s3.` |
+
+All three also send `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`
+and `frame-ancestors 'none'` (no site can frame them). Images are `'self'`,
+`data:`, `blob:` and storage; video is `blob:` (hls.js), the API (HLS
+playlists) and storage (segments). Styles allow `'unsafe-inline'`: React style
+props, react-native-web and the player set inline styles, and a style cannot
+run code.
+
+Where each origin comes from:
+
+- **API and Sentry** — `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SENTRY_DSN`, baked
+  into the admin and app images at build (so is `EXPO_PUBLIC_API_URL` for the
+  PWA). Changing them means a rebuild, as before.
+- **Storage** — runtime: `S3_UPLOAD_BUCKET_URL` (and `S3_ACCELERATE_URL` when
+  set) for `admin`/`client`, `PWA_*_ORIGIN` for `pwa`, all set in
+  `docker-compose.prod.yml`. A restart applies a change. For the PWA,
+  `S3_ACCELERATE_URL` must be a bare origin (`https://cdn.example.ru`, no path)
+  — Caddy pastes it into the policy as-is.
+- **Yandex Metrika** — `YANDEX_METRIKA_ID` on `client`, read per request.
+
+**Trade-offs.** A nonce has to be fresh per response, so every admin and app
+page now renders per request — nothing is prerendered at build. On `app.` the
+landing, join and club pages already did; the legal pages and sign-in are the
+ones that changed, and the legal texts' API call still comes from Next's data
+cache. Admin pages were prerendered shells that fetch everything in the
+browser; each hit now costs a small server render. Metrika still counts
+visits, clicks and links, but its in-page click map viewer (which frames the
+site from `metrika.yandex.ru`) is refused by `frame-ancestors 'none'`; use the
+reports instead.
+
+**Something blocked?** The browser console names the directive and the URL
+(`Refused to load … because it violates the following Content Security Policy
+directive: "connect-src …"`). The usual cause is an address that differs from
+the one the policy was built from — for example a server whose `ROOT_URL` is
+not `NEXT_PUBLIC_API_URL`, or a CDN in front of storage that is not in
+`S3_ACCELERATE_URL`. Fix the address rather than widening the policy.
+
 ## Verify
 
 ```bash
@@ -603,6 +651,12 @@ curl -s -o /dev/null -w 'thumbnails: %{http_code}\n' https://s3.<domain>/clubspa
 # be 403 with an EMPTY body (the proxy's refusal, not MinIO's XML error).
 curl -s -w ' admin: %{http_code}\n' https://s3.<domain>/minio/admin/v3/info
 curl -s -X DELETE -w ' delete: %{http_code}\n' https://s3.<domain>/clubspace/thumbnails/probe
+
+# Each web name sends its Content-Security-Policy (see above).
+for h in admin app pwa; do
+  curl -sI https://$h.<domain>/ | grep -qi '^content-security-policy:' \
+    && echo "$h: csp" || echo "$h: NO CSP"
+done
 
 # The bucket bootstrap ran and created both service accounts.
 docker compose -f docker-compose.prod.yml --env-file .env.production logs minio-init

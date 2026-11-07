@@ -14,13 +14,12 @@ import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { CenteredColumn, READABLE_WIDTH } from "../../shared/components/CenteredColumn"
 import { Pressable } from "../../shared/components/Pressable"
-import { showAlert } from "../../shared/alert"
-import { deleteAccount } from "../../shared/api/me"
 import { isConsentConflictError } from "../../shared/consent-errors"
 import { errorMessage } from "../../shared/error-message"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { confirmDeleteAccount } from "../profile/confirm-delete-account"
+import { DeleteAccountModal } from "../profile/DeleteAccountModal"
 
 const PROCESSED_DATA = [
   "email, имя, фамилия, телефон и другие данные профиля",
@@ -42,6 +41,8 @@ export function ConsentScreen({ consent }: { consent: MyConsent }) {
   const [agreed, setAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Deleting needs a code mailed to the account (DeleteAccountModal).
+  const [deleting, setDeleting] = useState(false)
   const updated = consent.acceptedVersion !== null
 
   // A different edition (a 409 on accept, or a re-check) has to be read and
@@ -49,19 +50,6 @@ export function ConsentScreen({ consent }: { consent: MyConsent }) {
   useEffect(() => {
     setAgreed(false)
   }, [consent.currentVersion])
-
-  // A brand-new account with nothing in it: refusing simply undoes the sign-up.
-  const handleDecline = async () => {
-    if (submitting) return
-    setSubmitting(true)
-    try {
-      await deleteAccount()
-      signOut({ wipeLocal: true })
-    } catch (e) {
-      showAlert("Не удалось выйти", errorMessage(e))
-      setSubmitting(false)
-    }
-  }
 
   const handleAccept = async () => {
     if (!agreed || submitting) return
@@ -183,7 +171,10 @@ export function ConsentScreen({ consent }: { consent: MyConsent }) {
           <View style={styles.actions}>
             {consent.isEmptyAccount ? (
               <Pressable
-                onPress={() => void handleDecline()}
+                // A brand-new account with nothing in it: refusing simply
+                // undoes the sign-up — confirmed with a code like any
+                // deletion, without asking twice.
+                onPress={() => setDeleting(true)}
                 disabled={submitting}
                 accessibilityRole="button"
                 hitSlop={8}
@@ -193,9 +184,7 @@ export function ConsentScreen({ consent }: { consent: MyConsent }) {
               </Pressable>
             ) : (
               <Pressable
-                onPress={() =>
-                  confirmDeleteAccount(() => signOut({ wipeLocal: true }))
-                }
+                onPress={() => confirmDeleteAccount(() => setDeleting(true))}
                 accessibilityRole="button"
                 hitSlop={8}
                 style={styles.ghostBtn}
@@ -212,6 +201,12 @@ export function ConsentScreen({ consent }: { consent: MyConsent }) {
               <Text style={styles.signOutText}>Выйти</Text>
             </Pressable>
           </View>
+          {deleting && (
+            <DeleteAccountModal
+              onClose={() => setDeleting(false)}
+              onDeleted={() => signOut({ wipeLocal: true })}
+            />
+          )}
         </ScrollView>
       </CenteredColumn>
     </SafeAreaView>

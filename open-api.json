@@ -5364,48 +5364,16 @@
         }
       }
     },
-    "/me": {
-      "delete": {
-        "operationId": "delete",
-        "parameters": [],
-        "responses": {
-          "default": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeleteAccountOutput_Output"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "operationId": "getMe",
-        "parameters": [],
-        "responses": {
-          "default": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetMeOutput_Output"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "operationId": "updateMe",
+    "/me/delete-account": {
+      "post": {
+        "operationId": "deleteMyAccount",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateMeInput"
+                "$ref": "#/components/schemas/DeleteAccountInput"
               }
             }
           }
@@ -5416,7 +5384,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UpdateMeOutput_Output"
+                  "$ref": "#/components/schemas/DeleteAccountOutput_Output"
                 }
               }
             }
@@ -12043,6 +12011,50 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeleteAnnouncementOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "getMe",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetMeOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateMeOutput_Output"
                 }
               }
             }
@@ -29598,6 +29610,19 @@
           "reviewRemindersEnabled"
         ],
         "additionalProperties": false
+      },
+      "DeleteAccountInput": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 6
+          }
+        },
+        "required": [
+          "code"
+        ]
       },
       "DeleteAccountOutput_Output": {
         "type": "object",

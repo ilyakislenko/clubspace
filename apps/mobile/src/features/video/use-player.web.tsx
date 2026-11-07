@@ -207,10 +207,11 @@ export function usePlayer(uri: string | null): UsePlayerResult {
           settings: ["speed"],
           speed: { selected: 1, options: [...PLAYBACK_RATES] },
           keyboard: { focused: true, global: false, seekTime: 5 },
-          // Local sprite (bundled) — no CDN. blankVideo is never fetched because
-          // a source (src or hls.js) is always attached before init, so we
-          // leave it at its default.
+          // Local sprite (bundled) — no CDN. blankVideo is what destroy()
+          // loads to cancel the stream; Plyr's default is on its CDN, which
+          // the PWA's CSP (deploy/pwa.Caddyfile) does not allow.
           iconUrl: "/vendor/plyr.svg",
+          blankVideo: "/blank.mp4",
         })
       })
       .catch(() => undefined)

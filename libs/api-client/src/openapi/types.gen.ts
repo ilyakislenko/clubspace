@@ -3182,6 +3182,10 @@ export type UpdateNotificationPreferencesOutputOutput = {
     reviewRemindersEnabled: boolean;
 };
 
+export type DeleteAccountInput = {
+    code: string;
+};
+
 export type DeleteAccountOutputOutput = {
     status: 'deleted';
 };
@@ -10676,44 +10680,18 @@ export type Update6Responses = {
 
 export type Update6Response = Update6Responses[keyof Update6Responses];
 
-export type DeleteData = {
-    body?: never;
+export type DeleteMyAccountData = {
+    body: DeleteAccountInput;
     path?: never;
     query?: never;
-    url: '/me';
+    url: '/me/delete-account';
 };
 
-export type DeleteResponses = {
+export type DeleteMyAccountResponses = {
     default: DeleteAccountOutputOutput;
 };
 
-export type DeleteResponse = DeleteResponses[keyof DeleteResponses];
-
-export type GetMeData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/me';
-};
-
-export type GetMeResponses = {
-    default: GetMeOutputOutput;
-};
-
-export type GetMeResponse = GetMeResponses[keyof GetMeResponses];
-
-export type UpdateMeData = {
-    body: UpdateMeInput;
-    path?: never;
-    query?: never;
-    url: '/me';
-};
-
-export type UpdateMeResponses = {
-    default: UpdateMeOutputOutput;
-};
-
-export type UpdateMeResponse = UpdateMeResponses[keyof UpdateMeResponses];
+export type DeleteMyAccountResponse = DeleteMyAccountResponses[keyof DeleteMyAccountResponses];
 
 export type GetMyConsentData = {
     body?: never;
@@ -13390,6 +13368,32 @@ export type UpdateAnnouncementResponses = {
 };
 
 export type UpdateAnnouncementResponse = UpdateAnnouncementResponses[keyof UpdateAnnouncementResponses];
+
+export type GetMeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me';
+};
+
+export type GetMeResponses = {
+    default: GetMeOutputOutput;
+};
+
+export type GetMeResponse = GetMeResponses[keyof GetMeResponses];
+
+export type UpdateMeData = {
+    body: UpdateMeInput;
+    path?: never;
+    query?: never;
+    url: '/me';
+};
+
+export type UpdateMeResponses = {
+    default: UpdateMeOutputOutput;
+};
+
+export type UpdateMeResponse = UpdateMeResponses[keyof UpdateMeResponses];
 
 export type FileReportData = {
     body: FileContentReportInput;

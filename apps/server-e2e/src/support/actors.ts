@@ -78,6 +78,26 @@ export const acceptConsent = async (
 }
 
 /**
+ * Deletes the account the way the apps do: a fresh code for the account's
+ * own address, read from the mail, then the deletion with it. The mailbox is
+ * cleared first so the sign-in code already in it isn't read back.
+ */
+export const deleteAccount = async (
+    ctx: TestApp,
+    actor: Pick<Actor, 'auth' | 'email'>,
+) => {
+    ctx.mail.clear()
+    await ctx.http().post('/send-auth-code').send({ email: actor.email }).expect(201)
+    const code = await ctx.mail.waitForCodeTo(actor.email)
+    await ctx
+        .http()
+        .post('/me/delete-account')
+        .set(...actor.auth)
+        .send({ code })
+        .expect(200)
+}
+
+/**
  * Issuing a code writes completeCodeNextResendAt, and a second request inside
  * that window is refused. Specs that sign the same address in twice (e.g. to
  * check a token refresh) need the cooldown cleared rather than a sleep.

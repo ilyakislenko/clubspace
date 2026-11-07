@@ -1,4 +1,4 @@
-import { acceptConsent, signIn } from '../support/actors'
+import { acceptConsent, deleteAccount, signIn } from '../support/actors'
 import { addMember, createWorkspace } from '../support/fixtures'
 import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
 
@@ -33,7 +33,7 @@ describe('personal-data consent gate', () => {
         expect(status.body.isEmptyAccount).toBe(true)
 
         // «Не согласен» deletes it through the same pre-consent route.
-        await ctx.http().delete('/me').set(...actor.auth).expect(200)
+        await deleteAccount(ctx, actor)
         expect(
             await ctx.prisma.user.count({ where: { email: 'just-looking@example.com' } }),
         ).toBe(0)
@@ -148,7 +148,7 @@ describe('personal-data consent gate', () => {
             data: { personalDataConsentVersion: null },
         })
 
-        await ctx.http().delete('/me').set(...actor.auth).expect(200)
+        await deleteAccount(ctx, actor)
 
         const record = await ctx.prisma.consentRecord.findFirstOrThrow({
             where: { userId: user.id },
