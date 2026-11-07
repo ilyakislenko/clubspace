@@ -59,6 +59,11 @@ const POPOVER_BOTTOM = 96
 const CHAPTER_ROW_HEIGHT = 20
 // The fullscreen top bar below the safe-area inset (40 px button + padding).
 const TOP_BAR_HEIGHT = 56
+// The centre play button; its style uses the same size.
+const PLAY_BUTTON_SIZE = 64
+// Two subtitle lines with their padding: less room than this between the
+// centre row and the bottom bar and a cue is hidden while controls show.
+const MIN_CUE_ROOM = 56
 // Inline the player sits inside the screen: the drawing toolbar needs no
 // safe-area padding there.
 const NO_INSETS = { top: 0, right: 0, bottom: 0, left: 0 }
@@ -336,7 +341,12 @@ export function PlayerOverlay({
   const pictureRect = containRect(size, player.videoSize)
   const showControls = controlsVisible && !drawingMode
   const subtitleInset = showControls ? barHeight : 0
-  const subtitlesHidden = drawingMode || (drawerOpen && fullscreen)
+  // The centre row (64 pt play button) sits mid-player. On a short inline
+  // player, a cue lifted over the bottom bar would land on it: with less than
+  // two lines of room between them, the cue waits until the controls hide.
+  const roomAboveBar = size.height / 2 - PLAY_BUTTON_SIZE / 2 - barHeight
+  const noRoomForCue = showControls && size.height > 0 && roomAboveBar < MIN_CUE_ROOM
+  const subtitlesHidden = drawingMode || (drawerOpen && fullscreen) || noRoomForCue
   const subtitleLayoutRef = useRef(onSubtitleLayout)
   subtitleLayoutRef.current = onSubtitleLayout
   useEffect(() => {
@@ -871,9 +881,9 @@ const makeStyles = (theme: Theme) =>
       gap: theme.spacing(6),
     },
     playButton: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
+      width: PLAY_BUTTON_SIZE,
+      height: PLAY_BUTTON_SIZE,
+      borderRadius: PLAY_BUTTON_SIZE / 2,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: theme.colors.overlayStrong,
