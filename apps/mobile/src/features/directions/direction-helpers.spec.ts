@@ -4,6 +4,8 @@ import {
   directionsOf,
   filterByDirection,
   resolveDirectionFilter,
+  resolveDirectionFilters,
+  toggleDirectionFilter,
 } from "./direction-helpers"
 
 const bjj = { id: "d1", name: "БЖЖ", color: "#1E88E5", icon: "🥋" }
@@ -46,6 +48,44 @@ describe("resolveDirectionFilter", () => {
   it("falls back to «Все» for none or a vanished one", () => {
     expect(resolveDirectionFilter(null, [bjj])).toBeNull()
     expect(resolveDirectionFilter("gone", [bjj])).toBeNull()
+  })
+})
+
+describe("resolveDirectionFilters", () => {
+  const bok = { id: "d3", name: "Бокс", color: null, icon: null }
+
+  it("keeps the listed picks in the club's order", () => {
+    expect(resolveDirectionFilters(["d3", "d1"], [bjj, mma, bok])).toEqual([
+      "d1",
+      "d3",
+    ])
+  })
+  it("drops vanished picks", () => {
+    expect(resolveDirectionFilters(["gone", "d2"], [bjj, mma, bok])).toEqual([
+      "d2",
+    ])
+    expect(resolveDirectionFilters(["gone"], [bjj, mma])).toEqual([])
+  })
+  it("reads every direction picked as «Все»", () => {
+    expect(resolveDirectionFilters(["d1", "d2"], [bjj, mma])).toEqual([])
+    expect(resolveDirectionFilters(["d1"], [])).toEqual([])
+  })
+})
+
+describe("toggleDirectionFilter", () => {
+  const bok = { id: "d3", name: "Бокс", color: null, icon: null }
+  const all = [bjj, mma, bok]
+
+  it("adds and removes a direction", () => {
+    expect(toggleDirectionFilter([], "d2", all)).toEqual(["d2"])
+    expect(toggleDirectionFilter(["d2"], "d1", all)).toEqual(["d1", "d2"])
+    expect(toggleDirectionFilter(["d1", "d2"], "d1", all)).toEqual(["d2"])
+  })
+  it("clears on «Все»", () => {
+    expect(toggleDirectionFilter(["d1", "d2"], null, all)).toEqual([])
+  })
+  it("collapses back to «Все» once every direction is picked", () => {
+    expect(toggleDirectionFilter(["d1", "d2"], "d3", all)).toEqual([])
   })
 })
 

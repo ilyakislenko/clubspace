@@ -101,6 +101,51 @@ describe('GetWorkspaceScheduleHandler — bookedGuests', () => {
     })
 })
 
+describe('GetWorkspaceScheduleHandler — direction filter', () => {
+    const runWith = (
+        handler: GetWorkspaceScheduleHandler,
+        directionIds?: string[],
+    ) =>
+        handler.execute(
+            new GetWorkspaceScheduleFeature(
+                { from: '2026-10-31', to: '2026-10-31', directionIds },
+                'w1',
+            ),
+        )
+
+    it('keeps classes and events of any picked direction', async () => {
+        const { handler, prisma } = build([])
+        await runWith(handler, ['d1', 'd2'])
+        expect(prisma.group.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { workspaceId: 'w1', directionId: { in: ['d1', 'd2'] } },
+            }),
+        )
+        expect(prisma.workspaceEvent.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({
+                    directionId: { in: ['d1', 'd2'] },
+                }),
+            }),
+        )
+    })
+
+    it.each([[undefined], [[]]])('does not filter for %p', async (ids) => {
+        const { handler, prisma } = build([])
+        await runWith(handler, ids)
+        expect(prisma.group.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({ where: { workspaceId: 'w1' } }),
+        )
+        expect(prisma.workspaceEvent.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.not.objectContaining({
+                    directionId: expect.anything(),
+                }),
+            }),
+        )
+    })
+})
+
 describe('GetWorkspaceScheduleHandler — substitution', () => {
     it('attaches the occurrence’s substitution, null elsewhere', async () => {
         const { handler, prisma } = build([])

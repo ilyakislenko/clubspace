@@ -9,42 +9,43 @@ import { useThemedStyles } from "../../shared/theme-context"
 import { DirectionChips } from "../directions/DirectionChips"
 
 /**
- * The schedule's filters behind the «Фильтр» button: the direction (when the
- * club has directions) and «Мои группы» / a gym (when there is a choice). A
- * pick applies at once; «Сбросить» goes back to everything.
+ * The schedule's filters behind the «Фильтр» button: directions (when the
+ * club has directions) and «Мои группы» / gyms (when there is a choice).
+ * Several directions or gyms can be picked; «Все» clears a section. A pick
+ * applies at once; «Сбросить» goes back to everything.
  */
 export function ScheduleFilterSheet({
   directions,
-  directionId,
-  onDirection,
+  directionIds,
+  onToggleDirection,
   chips,
-  filterId,
-  onFilter,
+  filterIds,
+  onToggleFilter,
   onReset,
   onClose,
 }: {
   directions: readonly DirectionRef[]
-  directionId: string | null
-  onDirection: (id: string | null) => void
+  directionIds: readonly string[]
+  onToggleDirection: (id: string | null) => void
   // The gym/group chips, or null when there is nothing to pick.
   chips: ReadonlyArray<{ id: string | null; name: string }> | null
-  filterId: string | null
-  onFilter: (id: string | null) => void
+  filterIds: readonly string[]
+  onToggleFilter: (id: string | null) => void
   onReset: () => void
   onClose: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
-  const filtered = !!directionId || !!filterId
+  const filtered = directionIds.length > 0 || filterIds.length > 0
 
   return (
     <Sheet title="Фильтр" onClose={onClose}>
       {directions.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Направление</Text>
+          <Text style={styles.sectionTitle}>Направления</Text>
           <DirectionChips
             directions={directions}
-            selectedId={directionId}
-            onSelect={onDirection}
+            selectedIds={directionIds}
+            onToggle={onToggleDirection}
             wrap
           />
         </View>
@@ -55,11 +56,12 @@ export function ScheduleFilterSheet({
           <Text style={styles.sectionTitle}>Группы и залы</Text>
           <View style={styles.chips}>
             {chips.map((c) => {
-              const selected = c.id === filterId
+              const selected =
+                c.id === null ? filterIds.length === 0 : filterIds.includes(c.id)
               return (
                 <Pressable
                   key={c.id ?? "all"}
-                  onPress={() => onFilter(c.id)}
+                  onPress={() => onToggleFilter(c.id)}
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
                   style={[styles.chip, selected && styles.chipSelected]}

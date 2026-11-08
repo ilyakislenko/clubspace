@@ -177,12 +177,13 @@ export type WorkspaceSchedule = {
   events: ScheduleEvent[]
 }
 
-// `directionId` narrows the classes and events to that direction's.
+// `directionIds` narrows the classes and events to those of any of these
+// directions; none = every direction.
 export const getWorkspaceSchedule = async (params: {
   workspaceId: string
   from: string
   to: string
-  directionId?: string | null
+  directionIds: readonly string[]
 }): Promise<WorkspaceSchedule> => {
   return await getApiClient().request<WorkspaceSchedule>({
     method: "get",
@@ -190,7 +191,9 @@ export const getWorkspaceSchedule = async (params: {
     params: {
       from: params.from,
       to: params.to,
-      ...(params.directionId ? { directionId: params.directionId } : {}),
+      ...(params.directionIds.length > 0
+        ? { directionIds: params.directionIds.join(",") }
+        : {}),
     },
   })
 }

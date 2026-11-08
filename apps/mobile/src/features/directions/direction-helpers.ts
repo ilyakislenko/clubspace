@@ -16,6 +16,35 @@ export const resolveDirectionFilter = (
   selectedId && directions.some((d) => d.id === selectedId) ? selectedId : null
 
 /**
+ * Several picked directions, in the club's order: the ones that have left the
+ * list drop out, and picking every direction reads as «Все» (none).
+ */
+export const resolveDirectionFilters = (
+  selectedIds: readonly string[],
+  directions: readonly { id: string }[],
+): string[] => {
+  const picked = directions
+    .filter((d) => selectedIds.includes(d.id))
+    .map((d) => d.id)
+  return picked.length === directions.length ? [] : picked
+}
+
+/** A tap in a multi-pick: «Все» (null) clears, a direction toggles. */
+export const toggleDirectionFilter = (
+  selectedIds: readonly string[],
+  id: string | null,
+  directions: readonly { id: string }[],
+): string[] =>
+  id === null
+    ? []
+    : resolveDirectionFilters(
+        selectedIds.includes(id)
+          ? selectedIds.filter((s) => s !== id)
+          : [...selectedIds, id],
+        directions,
+      )
+
+/**
  * The distinct directions tagged on a cross-club list (the agenda), in first
  * appearance order. Rows cached before directions existed have none.
  */

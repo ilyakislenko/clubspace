@@ -12323,7 +12323,7 @@ export type GetScheduleData = {
     query: {
         from: string;
         to: string;
-        directionId?: string;
+        directionIds?: string;
     };
     url: '/workspaces/{workspaceId}/schedule';
 };

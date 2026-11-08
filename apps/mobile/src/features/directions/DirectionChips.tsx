@@ -7,6 +7,12 @@ import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { DirectionDot } from "./DirectionTag"
 
+// One direction («Все» = null) or, in the multi mode, any number of them
+// («Все» = none; the caller toggles a tapped direction in or out).
+type Selection =
+  | { selectedId: string | null; onSelect: (id: string | null) => void }
+  | { selectedIds: readonly string[]; onToggle: (id: string | null) => void }
+
 /**
  * A horizontal «Все» + one-chip-per-direction filter row. Renders nothing
  * when the club has no directions, so such clubs look exactly as before.
@@ -14,15 +20,12 @@ import { DirectionDot } from "./DirectionTag"
  */
 export function DirectionChips({
   directions,
-  selectedId,
-  onSelect,
   wrap = false,
+  ...selection
 }: {
   directions: readonly DirectionRef[]
-  selectedId: string | null
-  onSelect: (id: string | null) => void
   wrap?: boolean
-}) {
+} & Selection) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   if (directions.length === 0) return null
@@ -36,11 +39,20 @@ export function DirectionChips({
     })),
   ]
   const items = chips.map((c) => {
-    const selected = c.id === selectedId
+    const selected =
+      "selectedIds" in selection
+        ? c.id === null
+          ? selection.selectedIds.length === 0
+          : selection.selectedIds.includes(c.id)
+        : c.id === selection.selectedId
     return (
       <Pressable
         key={c.id ?? "all"}
-        onPress={() => onSelect(c.id)}
+        onPress={() =>
+          "selectedIds" in selection
+            ? selection.onToggle(c.id)
+            : selection.onSelect(c.id)
+        }
         accessibilityRole="button"
         accessibilityState={{ selected }}
         accessibilityLabel={c.id ? `Направление: ${c.label}` : "Все направления"}

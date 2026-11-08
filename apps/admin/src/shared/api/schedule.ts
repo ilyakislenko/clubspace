@@ -11,16 +11,11 @@ export const getSchedule = async (params: {
   workspaceId: string
   from: string
   to: string
-  directionId?: string
 }): Promise<WorkspaceSchedule> =>
   await getApiClient().request<WorkspaceSchedule>({
     method: "get",
     url: `/workspaces/${params.workspaceId}/schedule`,
-    params: {
-      from: params.from,
-      to: params.to,
-      directionId: params.directionId,
-    },
+    params: { from: params.from, to: params.to },
   })
 
 const slotBase = (p: { workspaceId: string; groupId: string; slotId: string }) =>
