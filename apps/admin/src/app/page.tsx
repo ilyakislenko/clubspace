@@ -3,20 +3,19 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 
-import { getAccessToken } from "../shared/api/client"
+import { restoreSession } from "../shared/api/client"
 
 export default function Index() {
   const router = useRouter()
 
   useEffect(() => {
-    const token = getAccessToken()
-
-    if (!token) {
-      router.replace("/sign-in")
-      return
+    let cancelled = false
+    void restoreSession().then((ok) => {
+      if (!cancelled) router.replace(ok ? "/workspaces" : "/sign-in")
+    })
+    return () => {
+      cancelled = true
     }
-
-    router.replace("/workspaces")
   }, [router])
 
   return (

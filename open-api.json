@@ -3617,6 +3617,75 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "curPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": true,
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 200,
+              "exclusiveMinimum": true,
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "access",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "expiring",
+                "expired",
+                "inactive"
+              ]
+            }
+          },
+          {
+            "name": "staffOnly",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "name",
+                "expiry",
+                "newest",
+                "oldest",
+                "role"
+              ]
+            }
           }
         ],
         "responses": {
@@ -5362,6 +5431,105 @@
             }
           }
         }
+      }
+    },
+    "/me/telegram": {
+      "get": {
+        "operationId": "getMyTelegram",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramStatusOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMyTelegram",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMyTelegramInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramStatusOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unlinkMyTelegram",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramStatusOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/telegram/link": {
+      "post": {
+        "operationId": "createTelegramLink",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramLinkOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/telegram/webhook": {
+      "post": {
+        "operationId": "handleTelegramWebhook",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramWebhookOutput_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Telegram"
+        ]
       }
     },
     "/me/delete-account": {
@@ -13908,7 +14076,6 @@
         "required": [
           "userId",
           "accessToken",
-          "refreshToken",
           "expiresAt"
         ],
         "additionalProperties": false
@@ -13992,10 +14159,7 @@
             "type": "string",
             "minLength": 1
           }
-        },
-        "required": [
-          "refreshToken"
-        ]
+        }
       },
       "RefreshTokenOutput_Output": {
         "type": "object",
@@ -14016,7 +14180,6 @@
         "required": [
           "userId",
           "accessToken",
-          "refreshToken",
           "expiresAt"
         ],
         "additionalProperties": false
@@ -14028,10 +14191,7 @@
             "type": "string",
             "minLength": 1
           }
-        },
-        "required": [
-          "refreshToken"
-        ]
+        }
       },
       "SignOutOutput_Output": {
         "type": "object",
@@ -26268,6 +26428,16 @@
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
+          "curPage": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "perPage": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
           "workspaceVideoTotal": {
             "type": "integer",
             "minimum": -9007199254740991,
@@ -26277,6 +26447,8 @@
         "required": [
           "data",
           "total",
+          "curPage",
+          "perPage",
           "workspaceVideoTotal"
         ],
         "additionalProperties": false
@@ -29611,6 +29783,70 @@
         ],
         "additionalProperties": false
       },
+      "TelegramStatusOutput_Output": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "linked": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available",
+          "linked",
+          "enabled"
+        ],
+        "additionalProperties": false
+      },
+      "TelegramLinkOutput_Output": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "url",
+          "expiresAt"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateMyTelegramInput": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "TelegramWebhookOutput_Output": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": false
+      },
       "DeleteAccountInput": {
         "type": "object",
         "properties": {
@@ -29806,6 +30042,25 @@
               "lastSeenAt"
             ],
             "additionalProperties": false
+          },
+          "telegram": {
+            "type": "object",
+            "properties": {
+              "chatId": {
+                "type": "string"
+              },
+              "linkedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "chatId",
+              "linkedAt"
+            ],
+            "additionalProperties": false,
+            "nullable": true
           },
           "consents": {
             "type": "array",
@@ -30736,6 +30991,7 @@
           "formatVersion",
           "generatedAt",
           "profile",
+          "telegram",
           "consents",
           "memberships",
           "attendance",

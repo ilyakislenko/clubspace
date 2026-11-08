@@ -39,6 +39,10 @@ describe("shouldSendActAs", () => {
     ["post", "/me/notifications/seen"],
     ["get", "/me/notification-preferences"],
     ["patch", "/me/notification-preferences"],
+    ["get", "/me/telegram"],
+    ["post", "/me/telegram/link"],
+    ["patch", "/me/telegram"],
+    ["delete", "/me/telegram"],
     // Invitations, consent and a membership's mute / leave are the guardian's.
     ["get", "/me/invitations"],
     ["post", "/me/invitations/i-1/accept"],

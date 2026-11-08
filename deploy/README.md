@@ -575,6 +575,17 @@ Everything hostname-shaped — `ROOT_URL`, the JWT issuer and audience,
 derived from `DOMAIN` in `docker-compose.prod.yml`. Setting those in the env
 file has no effect.
 
+The admin panel keeps its session in an HttpOnly, `Secure`, `SameSite=Lax`
+cookie set by the API (`cs_refresh`, scoped to `/refresh-token` and
+`/sign-out`); the access token lives only in the tab's memory. That needs the
+admin and the API on the same site — `admin.${DOMAIN}` and `api.${DOMAIN}`, as
+the compose file sets them — over HTTPS, with the admin origin in
+`CORS_ORIGINS`. The API uses the cookie only for requests whose `Origin` is
+the origin of `ADMIN_URL` (compose sets it; in dev `.env` has
+`http://localhost:4200`), so scripts on `app.` / `pwa.` can't spend it. Ending
+every admin session server-side is the usual `RefreshToken` revoke (§8); the
+cookies left in browsers then fail to refresh.
+
 The server refuses to start if `JWT_SECRET` or `PLAYBACK_TOKEN_SECRET` is under
 32 characters or if the two are equal — deliberately, since a weak or shared
 signing secret silently accepts forged tokens and playback URLs.
@@ -988,6 +999,45 @@ works, as before.
 5. Check: the club's «Тариф» page shows «Оплатить картой»; the platform console
    card shows the payments list, «Повторить списание сейчас», refunds and the
    autopay switch.
+
+### Telegram notifications for members (optional)
+
+Members link a chat with a bot of the platform in the app («Настройки →
+Уведомления → Telegram → Подключить») and get a copy of their notifications
+there. A **separate** bot from the alert bot of step 5 (`ALERT_TELEGRAM_*` never
+reaches the app). Off — and the row hidden — until all three variables are set.
+
+1. [@BotFather](https://t.me/BotFather) → `/newbot` → token and @username. Optionally
+   `/setcommands`: `stop - Отключить уведомления`.
+2. In `.env.production`:
+   ```
+   TELEGRAM_BOT_TOKEN=<token from BotFather>
+   TELEGRAM_BOT_USERNAME=<username without @>
+   TELEGRAM_WEBHOOK_SECRET=<openssl rand -hex 32>
+   ```
+3. `docker compose … up -d` — the schema change is additive (`TelegramLink`,
+   `TelegramLinkToken`), `db push` applies it without data loss.
+4. Register the webhook once (again whenever the token, secret or domain changes).
+   Telegram sends the secret back in `X-Telegram-Bot-Api-Secret-Token`; the server
+   refuses updates without it:
+   ```bash
+   set -a; . ./.env.production; set +a
+   curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+     -d "url=https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX}/telegram/webhook" \
+     -d "secret_token=${TELEGRAM_WEBHOOK_SECRET}" \
+     -d 'allowed_updates=["message"]' \
+     -d "drop_pending_updates=true"
+   # → {"ok":true,"result":true,"description":"Webhook was set"}
+   curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
+   # last_error_message must be absent once a member has pressed «Start»
+   ```
+   Telegram only calls ports 443, 80, 88 and 8443: with a non-standard
+   `PUBLIC_PORT_SUFFIX` other than `:8443` the webhook cannot be registered.
+5. Check: «Подключить» in the app opens the bot, «Start» answers «Готово,
+   уведомления будут приходить сюда», and the next notification arrives in the chat.
+   `/stop` in the chat or «Отключить» in the app unlinks; a member who blocks the
+   bot is unlinked on the next message. Messages go through the `telegram` queue,
+   25 per second at most (Telegram allows about 30).
 
 ### Offer, DPA and seller requisites (clubs as customers)
 

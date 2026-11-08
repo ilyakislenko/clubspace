@@ -15,15 +15,18 @@ export class SignOutHandler
     async execute({ payload }: SignOutFeature): Promise<SignOutFeatureResponse> {
         // Sign-out is idempotent: the goal is that the presented refresh token
         // can no longer mint sessions. If it's still valid, revoke it; if it's
-        // already revoked / expired / malformed it's effectively dead anyway,
-        // so we swallow and report success either way.
-        try {
-            const { familyId } = await this.tokens.verifyStoredToken({
-                token: payload.refreshToken,
-            })
-            await this.tokens.revokeStoredTokenFamily({ familyId })
-        } catch {
-            // Token already unusable — nothing to revoke.
+        // already revoked / expired / malformed — or there is none, a cookie
+        // that already expired — it's effectively dead anyway, so we swallow
+        // and report success either way.
+        if (payload.refreshToken) {
+            try {
+                const { familyId } = await this.tokens.verifyStoredToken({
+                    token: payload.refreshToken,
+                })
+                await this.tokens.revokeStoredTokenFamily({ familyId })
+            } catch {
+                // Token already unusable — nothing to revoke.
+            }
         }
 
         return { status: 'signed-out' }

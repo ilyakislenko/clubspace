@@ -5,16 +5,128 @@ import {
     currentSubscriptionWhere,
     subscriptionScopeSelect,
 } from '../../domains/subscriptions/current-subscriptions'
-import { PrismaService } from '../../infrastructure/prisma'
+import { Prisma, PrismaService } from '../../infrastructure/prisma'
+import { STAFF_ROLES } from '../../shared/decorators/roles.decorator'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     memberGuardiansSelect,
     serializeMemberGuardians,
 } from '../dependents/schemas'
+import { notAwaitingFirstVisitWhere } from '../manage-announcements/renewal-segment'
 import {
     ListWorkspaceMembersFeature,
     ListWorkspaceMembersFeatureResponse,
+    ListWorkspaceMembersInput,
+    MEMBERS_DEFAULT_PER_PAGE,
 } from './list-workspace-members.feature'
+
+const MS_1D = 24 * 3600 * 1000
+// More words than this in a search add nothing but query cost.
+const MAX_SEARCH_TERMS = 5
+
+// Every word of the query must appear in the member's name, e-mail or phone,
+// or in one of a child's guardians' (the guardian is who the club knows).
+export const memberSearchWhere = (
+    q: string,
+): Prisma.WorkspaceMemberWhereInput[] =>
+    q
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, MAX_SEARCH_TERMS)
+        .map((term) => {
+            const contains = { contains: term, mode: 'insensitive' as const }
+            const person: Prisma.UserWhereInput[] = [
+                { firstname: contains },
+                { lastname: contains },
+                { email: contains },
+                { phone: contains },
+            ]
+            return {
+                user: {
+                    OR: [
+                        ...person,
+                        {
+                            dependentOf: {
+                                some: {
+                                    guardian: { status: 'ACTIVE', OR: person },
+                                },
+                            },
+                        },
+                    ],
+                },
+            }
+        })
+
+// The dashboard retention segments (get-workspace-stats): ACTIVE students —
+// neither the owner nor staff — whose access lapsed, lapses within 14 days
+// (not a pending abonement's provisional window), or who haven't checked in
+// for 30 days (never included).
+export const memberAccessWhere = (
+    access: NonNullable<ListWorkspaceMembersInput['access']>,
+    ctx: { workspaceId: string; workspaceOwnerId: string; now: Date },
+): Prisma.WorkspaceMemberWhereInput | null => {
+    if (access === 'all') return null
+    const { workspaceId, workspaceOwnerId, now } = ctx
+    const student: Prisma.WorkspaceMemberWhereInput = {
+        status: 'ACTIVE',
+        NOT: [
+            { role: { name: { in: [...STAFF_ROLES] } } },
+            { userId: workspaceOwnerId },
+        ],
+    }
+    if (access === 'expired') {
+        return { ...student, accessUntil: { lt: now } }
+    }
+    if (access === 'expiring') {
+        return {
+            ...student,
+            accessUntil: {
+                gte: now,
+                lt: new Date(now.getTime() + 14 * MS_1D),
+            },
+            ...notAwaitingFirstVisitWhere,
+        }
+    }
+    return {
+        ...student,
+        user: {
+            attendanceRecords: {
+                none: {
+                    workspaceId,
+                    markedAt: { gte: new Date(now.getTime() - 30 * MS_1D) },
+                },
+            },
+        },
+    }
+}
+
+const BY_NAME: Prisma.WorkspaceMemberOrderByWithRelationInput[] = [
+    { user: { firstname: { sort: 'asc', nulls: 'last' } } },
+    { user: { lastname: { sort: 'asc', nulls: 'last' } } },
+    { user: { email: { sort: 'asc', nulls: 'last' } } },
+]
+
+// Each order ends on the row id: ties never reshuffle between page requests.
+export const memberOrderBy = (
+    sort: NonNullable<ListWorkspaceMembersInput['sort']>,
+): Prisma.WorkspaceMemberOrderByWithRelationInput[] => {
+    switch (sort) {
+        case 'expiry':
+            return [
+                { accessUntil: { sort: 'asc', nulls: 'last' } },
+                ...BY_NAME,
+                { id: 'asc' },
+            ]
+        case 'newest':
+            return [{ createdAt: 'desc' }, { id: 'asc' }]
+        case 'oldest':
+            return [{ createdAt: 'asc' }, { id: 'asc' }]
+        case 'role':
+            return [{ role: { name: 'asc' } }, ...BY_NAME, { id: 'asc' }]
+        case 'name':
+            return [...BY_NAME, { id: 'asc' }]
+    }
+}
 
 @Feature(ListWorkspaceMembersFeature)
 export class ListWorkspaceMembersHandler
@@ -30,6 +142,7 @@ export class ListWorkspaceMembersHandler
     ) {}
 
     async execute({
+        payload,
         workspaceId,
         invokerUserId,
         invokerRoleName,
@@ -62,43 +175,74 @@ export class ListWorkspaceMembersHandler
         // whether the same instant is "expired".
         const now = new Date()
 
-        const members = await this.prisma.workspaceMember.findMany({
-            where: {
-                workspaceId,
-                // INVITED rows belong to the "ожидают приглашения" panel.
-                status: { not: 'INVITED' },
-                ...(scopedUserIds ? { userId: { in: scopedUserIds } } : {}),
-            },
-            orderBy: { createdAt: 'asc' },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        firstname: true,
-                        lastname: true,
-                        // Shown to whoever sees this row, like the e-mail.
-                        dependentOf: memberGuardiansSelect,
-                    },
-                },
-                role: { select: { name: true } },
-                // Only live abonements count as "current" (an expired or
-                // cancelled pack is history, not something the member holds).
-                subscriptions: {
-                    where: currentSubscriptionWhere(now),
-                    orderBy: currentSubscriptionOrderBy,
-                    select: {
-                        classesRemaining: true,
-                        classesTotal: true,
-                        endDate: true,
-                        plan: { select: { name: true } },
-                        ...subscriptionScopeSelect,
-                    },
-                },
-            },
-        })
+        const curPage = payload.curPage ?? 1
+        const perPage = payload.perPage ?? MEMBERS_DEFAULT_PER_PAGE
 
-        // Aggregated progress per member, scoped to this workspace's videos.
+        const filters: Prisma.WorkspaceMemberWhereInput[] = [
+            ...(payload.q ? memberSearchWhere(payload.q) : []),
+        ]
+        const accessWhere = memberAccessWhere(payload.access ?? 'all', {
+            workspaceId,
+            workspaceOwnerId: ctx.workspaceOwnerId,
+            now,
+        })
+        if (accessWhere) filters.push(accessWhere)
+        if (payload.staffOnly) {
+            filters.push({
+                OR: [
+                    { role: { name: { in: [...STAFF_ROLES] } } },
+                    { userId: ctx.workspaceOwnerId },
+                ],
+            })
+        }
+
+        const where: Prisma.WorkspaceMemberWhereInput = {
+            workspaceId,
+            // INVITED rows belong to the "ожидают приглашения" panel.
+            status: { not: 'INVITED' },
+            ...(scopedUserIds ? { userId: { in: scopedUserIds } } : {}),
+            ...(filters.length > 0 ? { AND: filters } : {}),
+        }
+
+        const [members, total] = await Promise.all([
+            this.prisma.workspaceMember.findMany({
+                where,
+                orderBy: memberOrderBy(payload.sort ?? 'name'),
+                skip: (curPage - 1) * perPage,
+                take: perPage,
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            email: true,
+                            firstname: true,
+                            lastname: true,
+                            // Shown to whoever sees this row, like the e-mail.
+                            dependentOf: memberGuardiansSelect,
+                        },
+                    },
+                    role: { select: { name: true } },
+                    // Only live abonements count as "current" (an expired or
+                    // cancelled pack is history, not something the member
+                    // holds).
+                    subscriptions: {
+                        where: currentSubscriptionWhere(now),
+                        orderBy: currentSubscriptionOrderBy,
+                        select: {
+                            classesRemaining: true,
+                            classesTotal: true,
+                            endDate: true,
+                            plan: { select: { name: true } },
+                            ...subscriptionScopeSelect,
+                        },
+                    },
+                },
+            }),
+            this.prisma.workspaceMember.count({ where }),
+        ])
+
+        // Aggregated progress for this page's members only, scoped to this
+        // workspace's videos.
         const userIds = members.map((m) => m.user.id)
         const [
             completedRows,
@@ -216,7 +360,9 @@ export class ListWorkspaceMembersHandler
                         : null,
                 }
             }),
-            total: members.length,
+            total,
+            curPage,
+            perPage,
             workspaceVideoTotal,
         }
     }

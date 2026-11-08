@@ -14,7 +14,7 @@ import {
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { listGyms, type Gym } from "../../../../../shared/api/groups"
 import {
-  listWorkspaceMembers,
+  listAllWorkspaceMembers,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 import { getWorkspaceSettings } from "../../../../../shared/api/workspaces"
@@ -106,13 +106,15 @@ export default function EventsPage() {
       const [eventsResp, gymsResp, membersResp, settings] = await Promise.all([
         listEvents({ workspaceId }),
         listGyms({ workspaceId }),
-        listWorkspaceMembers({ workspaceId }).catch(() => null),
+        listAllWorkspaceMembers({ workspaceId, staffOnly: true }).catch(
+          () => null,
+        ),
         getWorkspaceSettings({ workspaceId }).catch(() => null),
       ])
       setEvents(eventsResp.data)
       setGyms(gymsResp.data)
       setCoaches(
-        (membersResp?.data ?? []).filter((m) => COACH_ROLES.has(m.roleName)),
+        (membersResp ?? []).filter((m) => COACH_ROLES.has(m.roleName)),
       )
       if (settings?.timezone) setWorkspaceTz(settings.timezone)
     } catch (err) {

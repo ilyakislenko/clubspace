@@ -13,7 +13,7 @@ export type SignInInput = {
 export type SignInOutputOutput = {
     userId: string;
     accessToken: string;
-    refreshToken: string;
+    refreshToken?: string;
     expiresAt: number;
 };
 
@@ -37,18 +37,18 @@ export type ResendCodeOutputOutput = {
 };
 
 export type RefreshTokenInput = {
-    refreshToken: string;
+    refreshToken?: string;
 };
 
 export type RefreshTokenOutputOutput = {
     userId: string;
     accessToken: string;
-    refreshToken: string;
+    refreshToken?: string;
     expiresAt: number;
 };
 
 export type SignOutInput = {
-    refreshToken: string;
+    refreshToken?: string;
 };
 
 export type SignOutOutputOutput = {
@@ -2480,6 +2480,8 @@ export type ListWorkspaceMembersOutputOutput = {
         } | null;
     }>;
     total: number;
+    curPage: number;
+    perPage: number;
     workspaceVideoTotal: number;
 };
 
@@ -3182,6 +3184,25 @@ export type UpdateNotificationPreferencesOutputOutput = {
     reviewRemindersEnabled: boolean;
 };
 
+export type TelegramStatusOutputOutput = {
+    available: boolean;
+    linked: boolean;
+    enabled: boolean;
+};
+
+export type TelegramLinkOutputOutput = {
+    url: string;
+    expiresAt: string;
+};
+
+export type UpdateMyTelegramInput = {
+    enabled: boolean;
+};
+
+export type TelegramWebhookOutputOutput = {
+    ok: true;
+};
+
 export type DeleteAccountInput = {
     code: string;
 };
@@ -3227,6 +3248,10 @@ export type ExportMyDataOutputOutput = {
         createdAt: string;
         lastSeenAt: string;
     };
+    telegram: {
+        chatId: string;
+        linkedAt: string;
+    } | null;
     consents: Array<{
         kind: string;
         version: string;
@@ -9907,7 +9932,14 @@ export type ListMembersData = {
     path: {
         workspaceId: string;
     };
-    query?: never;
+    query?: {
+        curPage?: number;
+        perPage?: number;
+        q?: string;
+        access?: 'all' | 'expiring' | 'expired' | 'inactive';
+        staffOnly?: boolean;
+        sort?: 'name' | 'expiry' | 'newest' | 'oldest' | 'role';
+    };
     url: '/workspaces/{workspaceId}/members';
 };
 
@@ -10679,6 +10711,71 @@ export type Update6Responses = {
 };
 
 export type Update6Response = Update6Responses[keyof Update6Responses];
+
+export type UnlinkMyTelegramData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/telegram';
+};
+
+export type UnlinkMyTelegramResponses = {
+    default: TelegramStatusOutputOutput;
+};
+
+export type UnlinkMyTelegramResponse = UnlinkMyTelegramResponses[keyof UnlinkMyTelegramResponses];
+
+export type GetMyTelegramData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/telegram';
+};
+
+export type GetMyTelegramResponses = {
+    default: TelegramStatusOutputOutput;
+};
+
+export type GetMyTelegramResponse = GetMyTelegramResponses[keyof GetMyTelegramResponses];
+
+export type UpdateMyTelegramData = {
+    body: UpdateMyTelegramInput;
+    path?: never;
+    query?: never;
+    url: '/me/telegram';
+};
+
+export type UpdateMyTelegramResponses = {
+    default: TelegramStatusOutputOutput;
+};
+
+export type UpdateMyTelegramResponse = UpdateMyTelegramResponses[keyof UpdateMyTelegramResponses];
+
+export type CreateTelegramLinkData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/telegram/link';
+};
+
+export type CreateTelegramLinkResponses = {
+    default: TelegramLinkOutputOutput;
+};
+
+export type CreateTelegramLinkResponse = CreateTelegramLinkResponses[keyof CreateTelegramLinkResponses];
+
+export type HandleTelegramWebhookData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/telegram/webhook';
+};
+
+export type HandleTelegramWebhookResponses = {
+    default: TelegramWebhookOutputOutput;
+};
+
+export type HandleTelegramWebhookResponse = HandleTelegramWebhookResponses[keyof HandleTelegramWebhookResponses];
 
 export type DeleteMyAccountData = {
     body: DeleteAccountInput;

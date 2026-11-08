@@ -20,16 +20,3 @@ export const GUARDIAN_LINE_PREFIX: Record<GuardianRelation, string> = {
 
 export const guardianName = (g: MemberGuardian): string =>
   [g.firstname, g.lastname].filter(Boolean).join(" ").trim()
-
-// Case-insensitive match of an already-lowercased query against any guardian's
-// name, e-mail or phone.
-export const guardiansMatchQuery = (
-  guardians: readonly MemberGuardian[],
-  query: string,
-): boolean =>
-  guardians.some(
-    (g) =>
-      guardianName(g).toLowerCase().includes(query) ||
-      (g.email ?? "").toLowerCase().includes(query) ||
-      (g.phone ?? "").includes(query),
-  )

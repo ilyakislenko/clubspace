@@ -173,6 +173,9 @@ export class UsersService {
             tx.tfaMethod.deleteMany({ where: { userId } }),
             tx.firebaseDevice.deleteMany({ where: { userId } }),
             tx.webPushSubscription.deleteMany({ where: { userId } }),
+            // The Telegram chat id and any pending link token.
+            tx.telegramLink.deleteMany({ where: { userId } }),
+            tx.telegramLinkToken.deleteMany({ where: { userId } }),
             tx.notification.deleteMany({ where: { userId } }),
             tx.notificationPreferences.deleteMany({ where: { userId } }),
             tx.videoFavorite.deleteMany({ where: { userId } }),

@@ -1,6 +1,7 @@
 import { BullModule } from '@nestjs/bullmq'
 import { Module } from '@nestjs/common'
 
+import { TelegramModule } from '../telegram/telegram.module'
 import { EMAIL_QUEUE } from './email-queue'
 import { PushDeliveryModule } from './push-delivery.module'
 import { NotificationsService } from './services/notifications.service'
@@ -13,6 +14,7 @@ import { NotificationsPreferencesService } from './services/preferences.service'
     imports: [
         BullModule.registerQueue({ name: EMAIL_QUEUE }),
         PushDeliveryModule,
+        TelegramModule,
     ],
     providers: [NotificationsService, NotificationsPreferencesService],
     // PushDeliveryModule re-exported for WebPushClient (the subscribe routes).

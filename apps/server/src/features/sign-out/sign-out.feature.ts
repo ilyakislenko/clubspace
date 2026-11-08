@@ -1,7 +1,8 @@
 import { z } from 'zod'
 
 export const SignOutFeatureInputSchema = z.object({
-    refreshToken: z.string().nonempty(),
+    // Omitted by a cookie-transport client: the token comes from the cookie.
+    refreshToken: z.string().nonempty().optional(),
 })
 
 export const SignOutFeatureOutputSchema = z.object({

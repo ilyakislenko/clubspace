@@ -41,15 +41,44 @@ export const addWorkspaceDependent = async (params: {
   })
 }
 
-export const listWorkspaceMembers = async (params: { workspaceId: string }) => {
-  return await getApiClient().request<{
-    data: WorkspaceMember[]
-    total: number
-    workspaceVideoTotal: number
-  }>({
+export type ListMembersQuery = NonNullable<ApiTypes.ListMembersData["query"]>
+export type MemberSort = NonNullable<ListMembersQuery["sort"]>
+// Dashboard retention segments (?filter= deep-links), counted server-side.
+export type MemberAccessFilter = NonNullable<ListMembersQuery["access"]>
+export type MembersPage = ApiTypes.ListWorkspaceMembersOutputOutput
+
+// One page of the roster (server default 50, at most 200), filtered and
+// ordered server-side.
+export const listWorkspaceMembers = async (
+  params: { workspaceId: string } & ListMembersQuery,
+) => {
+  return await getApiClient().request<MembersPage>({
     method: "get",
     url: `/workspaces/${params.workspaceId}/members`,
+    params: {
+      curPage: params.curPage,
+      perPage: params.perPage,
+      q: params.q,
+      access: params.access,
+      staffOnly: params.staffOnly,
+      sort: params.sort,
+    },
   })
+}
+
+// Every match, page by page — for pickers that offer the whole set (staff for
+// the coach pickers, the roster for a group's students).
+export const listAllWorkspaceMembers = async (params: {
+  workspaceId: string
+  staffOnly?: boolean
+}): Promise<WorkspaceMember[]> => {
+  const perPage = 200
+  const all: WorkspaceMember[] = []
+  for (let curPage = 1; ; curPage++) {
+    const page = await listWorkspaceMembers({ ...params, curPage, perPage })
+    all.push(...page.data)
+    if (page.data.length < perPage || all.length >= page.total) return all
+  }
 }
 
 export const removeWorkspaceMember = async (params: {

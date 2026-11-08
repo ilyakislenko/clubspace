@@ -16,7 +16,7 @@ import {
   type Direction,
 } from "../../../../../shared/api/directions"
 import {
-  listWorkspaceMembers,
+  listAllWorkspaceMembers,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 import { errorMessage } from "../../../../../shared/lib/error-message"
@@ -67,10 +67,10 @@ export default function DirectionsPage() {
     try {
       const [managersRes, membersRes] = await Promise.all([
         listDirectionManagers({ workspaceId }),
-        listWorkspaceMembers({ workspaceId }),
+        listAllWorkspaceMembers({ workspaceId, staffOnly: true }),
       ])
       setManagers(managersRes.data)
-      setCoaches(membersRes.data.filter(isDirectionManagerCandidate))
+      setCoaches(membersRes.filter(isDirectionManagerCandidate))
     } catch (err) {
       setError(errorMessage(err, "Не удалось загрузить руководителей направлений"))
     }

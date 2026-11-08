@@ -189,6 +189,11 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SERVER_SECRET_ACCESS_KEY:?S3_SERVER_SECRET_ACCESS_KEY is required (openssl rand -hex 32)}
       # Sentry release = deployed git sha (deploy/lib/common.sh sets it).
       APP_RELEASE: ${APP_RELEASE:-}
+      # Member-facing Telegram bot (optional; all three set = on). A separate
+      # bot from ALERT_TELEGRAM_* above, which the app never gets.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,7 +1,17 @@
+import { notAwaitingFirstVisitWhere } from '../manage-announcements/renewal-segment'
 import { ForbiddenError } from '../../shared/errors/shared.errors'
 import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
-import { ListWorkspaceMembersFeature } from './list-workspace-members.feature'
-import { ListWorkspaceMembersHandler } from './list-workspace-members.handler'
+import {
+    ListWorkspaceMembersFeature,
+    ListWorkspaceMembersInput,
+    ListWorkspaceMembersInputSchema,
+} from './list-workspace-members.feature'
+import {
+    ListWorkspaceMembersHandler,
+    memberAccessWhere,
+    memberOrderBy,
+    memberSearchWhere,
+} from './list-workspace-members.handler'
 
 const BJJ = { id: 'd-bjj', name: 'БЖЖ', color: '#f00', icon: null }
 
@@ -51,10 +61,13 @@ const groupMemberFindMany = jest.fn(
     },
 )
 
-const make = (members: unknown[], scope = 'admin') => {
+const make = (members: unknown[], scope = 'admin', total = members.length) => {
     const prisma = {
         groupMember: { findMany: groupMemberFindMany },
-        workspaceMember: { findMany: jest.fn().mockResolvedValue(members) },
+        workspaceMember: {
+            findMany: jest.fn().mockResolvedValue(members),
+            count: jest.fn().mockResolvedValue(total),
+        },
         videoWatched: {
             groupBy: jest.fn().mockResolvedValue([]),
             findMany: jest.fn().mockResolvedValue([]),
@@ -75,9 +88,13 @@ const make = (members: unknown[], scope = 'admin') => {
         prisma as never,
         rbac as never,
     )
-    const run = (invoker = 'admin1', role = 'admin') =>
+    const run = (
+        invoker = 'admin1',
+        role = 'admin',
+        payload: ListWorkspaceMembersInput = {},
+    ) =>
         handler.execute(
-            new ListWorkspaceMembersFeature('w1', invoker, role, false),
+            new ListWorkspaceMembersFeature(payload, 'w1', invoker, role, false),
         )
     return { prisma, rbac, run }
 }
@@ -97,7 +114,13 @@ describe('ListWorkspaceMembersHandler', () => {
     const scopedIds = async (invoker: string) => {
         const { prisma, run } = make([], 'coach_own_only')
         const out = await run(invoker, 'coach')
-        expect(out).toEqual({ data: [], total: 0, workspaceVideoTotal: 0 })
+        expect(out).toEqual({
+            data: [],
+            total: 0,
+            curPage: 1,
+            perPage: 50,
+            workspaceVideoTotal: 0,
+        })
         // The one own-groups rule (ownGroupsWhere), limited to the club.
         expect(groupMemberFindMany).toHaveBeenCalledWith({
             where: { group: { workspaceId: 'w1', ...ownGroupsWhere(invoker) } },
@@ -203,5 +226,195 @@ describe('ListWorkspaceMembersHandler', () => {
             ['none', []],
         ])
         expect(out.total).toBe(2)
+    })
+})
+
+describe('ListWorkspaceMembersHandler pagination', () => {
+    // 7 members already in the requested order; the double honours skip/take
+    // the way the database does.
+    const ROSTER = Array.from({ length: 7 }, (_, i) => memberRow(`u${i}`))
+    const paged = () => {
+        const made = make([], 'admin', ROSTER.length)
+        made.prisma.workspaceMember.findMany.mockImplementation(
+            async (args: { skip: number; take: number }) =>
+                ROSTER.slice(args.skip, args.skip + args.take),
+        )
+        return made
+    }
+
+    it('returns 50 per page by default, from the first row', async () => {
+        const { prisma, run } = make([], 'admin', 0)
+        const out = await run()
+        const args = prisma.workspaceMember.findMany.mock.calls[0][0]
+        expect(args).toMatchObject({ skip: 0, take: 50 })
+        expect(out).toMatchObject({ curPage: 1, perPage: 50 })
+    })
+
+    it('walks every member exactly once across pages, with the filtered total', async () => {
+        const { run } = paged()
+        const pages = []
+        for (const curPage of [1, 2, 3]) {
+            pages.push(
+                await run('admin1', 'admin', { curPage, perPage: 3 }),
+            )
+        }
+        expect(pages.map((p) => p.data.map((m) => m.userId))).toEqual([
+            ['u0', 'u1', 'u2'],
+            ['u3', 'u4', 'u5'],
+            ['u6'],
+        ])
+        expect(pages.map((p) => [p.total, p.curPage, p.perPage])).toEqual([
+            [7, 1, 3],
+            [7, 2, 3],
+            [7, 3, 3],
+        ])
+    })
+
+    it('counts and pages with the same where', async () => {
+        const { prisma, run } = paged()
+        await run('admin1', 'admin', { q: 'иван', access: 'expired' })
+        const { where } = prisma.workspaceMember.findMany.mock.calls[0][0]
+        expect(prisma.workspaceMember.count).toHaveBeenCalledWith({ where })
+    })
+
+    it('computes progress and check-ins for the returned page only', async () => {
+        const { prisma, run } = paged()
+        await run('admin1', 'admin', { curPage: 2, perPage: 3 })
+        const page = ['u3', 'u4', 'u5']
+        for (const call of [
+            ...prisma.videoWatched.groupBy.mock.calls,
+            ...prisma.videoWatched.findMany.mock.calls,
+            ...prisma.attendanceRecord.groupBy.mock.calls,
+        ]) {
+            expect(call[0].where.userId).toEqual({ in: page })
+        }
+        expect(prisma.videoWatched.groupBy).toHaveBeenCalledTimes(2)
+        expect(prisma.videoWatched.findMany).toHaveBeenCalledTimes(1)
+        expect(prisma.attendanceRecord.groupBy).toHaveBeenCalledTimes(1)
+    })
+
+    it('skips the aggregates for an empty page', async () => {
+        const { prisma, run } = make([], 'admin', 7)
+        const out = await run('admin1', 'admin', { curPage: 9 })
+        expect(out).toMatchObject({ data: [], total: 7, curPage: 9 })
+        expect(prisma.videoWatched.groupBy).not.toHaveBeenCalled()
+        expect(prisma.attendanceRecord.groupBy).not.toHaveBeenCalled()
+    })
+
+    it('ANDs the search into the coach scope instead of widening it', async () => {
+        const { prisma, run } = make([], 'coach_own_only')
+        await run('coach-b', 'coach', { q: 'петров' })
+        const { where } = prisma.workspaceMember.findMany.mock.calls[0][0]
+        expect(where.userId.in).toEqual(
+            expect.arrayContaining(['coach-b', 'owner', 's2']),
+        )
+        expect(where.AND).toEqual(memberSearchWhere('петров'))
+    })
+
+    it('narrows to staff and the owner for the pickers', async () => {
+        const { prisma, run } = make([])
+        await run('admin1', 'admin', { staffOnly: true })
+        const { where } = prisma.workspaceMember.findMany.mock.calls[0][0]
+        expect(where.AND).toEqual([
+            {
+                OR: [
+                    { role: { name: { in: ['admin', 'head_coach', 'coach'] } } },
+                    { userId: 'owner' },
+                ],
+            },
+        ])
+    })
+})
+
+describe('memberSearchWhere', () => {
+    it('needs every word somewhere in name, e-mail, phone or a guardian', () => {
+        const terms = memberSearchWhere('  Иван   петров ')
+        expect(terms).toHaveLength(2)
+        const contains = { contains: 'Иван', mode: 'insensitive' }
+        const person = [
+            { firstname: contains },
+            { lastname: contains },
+            { email: contains },
+            { phone: contains },
+        ]
+        expect(terms[0]).toEqual({
+            user: {
+                OR: [
+                    ...person,
+                    {
+                        dependentOf: {
+                            some: { guardian: { status: 'ACTIVE', OR: person } },
+                        },
+                    },
+                ],
+            },
+        })
+    })
+
+    it('caps the number of words', () => {
+        expect(memberSearchWhere('a b c d e f g')).toHaveLength(5)
+    })
+})
+
+describe('memberAccessWhere', () => {
+    const now = new Date('2026-11-08T12:00:00Z')
+    const ctx = { workspaceId: 'w1', workspaceOwnerId: 'owner', now }
+    const student = {
+        status: 'ACTIVE',
+        NOT: [
+            { role: { name: { in: ['admin', 'head_coach', 'coach'] } } },
+            { userId: 'owner' },
+        ],
+    }
+
+    it('adds nothing for everyone', () => {
+        expect(memberAccessWhere('all', ctx)).toBeNull()
+    })
+
+    it('matches the dashboard segments, students only', () => {
+        expect(memberAccessWhere('expired', ctx)).toEqual({
+            ...student,
+            accessUntil: { lt: now },
+        })
+        expect(memberAccessWhere('expiring', ctx)).toEqual({
+            ...student,
+            accessUntil: { gte: now, lt: new Date('2026-11-22T12:00:00Z') },
+            ...notAwaitingFirstVisitWhere,
+        })
+        expect(memberAccessWhere('inactive', ctx)).toEqual({
+            ...student,
+            user: {
+                attendanceRecords: {
+                    none: {
+                        workspaceId: 'w1',
+                        markedAt: { gte: new Date('2026-10-09T12:00:00Z') },
+                    },
+                },
+            },
+        })
+    })
+})
+
+describe('memberOrderBy', () => {
+    it('ends every order on the row id, so pages never overlap', () => {
+        for (const sort of ['name', 'expiry', 'newest', 'oldest', 'role'] as const) {
+            expect(memberOrderBy(sort).at(-1)).toEqual({ id: 'asc' })
+        }
+    })
+})
+
+describe('ListWorkspaceMembersInputSchema', () => {
+    it('caps the page size at 200 and parses query strings', () => {
+        expect(
+            ListWorkspaceMembersInputSchema.safeParse({ perPage: '201' }).success,
+        ).toBe(false)
+        expect(
+            ListWorkspaceMembersInputSchema.parse({
+                perPage: '200',
+                curPage: '2',
+                staffOnly: 'false',
+                q: '  иван ',
+            }),
+        ).toEqual({ perPage: 200, curPage: 2, staffOnly: false, q: 'иван' })
     })
 })

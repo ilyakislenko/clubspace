@@ -19,6 +19,7 @@ import {
     SendNotificationPayload,
     UpdateNotificationStatusPayload,
 } from '../interfaces/notifications.interfaces'
+import { TelegramQueueService } from '../../telegram/telegram-queue.service'
 import { PushQueueService } from './push-queue.service'
 
 // ioredis queues commands while reconnecting; fail instead of hanging.
@@ -30,10 +31,12 @@ export class NotificationsService {
         private readonly prisma: PrismaService,
         @InjectQueue(EMAIL_QUEUE) private readonly emailQueue: Queue,
         private readonly push: PushQueueService,
+        private readonly telegram: TelegramQueueService,
     ) {}
 
-    // Writes the row, then hands delivery to the matching queue. TELEGRAM has
-    // no transport yet: its row is an inbox entry only.
+    // Writes the row, then hands delivery to the matching queue. A PUSH row is
+    // also mirrored to the user's linked Telegram chat by push delivery; a
+    // TELEGRAM row goes to Telegram only.
     async sendNotification(payload: SendNotificationPayload): Promise<string> {
         const { userId, topic, type, message, link, identity, metadata } =
             payload
@@ -62,6 +65,8 @@ export class NotificationsService {
             )
         } else if (type === NotificationTypeEnum.PUSH) {
             await this.push.enqueue([id])
+        } else if (type === NotificationTypeEnum.TELEGRAM) {
+            await this.telegram.enqueue([id])
         }
 
         return id

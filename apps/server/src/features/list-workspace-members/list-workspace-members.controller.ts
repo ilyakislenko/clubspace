@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common'
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -14,8 +14,12 @@ import {
     ListWorkspaceMembersFeature,
     ListWorkspaceMembersFeatureOutputSchema,
     ListWorkspaceMembersFeatureResponse,
+    ListWorkspaceMembersInputSchema,
 } from './list-workspace-members.feature'
 
+class ListWorkspaceMembersQuery extends createZodDto(
+    ListWorkspaceMembersInputSchema,
+) {}
 class ListWorkspaceMembersOutput extends createZodDto(
     ListWorkspaceMembersFeatureOutputSchema,
 ) {}
@@ -30,6 +34,7 @@ export class ListWorkspaceMembersController {
     @ZodResponse({ type: ListWorkspaceMembersOutput })
     async listMembers(
         @Param('workspaceId') workspaceId: string,
+        @Query() query: ListWorkspaceMembersQuery,
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<
@@ -37,6 +42,7 @@ export class ListWorkspaceMembersController {
             ListWorkspaceMembersFeatureResponse
         >(
             new ListWorkspaceMembersFeature(
+                query,
                 workspaceId,
                 user.userId,
                 user.role?.name ?? null,

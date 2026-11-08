@@ -12,8 +12,8 @@ import {
   type SelfServeConfig,
 } from "../../../shared/api/billing"
 import {
-  getAccessToken,
   getAuthApi,
+  restoreSession,
   storeAuthTokens,
 } from "../../../shared/api/client"
 import { environment } from "../../../environments/environment"
@@ -71,7 +71,11 @@ export default function SignUp() {
 
   useEffect(() => {
     void loadConfig()
-    if (getAccessToken()) setStep("club")
+    // Already signed in (the refresh cookie still holds a session): straight
+    // to the club form, unless the visitor has started on the e-mail by then.
+    void restoreSession().then((ok) => {
+      if (ok) setStep((current) => (current === "email" ? "club" : current))
+    })
     // The club most likely sits where its creator does.
     setTimezone(browserTimezone())
   }, [])

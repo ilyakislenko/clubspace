@@ -287,6 +287,7 @@ import { LeaderboardCacheService } from '../features/attendance-leaderboard/lead
 import { CheckInFollowUpService } from '../features/attendance/check-in-follow-up.service'
 import { RankService } from '../domains/ranks/services/rank.service'
 import { NotificationProducerModule } from '../domains/notifications/notification-producer.module'
+import { TelegramModule } from '../domains/telegram/telegram.module'
 import { RealtimeModule } from '../domains/realtime/realtime.module'
 import { RealtimeGateway } from '../domains/realtime/realtime.gateway'
 import { RanksController } from '../features/manage-ranks/ranks.controller'
@@ -403,6 +404,13 @@ import { MarkNotificationsSeenHandler } from '../features/notifications-inbox/ma
 import { NotificationPreferencesController } from '../features/notification-preferences/notification-preferences.controller'
 import { GetNotificationPreferencesHandler } from '../features/notification-preferences/get-notification-preferences.handler'
 import { UpdateNotificationPreferencesHandler } from '../features/notification-preferences/update-notification-preferences.handler'
+import { TelegramLinkController } from '../features/telegram-link/telegram-link.controller'
+import { TelegramWebhookController } from '../features/telegram-link/telegram-webhook.controller'
+import { GetMyTelegramHandler } from '../features/telegram-link/get-my-telegram.handler'
+import { CreateTelegramLinkHandler } from '../features/telegram-link/create-telegram-link.handler'
+import { UpdateMyTelegramHandler } from '../features/telegram-link/update-my-telegram.handler'
+import { UnlinkMyTelegramHandler } from '../features/telegram-link/unlink-my-telegram.handler'
+import { HandleTelegramWebhookHandler } from '../features/telegram-link/handle-telegram-webhook.handler'
 import { DeleteAccountController } from '../features/delete-account/delete-account.controller'
 import { DeleteAccountHandler } from '../features/delete-account/delete-account.handler'
 import { MyConsentController } from '../features/personal-data-consent/my-consent.controller'
@@ -797,6 +805,8 @@ const controllers: ModuleMetadata['controllers'] = [
     WebPushSubscriptionsController,
     NotificationsInboxController,
     NotificationPreferencesController,
+    TelegramLinkController,
+    TelegramWebhookController,
     DeleteAccountController,
     MyConsentController,
     ExportMyDataController,
@@ -1007,6 +1017,11 @@ const handlers: ModuleMetadata['providers'] = [
     MarkNotificationsSeenHandler,
     GetNotificationPreferencesHandler,
     UpdateNotificationPreferencesHandler,
+    GetMyTelegramHandler,
+    CreateTelegramLinkHandler,
+    UpdateMyTelegramHandler,
+    UnlinkMyTelegramHandler,
+    HandleTelegramWebhookHandler,
     DeleteAccountHandler,
     GetMyConsentHandler,
     AcceptMyConsentHandler,
@@ -1286,6 +1301,8 @@ const domainModules: ModuleMetadata['imports'] = [
     // VideoService emit through the producer).
     RealtimeModule,
     NotificationProducerModule,
+    // The member-facing Telegram bot (linking handlers use its client).
+    TelegramModule,
     AnalyticsModule,
     BillingModule,
 ]

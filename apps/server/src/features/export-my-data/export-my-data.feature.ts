@@ -28,6 +28,13 @@ export const ExportMyDataFeatureOutputSchema = z.object({
         createdAt: z.iso.datetime(),
         lastSeenAt: z.iso.datetime(),
     }),
+    // The linked Telegram chat for notifications; null when none is linked.
+    telegram: z
+        .object({
+            chatId: z.string(),
+            linkedAt: z.iso.datetime(),
+        })
+        .nullable(),
     consents: z.array(
         z.object({
             kind: z.string(),

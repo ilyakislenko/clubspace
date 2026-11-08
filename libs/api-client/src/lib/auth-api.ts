@@ -31,18 +31,24 @@ export interface SignInRequest {
 export interface SignInResponse {
   userId: string
   accessToken: string
-  refreshToken: string
+  /**
+   * Absent in the cookie transport (`tokenTransport: "cookie"`): the API
+   * keeps it in an HttpOnly cookie instead.
+   */
+  refreshToken?: string
   expiresAt: number
 }
 
 export interface RefreshTokenRequest {
-  refreshToken: string
+  /** Omitted in the cookie transport: the API reads its cookie. */
+  refreshToken?: string
 }
 
 export interface RefreshTokenResponse {
   userId: string
   accessToken: string
-  refreshToken: string
+  /** Absent in the cookie transport, like on SignInResponse. */
+  refreshToken?: string
   expiresAt: number
 }
 
@@ -72,7 +78,8 @@ export const persistAuthTokens = (
   response: Pick<SignInResponse, "accessToken" | "refreshToken" | "expiresAt" | "userId">
 ): void => {
   tokenStore.setAccessToken(response.accessToken)
-  tokenStore.setRefreshToken(response.refreshToken)
+  // The cookie transport never hands the token to the client.
+  if (response.refreshToken) tokenStore.setRefreshToken(response.refreshToken)
   tokenStore.setExpiresAt(response.expiresAt)
   tokenStore.setUserId(response.userId)
 }

@@ -2,6 +2,7 @@ import { getQueueToken } from '@nestjs/bullmq'
 import { Test } from '@nestjs/testing'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { TelegramQueueService } from '../telegram/telegram-queue.service'
 import { PUSH_QUEUE } from './push-queue'
 import { ExpoPushClient } from './services/expo-push.client'
 import { PushDeliveryProcessor } from './services/push-delivery.processor'
@@ -23,6 +24,7 @@ describe('PushDelivery dependency injection', () => {
                 WebPushClient,
                 { provide: PrismaService, useValue: {} },
                 { provide: getQueueToken(PUSH_QUEUE), useValue: {} },
+                { provide: TelegramQueueService, useValue: {} },
             ],
         }).compile()
 
