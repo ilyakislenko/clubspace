@@ -105,7 +105,7 @@ export function ScheduleFilterSheet({
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     section: { gap: theme.spacing(2) },
-    sectionTitle: { ...theme.typography.label, color: theme.colors.muted },
+    sectionTitle: { ...theme.typography.bodyStrong, color: theme.colors.text },
     chips: {
       flexDirection: "row",
       flexWrap: "wrap",

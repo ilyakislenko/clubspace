@@ -28,9 +28,10 @@ export function DirectionChips({
   if (directions.length === 0) return null
   const chips: { id: string | null; label: string; color?: string | null }[] = [
     { id: null, label: "Все" },
+    // The colour dot tells directions apart; no emoji in the label.
     ...directions.map((d) => ({
       id: d.id,
-      label: d.icon ? `${d.icon} ${d.name}` : d.name,
+      label: d.name,
       color: d.color,
     })),
   ]
