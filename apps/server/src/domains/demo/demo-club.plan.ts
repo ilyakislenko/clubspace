@@ -438,6 +438,9 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         setupFeeWaived: true,
         // ~300 active students: the «business» band, comped.
         paidTierCode: 'business',
+        // The trial began two weeks before the club paid: the back-dated history
+        // stays in order (a trial can't start after its own conversion).
+        createdAt: at(ago(314), '12:00'),
         convertedAt: at(ago(300), '12:00'),
         autopayEnabled: false,
         notes: 'Демо-клуб для показов: тариф бесплатно, все модули включены (docs/demo.md)',
