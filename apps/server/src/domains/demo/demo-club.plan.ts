@@ -443,13 +443,13 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         createdAt: at(ago(314), '12:00'),
         convertedAt: at(ago(300), '12:00'),
         autopayEnabled: false,
-        notes: 'Демо-клуб для показов: тариф бесплатно, все модули включены (docs/demo.md)',
+        notes: 'Демо-клуб для показов: подписка ClubSpace бесплатно, все модули включены (docs/demo.md)',
     }
     plan.moduleEntitlements = (['VIDEO', 'ONLINE_PAYMENTS', 'BRANDED_APP'] as const).map(
         (module) => ({ workspaceId, module, mode: 'COMP' as const, compUntil: far }),
     )
     // Accepted when the current edition came out (versions are its date), not
-    // 300 days before it: «Тариф» shows both dates side by side.
+    // 300 days before it: «Подписка ClubSpace» shows both dates side by side.
     const editionYmd = [input.legal.offerVersion, input.legal.dpaVersion].sort().at(-1) ?? today
     const editionAt = /^\d{4}-\d{2}-\d{2}$/.test(editionYmd) ? at(editionYmd, '12:00') : now
     plan.legalAcceptance = {
@@ -2332,7 +2332,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 `${p.groups[0] ? `, группа [group:${groupId(p.groups[0].key)}]` : ''}: ${advice[reason]}.`,
         ),
         '',
-        'Начните с первого: чем дольше пауза, тем труднее вернуться. После звонка отметьте его в «Кому позвонить» — список обновится.',
+        'Начните с первого: чем дольше пауза, тем труднее вернуться. После звонка отметьте его в «Удержание → Позвонить» — список обновится.',
     ].join('\n')
     const askedAt = at(ago(1), '21:05')
     plan.aiChatConversations.push({

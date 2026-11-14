@@ -60,7 +60,6 @@ export default function CohortsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Удержание по когортам</h1>
         <p className="text-sm text-muted-foreground">
           Сколько учеников, пришедших в каждом месяце, продолжают ходить через
           1, 2, 3 и 6 месяцев.

@@ -11,7 +11,7 @@ import type { ClubLegalAcceptance } from '../../infrastructure/prisma'
 
 // The platform's contract with a club: the current editions of the offer and
 // the data processing instruction, and where the club stands with them.
-// Shared by the club's «Тариф» page, the banner and the platform console.
+// Shared by the club's «Подписка ClubSpace» page, the banner and the platform console.
 
 export const ClubLegalAcceptanceSourceSchema = z.enum([
     'SIGNUP',

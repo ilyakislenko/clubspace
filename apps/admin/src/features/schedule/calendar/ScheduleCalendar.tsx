@@ -431,9 +431,9 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">{cap(vocabulary.session.nomPl)}</h1>
+        <h1 className="text-2xl font-semibold">Расписание</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Расписание всех групп и событий клуба. Перетащите {vocabulary.session.acc}, чтобы перенести{" "}
+          Все группы и события клуба. Перетащите {vocabulary.session.acc}, чтобы перенести{" "}
           {agree(vocabulary.session, "её", "его")}, потяните за нижний край — чтобы изменить длительность,
           нажмите на пустую клетку — чтобы добавить {vocabulary.session.acc}.
         </p>

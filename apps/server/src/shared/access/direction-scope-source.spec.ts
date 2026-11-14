@@ -50,7 +50,6 @@ const DIRECTION_WRITES = [
     'RemoveRankGradingCandidateFeature',
     'RecordRankGradingResultsFeature',
     'PromoteMemberFeature',
-    'PromoteMembersFeature',
     'CreateAchievementFeature',
     'UpdateAchievementFeature',
     'DeleteAchievementFeature',

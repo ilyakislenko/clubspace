@@ -3,7 +3,6 @@
 import { useParams, useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
-import { cap } from "@clubspace/ui-kit/brand"
 import { Button } from "@clubspace/ui-kit/ui"
 
 import {
@@ -94,7 +93,7 @@ export default function WorkspaceGroupsPage() {
           <h1 className="text-2xl font-semibold">Группы и залы</h1>
           <p className="text-sm text-muted-foreground">
             Нажмите на строку, чтобы открыть карточку. Время {vocabulary.session.genPl} меняется в
-            календаре «{cap(vocabulary.session.nomPl)}».
+            «Расписании».
           </p>
         </div>
         {tab === "groups" ? (

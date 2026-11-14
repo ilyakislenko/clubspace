@@ -132,23 +132,6 @@ describe('GetWorkspaceStatsHandler revenue visibility', () => {
     })
 })
 
-// The audit feed («Последние действия») is a system view: club admins only.
-describe('GetWorkspaceStatsHandler recent events', () => {
-    const row = { id: 'e1', action: 'member.invite', targetType: 'member', targetId: 'u9', actorId: null, metadata: null, createdAt: new Date() }
-    it.each([
-        ['admin', 'u1', 10],
-        ['head_coach', 'owner-1', 10],
-        ['head_coach', 'u1', 0],
-        ['coach', 'u1', 0],
-    ])('%s (%s) reads %i audit rows', async (roleName, userId, take) => {
-        const findMany = jest.fn().mockResolvedValue(take ? [row] : [])
-        const { handler } = build(false, { 'auditEvent.findMany': findMany })
-        const out = await run(handler, roleName, userId)
-        expect(findMany.mock.calls[0][0].take).toBe(take)
-        expect(out.recentEvents).toHaveLength(take ? 1 : 0)
-    })
-})
-
 describe('GetWorkspaceStatsHandler paid-only revenue', () => {
     const wheres = async () => {
         const { handler, subscriptionFindMany } = build()

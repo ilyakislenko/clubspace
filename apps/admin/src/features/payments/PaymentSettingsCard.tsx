@@ -139,7 +139,7 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
           href={`/workspace/${workspaceId}/billing`}
           className="inline-block text-xs font-medium underline underline-offset-4"
         >
-          Раздел «Тариф»
+          Подписка ClubSpace
         </Link>
       </div>
     )
@@ -527,7 +527,7 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
               href={`/workspace/${workspaceId}/subscriptions`}
               className="underline underline-offset-2"
             >
-              «Тарифы и абонементы»
+              «Абонементы»
             </Link>
             .
           </p>

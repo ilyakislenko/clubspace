@@ -1,11 +1,16 @@
 "use client"
 
+import { MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Input,
   Select,
   SelectContent,
@@ -38,7 +43,6 @@ import { InviteMembersCard } from "../../../../../features/invite/InviteMembersC
 import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
 import { MemberProgressBlock } from "../../../../../features/users/MemberProgressBlock"
 import { PendingInvitationsPanel } from "../../../../../features/users/PendingInvitationsPanel"
-import { MyProfileCard } from "../../../../../features/users/MyProfileCard"
 
 const MS_1D = 24 * 3600 * 1000
 
@@ -288,12 +292,30 @@ export default function WorkspaceUsersPage() {
 
   return (
     <div className="max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Участники</h1>
-        <p className="text-sm text-muted-foreground">
-          Пригласите участника по e-mail или раздайте ученикам код клуба.
-          Нажмите на имя участника, чтобы задать имя и фамилию.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Ученики</h1>
+          <p className="text-sm text-muted-foreground">
+            Пригласите участника по e-mail или раздайте ученикам код клуба.
+            Нажмите на имя участника, чтобы задать имя и фамилию.
+          </p>
+        </div>
+        {canAdmin && workspaceId && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Ещё">
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/workspace/${workspaceId}/club-import`}>
+                  Импорт из Excel (CSV)
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {error && (
@@ -388,10 +410,6 @@ export default function WorkspaceUsersPage() {
       )}
 
       {canManageMembers && workspaceId && (
-        <MyProfileCard workspaceId={workspaceId} />
-      )}
-
-      {canManageMembers && workspaceId && (
         <InviteMemberForm
           workspaceId={workspaceId}
           canInviteStaff={canAdmin}
@@ -407,16 +425,6 @@ export default function WorkspaceUsersPage() {
           workspaceId={workspaceId}
           onAdded={() => void refresh()}
         />
-      )}
-
-      {canAdmin && workspaceId && (
-        <div>
-          <Button asChild size="sm" variant="secondary">
-            <Link href={`/workspace/${workspaceId}/club-import`}>
-              Импорт из Excel (CSV)
-            </Link>
-          </Button>
-        </div>
       )}
 
       <div className="space-y-3">

@@ -61,7 +61,6 @@ export default function CoachesAnalyticsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">{cap(vocabulary.coach.nomPl)}</h1>
         <p className="text-sm text-muted-foreground">
           Сколько учеников ходит к каждому {vocabulary.coach.dat}, сколько остаётся через 3
           месяца и как продлевают абонементы.

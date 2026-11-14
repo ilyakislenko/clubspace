@@ -92,7 +92,7 @@ class SetWorkspaceBillingPeriodOutput extends createZodDto(
     SetWorkspaceBillingPeriodOutputSchema,
 ) {}
 
-// The club's «Тариф» page. Everything but the module switch stays open in a
+// The club's «Подписка ClubSpace» page. Everything but the module switch stays open in a
 // suspended club: this page is where its admin sees why and pays.
 @Controller('workspaces/:workspaceId/billing')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)

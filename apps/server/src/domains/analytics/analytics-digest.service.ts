@@ -106,6 +106,10 @@ export class AnalyticsDigestService {
             : null
         const topic = `${ws.name}: аналитика за неделю`
 
+        // The push opens the page of the action it names; there is no
+        // «Отчёты» hub page, the first report for club admins (the digest's
+        // readers) is the forecast.
+        const firstAction = digest.actions[0]
         let sent = 0
         for (const u of users) {
             if (off.has(u.id)) continue
@@ -115,8 +119,8 @@ export class AnalyticsDigestService {
                 kind: ANALYTICS_DIGEST_KIND,
                 refId,
                 topic,
-                message: `${digest.facts[0]}. Что сделать: ${digest.actions[0]?.text ?? 'откройте «Аналитику»'}`,
-                link: base ? `${base}/analytics` : null,
+                message: `${digest.facts[0]}. Что сделать: ${firstAction?.text ?? 'откройте «Отчёты»'}`,
+                link: base ? `${base}/${firstAction?.path ?? 'analytics/forecast'}` : null,
                 workspaceId: ws.id,
                 metadata: { workspaceId: ws.id, weekYmd },
             })

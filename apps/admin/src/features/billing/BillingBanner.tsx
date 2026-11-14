@@ -68,7 +68,7 @@ export function BillingBanner({ workspaceId }: { workspaceId: string }) {
             href={`/workspace/${workspaceId}/billing`}
             className="font-medium underline underline-offset-4"
           >
-            Тариф
+            Подписка ClubSpace
           </Link>
         </div>
       )}

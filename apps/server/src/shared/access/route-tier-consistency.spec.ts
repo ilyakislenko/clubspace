@@ -328,10 +328,10 @@ describe('route tier consistency', () => {
             (r) => r.hasDirectionCheck && r.tier !== 'COACHING_ROLES',
         )
         expect(bad.map((r) => `${r.where} (tier ${r.tier})`)).toEqual([])
-        // real count: ladders/levels 7, gradings 9, promotions/roster/member ranks 4,
+        // real count: ladders/levels 7, gradings 9, member ranks 2,
         // achievements 6, announcements 4, events 3, course audience 1, update-group 1
         // (tariffs left the direction rule: they are CLUB_ADMINS now)
-        expect(routes.filter((r) => r.hasDirectionCheck).length).toBeGreaterThanOrEqual(35)
+        expect(routes.filter((r) => r.hasDirectionCheck).length).toBeGreaterThanOrEqual(33)
     })
 
     it('every route resolves to a handler source', () => {

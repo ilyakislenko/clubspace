@@ -35,6 +35,8 @@ import {
 } from "../../../../../features/directions/DirectionFilter"
 import { useDirections } from "../../../../../features/directions/use-directions"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
+import { SectionTabs } from "../../../../../shared/workspace/section-tabs"
+import { newsTabs } from "../sections"
 
 // Roles that can be credited as the coach leading an event.
 const COACH_ROLES = new Set(["admin", "head_coach", "coach"])
@@ -150,10 +152,10 @@ export default function EventsPage() {
 
   return (
     <div className="space-y-6">
+      <SectionTabs title="Новости и события" tabs={newsTabs} />
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">События</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Семинары, мастер-классы, турниры и отчётные концерты. Видны всем
             ученикам клуба — могут заглянуть в другой зал.
           </p>

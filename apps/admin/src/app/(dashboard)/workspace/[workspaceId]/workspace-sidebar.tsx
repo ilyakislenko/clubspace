@@ -3,27 +3,21 @@
 import {
   ArrowLeftRight,
   Award,
-  Trophy,
-  Bot,
+  BarChart3,
   CalendarCheck,
-  CalendarDays,
+  ChevronsUpDown,
   CreditCard,
   FileText,
-  GraduationCap,
-  History,
-  LayoutDashboard,
   Gauge,
-  Layers,
   Globe,
+  LayoutDashboard,
   LogOut,
   MapPin,
   Megaphone,
-  Settings,
-  Sparkles,
   PhoneCall,
-  Upload,
+  Settings,
+  UserRound,
   Users,
-  Wallet,
   type LucideIcon,
 } from "lucide-react"
 import Link from "next/link"
@@ -31,6 +25,12 @@ import { useParams, usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -41,225 +41,150 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@clubspace/ui-kit/ui"
+import { type ClubVocabulary } from "@clubspace/ui-kit/brand"
 
 import { signOut } from "../../../../shared/api/client"
-import { fetchMe } from "../../../../shared/api/me"
-import { visibleNavItems, type Access } from "../../../../shared/lib/permissions"
+import { fetchMe, type Me } from "../../../../shared/api/me"
+import {
+  hasAccess,
+  isClubAdmin,
+  type Access,
+  type CurrentMembership,
+} from "../../../../shared/lib/permissions"
 import { confirmLeave } from "../../../../shared/lib/use-dirty-guard"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import {
   featureOn,
   useWorkspaceFeatures,
   type WorkspaceFeature,
+  type WorkspaceFeatures,
 } from "../../../../shared/lib/use-workspace-features"
-import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
-import { analyticsSections } from "./analytics/sections"
 import { useVocabulary } from "../../../../shared/lib/vocabulary"
-import { cap, type ClubVocabulary } from "@clubspace/ui-kit/brand"
+import {
+  visibleTabs,
+  type SectionTab,
+} from "../../../../shared/workspace/section-tabs"
+import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
+import { MyProfileDialog } from "../../../../features/users/MyProfileDialog"
+import { beltTabs, newsTabs, reportTabs, subscriptionTabs } from "./sections"
 
+// A sidebar entry: one route (`path`, gated by `access`) or a section of
+// several routes shown as tabs (`tabs`; visible when the role may open at
+// least one tab, opens the first of them, lit on all of them).
 export type NavItem = {
   key: string
   label: string
   icon: LucideIcon
-  path: string
-  // Who sees the item (`visibleNavItems`); matches the page's gate.
-  access: Access
   // App section the item belongs to: hidden while the club has it switched
-  // off in the settings (a dance studio without ranks sees no «Аттестации»).
+  // off in the settings (a dance studio without ranks sees no «Пояса»).
   feature?: WorkspaceFeature
+} & ({ path: string; access: Access } | { tabs: readonly SectionTab[] })
+
+export type NavGroup = {
+  key: string
+  // Shown only while the group holds an item of `labelAccess` (a head coach
+  // sees «Отчёты» without the money, so not under «Деньги»).
+  label?: string
+  labelAccess?: Access
+  items: NavItem[]
 }
 
-// The daily pair (Обзор, Кому позвонить) is its own group so «Аналитика» can sit
-// right under it instead of below «Тариф», where owners had to scroll for it.
-export const dailyNavItems: NavItem[] = [
+// Docs/design/2026-11-08-admin-cleanup.md §3: everyday work first, money,
+// the club's content, settings at the bottom. Titles = page titles.
+export const navGroups = (vocabulary: ClubVocabulary): NavGroup[] => [
   {
-    key: "dashboard",
-    label: "Обзор",
-    icon: LayoutDashboard,
-    path: "",
-    access: "staff",
+    key: "daily",
+    label: "Каждый день",
+    items: [
+      { key: "dashboard", label: "Сегодня", icon: LayoutDashboard, path: "", access: "staff" },
+      { key: "schedule", label: "Расписание", icon: CalendarCheck, path: "schedule", access: "staff" },
+      { key: "users", label: "Ученики", icon: Users, path: "users", access: "staff" },
+      { key: "retention", label: "Удержание", icon: PhoneCall, path: "retention", access: "staff" },
+    ],
   },
   {
-    key: "retention",
-    label: "Кому позвонить",
-    icon: PhoneCall,
-    path: "retention",
-    access: "staff",
-  },
-]
-
-export const manageNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
-  {
-    key: "users",
-    label: "Участники",
-    icon: Users,
-    path: "users",
-    access: "staff",
+    key: "money",
+    label: "Деньги",
+    labelAccess: "clubAdmin",
+    items: [
+      { key: "subscriptions", label: "Абонементы", icon: CreditCard, tabs: subscriptionTabs },
+      { key: "reports", label: "Отчёты", icon: BarChart3, tabs: reportTabs(vocabulary) },
+    ],
   },
   {
-    key: "club-import",
-    label: "Импорт клуба",
-    icon: Upload,
-    path: "club-import",
-    access: "clubAdmin",
+    key: "club",
+    label: "Клуб",
+    items: [
+      { key: "groups", label: "Группы и залы", icon: MapPin, path: "groups", access: "lead" },
+      { key: "belts", label: "Пояса", icon: Award, tabs: beltTabs, feature: "ranks" },
+      { key: "content", label: "Курсы и видео", icon: FileText, path: "content", access: "lead", feature: "videos" },
+      { key: "news", label: "Новости и события", icon: Megaphone, tabs: newsTabs },
+    ],
   },
   {
-    key: "groups",
-    label: "Группы и залы",
-    icon: MapPin,
-    path: "groups",
-    access: "lead",
-  },
-  {
-    key: "schedule",
-    label: cap(vocabulary.session.nomPl),
-    icon: CalendarCheck,
-    path: "schedule",
-    access: "staff",
-  },
-  {
-    key: "directions",
-    label: "Направления",
-    icon: Layers,
-    path: "directions",
-    access: "clubAdmin",
-  },
-  {
-    key: "content",
-    label: "Курсы и видео",
-    icon: FileText,
-    path: "content",
-    access: "lead",
-    feature: "videos",
-  },
-  {
-    key: "ranks",
-    label: "Ранги",
-    icon: Award,
-    path: "ranks",
-    access: "lead",
-    feature: "ranks",
-  },
-  {
-    key: "gradings",
-    label: "Аттестации",
-    icon: GraduationCap,
-    path: "gradings",
-    access: "lead",
-    feature: "ranks",
-  },
-  {
-    key: "subscriptions",
-    label: "Тарифы и абонементы",
-    icon: CreditCard,
-    path: "subscriptions",
-    access: "clubAdmin",
-  },
-  {
-    key: "payments",
-    label: "Онлайн-оплата",
-    icon: Wallet,
-    path: "payments",
-    access: "clubAdmin",
-  },
-  {
-    key: "events",
-    label: "События",
-    icon: CalendarDays,
-    path: "events",
-    access: "lead",
-  },
-  {
-    key: "announcements",
-    label: "Объявления",
-    icon: Megaphone,
-    path: "announcements",
-    access: "lead",
-  },
-  {
-    key: "achievements",
-    label: "Достижения",
-    icon: Trophy,
-    path: "achievements",
-    access: "lead",
-    feature: "achievements",
-  },
-  {
-    key: "audit",
-    label: "История изменений",
-    icon: History,
-    path: "audit",
-    access: "clubAdmin",
-  },
-  {
-    key: "public-page",
-    label: "Публичная страница",
-    icon: Globe,
-    path: "public-page",
-    access: "clubAdmin",
-  },
-  {
-    key: "settings",
-    label: "Настройки",
-    icon: Settings,
-    path: "settings",
-    access: "clubAdmin",
-  },
-  {
-    // ИИ-ассистент (MCP) tokens act with the club's full rights.
-    key: "integrations",
-    label: "Интеграции",
-    icon: Bot,
-    path: "integrations",
-    access: "clubAdmin",
-  },
-  {
-    key: "billing",
-    label: "Тариф",
-    icon: Gauge,
-    path: "billing",
-    access: "clubAdmin",
+    key: "system",
+    items: [
+      { key: "settings", label: "Настройки", icon: Settings, path: "settings", access: "clubAdmin" },
+    ],
   },
 ]
 
-// «Аналитика»: each section carries its own access level, the server scopes
-// the numbers. The ИИ-ассистент chat closes the group: sport leads and
-// руководители направлений.
-export const analyticsNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
-  ...analyticsSections(vocabulary).map((s) => ({
-    key: s.key,
-    label: s.label,
-    icon: s.icon,
-    path: `analytics/${s.path}`,
-    access: s.access,
-  })),
-  {
-    key: "ai-assistant",
-    label: "ИИ-ассистент",
-    icon: Sparkles,
-    path: "ai-assistant",
-    access: "lead",
-  },
-]
+export type ResolvedNavItem = {
+  key: string
+  label: string
+  icon: LucideIcon
+  // Workspace-relative route the item opens.
+  path: string
+  // Workspace-relative routes that light the item up (with their subroutes).
+  matchPaths: string[]
+}
+
+// The items this role sees in this club, with the route each opens. Gated
+// items stay hidden until the membership has loaded.
+export const resolveNavItems = (
+  items: readonly NavItem[],
+  membership: CurrentMembership | null | undefined,
+  features: WorkspaceFeatures | null,
+): ResolvedNavItem[] =>
+  items.flatMap((item) => {
+    if (item.feature && !featureOn(features, item.feature)) return []
+    const base = { key: item.key, label: item.label, icon: item.icon }
+    if ("tabs" in item) {
+      const shown = visibleTabs(item.tabs, membership, features)
+      if (shown.length === 0) return []
+      return [{ ...base, path: shown[0].path, matchPaths: shown.map((t) => t.path) }]
+    }
+    if (!hasAccess(membership, item.access)) return []
+    return [{ ...base, path: item.path, matchPaths: [item.path] }]
+  })
+
+const initials = (me: Me | null) => {
+  const fromName = [me?.firstname, me?.lastname]
+    .map((part) => part?.trim()[0] ?? "")
+    .join("")
+  return (fromName || me?.email?.[0] || "?").toUpperCase()
+}
 
 export function WorkspaceSidebar() {
   const params = useParams<{ workspaceId: string }>()
   const vocabulary = useVocabulary()
   const pathname = usePathname()
   const router = useRouter()
+  const { isMobile } = useSidebar()
   const workspaceId = params?.workspaceId ?? ""
   const basePath = `/workspace/${workspaceId}`
   const membership = useMyMembership(workspaceId)
 
-  // Platform staff get a direct way back to the console. Without it the only
-  // route out is «Сменить клуб» → /workspaces → /platform: two steps, pinned to
-  // the bottom edge of the sidebar, and labelled nothing like "platform".
-  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  // The account menu's name, and platform staff get a direct way back to the
+  // console («Сменить клуб» → /workspaces → /platform was two steps).
+  const [me, setMe] = useState<Me | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
   useEffect(() => {
     let alive = true
     fetchMe()
-      .then((me) => alive && setIsPlatformAdmin(me.isSuperAdmin))
+      .then((data) => alive && setMe(data))
       .catch(() => undefined)
     return () => {
       alive = false
@@ -269,8 +194,6 @@ export function WorkspaceSidebar() {
   // The club's app sections, re-read on every navigation: a section switched
   // off in the settings leaves the menu on the next page.
   const features = useWorkspaceFeatures(workspaceId, pathname)
-  const sectionOn = (item: NavItem) =>
-    !item.feature || featureOn(features, item.feature)
 
   const handleSignOut = async () => {
     if (!confirmLeave()) return
@@ -279,16 +202,17 @@ export function WorkspaceSidebar() {
     router.replace("/sign-in")
   }
 
-  const renderNavItem = (item: NavItem) => {
-    const href = item.path ? `${basePath}/${item.path}` : basePath
-    const isActive = Boolean(
-      pathname === href || (item.path && pathname?.startsWith(`${href}/`)),
-    )
+  const hrefFor = (path: string) => (path ? `${basePath}/${path}` : basePath)
 
+  const renderNavItem = (item: ResolvedNavItem) => {
+    const isActive = item.matchPaths.some((path) => {
+      const href = hrefFor(path)
+      return pathname === href || (path !== "" && pathname?.startsWith(`${href}/`))
+    })
     return (
       <SidebarMenuItem key={item.key}>
         <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-          <Link href={href}>
+          <Link href={hrefFor(item.path)}>
             <item.icon className="size-4" />
             <span>{item.label}</span>
           </Link>
@@ -297,8 +221,14 @@ export function WorkspaceSidebar() {
     )
   }
 
-  // A plain coach has no analytics page left: no empty group label either.
-  const analyticsItems = visibleNavItems(analyticsNavItems(vocabulary), membership)
+  const groups = navGroups(vocabulary)
+    .map((group) => ({
+      ...group,
+      resolved: resolveNavItems(group.items, membership, features),
+    }))
+    .filter((group) => group.resolved.length > 0)
+  const name =
+    [me?.firstname, me?.lastname].filter(Boolean).join(" ") || me?.email || ""
 
   // `icon`: collapsing leaves a strip of icons (labels come back as tooltips)
   // instead of hiding navigation entirely — on a 1024 tablet it starts that
@@ -307,7 +237,7 @@ export function WorkspaceSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-border">
       <SidebarContent className="group-data-[collapsible=icon]:overflow-y-auto">
-        {isPlatformAdmin && (
+        {me?.isSuperAdmin && (
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
@@ -323,62 +253,95 @@ export function WorkspaceSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
-        <SidebarGroup>
-          <SidebarGroupLabel>Клуб</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleNavItems(dailyNavItems, membership).map(renderNavItem)}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        {analyticsItems.length > 0 && (
-          <SidebarGroup>
-            {/* Faded out in the icon strip — and then must not catch clicks
-                meant for the item it overlaps. */}
-            <SidebarGroupLabel
-              asChild
-              className="group-data-[collapsible=icon]:pointer-events-none"
+        {groups.map((group) => {
+          const showLabel =
+            group.label &&
+            (!group.labelAccess || hasAccess(membership, group.labelAccess))
+          return (
+            <SidebarGroup
+              key={group.key}
+              // Settings sit at the bottom of the list, apart from the club.
+              className={group.label ? undefined : "mt-auto"}
             >
-              <Link href={`${basePath}/analytics`}>Аналитика</Link>
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>{analyticsItems.map(renderNavItem)}</SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-        <SidebarGroup>
-          <SidebarGroupLabel>Управление</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleNavItems(manageNavItems(vocabulary), membership)
-                .filter(sectionOn)
-                .map(renderNavItem)}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+              {showLabel && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
+              <SidebarGroupContent>
+                <SidebarMenu>{group.resolved.map(renderNavItem)}</SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )
+        })}
       </SidebarContent>
       {/* Only SidebarContent scrolls (flex-1, min-h-0); the footer never
           shrinks and is bordered off, so on a 900px screen the list scrolls
-          above it instead of running into «Сменить клуб» / «Выйти». */}
+          above it instead of running into the account menu. */}
       <SidebarFooter className="shrink-0 border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Сменить клуб">
-              <Link href="/workspaces">
-                <ArrowLeftRight className="size-4" />
-                <span>Сменить клуб</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleSignOut} tooltip="Выйти">
-              <LogOut className="size-4" />
-              <span>Выйти</span>
-            </SidebarMenuButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  size="lg"
+                  tooltip={name || "Аккаунт"}
+                  aria-label={`Меню аккаунта${name ? `: ${name}` : ""}`}
+                  className="data-[state=open]:bg-sidebar-accent"
+                >
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                    {initials(me)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-left">{name}</span>
+                  <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side={isMobile ? "top" : "right"}
+                align="end"
+                className="w-60"
+              >
+                {me?.email && (
+                  <>
+                    <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">
+                      {me.email}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuItem disabled={!me} onSelect={() => setProfileOpen(true)}>
+                  <UserRound className="size-4" />
+                  Мой профиль
+                </DropdownMenuItem>
+                {isClubAdmin(membership) && (
+                  <DropdownMenuItem asChild>
+                    <Link href={`${basePath}/billing`}>
+                      <Gauge className="size-4" />
+                      Подписка ClubSpace
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem asChild>
+                  <Link href="/workspaces">
+                    <ArrowLeftRight className="size-4" />
+                    Сменить клуб
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => void handleSignOut()}>
+                  <LogOut className="size-4" />
+                  Выйти
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
+      {me && (
+        <MyProfileDialog
+          me={me}
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+          onSaved={setMe}
+        />
+      )}
     </Sidebar>
   )
 }

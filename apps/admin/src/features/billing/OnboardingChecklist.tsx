@@ -30,7 +30,7 @@ const steps = (
   schedule: {
     label: "Заполните расписание",
     hint: `Дни и время ${v.session.genPl} группы`,
-    path: "groups",
+    path: "schedule",
   },
   plans: {
     label: "Создайте абонемент",
@@ -39,13 +39,13 @@ const steps = (
   },
   members: {
     label: "Пригласите участников",
-    hint: "По почте или распечатайте QR-код клуба",
+    hint: "По почте, QR-кодом клуба или импортом из Excel",
     path: "users",
   },
   payments: {
     label: "Подключите оплату",
     hint: "ЮKassa или Stripe — ученики платят в приложении",
-    path: "payments",
+    path: "settings/payments",
   },
   video: {
     label: "Загрузите первое видео",

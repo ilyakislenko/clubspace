@@ -186,7 +186,7 @@ export function ReadinessPanel({
   if (data.ladders.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        В клубе нет лестниц рангов — создайте их в разделе «Ранги».
+        В клубе нет лестниц рангов — создайте их в разделе «Пояса» → «Лестницы».
       </p>
     )
   }

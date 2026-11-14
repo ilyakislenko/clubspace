@@ -170,10 +170,10 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
                         // back by a refund, which takes the mark back too.
                         canRefund && (
                           <Link
-                            href={`/workspace/${workspaceId}/payments`}
+                            href={`/workspace/${workspaceId}/subscriptions/payments`}
                             className="text-xs text-muted-foreground underline-offset-2 hover:underline"
                           >
-                            Возврат — в «Платежах»
+                            Возврат — в «Абонементы → Платежи»
                           </Link>
                         )
                       ) : (

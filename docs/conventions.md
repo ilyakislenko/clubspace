@@ -226,13 +226,18 @@ Reference wrapper: `apps/admin/src/shared/api/events.ts`.
   payments, billing, settings, roles, import, exports, audit, integrations), `isSportLead` for
   club-wide sport & roster work (`SPORT_LEADS`), `canActOnRole` before inviting with, removing or
   changing the access of a member of a given role (staff roles are club-admin only).
-  Every nav item declares `access: "clubAdmin" | "sportLead" | "lead" | "staff"` (filtered by
-  `visibleNavItems`; `lead` = sport lead or direction manager, `staff` = every coach), and a gated
-  section gets a tiny `"use client"` `layout.tsx` wrapping children in the matching
-  `ClubAdminGate` / `SportLeadGate` / `LeadGate` (`shared/workspace/access-gate.tsx`), so a role
-  opening the URL sees a notice and the page never mounts. On `LeadGate` pages read
-  `useDirectionScope(workspaceId)` (`shared/workspace/use-direction-scope.ts`) to hide row
-  actions outside `canManageDirection` and pass `allowedDirectionIds` to `DirectionSelect`.
+  Every nav item (`navGroups` in `workspace/[workspaceId]/workspace-sidebar.tsx`) declares
+  `access: "clubAdmin" | "sportLead" | "lead" | "staff"` (filtered by `visibleNavItems`; `lead` =
+  sport lead or direction manager, `staff` = every coach), and a gated section gets a tiny
+  `"use client"` `layout.tsx` wrapping children in the matching `ClubAdminGate` /
+  `SportLeadGate` / `LeadGate` (`shared/workspace/access-gate.tsx`), so a role opening the URL
+  sees a notice and the page never mounts. A section spanning several routes is one nav item with
+  `tabs` (sets in `workspace/[workspaceId]/sections.ts`, each tab with its own `access`) and
+  renders `<SectionTabs title=… tabs=… />` (`shared/workspace/section-tabs.tsx`) as its header:
+  title = sidebar label, tabs are links (the URL is the state). In-page tabs that don't change the
+  route keep `role="tablist"` buttons with `?tab=` (see `retention/page.tsx`). On `LeadGate`
+  pages read `useDirectionScope(workspaceId)` (`shared/workspace/use-direction-scope.ts`) to hide
+  row actions outside `canManageDirection` and pass `allowedDirectionIds` to `DirectionSelect`.
 - Prefer a self-contained component (own fetch) over threading state through a large page.
 - Verify: `npx tsc -p apps/admin/tsconfig.json --noEmit`. Visual QA needs the app running.
 

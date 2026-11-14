@@ -194,7 +194,7 @@ describe('trial guards', () => {
                 metadata: { limit: 'VIDEO_STORAGE' },
             })
             expect(refused.body.message).toContain('2 ГБ')
-            expect(refused.body.message).toContain('Оплатите тариф, чтобы снять ограничение')
+            expect(refused.body.message).toContain('Оплатите подписку ClubSpace, чтобы снять ограничение')
             // Nothing was created for the refused file.
             expect(await ctx.prisma.video.count({ where: { workspaceId: trial.workspace.id } })).toBe(1)
 
@@ -243,7 +243,7 @@ describe('trial guards', () => {
                 metadata: { limit: 'VIDEO_VIEWING' },
             })
             expect(staff.body.message).toContain('10 ч')
-            expect(staff.body.message).toContain('Оплатите тариф, чтобы снять ограничение')
+            expect(staff.body.message).toContain('Оплатите подписку ClubSpace, чтобы снять ограничение')
             const member = await play(trial.video.id, trial.student).expect(403)
             expect(member.body.message).toBe(VIDEO_UNAVAILABLE_FOR_MEMBERS)
             expect(member.body.metadata).toEqual({})

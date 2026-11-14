@@ -302,8 +302,6 @@ import { DeleteLevelHandler } from '../features/manage-ranks/delete-level.handle
 import { MemberRanksController } from '../features/member-ranks/member-ranks.controller'
 import { PromoteMemberHandler } from '../features/member-ranks/promote-member.handler'
 import { GetMemberRanksHandler } from '../features/member-ranks/get-member-ranks.handler'
-import { LadderRosterController } from '../features/member-ranks/ladder-roster.controller'
-import { GetLadderRosterHandler } from '../features/member-ranks/get-ladder-roster.handler'
 import { AtRiskMembersController } from '../features/at-risk-members/at-risk-members.controller'
 import { CallListCacheService } from '../domains/retention/call-list-cache.service'
 import { ListAtRiskMembersHandler } from '../features/at-risk-members/list-at-risk-members.handler'
@@ -318,7 +316,6 @@ import {
     ANALYTICS_REFRESH_QUEUE,
     AnalyticsRefreshProcessor,
 } from '../features/club-analytics/refresh-analytics.processor'
-import { PromoteMembersHandler } from '../features/member-ranks/promote-members.handler'
 import { RankGradingsController } from '../features/rank-gradings/rank-gradings.controller'
 import { CreateRankGradingHandler } from '../features/rank-gradings/create-rank-grading.handler'
 import { ListRankGradingsHandler } from '../features/rank-gradings/list-rank-gradings.handler'
@@ -864,7 +861,6 @@ const controllers: ModuleMetadata['controllers'] = [
     LeaderboardController,
     RanksController,
     MemberRanksController,
-    LadderRosterController,
     AtRiskMembersController,
     ClubAnalyticsController,
     AnnouncementsController,
@@ -1185,7 +1181,6 @@ const handlers: ModuleMetadata['providers'] = [
     DeleteLevelHandler,
     PromoteMemberHandler,
     GetMemberRanksHandler,
-    GetLadderRosterHandler,
     CallListCacheService,
     ListAtRiskMembersHandler,
     LogAtRiskContactHandler,
@@ -1194,7 +1189,6 @@ const handlers: ModuleMetadata['providers'] = [
     GetCoachAnalyticsHandler,
     GetRevenueForecastHandler,
     RefreshAnalyticsHandler,
-    PromoteMembersHandler,
     GetRankReadinessHandler,
     CreateRankGradingHandler,
     ListRankGradingsHandler,

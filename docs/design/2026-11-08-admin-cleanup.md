@@ -515,6 +515,74 @@ Role visibility follows section 1: head_coach — 1–4, 7–10; direction manag
 **Acceptance.** Owner sidebar ≤ 12 top-level items, all visible at 1440×900; every old URL redirects;
 no two items share a name stem that means different things.
 
+**Decisions (wave 4, navigation).**
+- Sidebar (`ws/workspace-sidebar.tsx`, `navGroups`): «Каждый день» Сегодня · Расписание · Ученики ·
+  Удержание; «Деньги» Абонементы · Отчёты; «Клуб» Группы и залы · Пояса · Курсы и видео · Новости и
+  события; «Настройки» pinned to the bottom. 11 items for the owner. Account menu (avatar + name in the
+  footer): Мой профиль · Подписка ClubSpace (club admins) · Сменить клуб · Выйти.
+- Sections spanning several routes are one sidebar item with a URL-driven tab row
+  (`shared/workspace/section-tabs.tsx`, tab sets in `ws/sections.ts`): links with `aria-current`,
+  arrow keys / Home / End, each tab filtered by role and club section; a lone tab renders no row. The
+  sidebar item opens the first tab the role may see and stays lit on all of them. Title = sidebar
+  label; sub-page headings dropped (the tab names them).
+  - «Отчёты»: Выручка и прогноз (club admin) · Загрузка залов · Тренеры (sport lead) · Когорты новичков
+    · Выгрузка (club admin, CSV exports moved from Settings) · Спросить ИИ. `ws/analytics` forwards
+    client-side to the first allowed tab (the role is client state); a plain coach gets the gate notice.
+  - «Абонементы»: Тарифы · Платежи (`ws/subscriptions/payments`, the online-payments list; keys are in
+    «Настройки → Оплата»).
+  - «Пояса»: Аттестации (default) · Лестницы. «Новости и события»: Объявления · События.
+- **Head coach / direction manager keep «Отчёты»** (deviation from «1–4, 7–10»): section 1 gives them
+  occupancy, cohorts, coaches comparison (sport lead) and the AI chat, and hiding the item would leave
+  those pages reachable only by URL. They see it without the money tabs, and the «Деньги» group label
+  shows only to club admins (the item then sits in an unlabelled group). Plain coach: 1–4.
+- «Присвоить участникам» removed from the ladders page with its server routes (`GET …/roster`,
+  `POST …/promotions`): bulk promotion = completing a grading, single grant = member card
+  («Выдать»).
+- Dashboard «Последние действия» removed, and `recentEvents` with it from `GET …/stats`.
+- «Мой профиль» (account menu dialog) edits the user's own name through `PATCH /me` for every role;
+  the e-mail is shown, not editable (the server never allowed changing one's own e-mail from a club).
+- «Импорт из Excel (CSV)»: «Ученики» → «⋯» (club admins); route `ws/club-import` unchanged.
+- «Тариф» → «Подписка ClubSpace» for the page, links, banners, e-mails and server messages; inside the
+  page ClubSpace's pricing tiers stay «тариф «Старт»» and the list is «Тарифы ClubSpace». The paid
+  module «Онлайн-оплата» keeps its name (the page of that name is gone).
+- Weekly digest push links to the report its first action names (was the removed hub).
+- E2E: the crawler follows `[data-section-tabs]` links on every visited page (a tab of a blocked route
+  fails the run) and, as the owner, checks every legacy URL lands on its new route
+  (`LEGACY_REDIRECTS` in `apps/admin-e2e/src/role-matrix.ts`).
+
+**Decisions (wave 4, settings).**
+- «Настройки» is one route tree `ws/settings/**` behind `ClubAdminGate` (in `settings/layout.tsx`) with
+  a vertical section menu (`features/settings/SettingsNav.tsx`, horizontal scroll on narrow
+  screens): «Профиль клуба» `settings` · «Направления» `settings/directions` · «Права тренеров и
+  запись» `settings/access` · «Приложение учеников» `settings/app` · «Оплата» `settings/payments` ·
+  «Интеграции» `settings/integrations` · «Уведомления» `settings/notifications` · «История
+  изменений» `settings/audit`. Club import stays at `ws/club-import` (Ученики → ⋯, launch checklist).
+- Old routes redirect server-side with the query kept (`shared/workspace/legacy-redirect.ts`):
+  `public-page` → `settings`, `directions`, `integrations`, `audit` → `settings/<same>`,
+  `achievements` → `settings/app`, `payments` → `settings/payments` (the online-payments list is
+  «Абонементы → Платежи» `subscriptions/payments`).
+- «Профиль клуба» = public page (address, city, description, logo, catalogue listing) + «О клубе»
+  (contacts, links, rules) + the club time zone in one form with one «Сохранить» and the dirty
+  guard. The three stores keep their endpoints; save writes only the changed parts in order
+  (page → about → time zone), each saved part becomes the new baseline at once, so a failure
+  names the part and leaves only unsaved parts dirty. Only changed parts are validated.
+- Core app sections stay switchable: `subscriptionEnabled=false` changes behaviour, not only the
+  menu — bookings and guest visits stop requiring an abonement (`class-booking.service.ts`,
+  `drop-in-eligibility.ts`), online purchase is refused, the launch checklist drops tariffs and
+  payments; `scheduleEnabled=false` turns guest visits off. A free club can rely on that, so
+  Абонемент, Расписание, Посещаемость sit in a collapsed «Дополнительно» group (opens by itself
+  while one is off). Local DB: both demo clubs have all three on; `docs/club-setup.md` passes any
+  `PATCH /settings` field. `appSections` marks them `core` (the platform console lists all alike).
+- Achievements config lives in «Приложение учеников», shown while the section is on; create/edit
+  in a side panel, row actions in «⋯», «Добавить набор по умолчанию» offered only for scopes
+  without achievements (no dead button). The settings tree is club-admin only, so head coaches and
+  direction managers lose the achievements screen in the admin; the server tier (lead) is
+  unchanged.
+- The weekly digest toggle (`features/notifications/AnalyticsDigestToggle.tsx`) is the only item of
+  «Уведомления»: the club has no club-level notification settings; members' personal
+  notification switches stay in the mobile app.
+- CSV exports left Settings for «Отчёты → Выгрузка».
+
 ## 4. Page-level cleanup (P1) — workstream D
 
 Apply the UI rules to each page. Concrete targets (evidence in the UX audit, section 4):

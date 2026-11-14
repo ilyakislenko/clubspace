@@ -100,7 +100,7 @@ describe('AnalyticsDigestService', () => {
             kind: 'analytics.digest',
             refId: 'ws:owner:2026-11-02',
             topic: 'ACADEMY: аналитика за неделю',
-            link: 'https://admin.example.com/workspace/ws/analytics',
+            link: 'https://admin.example.com/workspace/ws/analytics/cohorts',
             workspaceId: 'ws',
         })
         // The admin has no e-mail address: push only.

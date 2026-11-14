@@ -2,7 +2,7 @@
 // /legal/requisites; docs/legal/README.md) and the pure rules around it
 // (unit-tested in club-legal.spec.ts). The club owner accepts the current
 // editions of the offer and the data processing instruction (DPA) — at
-// sign-up, on the first card payment, or on the «Тариф» page; a newer edition
+// sign-up, on the first card payment, or on the «Подписка ClubSpace» page; a newer edition
 // gives them acceptGraceDays to accept, after which the club's paid actions
 // are refused until they do.
 
@@ -107,4 +107,4 @@ export const missingSellerRequisites = (
     REQUIRED_SELLER_FIELDS.filter((field) => !seller[field].trim())
 
 export const LEGAL_ACCEPTANCE_REQUIRED_MESSAGE =
-    'Опубликована новая редакция договора-оферты и поручения на обработку персональных данных, срок для их принятия истёк. Владелец клуба может принять их на странице «Тариф» — после этого оплата и подключение модулей снова доступны.'
+    'Опубликована новая редакция договора-оферты и поручения на обработку персональных данных, срок для их принятия истёк. Владелец клуба может принять их на странице «Подписка ClubSpace» — после этого оплата и подключение модулей снова доступны.'

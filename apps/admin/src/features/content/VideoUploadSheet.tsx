@@ -78,7 +78,7 @@ export function VideoUploadSheet({
   onTagCreated,
   onCategoryCreated,
 }: Props) {
-  // «Тариф» (the ClubSpace plan) is the club admins' page.
+  // «Подписка ClubSpace» is the club admins' page.
   const canOpenBilling = isClubAdmin(useMyMembership(workspaceId))
   const router = useRouter()
 
@@ -97,7 +97,7 @@ export function VideoUploadSheet({
     message?: string
     videoId?: string
     progress?: number
-    // The failure was a trial cap: point at «Тариф», where paying lifts it.
+    // The failure was a trial cap: point at «Подписка ClubSpace», where paying lifts it.
     trialLimit?: boolean
   }>({ status: "idle" })
   const uploadAbortRef = useRef<AbortController | null>(null)
@@ -707,7 +707,7 @@ export function VideoUploadSheet({
                         href={`/workspace/${workspaceId}/billing`}
                         className="font-medium underline underline-offset-4"
                       >
-                        Открыть «Тариф»
+                        Открыть «Подписка ClubSpace»
                       </Link>
                     </>
                   )}

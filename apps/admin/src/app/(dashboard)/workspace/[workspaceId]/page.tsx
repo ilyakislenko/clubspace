@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import { useWorkspaceRealtime } from "../../../../shared/realtime/useWorkspaceRealtime"
 import {
@@ -15,11 +15,6 @@ import {
 } from "../../../../shared/api/leaderboard"
 import { listPendingUsers } from "../../../../shared/api/members"
 import { listAtRiskMembers } from "../../../../shared/api/retention"
-import {
-  actionMetaFor,
-  formatActor,
-  targetTypeLabel,
-} from "../../../../features/audit/audit-meta"
 import { AT_RISK_REFRESH_MS } from "../../../../shared/lib/at-risk"
 import { errorMessage } from "../../../../shared/lib/error-message"
 import { isClubAdmin, isSportLead } from "../../../../shared/lib/permissions"
@@ -37,14 +32,6 @@ import { OnboardingChecklist } from "../../../../features/billing/OnboardingChec
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" }
 
-const formatRelative = (iso: string) => {
-  const ms = Date.now() - new Date(iso).getTime()
-  if (ms < 60_000) return "только что"
-  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)} мин назад`
-  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)} ч назад`
-  return `${Math.floor(ms / 86_400_000)} дн назад`
-}
-
 const numberFmt = new Intl.NumberFormat("ru-RU")
 const formatMoney = (amount: number, currency: string | null) =>
   currency ? formatAmount(amount, currency) : numberFmt.format(amount)
@@ -61,10 +48,9 @@ const formatMonth = (key: string) => {
 export default function WorkspaceOverviewPage() {
   const params = useParams<{ workspaceId: string }>()
   const vocabulary = useVocabulary()
-  const actionMeta = useMemo(() => actionMetaFor(vocabulary), [vocabulary])
   const workspaceId = params?.workspaceId
   const membership = useMyMembership(workspaceId)
-  // Money & system blocks (onboarding, audit) vs the roster/renewal cards.
+  // Money & system blocks (onboarding) vs the roster/renewal cards.
   const canAdmin = isClubAdmin(membership)
   const canLead = isSportLead(membership)
   // Blocks of a section the club switched off (video at a fitness club,
@@ -164,7 +150,7 @@ export default function WorkspaceOverviewPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Обзор клуба</h1>
+        <h1 className="text-2xl font-semibold">Сегодня</h1>
       </div>
 
       {canAdmin && workspaceId && <OnboardingChecklist workspaceId={workspaceId} />}
@@ -383,56 +369,6 @@ export default function WorkspaceOverviewPage() {
         </div>
         {stats && <AttendanceTrend data={stats.attendance.trend} />}
       </section>
-
-      {/* Audit-derived: the server sends it to club admins only, and an
-          empty list renders no block. */}
-      {canAdmin && (loading || (stats?.recentEvents.length ?? 0) > 0) && (
-        <section className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium">Последние действия</h2>
-            <Link
-              href={`/workspace/${workspaceId}/audit`}
-              className="text-xs text-primary hover:underline"
-            >
-              Открыть историю →
-            </Link>
-          </div>
-
-          {loading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, idx) => (
-                <div
-                  key={idx}
-                  className="h-12 animate-pulse rounded-md border border-border bg-muted"
-                />
-              ))}
-            </div>
-          ) : (
-            <ul className="divide-y divide-border rounded-lg border border-border">
-              {stats?.recentEvents.map((event) => (
-                <li
-                  key={event.id}
-                  className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
-                >
-                  <div className="min-w-0">
-                    <div className="font-medium">
-                      {actionMeta[event.action]?.label ?? event.action}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatActor(event)}
-                      {" · "}
-                      {targetTypeLabel(event.targetType)}
-                    </div>
-                  </div>
-                  <time className="text-xs text-muted-foreground">
-                    {formatRelative(event.createdAt)}
-                  </time>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
 
       <section className="space-y-2" hidden={!showVideos}>
         <h2 className="text-sm font-medium">Видео</h2>

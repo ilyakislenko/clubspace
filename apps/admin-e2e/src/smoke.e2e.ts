@@ -11,7 +11,7 @@ import {
   type HttpContext,
 } from './checks'
 import { env } from './env'
-import { ROLE_MATRIX } from './role-matrix'
+import { LEGACY_REDIRECTS, ROLE_MATRIX } from './role-matrix'
 
 // Detail pages, opened with the first id of the list behind them. The list is
 // read with the role's own token, so the id is one the role can actually see;
@@ -199,10 +199,10 @@ const detailRoutes = async (
   return routes
 }
 
-// Workspace-relative paths of every link in the rendered sidebar.
-const sidebarRoutes = async (page: Page, base: string): Promise<string[]> => {
+// Workspace-relative paths of every link matching `selector`.
+const linkRoutes = async (page: Page, base: string, selector: string): Promise<string[]> => {
   const hrefs = await page
-    .locator('[data-sidebar="sidebar"] a[href]')
+    .locator(selector)
     .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''))
   return [
     ...new Set(
@@ -213,7 +213,12 @@ const sidebarRoutes = async (page: Page, base: string): Promise<string[]> => {
   ]
 }
 
-const visit = async (page: Page, watch: Watch, base: string, route: string) => {
+const SIDEBAR_LINKS = '[data-sidebar="sidebar"] a[href]'
+// Tab rows of sections spanning several routes («Отчёты», «Пояса», settings).
+const SECTION_TAB_LINKS = '[data-section-tabs] a[href]'
+
+// Visits the route and returns the section tabs it offers.
+const visit = async (page: Page, watch: Watch, base: string, route: string): Promise<string[]> => {
   watch.at(`/${route}`)
   await page.goto(route ? `${base}/${route}` : base, { waitUntil: 'domcontentloaded' })
   for (const loader of await settle(page, watch)) watch.report('stuck loader', loader)
@@ -222,6 +227,32 @@ const visit = async (page: Page, watch: Watch, base: string, route: string) => {
   if (ACCESS_DENIED_TEXT.test(await inspectText(page, watch))) {
     watch.report('linked but denied', 'the page shows the access-denied notice')
   }
+  return linkRoutes(page, base, SECTION_TAB_LINKS)
+}
+
+// The old URL (query included) must land on the new route.
+const expectRedirect = async (
+  page: Page,
+  watch: Watch,
+  base: string,
+  { from, to }: { from: string; to: string },
+) => {
+  watch.at(`/${from} (must redirect to /${to})`)
+  await page.goto(`${base}/${from}`, { waitUntil: 'domcontentloaded' })
+  const target = `${base}/${to}`
+  const landed = await page
+    .waitForURL((url) => url.pathname === target, { timeout: env.stuckMs })
+    .then(() => true)
+    .catch(() => false)
+  if (!landed) {
+    watch.report('no redirect', `landed on ${new URL(page.url()).pathname}`)
+    return
+  }
+  const query = from.split('?')[1]
+  if (query && !new URL(page.url()).search.includes(query)) {
+    watch.report('query lost', page.url())
+  }
+  for (const loader of await settle(page, watch)) watch.report('stuck loader', loader)
 }
 
 const expectBlocked = async (page: Page, watch: Watch, base: string, route: string) => {
@@ -255,22 +286,39 @@ for (const roleCase of ROLE_MATRIX) {
     watch.at('(landing)')
     for (const loader of await settle(page, watch)) watch.report('stuck loader', loader)
 
-    const visible = await sidebarRoutes(page, base)
+    const visible = await linkRoutes(page, base, SIDEBAR_LINKS)
     expect(visible, 'sidebar links').not.toHaveLength(0)
     const offered = [...roleCase.blocked, ...roleCase.offMenu].filter((route) => visible.includes(route))
     expect.soft(offered, `sidebar of ${roleCase.role} offers routes it must not`).toEqual([])
 
+    // Section tabs found on a visited page join the queue; a tab the role is
+    // refused must not be offered.
     const routes = [
-      ...visible,
-      ...roleCase.offMenu,
-      ...roleCase.tabs,
-      ...(await detailRoutes(request, token, workspaceId, visible)),
+      ...new Set([
+        ...visible,
+        ...roleCase.offMenu,
+        ...roleCase.tabs,
+        ...(await detailRoutes(request, token, workspaceId, visible)),
+      ]),
     ]
-    for (const route of routes) {
-      await test.step(`visit /${route}`, () => visit(page, watch, base, route))
+    const seen = new Set(routes)
+    for (let i = 0; i < routes.length; i++) {
+      const route = routes[i]
+      const tabs = await test.step(`visit /${route}`, () => visit(page, watch, base, route))
+      for (const tab of tabs) {
+        if (roleCase.blocked.includes(tab)) watch.report('offers a blocked tab', `/${tab}`)
+        if (seen.has(tab)) continue
+        seen.add(tab)
+        routes.push(tab)
+      }
     }
     for (const route of roleCase.blocked) {
       await test.step(`blocked /${route}`, () => expectBlocked(page, watch, base, route))
+    }
+    if (roleCase.role === 'owner') {
+      for (const legacy of LEGACY_REDIRECTS) {
+        await test.step(`redirect /${legacy.from}`, () => expectRedirect(page, watch, base, legacy))
+      }
     }
 
     await test.info().attach('routes.json', {

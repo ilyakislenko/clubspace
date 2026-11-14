@@ -38,7 +38,7 @@ export class GetWorkspaceBillingHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Тариф клуба видит только администратор клуба',
+            'Подписку ClubSpace видит только администратор клуба',
         )
 
         const workspace = await this.prisma.workspace.findUnique({

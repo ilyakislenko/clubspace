@@ -4,7 +4,9 @@ import { useParams } from "next/navigation"
 
 import { GradingsPanel } from "../../../../../features/gradings/GradingsPanel"
 import { ReadinessPanel } from "../../../../../features/gradings/ReadinessPanel"
+import { SectionTabs } from "../../../../../shared/workspace/section-tabs"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
+import { beltTabs } from "../sections"
 
 export default function WorkspaceGradingsPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -18,9 +20,9 @@ export default function WorkspaceGradingsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Аттестации</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+      <div className="space-y-2">
+        <SectionTabs title="Пояса" tabs={beltTabs} />
+        <p className="text-sm text-muted-foreground">
           Кто готов к повышению и проведение аттестаций.
         </p>
       </div>

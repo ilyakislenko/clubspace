@@ -1,7 +1,7 @@
 import { discountPercentAt } from './billing-rules'
 import type { PlatformModuleCode } from './platform-pricing.config'
 
-// The promos running for a club right now, as the club's «Тариф» page and the
+// The promos running for a club right now, as the club's «Подписка ClubSpace» page and the
 // platform console list them: a free subscription period, a discount (with
 // its end date, if any), a paid module granted free until a date, the setup
 // fee waived before the first payment. Pure (billing-promos.spec.ts).

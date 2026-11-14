@@ -882,7 +882,7 @@ out:
   store buttons and «Открыть в браузере», and shows the code for manual entry.
   An unknown or rotated code gets a friendly «Приглашение не найдено» (404).
 - `/c/<slug>` and `/clubs` — the public page and the catalog of clubs that
-  enabled «Показывать клуб в каталоге» in the admin («Публичная страница»).
+  enabled «Показывать клуб в каталоге» in the admin («Настройки → Профиль клуба»).
   Unlisted clubs answer 404 there and never appear in search.
 - `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`
   — Universal Links / App Links for `/join/*`, `application/json`, 404 until
@@ -972,7 +972,7 @@ now return a list of current abonements instead of one.
 
 ### Card payments and autopay of clubs (platform YooKassa shop)
 
-Clubs pay ClubSpace by card on the «Тариф» page; the card is saved and each
+Clubs pay ClubSpace by card on the «Подписка ClubSpace» page; the card is saved and each
 renewal is charged a day before the paid period ends (retries within
 `PLATFORM_GRACE_DAYS`, the owner gets an e-mail and a push each time). Off until
 the platform's own shop is configured — then only the console's «отметить оплату»
@@ -996,7 +996,7 @@ works, as before.
    the owner to `<ADMIN_URL>/workspace/<id>/billing`.
 4. `docker compose … up -d` — the schema change is additive (`PlatformPayment`,
    new nullable/defaulted columns), `db push` applies it without data loss.
-5. Check: the club's «Тариф» page shows «Оплатить картой»; the platform console
+5. Check: the club's «Подписка ClubSpace» page shows «Оплатить картой»; the platform console
    card shows the payments list, «Повторить списание сейчас», refunds and the
    autopay switch.
 
@@ -1045,7 +1045,7 @@ Clubs buy ClubSpace under a public offer and a data processing instruction
 (`app.<domain>/legal/offer`, `/legal/dpa`, `/legal/requisites`; drafts — see
 `docs/legal/README.md`). The club owner's acceptance (who, when, IP, editions)
 is recorded at self-serve sign-up, by the console («владелец уже принял
-оферту»), on the owner's first card payment, or on the «Тариф» page.
+оферту»), on the owner's first card payment, or on the «Подписка ClubSpace» page.
 
 1. Fill the seller's requisites in `.env.production` (`PLATFORM_SELLER_*`, see
    `.env.production.example`). Until NAME, INN, OGRNIP, ADDRESS, BANK_NAME, BIK
@@ -1069,7 +1069,7 @@ as before and is archived `PLATFORM_ARCHIVE_AFTER_DAYS` after suspension
 (hidden from members and the public listing; nothing deleted).
 
 «Пробный период с картой» (off by default, `PLATFORM_CARD_TRIAL_ENABLED`; the
-console switches it per club): the owner binds a card on «Тариф». YooKassa saves
+console switches it per club): the owner binds a card on «Подписка ClubSpace». YooKassa saves
 a card only with a real payment (`save_payment_method`; zero-amount payments are
 refused and the separate payment-methods API needs a manager to enable it), so
 the card is bound with a `PLATFORM_CARD_CHECK_AMOUNT` (1 ₽) payment that is

@@ -29,7 +29,7 @@ const RUN_KIND = `${TRIAL_REMINDER_KIND}.run`
 // 28 of 30 by default) the owner gets an e-mail and a push with what the
 // first period will cost (the quote the charge will use) and what happens
 // next — the saved card is charged at the end, or the club must pay on
-// «Тариф» before the grace period runs out. Each reminder goes out once
+// «Подписка ClubSpace» before the grace period runs out. Each reminder goes out once
 // (NotificationDispatchLog claim); a club that already paid its first period
 // gets none. Runs with the hourly autopay pass.
 @Injectable()
@@ -106,7 +106,7 @@ export class TrialRemindersService {
             ? `${endDate} спишем ${RUB.format(quote.total)} ₽ с карты ${
                   row.paymentMethodTitle ?? `*${row.paymentMethodCardLast4 ?? ''}`
               } автоматически — ничего делать не нужно.`
-            : `Оплатите тариф на странице «Тариф» до ${endDate}, чтобы клуб продолжил работать. Без оплаты через ${environment.billing.graceDays} ${pluralRu(environment.billing.graceDays, 'день', 'дня', 'дней')} после окончания пробного периода клуб будет приостановлен.`
+            : `Оплатите подписку на странице «Подписка ClubSpace» до ${endDate}, чтобы клуб продолжил работать. Без оплаты через ${environment.billing.graceDays} ${pluralRu(environment.billing.graceDays, 'день', 'дня', 'дней')} после окончания пробного периода клуб будет приостановлен.`
         const topic = `Пробный период «${workspace.name}» закончится через ${left}`
         const summary = `Пробный период клуба «${workspace.name}» заканчивается ${endDate}. Первый платёж — ${RUB.format(quote.total)} ₽. ${next}`
         const link = environment.adminUrl
@@ -138,7 +138,7 @@ export class TrialRemindersService {
                 `<p>${escapeHtml(`Пробный период клуба «${workspace.name}» заканчивается ${endDate}.`)}</p>` +
                 `<table>${lines}<tr><td><b>Итого</b></td><td style="text-align:right"><b>${RUB.format(quote.total)} ₽</b></td></tr></table>` +
                 `<p>${escapeHtml(next)}</p>` +
-                (link ? `<p><a href="${escapeHtml(link)}">Открыть «Тариф»</a></p>` : ''),
+                (link ? `<p><a href="${escapeHtml(link)}">Открыть «Подписка ClubSpace»</a></p>` : ''),
             metadata: { kind: TRIAL_REMINDER_KIND, workspaceId },
         })
     }

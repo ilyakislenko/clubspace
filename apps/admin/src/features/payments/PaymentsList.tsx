@@ -93,7 +93,7 @@ export function PaymentsList({ workspaceId }: { workspaceId: string }) {
   return (
     <div className="space-y-4 rounded-xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="font-medium">Платежи</div>
+        <div className="font-medium">Оплаты через приложение</div>
         <div className="w-48">
           <Select
             value={status}

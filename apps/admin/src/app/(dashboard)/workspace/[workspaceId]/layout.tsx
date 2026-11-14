@@ -121,7 +121,7 @@ export default function WorkspaceLayout({
                   href={`/workspace/${workspaceId}/billing`}
                   className="inline-block font-medium underline underline-offset-4"
                 >
-                  Открыть «Тариф»
+                  Открыть «Подписка ClubSpace»
                 </Link>
               )}
             </div>

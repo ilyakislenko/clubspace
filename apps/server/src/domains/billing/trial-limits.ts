@@ -24,7 +24,7 @@ export const TRIAL_MODULES: readonly PlatformModuleCode[] = ['VIDEO', 'ONLINE_PA
 export const isTrialModule = (code: PlatformModuleCode): boolean =>
     TRIAL_MODULES.includes(code)
 
-export const TRIAL_LIMIT_CTA = 'Оплатите тариф, чтобы снять ограничение.'
+export const TRIAL_LIMIT_CTA = 'Оплатите подписку ClubSpace, чтобы снять ограничение.'
 
 const GB = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 })
 

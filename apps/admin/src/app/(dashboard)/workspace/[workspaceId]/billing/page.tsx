@@ -65,7 +65,7 @@ export default function WorkspaceBillingPage() {
     setError(null)
     getWorkspaceBilling({ workspaceId })
       .then((d) => alive && setData(d))
-      .catch((e) => alive && setError(errorMessage(e, "Не удалось загрузить тариф.")))
+      .catch((e) => alive && setError(errorMessage(e, "Не удалось загрузить подписку ClubSpace.")))
     return () => {
       alive = false
     }
@@ -109,7 +109,7 @@ export default function WorkspaceBillingPage() {
   if (!data.enabled) {
     return (
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold">Тариф</h1>
+        <h1 className="text-2xl font-semibold">Подписка ClubSpace</h1>
         <p className="text-sm text-muted-foreground">
           На этой установке ClubSpace оплата не взимается: все разделы и модули
           доступны без ограничений.
@@ -130,7 +130,7 @@ export default function WorkspaceBillingPage() {
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Тариф</h1>
+        <h1 className="text-2xl font-semibold">Подписка ClubSpace</h1>
         <p className="text-sm text-muted-foreground">
           Сколько клуб платит ClubSpace: тариф по числу активных учеников и
           подключённые модули.
@@ -219,7 +219,7 @@ export default function WorkspaceBillingPage() {
       <BillingCardTrialOffer workspaceId={workspaceId} billing={billing} legal={legal} />
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium">Тарифы</h2>
+        <h2 className="text-sm font-medium">Тарифы ClubSpace</h2>
         <ul className="divide-y rounded-lg border">
           {rows.map((row) => {
             const current = row.code === billing.tier.code

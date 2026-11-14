@@ -30,7 +30,7 @@ class RequestWorkspaceOnboardingHelpOutput extends createZodDto(
     RequestWorkspaceOnboardingHelpOutputSchema,
 ) {}
 
-// «Запросить помощь с подключением» on the club's «Тариф» page.
+// «Запросить помощь с подключением» on the club's «Подписка ClubSpace» page.
 @Controller('workspaces/:workspaceId/onboarding-help')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class WorkspaceOnboardingHelpController {

@@ -41,7 +41,7 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
         lastname: 'Орлов',
         roleLabel: 'Владелец клуба (демо)',
         summary:
-            'Админка на Mac: обзор и выручка, «Кому позвонить», продления, импорт, направления, тарифы',
+            'Админка на Mac: «Сегодня» и выручка, «Удержание», продления, импорт, направления, тарифы',
     },
     {
         key: 'admin',
@@ -49,7 +49,7 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
         firstname: 'Ольга',
         lastname: 'Кузнецова',
         roleLabel: 'Администратор',
-        summary: 'Участники, абонементы, долги, заявки на заморозку и в клуб',
+        summary: 'Ученики, абонементы, долги, заявки на заморозку и в клуб',
     },
     {
         key: 'directionManager',

@@ -343,7 +343,7 @@ export function GroupForm({
           )}
           <p className="text-xs text-muted-foreground">
             Можно добавить и позже, в карточке группы. Время {vocabulary.session.genPl} задаётся
-            в календаре «{cap(vocabulary.session.nomPl)}».
+            в «Расписании».
           </p>
         </div>
       )}

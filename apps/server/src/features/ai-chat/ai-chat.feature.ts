@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { MAX_QUESTION_CHARS } from './ai-chat-utils'
 
-// «ИИ-ассистент» chat in the admin (sidebar → Аналитика): a staff member asks
+// «ИИ-ассистент» chat in the admin (sidebar → Отчёты): a staff member asks
 // about the club in plain words; the model answers through the same read-only
 // tools as the MCP server (features/mcp), in the asker's scope — admins the
 // whole club, a руководитель направления their directions. The model sees

@@ -145,7 +145,7 @@ export type AuditAction =
     | 'workspace.onboardingHelpRequest'
     | 'workspace.onboardingHelpUpdate'
     // The club owner accepted the current offer + DPA editions (sign-up,
-    // console, the «Тариф» page, the first card payment).
+    // console, the «Подписка ClubSpace» page, the first card payment).
     | 'workspace.legalAccept'
     // Families: a guardian acting for a dependent (any write), the guardian
     // side of a dependent's lifecycle, and a club adding a child.

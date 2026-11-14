@@ -54,7 +54,7 @@ class AiChatConversationOutput extends createZodDto(AiChatConversationOutputSche
 class DeleteAiChatConversationOutput extends createZodDto(DeleteAiChatConversationOutputSchema) {}
 class AskAiChatInput extends createZodDto(AskAiChatInputSchema) {}
 
-// «ИИ-ассистент» chat (sidebar → Аналитика). COACHING_ROLES so a руководитель
+// «ИИ-ассистент» chat (sidebar → Отчёты). COACHING_ROLES so a руководитель
 // направления reaches the handlers; resolveAiAccess there refuses plain coaches.
 @Controller('workspaces/:workspaceId/ai-chat')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)

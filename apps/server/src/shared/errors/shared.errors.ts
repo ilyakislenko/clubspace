@@ -139,7 +139,7 @@ export class WorkspaceSuspendedError extends DefaultError {
         super({
             message:
                 payload.reason === 'SUSPENDED'
-                    ? `Клуб «${payload.workspaceName}» приостановлен: закончился оплаченный период. Владелец клуба может продлить доступ в админке, раздел «Тариф».`
+                    ? `Клуб «${payload.workspaceName}» приостановлен: закончился оплаченный период. Владелец клуба может продлить доступ в админке, раздел «Подписка ClubSpace».`
                     : `Клуб «${payload.workspaceName}» временно отключён. Обратитесь к администратору клуба.`,
             code: 'WORKSPACE_SUSPENDED',
             statusCode: 403,
@@ -167,8 +167,8 @@ export class ModuleNotEntitledError extends DefaultError {
 }
 
 // A trial cap is reached (domains/billing/trial-limits.ts): the club's staff
-// get the reason and «Оплатите тариф, чтобы снять ограничение»; `limit` lets a
-// client link to the «Тариф» page. Students get a neutral message instead —
+// get the reason and «Оплатите подписку ClubSpace, чтобы снять ограничение»;
+// `limit` lets a client link to the «Подписка ClubSpace» page. Students get a neutral message instead —
 // with no limit in the metadata, so nothing billing-related leaks to them.
 export class TrialLimitReachedError extends DefaultError {
     constructor(payload: {
@@ -186,7 +186,7 @@ export class TrialLimitReachedError extends DefaultError {
 
 // The club's owner has not accepted the current offer / DPA editions and the
 // grace for it is over (domains/billing/club-legal.ts): paid actions are
-// refused until they do. The code lets the admin point to the «Тариф» page.
+// refused until they do. The code lets the admin point to the «Подписка ClubSpace» page.
 export class LegalAcceptanceRequiredError extends DefaultError {
     constructor(payload: { message: string }) {
         super({

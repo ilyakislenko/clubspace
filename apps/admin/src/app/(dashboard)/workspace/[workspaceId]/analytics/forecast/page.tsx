@@ -61,7 +61,6 @@ export default function ForecastPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Прогноз выручки</h1>
         <p className="text-sm text-muted-foreground">
           Сколько принесут продления текущих абонементов, если ученики будут
           продлевать так же, как раньше, с поправкой на риск ухода.

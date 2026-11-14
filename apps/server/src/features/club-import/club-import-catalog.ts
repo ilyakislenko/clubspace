@@ -252,7 +252,7 @@ export class ClubImportCatalog {
             return {
                 error: `Пояса «${name}» нет, а шкал несколько (${ladders
                     .map((l) => l.name)
-                    .join(', ')}) — добавьте его в нужную шкалу в разделе «Ранги»`,
+                    .join(', ')}) — добавьте его в нужную шкалу в разделе «Пояса»`,
             }
         }
         const ladder = ladders[0] ?? null

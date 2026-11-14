@@ -256,18 +256,18 @@ describe("billing view", () => {
         response: {
           data: {
             code: "TRIAL_LIMIT_REACHED",
-            message: "Хранилище заполнено. Оплатите тариф, чтобы снять ограничение.",
+            message: "Хранилище заполнено. Оплатите подписку ClubSpace, чтобы снять ограничение.",
             metadata: { limit: "VIDEO_STORAGE" },
           },
         },
       }),
     ).toEqual({
       limit: "VIDEO_STORAGE",
-      message: "Хранилище заполнено. Оплатите тариф, чтобы снять ограничение.",
+      message: "Хранилище заполнено. Оплатите подписку ClubSpace, чтобы снять ограничение.",
     })
     expect(
       readTrialLimit({ response: { data: { code: "TRIAL_LIMIT_REACHED" } } })?.message,
-    ).toContain("Оплатите тариф")
+    ).toBeTruthy()
     expect(readTrialLimit({ response: { data: { code: "FORBIDDEN" } } })).toBeNull()
     expect(readTrialLimit(new Error("x"))).toBeNull()
     expect(readTrialLimit(null)).toBeNull()

@@ -1,14 +1,5 @@
 import { z } from 'zod'
 
-const RecentEventSchema = z.object({
-    id: z.string().uuid(),
-    action: z.string(),
-    targetType: z.string(),
-    targetId: z.string().nullable(),
-    actorEmail: z.string().nullable(),
-    createdAt: z.iso.datetime(),
-})
-
 const TopVideoSchema = z.object({
     id: z.string().uuid(),
     title: z.string(),
@@ -114,7 +105,6 @@ export const GetWorkspaceStatsFeatureOutputSchema = z.object({
     }),
     revenue: RevenueSchema.nullable(),
     topVideos7d: z.array(TopVideoSchema),
-    recentEvents: z.array(RecentEventSchema),
 })
 
 export class GetWorkspaceStatsFeature {

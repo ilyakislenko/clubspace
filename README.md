@@ -72,7 +72,7 @@ three months of history) for local work; the in-person demo kit — demo logins,
 «Сбросить демо», the 15-minute script — is described in `docs/demo.md`.
 
 **ИИ-ассистент.** A club connects Claude, ChatGPT or Cursor over MCP
-(`POST /mcp`, read-only, club tokens from «Интеграции»): setup, tools, data
+(`POST /mcp`, read-only, club tokens from «Настройки → Интеграции»): setup, tools, data
 modes and an example session — `docs/mcp.md`.
 
 ### PWA build

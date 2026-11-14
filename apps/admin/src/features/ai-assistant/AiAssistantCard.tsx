@@ -119,7 +119,7 @@ export function AiAssistantCard({ workspaceId }: { workspaceId: string }) {
   return (
     <section className="space-y-5 rounded-lg border border-border bg-card p-5">
       <div>
-        <h2 className="text-lg font-semibold">ИИ-ассистент</h2>
+        <h3 className="font-semibold">ИИ-ассистент</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Подключите клуб к Claude, ChatGPT или Cursor и спрашивайте обычными
           словами: «кто может уйти в этом месяце», «выручка по направлениям»,

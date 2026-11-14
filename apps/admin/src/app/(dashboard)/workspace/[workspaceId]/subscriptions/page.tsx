@@ -259,14 +259,10 @@ export default function WorkspaceSubscriptionsPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Тарифы и абонементы</h1>
-        <p className="text-sm text-muted-foreground">
-          Задайте тарифы клуба. Абонемент назначается в карточке ученика
-          (раздел «Участники»); кому пора продлить — в «Кому позвонить» →
-          «Продлить».
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Задайте тарифы клуба. Абонемент назначается в карточке ученика
+        (раздел «Ученики»); кому пора продлить — в «Удержание» → «Продлить».
+      </p>
 
       {error && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -384,10 +380,10 @@ export default function WorkspaceSubscriptionsPage() {
         <p className="-mt-2 text-xs text-muted-foreground sm:col-span-5">
           Участник сможет оплатить тариф в приложении, если в разделе{" "}
           <Link
-            href={`/workspace/${workspaceId}/payments`}
+            href={`/workspace/${workspaceId}/settings/payments`}
             className="underline underline-offset-2"
           >
-            «Онлайн-оплата»
+            «Настройки → Оплата»
           </Link>{" "}
           подключена касса. Бесплатные и пробные тарифы онлайн не продаются.
         </p>

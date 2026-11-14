@@ -450,7 +450,7 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         createdAt: at(ago(314), '12:00'),
         convertedAt: at(ago(300), '12:00'),
         autopayEnabled: false,
-        notes: 'Демо-студия для показов: тариф бесплатно, все модули включены (docs/demo.md)',
+        notes: 'Демо-студия для показов: подписка ClubSpace бесплатно, все модули включены (docs/demo.md)',
     }
     plan.moduleEntitlements = (['VIDEO', 'ONLINE_PAYMENTS', 'BRANDED_APP'] as const).map((module) => ({
         workspaceId,
@@ -1606,7 +1606,7 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
                 `, группа [group:${groupId(p.groups[0])}]: ${advice[reason]}.`,
         ),
         '',
-        'Начните с первого: чем дольше пауза, тем труднее вернуться. После звонка отметьте его в «Кому позвонить» — список обновится.',
+        'Начните с первого: чем дольше пауза, тем труднее вернуться. После звонка отметьте его в «Удержание → Позвонить» — список обновится.',
     ].join('\n')
     const askedAt = at(ago(1), '21:05')
     plan.aiChatConversations.push({

@@ -166,7 +166,7 @@ export class McpServerService {
             })
         if (!secret || !looksLikeAiToken(secret)) {
             throw unauthorized(
-                'Нужен токен ИИ-ассистента: заголовок Authorization: Bearer csai_… (Интеграции → ИИ-ассистент в админке клуба)',
+                'Нужен токен ИИ-ассистента: заголовок Authorization: Bearer csai_… (Настройки → Интеграции → ИИ-ассистент в админке клуба)',
             )
         }
         const row = await this.prisma.aiAccessToken.findUnique({

@@ -454,7 +454,7 @@ export default function PlatformConsolePage() {
             <span>
               Владелец уже принял оферту и поручение (подписан договор)
               <span className="block text-xs text-muted-foreground">
-                Без отметки владелец примет их сам на странице «Тариф».
+                Без отметки владелец примет их сам на странице «Подписка ClubSpace».
               </span>
             </span>
           </label>

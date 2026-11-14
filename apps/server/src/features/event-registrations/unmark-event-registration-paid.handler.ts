@@ -52,7 +52,7 @@ export class UnmarkEventRegistrationPaidHandler
         if (registration.isPaid && registration.paymentMethod === 'ONLINE') {
             throw new BadRequestError({
                 message:
-                    'Билет оплачен онлайн — верните деньги в разделе «Платежи», отметка снимется сама',
+                    'Билет оплачен онлайн — верните деньги в разделе «Абонементы → Платежи», отметка снимется сама',
             })
         }
         const unmarked = await this.prisma.eventRegistration.updateMany({

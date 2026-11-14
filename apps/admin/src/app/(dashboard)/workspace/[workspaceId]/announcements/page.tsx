@@ -42,7 +42,9 @@ import {
   type AnnouncementTarget,
 } from "../../../../../features/announcements/announcement-target"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
+import { SectionTabs } from "../../../../../shared/workspace/section-tabs"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
+import { newsTabs } from "../sections"
 
 export default function WorkspaceAnnouncementsPage() {
   const vocabulary = useVocabulary()
@@ -206,8 +208,8 @@ export default function WorkspaceAnnouncementsPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
+      <SectionTabs title="Новости и события" tabs={newsTabs} />
       <div>
-        <h1 className="text-2xl font-semibold">Объявления</h1>
         <p className="text-sm text-muted-foreground">
           Лента клуба. Опубликованные объявления видят все участники; черновики —
           только персонал. Закреплённые всплывают наверх.

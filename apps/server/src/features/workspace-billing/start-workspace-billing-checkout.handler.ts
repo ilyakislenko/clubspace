@@ -33,7 +33,7 @@ export class StartWorkspaceBillingCheckoutHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Оплатить тариф может только администратор клуба',
+            'Оплатить подписку ClubSpace может только администратор клуба',
         )
         await this.legal.assertPaidActionsAllowed(f.workspaceId)
         const { payment, confirmationUrl } = await this.payments.startCheckout({

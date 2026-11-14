@@ -82,8 +82,8 @@ export class GetWorkspaceStatsHandler
             isSuperAdmin,
         })
 
-        // Club money and the audit feed are for the owner and admins only: a
-        // head coach or a coach never receives them — not just hidden in UI.
+        // Club money is for the owner and admins only: a head coach or a coach
+        // never receives it — not just hidden in UI.
         const clubAdmin = isClubAdmin(ctx, {
             roleName: invokerRoleName,
             isSuperAdmin,
@@ -130,20 +130,13 @@ export class GetWorkspaceStatsHandler
             ...(scopedUserIds !== null ? { where: userScope } : {}),
         }
 
-        const [videos, videosReady, courses, recentEventsRaw] =
-            await this.prisma.$transaction([
-                this.prisma.video.count({ where: { workspaceId } }),
-                this.prisma.video.count({
-                    where: { workspaceId, status: 'ready' },
-                }),
-                this.prisma.course.count({ where: { workspaceId } }),
-                // «История изменений» rows: club admins only (empty otherwise).
-                this.prisma.auditEvent.findMany({
-                    where: { workspaceId },
-                    orderBy: { createdAt: 'desc' },
-                    take: clubAdmin ? 10 : 0,
-                }),
-            ])
+        const [videos, videosReady, courses] = await this.prisma.$transaction([
+            this.prisma.video.count({ where: { workspaceId } }),
+            this.prisma.video.count({
+                where: { workspaceId, status: 'ready' },
+            }),
+            this.prisma.course.count({ where: { workspaceId } }),
+        ])
 
         const [viewers7Rows, viewers30Rows, completions7Total, topVideoRows] =
             await Promise.all([
@@ -346,23 +339,6 @@ export class GetWorkspaceStatsHandler
             currency: todayRevenue?.currency ?? null,
         }
 
-        const actorIds = Array.from(
-            new Set(
-                recentEventsRaw
-                    .map((event) => event.actorId)
-                    .filter((id): id is string => Boolean(id)),
-            ),
-        )
-
-        const actors = actorIds.length
-            ? await this.prisma.user.findMany({
-                  where: { id: { in: actorIds } },
-                  select: { id: true, email: true },
-              })
-            : []
-
-        const actorEmail = new Map(actors.map((u) => [u.id, u.email]))
-
         return {
             today,
             counts: {
@@ -390,16 +366,6 @@ export class GetWorkspaceStatsHandler
             retention: { notAttended30d, renewalsDue },
             revenue,
             topVideos7d,
-            recentEvents: recentEventsRaw.map((event) => ({
-                id: event.id,
-                action: event.action,
-                targetType: event.targetType,
-                targetId: event.targetId,
-                actorEmail: event.actorId
-                    ? actorEmail.get(event.actorId) ?? null
-                    : null,
-                createdAt: event.createdAt.toISOString(),
-            })),
         }
     }
 }
