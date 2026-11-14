@@ -3,7 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     NotFoundError,
@@ -36,7 +36,7 @@ export class UnmarkEventRegistrationPaidHandler
     ) {}
 
     async execute(f: UnmarkEventRegistrationPaidFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        await assertSportLead(this.rbac, {
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,

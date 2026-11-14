@@ -2,7 +2,9 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { WorkspaceInvitationService } from '../../domains/workspace/services/workspace-invitation.service'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { PrismaService } from '../../infrastructure/prisma'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
+import { assertCanManageRoles } from '../../shared/access/role-hierarchy'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -21,6 +23,7 @@ export class RevokeWorkspaceInvitationHandler
         >
 {
     constructor(
+        private readonly prisma: PrismaService,
         private readonly invitations: WorkspaceInvitationService,
         private readonly rbac: RbacService,
         private readonly audit: AuditService,
@@ -33,10 +36,26 @@ export class RevokeWorkspaceInvitationHandler
         roleName,
         isSuperAdmin,
     }: RevokeWorkspaceInvitationFeature): Promise<RevokeWorkspaceInvitationFeatureResponse> {
-        await assertWorkspaceAdmin(
+        const ctx = await assertSportLead(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Отзывать приглашения может только администратор клуба',
+        )
+        const pending = await this.prisma.workspaceInvitation.findFirst({
+            where: { id: invitationId, workspaceId },
+            select: { roleName: true },
+        })
+        if (!pending) {
+            throw new NotFoundError({ message: 'Приглашение не найдено' })
+        }
+        // Like inviting: a staff offer is the club admins' call.
+        await assertCanManageRoles(
+            this.prisma,
+            ctx,
+            { roleName, isSuperAdmin },
+            [pending.roleName],
+            (v) =>
+                `Отозвать приглашение ${v.coach.gen}, ${v.headCoach.gen} или администратора может только владелец или администратор клуба`,
         )
         const removed = await this.invitations.remove({
             id: invitationId,

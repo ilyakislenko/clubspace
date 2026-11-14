@@ -6,6 +6,7 @@ import { Button } from "@clubspace/ui-kit/ui"
 
 import { updateMemberNotes } from "../../shared/api/members"
 import { errorMessage } from "../../shared/lib/error-message"
+import { useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 
 export function MemberNotesPanel({
@@ -24,6 +25,7 @@ export function MemberNotesPanel({
   const [error, setError] = useState<string | null>(null)
 
   const dirty = notes !== saved
+  useDirtyGuard(dirty)
 
   const save = async () => {
     setSaving(true)

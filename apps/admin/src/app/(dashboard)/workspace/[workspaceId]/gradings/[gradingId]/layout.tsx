@@ -1,11 +1,11 @@
 "use client"
 
-import { AdminOrDirectionManagerGate } from "../../../../../../shared/workspace/admin-only-gate"
+import { LeadGate } from "../../../../../../shared/workspace/access-gate"
 
-export default function AdminOrDirectionManagerLayout({
+export default function LeadLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return <AdminOrDirectionManagerGate>{children}</AdminOrDirectionManagerGate>
+  return <LeadGate>{children}</LeadGate>
 }

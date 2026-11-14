@@ -33,7 +33,9 @@ import {
 } from "../../../../../../shared/lib/analytics"
 import { AT_RISK_CHIP, AT_RISK_LABEL } from "../../../../../../shared/lib/at-risk"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
+import { isClubAdmin } from "../../../../../../shared/lib/permissions"
 import { pluralRu } from "../../../../../../shared/lib/plural-ru"
+import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
 import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
 
 export default function WorkspaceGroupPage() {
@@ -41,6 +43,8 @@ export default function WorkspaceGroupPage() {
   const workspaceId = params?.workspaceId
   const groupId = params?.groupId
   const vocabulary = useVocabulary()
+  // The tariff page is the club admins'; others see the plan name only.
+  const linkPlans = isClubAdmin(useMyMembership(workspaceId))
 
   const [group, setGroup] = useState<GroupDetails | null>(null)
   const [occupancy, setOccupancy] = useState<ScheduleOccupancy | null>(null)
@@ -214,6 +218,7 @@ export default function WorkspaceGroupPage() {
                     workspaceId={workspaceId}
                     member={m}
                     showStatus={group.canEdit}
+                    linkPlans={linkPlans}
                   />
                 ))}
               </tbody>
@@ -229,10 +234,12 @@ function MemberRow({
   workspaceId,
   member,
   showStatus,
+  linkPlans,
 }: {
   workspaceId: string
   member: GroupDetailsMember
   showStatus: boolean
+  linkPlans: boolean
 }) {
   const vocabulary = useVocabulary()
   return (
@@ -255,12 +262,16 @@ function MemberRow({
                 const classes = classesLabel(s)
                 return (
                   <li key={s.id}>
-                    <Link
-                      href={`/workspace/${workspaceId}/subscriptions/plans/${s.planId}`}
-                      className="hover:underline"
-                    >
-                      {s.planName}
-                    </Link>
+                    {linkPlans ? (
+                      <Link
+                        href={`/workspace/${workspaceId}/subscriptions/plans/${s.planId}`}
+                        className="hover:underline"
+                      >
+                        {s.planName}
+                      </Link>
+                    ) : (
+                      s.planName
+                    )}
                     <span className="text-xs text-muted-foreground">
                       {" "}
                       · {periodLabel(s, vocabulary)}

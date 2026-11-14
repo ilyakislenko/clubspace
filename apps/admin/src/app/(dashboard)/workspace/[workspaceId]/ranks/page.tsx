@@ -158,7 +158,7 @@ export default function WorkspaceRanksPage() {
             directions={scope.filterOptions(directions)}
             value={directionFilter}
             onChange={setDirectionFilter}
-            includeClubOnly={scope.isAdmin}
+            includeClubOnly={scope.isSportLead}
           />
         </div>
       )}

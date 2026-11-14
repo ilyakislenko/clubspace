@@ -6,7 +6,7 @@ import {
     ENABLED_AI_TOKEN_SCOPES,
     generateAiToken,
 } from '../../domains/ai-assistant/ai-token'
-import { resolveAiAccess } from '../../domains/ai-assistant/ai-access'
+import { assertAiTokenManager, resolveAiAccess } from '../../domains/ai-assistant/ai-access'
 import { AI_PERSONAL_DATA_WARNING } from '../../domains/ai-assistant/personal-data-warning'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { environment } from '../../environments/environment'
@@ -26,7 +26,7 @@ import {
     RevokeAiTokenFeature,
     RevokeAiTokenFeatureResponse,
 } from './ai-tokens.feature'
-import { aiTokenInclude, canRevokeAiToken, serializeAiToken } from './schemas'
+import { aiTokenInclude, serializeAiToken } from './schemas'
 import { displayName } from '../attendance/schemas'
 
 // More live tokens than this in one club is a leak waiting to happen, not a
@@ -56,22 +56,16 @@ export class ListAiTokensHandler
             workspaceId: f.workspaceId,
             userId: f.invokerUserId,
         })
-        // Admin scope sees every token of the club (and can revoke it); a
-        // direction manager only their own.
+        assertAiTokenManager(access)
         const rows = await this.prisma.aiAccessToken.findMany({
-            where: {
-                workspaceId: f.workspaceId,
-                ...(access.directionIds === null
-                    ? {}
-                    : { createdById: access.userId }),
-            },
+            where: { workspaceId: f.workspaceId },
             include: aiTokenInclude,
             orderBy: { createdAt: 'desc' },
             take: 200,
         })
         const now = new Date()
         return {
-            data: rows.map((r) => serializeAiToken(r, access, now)),
+            data: rows.map((r) => serializeAiToken(r, now)),
             mcpUrl: mcpUrl(),
             canUsePersonalData: access.isOwner,
             personalDataWarning: { ...AI_PERSONAL_DATA_WARNING },
@@ -96,6 +90,7 @@ export class CreateAiTokenHandler
             workspaceId: f.workspaceId,
             userId: f.invokerUserId,
         })
+        assertAiTokenManager(access)
         const { payload } = f
 
         const disabled = payload.scopes.filter(
@@ -215,7 +210,7 @@ export class CreateAiTokenHandler
         })
 
         return {
-            token: serializeAiToken(row, access, now),
+            token: serializeAiToken(row, now),
             secret: generated.secret,
         }
     }
@@ -236,19 +231,15 @@ export class RevokeAiTokenHandler
             workspaceId: f.workspaceId,
             userId: f.invokerUserId,
         })
+        assertAiTokenManager(access)
         const row = await this.prisma.aiAccessToken.findFirst({
             where: { id: f.tokenId, workspaceId: f.workspaceId },
             include: aiTokenInclude,
         })
         if (!row) throw new NotFoundError({ message: 'Токен не найден' })
-        if (!canRevokeAiToken(access, row)) {
-            throw new ForbiddenError({
-                message: 'Отозвать чужой токен может только администратор клуба',
-            })
-        }
         const now = new Date()
         // A double tap: already revoked, nothing to record.
-        if (row.revokedAt) return serializeAiToken(row, access, now)
+        if (row.revokedAt) return serializeAiToken(row, now)
 
         const updated = await this.prisma.aiAccessToken.update({
             where: { id: row.id },
@@ -263,6 +254,6 @@ export class RevokeAiTokenHandler
             actorId: f.invokerUserId,
             metadata: { name: row.name, dataMode: row.dataMode },
         })
-        return serializeAiToken(updated, access, now)
+        return serializeAiToken(updated, now)
     }
 }

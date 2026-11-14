@@ -8,9 +8,40 @@
 // the trouble to write ("Free trial already used", "Cannot set access window
 // for workspace owner") and showed HTTP noise instead. Body first, Error second.
 type ApiErrorShape = {
+  isAxiosError?: unknown
+  code?: unknown
+  request?: unknown
   response?: {
     data?: { message?: unknown; error?: unknown; metadata?: unknown; code?: unknown }
   }
+}
+
+export const NO_CONNECTION_MESSAGE =
+  "Нет связи с сервером. Проверьте интернет и повторите."
+
+// The request never got an answer (offline, refused, timed out, CORS): axios
+// rejects without `response`, with English text like "Network Error" or
+// "timeout of 10000ms exceeded"; a raw `fetch` (S3 uploads) rejects with a
+// TypeError ("Failed to fetch" / "Load failed" / "NetworkError when attempting
+// to fetch resource."). None of that may reach the screen.
+const isTransportFailure = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null) return false
+  const e = error as ApiErrorShape
+  // An aborted request (ERR_CANCELED) is not a connection problem.
+  if (e.response || e.code === "ERR_CANCELED") return false
+  if (e.isAxiosError === true || e.request !== undefined) return true
+  if (
+    error instanceof TypeError &&
+    /^(Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.?)$/.test(
+      error.message,
+    )
+  ) {
+    return true
+  }
+  return (
+    error instanceof Error &&
+    /^(Network Error|timeout of \d+ms exceeded)$/.test(error.message)
+  )
 }
 
 const readServerMessage = (error: unknown): string | null => {
@@ -39,11 +70,14 @@ export const errorMessage = (
   const fromServer = readServerMessage(error)
   if (fromServer) return fromServer
 
-  // A bare transport Error carries only boilerplate, which tells the user
-  // nothing — prefer the caller's fallback in that case.
+  if (isTransportFailure(error)) return NO_CONNECTION_MESSAGE
+
+  // Otherwise an axios rejection carries only boilerplate ("Request failed
+  // with status code 500", "canceled") — prefer the caller's fallback.
   if (
     error instanceof Error &&
-    !/^Request failed with status code/.test(error.message)
+    !/^Request failed with status code/.test(error.message) &&
+    (error as ApiErrorShape).code !== "ERR_CANCELED"
   ) {
     return error.message
   }

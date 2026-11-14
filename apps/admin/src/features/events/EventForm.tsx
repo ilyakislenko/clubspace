@@ -24,6 +24,7 @@ import {
 } from "../../shared/api/events"
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
+import { sameData, useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 import { type Gym } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
 import { useDirectionScope } from "../../shared/workspace/use-direction-scope"
@@ -155,6 +156,26 @@ export function EventForm({
     event ? (event.direction?.id ?? null) : scope.defaultDirectionId,
   )
   const [submitting, setSubmitting] = useState(false)
+
+  // Dirty = differs from what the form opened with (the saved event, or the
+  // new-event defaults); saving closes the form.
+  const formValues = {
+    title,
+    description,
+    link,
+    start: startDate ? composeWallClock(startDate, startTime) : null,
+    end: endDate ? composeWallClock(endDate, endTime) : null,
+    timezone,
+    gymId,
+    coachId,
+    hostName,
+    price,
+    currency,
+    capacity,
+    directionId,
+  }
+  const [openedWith] = useState(formValues)
+  useDirtyGuard(!sameData(formValues, openedWith))
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()

@@ -3,7 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { normalizePhone } from '../../shared/utils/phone'
@@ -32,7 +32,7 @@ export class UpdateClubAboutHandler
         roleName,
         isSuperAdmin,
     }: UpdateClubAboutFeature) {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Менять информацию о клубе может только администратор клуба',

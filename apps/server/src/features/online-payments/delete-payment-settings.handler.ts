@@ -2,7 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -28,7 +28,7 @@ export class DeletePaymentSettingsHandler
     ) {}
 
     async execute(f: DeletePaymentSettingsFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        await assertClubAdmin(this.rbac, {
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,

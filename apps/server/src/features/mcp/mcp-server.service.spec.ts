@@ -7,7 +7,7 @@ const { secret, hash } = generateAiToken()
 
 type Opts = {
     token?: Record<string, unknown> | null
-    role?: 'owner' | 'admin' | 'manager' | 'coach'
+    role?: 'owner' | 'admin' | 'head_coach' | 'manager' | 'coach'
     blocked?: boolean
     bus?: { execute: jest.Mock }
 }
@@ -48,7 +48,11 @@ const setup = (opts: Opts = {}) => {
             findUnique: jest.fn().mockResolvedValue(
                 role === 'owner'
                     ? null
-                    : { status: 'ACTIVE', accessUntil: null, role: { name: role === 'admin' ? 'admin' : 'coach' } },
+                    : {
+                          status: 'ACTIVE',
+                          accessUntil: null,
+                          role: { name: role === 'manager' ? 'coach' : role },
+                      },
             ),
         },
         directionManager: {
@@ -114,8 +118,12 @@ describe('McpServerService — auth and transport', () => {
         expect(s.prisma.aiAccessToken.findUnique.mock.calls[0][0].where).toEqual({ tokenHash: hash })
     })
 
+    // ИИ-токены are the club admins'; a creator who is (or became) a head coach,
+    // direction manager or coach takes the token's access with them.
     it('answers 403 when the creator lost their rights or the club is closed', async () => {
-        expect((await setup({ role: 'coach' }).request('ping')).status).toBe(403)
+        for (const role of ['head_coach', 'manager', 'coach'] as const) {
+            expect((await setup({ role }).request('ping')).status).toBe(403)
+        }
         const closed = await setup({ token: { workspace: { name: 'Клуб', isActive: false, billing: null } } }).request('ping')
         expect(closed.status).toBe(403)
         expect(closed.body).toMatchObject({ error: { code: JSONRPC.FORBIDDEN } })
@@ -169,16 +177,15 @@ describe('McpServerService — methods', () => {
         expect((res.body as { result: { instructions: string } }).result.instructions).toContain('обезличено')
     })
 
-    it('lists the money tools for admin scope only', async () => {
-        const names = async (role: Opts['role']) =>
-            ((await setup({ role }).request('tools/list')).body as { result: { tools: { name: string }[] } }).result.tools.map(
+    it('lists the money tools to a club admin', async () => {
+        for (const role of ['owner', 'admin'] as const) {
+            const res = await setup({ role }).request('tools/list')
+            const names = (res.body as { result: { tools: { name: string }[] } }).result.tools.map(
                 (t) => t.name,
             )
-        expect(await names('admin')).toContain('revenue_report')
-        const manager = await names('manager')
-        expect(manager).toContain('search_members')
-        expect(manager).not.toContain('revenue_report')
-        expect(manager).not.toContain('renewals_due')
+            expect(names).toContain('revenue_report')
+            expect(names).toContain('search_members')
+        }
     })
 
     it('answers unknown methods and tools with JSON-RPC errors', async () => {
@@ -306,7 +313,6 @@ describe('McpServerService — methods', () => {
     })
 
     it.each([
-        ['money for a direction manager', 'manager', 'revenue_report', {}, 'администратора'],
         ['invalid arguments', 'owner', 'schedule', { from: 'вчера' }, 'Некорректные аргументы'],
         ['a bad member ref', 'owner', 'member_profile', { member: 'Иван' }, 'ref'],
     ] as const)('returns %s as an audited tool error', async (_label, role, name, args, text) => {

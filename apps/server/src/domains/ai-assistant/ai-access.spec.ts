@@ -43,12 +43,22 @@ const setup = (p: {
 describe('resolveAiAccess', () => {
     it('gives the owner the whole club, even without a member row', async () => {
         const access = await setup({ member: null }).resolve('owner')
-        expect(access).toMatchObject({ isOwner: true, directionIds: null, roleName: null, timezone: 'Europe/Moscow' })
+        expect(access).toMatchObject({
+            isOwner: true,
+            isClubAdmin: true,
+            directionIds: null,
+            roleName: null,
+            timezone: 'Europe/Moscow',
+        })
     })
 
-    it.each(['admin', 'head_coach'])('gives %s the whole club', async (role) => {
+    // Both read the whole club; only the admin is a club admin (money, ИИ-токены).
+    it.each([
+        ['admin', true],
+        ['head_coach', false],
+    ])('gives %s the whole club (club admin: %s)', async (role, isClubAdmin) => {
         const access = await setup({ member: { status: 'ACTIVE', role } }).resolve('u1')
-        expect(access).toMatchObject({ isOwner: false, directionIds: null, roleName: role })
+        expect(access).toMatchObject({ isOwner: false, isClubAdmin, directionIds: null, roleName: role })
     })
 
     it('narrows a direction manager to the directions they run', async () => {
@@ -57,6 +67,7 @@ describe('resolveAiAccess', () => {
             managed: ['bjj'],
         }).resolve('u1')
         expect(access.directionIds).toEqual(['bjj'])
+        expect(access.isClubAdmin).toBe(false)
     })
 
     it.each([

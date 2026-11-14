@@ -1,7 +1,7 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
 
 import {
   Button,
@@ -57,7 +57,6 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function VideoList({ workspaceId }: Props) {
-  const router = useRouter()
   const [videos, setVideos] = useState<VideoSummary[]>([])
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
@@ -216,10 +215,6 @@ export function VideoList({ workspaceId }: Props) {
     } finally {
       setAccessSavingId(null)
     }
-  }
-
-  const handleSelect = (video: VideoSummary) => {
-    router.push(`/workspace/${workspaceId}/videos/${video.id}`)
   }
 
   // Drop any selection when the visible set changes underneath us.
@@ -473,9 +468,8 @@ export function VideoList({ workspaceId }: Props) {
                   />
                 </td>
                 <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => handleSelect(video)}
+                  <Link
+                    href={`/workspace/${workspaceId}/videos/${video.id}`}
                     className="flex items-center gap-3 text-left"
                   >
                     <div className="h-14 w-24 overflow-hidden rounded-md bg-muted">
@@ -500,7 +494,7 @@ export function VideoList({ workspaceId }: Props) {
                         </div>
                       )}
                     </div>
-                  </button>
+                  </Link>
                 </td>
                 <td className="px-4 py-3 text-sm">
                   <StatusBadge status={video.status} />

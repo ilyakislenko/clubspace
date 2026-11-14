@@ -11,7 +11,7 @@ import {
 } from '../../domains/workspace/invite-links'
 import { environment } from '../../environments/environment'
 import { NotificationTypeEnum, PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     NotFoundError,
@@ -58,7 +58,7 @@ export class AddWorkspaceDependentHandler
         roleName,
         isSuperAdmin,
     }: AddWorkspaceDependentFeature): Promise<AddWorkspaceDependentFeatureResponse> {
-        await assertWorkspaceAdmin(
+        await assertSportLead(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Добавлять участников может только администратор клуба',

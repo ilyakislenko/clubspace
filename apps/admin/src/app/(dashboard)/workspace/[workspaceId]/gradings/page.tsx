@@ -11,8 +11,8 @@ export default function WorkspaceGradingsPage() {
   const workspaceId = params?.workspaceId
   // Direction managers run gradings of their directions' ladders (the server
   // lists only those for them); plain coaches only see readiness.
-  const { isAdmin, isDirectionManager } = useDirectionScope(workspaceId)
-  const canGrade = isAdmin || isDirectionManager
+  const { isSportLead, isDirectionManager } = useDirectionScope(workspaceId)
+  const canGrade = isSportLead || isDirectionManager
 
   if (!workspaceId) return null
 

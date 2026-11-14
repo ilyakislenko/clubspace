@@ -3,7 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import { assertCanManageRoles } from '../../shared/access/role-hierarchy'
 import {
     BadRequestError,
@@ -38,12 +38,12 @@ export class UpdateWorkspaceMemberAccessHandler
         roleName,
         isSuperAdmin,
     }: UpdateWorkspaceMemberAccessFeature) {
-        // The route declares @Roles(WORKSPACE_ADMINS), but this handler used to
+        // The route declares @Roles(SPORT_LEADS), but this handler used to
         // compare ownerId directly and refuse everyone else — so an 'admin' or
         // 'head_coach' (and the platform super admin, who is never a member)
         // saw the control in the UI and got a 403 on save. Go through the same
         // scope resolution as every other admin action.
-        const ctx = await assertWorkspaceAdmin(
+        const ctx = await assertSportLead(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Менять доступ участника может только администратор клуба',
@@ -73,14 +73,14 @@ export class UpdateWorkspaceMemberAccessHandler
         }
 
         // An expired access date shuts a member out of the club, so cutting
-        // off an admin or head coach is reserved for the top of the club.
+        // off a member of staff is reserved for the club admins.
         await assertCanManageRoles(
             this.prisma,
             ctx,
             { roleName, isSuperAdmin },
             [member.role.name],
             (v) =>
-                `Менять доступ администратора или ${v.headCoach.gen} может только владелец или администратор клуба`,
+                `Менять доступ ${v.coach.gen}, ${v.headCoach.gen} или администратора может только владелец или администратор клуба`,
         )
 
         const accessUntil =

@@ -16,12 +16,16 @@ import { openInvitePoster } from "./invite-poster"
 
 type CopyKey = "code" | "link"
 
+// `canRotateCode`: sport leads (roster); `canSetAutoApprove`: club admins
+// (it is a workspace setting).
 export function InviteMembersCard({
   workspaceId,
-  canAdmin,
+  canRotateCode,
+  canSetAutoApprove,
 }: {
   workspaceId: string
-  canAdmin: boolean
+  canRotateCode: boolean
+  canSetAutoApprove: boolean
 }) {
   const [invite, setInvite] = useState<WorkspaceInvite | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -170,7 +174,7 @@ export function InviteMembersCard({
               >
                 Распечатать плакат
               </Button>
-              {canAdmin && (
+              {canRotateCode && (
                 <Button
                   type="button"
                   size="sm"
@@ -183,7 +187,7 @@ export function InviteMembersCard({
               )}
             </div>
 
-            {canAdmin && (
+            {canSetAutoApprove && (
               <div className="flex items-start gap-3">
                 <button
                   type="button"

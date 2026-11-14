@@ -82,10 +82,11 @@ export class XHandler implements IFeatureHandler<XFeature, XFeatureResponse> {
 ```
 - **Authorize in the handler, never trust `@Roles` alone.** Resolve scope once:
   `const ctx = await this.rbac.resolveCoachScope({ userId, workspaceId, roleName, isSuperAdmin })`.
-  Then: group writes → `await this.rbac.assertCanWriteGroup(ctx, groupId)`; workspace-admin
-  actions → `assertWorkspaceAdmin(this.rbac, {...})` (`shared/access/assert-admin-scope.ts`);
-  scoped reads → `this.rbac.canSeeAllGroups(ctx)`; writes to a direction-owned entity (ladder,
-  grading, promotion, achievement, announcement, event, tariff, course audience) →
+  Then: group writes → `await this.rbac.assertCanWriteGroup(ctx, groupId)`; money/system
+  actions → `assertClubAdmin(this.rbac, {...})`, roster/ops actions → `assertSportLead(...)`
+  (`shared/access/assert-admin-scope.ts`); scoped reads → `this.rbac.canSeeAllGroups(ctx)`;
+  writes to a direction-owned entity (ladder, grading, promotion, achievement, announcement,
+  event, course audience; tariffs are club money, `assertClubAdmin`) →
   `await this.rbac.assertCanManageDirection(ctx, current.directionId, payload.directionId)` and
   `COACHING_ROLES` (руководители направлений, `docs/design/2026-11-01-direction-managers.md`;
   pinned by `shared/access/direction-scope-source.spec.ts`). The **owner bypass** lives inside
@@ -107,9 +108,9 @@ export class XHandler implements IFeatureHandler<XFeature, XFeatureResponse> {
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class XController {
   constructor(private bus: FeaturesBus) {}
-  // Tier must match the handler's check: assertWorkspaceAdmin => WORKSPACE_ADMINS
-  // (enforced by shared/access/route-tier-consistency.spec.ts).
-  @Post() @Roles(WORKSPACE_ADMINS) @ZodResponse({ type: XOutputDto })
+  // Tier must match the handler's check: assertClubAdmin => CLUB_ADMINS,
+  // assertSportLead => SPORT_LEADS (enforced by shared/access/route-tier-consistency.spec.ts).
+  @Post() @Roles(SPORT_LEADS) @ZodResponse({ type: XOutputDto })
   async createX(@Param('workspaceId') workspaceId: string, @Body() body: XInputDto,
     @CurrentUser() user: CurrentUserPayload) {
     return this.bus.execute<XFeature, XFeatureResponse>(
@@ -142,11 +143,18 @@ export class XController {
 - **Boolean request fields:** `z.boolean()` for JSON bodies, `strictBoolean()`
   (`shared/utils/strict-boolean.ts`) where a string may arrive (query, form). Never
   `z.coerce.boolean()` — `'false'` coerces to `true`.
-- **Tier rule:** a handler that calls `assertWorkspaceAdmin` sits behind
-  `@Roles(WORKSPACE_ADMINS)`; coach-scope handlers (`resolveCoachScope`) use `COACHING_ROLES`
-  for writes and `STAFF_ROLES` for reads. `shared/access/route-tier-consistency.spec.ts`
-  scans every controller and fails on a mismatch (a coach would otherwise see the button and
-  always get 403). There is no `moderator` role; the roles a club admin can grant are
+- **Tier rule:** two admin tiers. `CLUB_ADMINS` (owner, admin) — money and system: tariffs,
+  refunds, payment keys, the ClubSpace subscription, revenue, settings, staff roles, public
+  page, integrations/AI tokens, import, exports, audit; the handler calls `assertClubAdmin`.
+  `SPORT_LEADS` (owner, admin, head coach) — the sport side across every group: roster of
+  students and parents, gyms, renewals, abonements; the handler calls `assertSportLead`.
+  Anything touching a staff role (inviting a coach, removing or cutting off staff) also calls
+  `assertCanManageRoles` (club admins only). Money figures in shared reads (dashboard, churn,
+  AI tools) are stripped server-side with `isClubAdmin`. Coach-scope handlers
+  (`resolveCoachScope`) use `COACHING_ROLES` for writes and `STAFF_ROLES` for reads.
+  `shared/access/route-tier-consistency.spec.ts` scans every controller, fails on a mismatch
+  (a coach would otherwise see the button and always get 403) and pins the full `CLUB_ADMINS`
+  route list. There is no `moderator` role; the roles a club admin can grant are
   `GRANTABLE_ROLE_NAMES`.
 - **Acting for a dependent (`X-Act-As`):** a guardian may send `X-Act-As: <dependentId>`;
   AuthGuard checks the confirmed `Guardianship` and makes the dependent `user.userId`
@@ -213,13 +221,16 @@ Reference wrapper: `apps/admin/src/shared/api/events.ts`.
 - **Pages** are `"use client"`, `useState`/`useEffect` (no react-query), `useParams()` for ids.
   UI from `@clubspace/ui-kit/ui` (`Button`, `Select`, …). Errors via `errorMessage(e, "…")`
   from `shared/lib/error-message`. Tailwind with tokens: `border`, `muted-foreground`, `card`,
-  `primary`, `destructive`. Gate admin actions with `isWorkspaceAdmin(useMyMembership(...))`.
-  Sections the server restricts to `WORKSPACE_ADMINS` get `adminOnly: true` on their nav item
-  (filtered by `visibleNavItems`) and a tiny `"use client"` `layout.tsx` wrapping children in
-  `AdminOnlyGate` (`shared/workspace/admin-only-gate.tsx`), so a coach opening the URL sees a
-  notice and the page never mounts.
-  Sections the server also opens to direction managers (scoped to their directions) use
-  `adminOrDirectionManager: true` + `AdminOrDirectionManagerGate` instead; on those pages read
+  `primary`, `destructive`. Gate actions with `shared/lib/permissions.ts` (mirror of the server
+  tiers): `isClubAdmin(useMyMembership(...))` for money & system (`CLUB_ADMINS`: tariffs,
+  payments, billing, settings, roles, import, exports, audit, integrations), `isSportLead` for
+  club-wide sport & roster work (`SPORT_LEADS`), `canActOnRole` before inviting with, removing or
+  changing the access of a member of a given role (staff roles are club-admin only).
+  Every nav item declares `access: "clubAdmin" | "sportLead" | "lead" | "staff"` (filtered by
+  `visibleNavItems`; `lead` = sport lead or direction manager, `staff` = every coach), and a gated
+  section gets a tiny `"use client"` `layout.tsx` wrapping children in the matching
+  `ClubAdminGate` / `SportLeadGate` / `LeadGate` (`shared/workspace/access-gate.tsx`), so a role
+  opening the URL sees a notice and the page never mounts. On `LeadGate` pages read
   `useDirectionScope(workspaceId)` (`shared/workspace/use-direction-scope.ts`) to hide row
   actions outside `canManageDirection` and pass `allowedDirectionIds` to `DirectionSelect`.
 - Prefer a self-contained component (own fetch) over threading state through a large page.

@@ -208,8 +208,10 @@ describe('RemoveWorkspaceMemberHandler', () => {
         expect(prisma.groupMember.deleteMany).not.toHaveBeenCalled()
     })
 
-    describe('role hierarchy', () => {
-        it.each(['admin', 'head_coach'])(
+    describe('who removes whom', () => {
+        // A sport lead runs the roster of students and parents; staff are the
+        // club admins' call.
+        it.each(['admin', 'head_coach', 'coach'])(
             'refuses a head_coach removing a %s',
             async (memberRole) => {
                 const { handler, prisma } = build({ memberRole })
@@ -220,14 +222,11 @@ describe('RemoveWorkspaceMemberHandler', () => {
             },
         )
 
-        it.each(['user', 'coach'])(
-            'lets a head_coach remove a %s',
-            async (memberRole) => {
-                const { handler, prisma } = build({ memberRole })
-                await run(handler, { invoker: 'hc1', roleName: 'head_coach' })
-                expect(prisma.workspaceMember.delete).toHaveBeenCalled()
-            },
-        )
+        it('lets a head_coach remove a student', async () => {
+            const { handler, prisma } = build({ memberRole: 'user' })
+            await run(handler, { invoker: 'hc1', roleName: 'head_coach' })
+            expect(prisma.workspaceMember.delete).toHaveBeenCalled()
+        })
 
         it('lets an admin remove another admin', async () => {
             const { handler, prisma } = build({ memberRole: 'admin' })

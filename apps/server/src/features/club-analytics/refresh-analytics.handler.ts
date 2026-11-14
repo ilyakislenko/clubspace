@@ -2,7 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AnalyticsSnapshotService } from '../../domains/analytics/analytics-snapshot.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     RefreshAnalyticsFeature,
@@ -20,7 +20,7 @@ export class RefreshAnalyticsHandler
     ) {}
 
     async execute(f: RefreshAnalyticsFeature): Promise<RefreshAnalyticsFeatureResponse> {
-        await assertWorkspaceAdmin(this.rbac, {
+        await assertSportLead(this.rbac, {
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,

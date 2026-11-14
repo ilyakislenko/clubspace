@@ -393,7 +393,7 @@ export const abonementStatesTool = defineTool({
             classesTotal: row.classesTotal,
             directions: row.directions.map((d) => d.direction.name),
             isPaid: row.isPaid,
-            ...(scope.isAdmin ? { amount: row.amountPaid, currency: row.currency } : {}),
+            ...(scope.seesMoney ? { amount: row.amountPaid, currency: row.currency } : {}),
         }))
         return {
             rows: items.length,

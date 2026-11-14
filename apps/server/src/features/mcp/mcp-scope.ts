@@ -19,6 +19,12 @@ export class McpScope {
         return this.access.directionIds === null
     }
 
+    // Club money (amounts paid, debts, revenue): owner and admins only. A head
+    // coach reads the whole club (isAdmin) without it.
+    get seesMoney(): boolean {
+        return this.access.isClubAdmin
+    }
+
     // null = every direction.
     get directionIds(): string[] | null {
         return this.access.directionIds

@@ -7,6 +7,7 @@ import { Button, Input, Label, Textarea } from "@clubspace/ui-kit/ui"
 
 import { getClubAbout, updateClubAbout } from "../../shared/api/club-about"
 import { errorMessage } from "../../shared/lib/error-message"
+import { sameData, useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 import {
   draftToInput,
   MAX_ITEMS,
@@ -19,6 +20,8 @@ const EMPTY: ClubAboutDraft = { contacts: [], links: [], rules: "" }
 
 export function ClubAboutSection({ workspaceId }: { workspaceId: string }) {
   const [draft, setDraft] = useState<ClubAboutDraft>(EMPTY)
+  // What the server holds now: the draft is dirty while it differs.
+  const [savedDraft, setSavedDraft] = useState<ClubAboutDraft>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,11 +40,13 @@ export function ClubAboutSection({ workspaceId }: { workspaceId: string }) {
       try {
         const data = await getClubAbout({ workspaceId })
         if (cancelled) return
-        setDraft({
+        const loaded = {
           contacts: data.contacts,
           links: data.links,
           rules: data.rules ?? "",
-        })
+        }
+        setDraft(loaded)
+        setSavedDraft(loaded)
       } catch (err) {
         if (!cancelled) {
           setLoadFailed(true)
@@ -55,6 +60,8 @@ export function ClubAboutSection({ workspaceId }: { workspaceId: string }) {
       cancelled = true
     }
   }, [workspaceId, reloadKey])
+
+  useDirtyGuard(!loading && !loadFailed && !sameData(draft, savedDraft))
 
   const edit = (next: ClubAboutDraft) => {
     setDraft(next)
@@ -76,11 +83,13 @@ export function ClubAboutSection({ workspaceId }: { workspaceId: string }) {
         data: draftToInput(draft),
       })
       // The server stores phones normalised (+7…); show what was saved.
-      setDraft({
+      const stored = {
         contacts: data.contacts,
         links: data.links,
         rules: data.rules ?? "",
-      })
+      }
+      setDraft(stored)
+      setSavedDraft(stored)
       setSaved(true)
     } catch (err) {
       setError(errorMessage(err, "Не удалось сохранить"))

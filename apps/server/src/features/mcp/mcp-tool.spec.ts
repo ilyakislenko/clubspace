@@ -5,6 +5,8 @@ import { signActionConfirmation, verifyActionConfirmation } from './mcp-actions'
 import { McpPeople } from './mcp-people'
 import { McpScope } from './mcp-scope'
 import { capResult, pageInput, paginate, summarizeArgs, toolInputJsonSchema } from './mcp-tool'
+import { checkToolArgs, visibleReadTools } from './mcp-tool-exec'
+import { MCP_READ_TOOLS } from './tools'
 
 describe('paginate', () => {
     it('pages and points at the next offset', () => {
@@ -82,7 +84,7 @@ describe('McpPeople', () => {
 })
 
 describe('McpScope', () => {
-    const access = (directionIds: string[] | null): AiAccess => ({
+    const access = (directionIds: string[] | null, isClubAdmin = false): AiAccess => ({
         workspaceId: 'w1',
         workspaceName: 'Клуб',
         timezone: 'Europe/Moscow',
@@ -90,7 +92,15 @@ describe('McpScope', () => {
         userId: 'u1',
         roleName: 'coach',
         isOwner: false,
+        isClubAdmin,
         directionIds,
+    })
+
+    it('gives club money to a club admin only, not to a head coach with the whole club', () => {
+        expect(new McpScope(access(null, true)).seesMoney).toBe(true)
+        const headCoach = new McpScope(access(null))
+        expect(headCoach.isAdmin).toBe(true)
+        expect(headCoach.seesMoney).toBe(false)
     })
 
     it('reads the whole club with admin scope', () => {
@@ -127,6 +137,38 @@ describe('McpScope', () => {
         expect(scope.students()).toMatchObject({
             user: { groupMemberships: { some: { group: { workspaceId: 'w1', directionId: { in: ['bjj'] } } } } },
         })
+    })
+})
+
+// The money tools follow the club-admin tier, not the whole-club scope: a head
+// coach's chat reads every group but neither lists nor runs them.
+describe('money tools by tier', () => {
+    const access = (isClubAdmin: boolean, directionIds: string[] | null = null): AiAccess => ({
+        workspaceId: 'w1',
+        workspaceName: 'Клуб',
+        timezone: 'Europe/Moscow',
+        ownerId: 'owner',
+        userId: 'u1',
+        roleName: isClubAdmin ? 'admin' : 'head_coach',
+        isOwner: false,
+        isClubAdmin,
+        directionIds,
+    })
+    const money = MCP_READ_TOOLS.filter((t) => t.adminOnly)
+
+    it('lists the money tools for a club admin only', () => {
+        expect(money.length).toBeGreaterThan(0)
+        const names = (a: AiAccess) => visibleReadTools(a).map((t) => t.name)
+        expect(names(access(true))).toEqual(expect.arrayContaining(money.map((t) => t.name)))
+        for (const a of [access(false), access(false, ['bjj'])]) {
+            expect(names(a).filter((n) => money.some((t) => t.name === n))).toEqual([])
+        }
+    })
+
+    it('refuses a money tool for a head coach before validating arguments', () => {
+        const out = checkToolArgs(money[0], {}, access(false))
+        expect(out).toMatchObject({ error: { isError: true } })
+        expect(checkToolArgs(money[0], {}, access(true))).not.toHaveProperty('error')
     })
 })
 

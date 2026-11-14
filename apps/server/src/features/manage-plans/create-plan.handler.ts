@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -11,6 +12,7 @@ import {
     assertDirectionsInWorkspace,
     canSellOnline,
     ONLINE_FREE_PLAN_MESSAGE,
+    PLAN_WRITE_REFUSAL,
     planDtoInclude,
     serializePlan,
 } from './schemas'
@@ -25,12 +27,16 @@ export class CreatePlanHandler
     ) {}
 
     async execute(f: CreatePlanFeature) {
-        const ctx = await this.rbac.resolveCoachScope({
-            userId: f.invokerUserId,
-            workspaceId: f.workspaceId,
-            roleName: f.roleName,
-            isSuperAdmin: f.isSuperAdmin,
-        })
+        await assertClubAdmin(
+            this.rbac,
+            {
+                userId: f.invokerUserId,
+                workspaceId: f.workspaceId,
+                roleName: f.roleName,
+                isSuperAdmin: f.isSuperAdmin,
+            },
+            PLAN_WRITE_REFUSAL,
+        )
         if (
             f.payload.purchasableOnline &&
             !canSellOnline({
@@ -44,12 +50,6 @@ export class CreatePlanHandler
             this.prisma,
             f.workspaceId,
             f.payload.directionIds ?? [],
-        )
-        // A direction manager may write a tariff only of directions they run
-        // (every one in the set); a club-wide tariff (empty set) is admin-only.
-        await this.rbac.assertCanManageDirection(
-            ctx,
-            ...(directionIds.length > 0 ? directionIds : [null]),
         )
         // The nested create of the scope runs in the same write.
         const plan = await this.prisma.plan.create({

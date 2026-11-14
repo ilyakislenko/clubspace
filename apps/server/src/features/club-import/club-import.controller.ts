@@ -22,7 +22,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { Roles, CLUB_ADMINS } from '../../shared/decorators/roles.decorator'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -58,15 +58,15 @@ class ListClubImportRowsOutput extends createZodDto(ListClubImportRowsOutputSche
 // Russian «больше 2 МБ» from the parser instead of multer's English 413.
 const UPLOAD_HARD_LIMIT = CLUB_IMPORT_MAX_BYTES * 4
 
-// «Импорт клуба» (members, groups, abonements, ranks from a CSV). Admin and
-// head coach only; every handler re-checks with assertWorkspaceAdmin.
+// «Импорт клуба» (members, groups, abonements, ranks from a CSV). Owner and
+// admins only; every handler re-checks with assertClubAdmin.
 @Controller('workspaces/:workspaceId/club-imports')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class ClubImportController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ApiConsumes('multipart/form-data')
     @ApiBody({
         schema: {
@@ -103,7 +103,7 @@ export class ClubImportController {
     }
 
     @Get('template.csv')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @Header('Content-Type', 'text/csv; charset=utf-8')
     async getClubImportTemplate(
         @Param('workspaceId') workspaceId: string,
@@ -125,7 +125,7 @@ export class ClubImportController {
     }
 
     @Get(':importId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: GetClubImportOutput })
     async getClubImport(
         @Param('workspaceId') workspaceId: string,
@@ -144,7 +144,7 @@ export class ClubImportController {
     }
 
     @Get(':importId/rows')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: ListClubImportRowsOutput })
     async listClubImportRows(
         @Param('workspaceId') workspaceId: string,
@@ -168,7 +168,7 @@ export class ClubImportController {
     }
 
     @Post(':importId/preview')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: PreviewClubImportOutput })
     async previewClubImport(
         @Param('workspaceId') workspaceId: string,
@@ -189,7 +189,7 @@ export class ClubImportController {
     }
 
     @Post(':importId/apply')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: ApplyClubImportOutput })
     async applyClubImport(
         @Param('workspaceId') workspaceId: string,

@@ -2,6 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
 import { MemberStatus, PrismaService } from '../../infrastructure/prisma'
+import { isClubAdmin } from '../../shared/access/assert-admin-scope'
 import { STAFF_ROLES } from '../../shared/decorators/roles.decorator'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -63,9 +64,12 @@ export class GetWorkspaceStatsHandler
             isSuperAdmin,
         })
 
-        // Club money is admin-scope only: coaches (own-only or read-all) never
-        // see revenue.
-        const canSeeRevenue = this.rbac.canWriteAllGroups(ctx)
+        // Club money and the audit feed are for the owner and admins only: a
+        // head coach or a coach never receives them — not just hidden in UI.
+        const clubAdmin = isClubAdmin(ctx, {
+            roleName: invokerRoleName,
+            isSuperAdmin,
+        })
 
         // For coach_own_only: pre-compute the visible userId set (students of
         // their own groups — coached or of a direction they run, ownGroupsWhere
@@ -123,10 +127,11 @@ export class GetWorkspaceStatsHandler
                 }),
                 this.prisma.course.count({ where: { workspaceId } }),
                 this.prisma.workspaceMember.count({ where: studentWhere }),
+                // «История изменений» rows: club admins only (empty otherwise).
                 this.prisma.auditEvent.findMany({
                     where: { workspaceId },
                     orderBy: { createdAt: 'desc' },
-                    take: 10,
+                    take: clubAdmin ? 10 : 0,
                 }),
             ])
 
@@ -302,9 +307,9 @@ export class GetWorkspaceStatsHandler
             studentIds.has(r.userId),
         ).length
 
-        // ---- Revenue (admin scope only; a coach never sees club money) ----
+        // ---- Revenue (club admins only; a head coach or coach never sees it) ----
         let revenue: GetWorkspaceStatsFeatureResponse['revenue'] = null
-        if (canSeeRevenue) {
+        if (clubAdmin) {
             const trendStart = revenueTrendStart(now, tz)
             const [activeSubRows, recent6moRows, recentTicketRows, awaitingRows] = await Promise.all([
                 this.prisma.subscription.findMany({
@@ -417,8 +422,8 @@ export class GetWorkspaceStatsHandler
                 this.prisma.workspaceMember.count({
                     where: { ...studentWhere, createdAt: { gte: dayStart } },
                 }),
-                // Revenue is admin-only, mirroring the revenue card.
-                canSeeRevenue
+                // Revenue is club-admin only, mirroring the revenue card.
+                clubAdmin
                     ? Promise.all([
                           this.prisma.subscription.findMany({
                               where: { workspaceId, ...paidInRangeWhere({ gte: dayStart }) },
@@ -437,7 +442,7 @@ export class GetWorkspaceStatsHandler
                       ])
                     : [],
             ])
-        const todayRevenue = canSeeRevenue ? sumRevenue(todayRevRows) : null
+        const todayRevenue = clubAdmin ? sumRevenue(todayRevRows) : null
         const today = {
             sessions: scheduledToday + personalToday,
             checkins: checkinsToday,

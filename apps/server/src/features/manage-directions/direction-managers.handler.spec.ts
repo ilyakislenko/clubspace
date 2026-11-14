@@ -24,18 +24,21 @@ const managerRow = (directionId = 'dir-bjj', userId = 'coach-1') => ({
     user: { email: 'c@club.ru', firstname: 'Иван', lastname: 'Петров' },
 })
 
-const rbac = (admin = true) => ({
-    resolveCoachScope: jest.fn().mockResolvedValue({
-        scope: admin ? 'admin' : 'coach_own_only',
-        userId: 'admin-1',
-        workspaceId: 'w1',
-        workspaceOwnerId: 'owner-1',
-    }),
-    canWriteAllGroups: jest.fn().mockReturnValue(admin),
+// Assigning direction managers is a club-admin (owner/admin) decision. The head
+// coach resolves to the sport-lead 'admin' scope and is still refused.
+const rbac = () => ({
+    resolveCoachScope: jest
+        .fn()
+        .mockImplementation(async (p: { userId: string; workspaceId: string }) => ({
+            scope: 'admin',
+            userId: p.userId,
+            workspaceId: p.workspaceId,
+            workspaceOwnerId: 'owner-1',
+        })),
+    canWriteAllGroups: jest.fn().mockReturnValue(true),
 })
 
 const build = (o: {
-    admin?: boolean
     direction?: { id: string; name: string } | null
     memberRole?: string | null
     createError?: unknown
@@ -76,11 +79,15 @@ const build = (o: {
         },
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
-    const r = rbac(o.admin ?? true)
+    const r = rbac()
     return { prisma, audit, rbac: r }
 }
 
-const assign = (b: ReturnType<typeof build>, userId = 'coach-1') =>
+const assign = (
+    b: ReturnType<typeof build>,
+    userId = 'coach-1',
+    invoker = { id: 'admin-1', role: 'admin' },
+) =>
     new AssignDirectionManagerHandler(
         b.prisma as never,
         b.rbac as never,
@@ -89,8 +96,8 @@ const assign = (b: ReturnType<typeof build>, userId = 'coach-1') =>
         new AssignDirectionManagerFeature(
             { directionId: 'dir-bjj', userId },
             'w1',
-            'admin-1',
-            'admin',
+            invoker.id,
+            invoker.role,
             false,
         ),
     )
@@ -118,14 +125,26 @@ describe('listDirectionManagers', () => {
         ])
     })
 
-    it('refuses a coach', async () => {
-        const b = build({ admin: false })
+    it('refuses a head coach, even with every group in scope', async () => {
+        const b = build()
         await expect(
             new ListDirectionManagersHandler(
                 b.prisma as never,
                 b.rbac as never,
-            ).execute(new ListDirectionManagersFeature('w1', 'c', 'coach', false)),
-        ).rejects.toBeInstanceOf(ForbiddenError)
+            ).execute(new ListDirectionManagersFeature('w1', 'hc-1', 'head_coach', false)),
+        ).rejects.toThrow(
+            'Назначать руководителей направлений может только администратор клуба',
+        )
+        expect(b.prisma.directionManager.findMany).not.toHaveBeenCalled()
+    })
+
+    it('lets the owner list, whatever their member row says', async () => {
+        const b = build()
+        const out = await new ListDirectionManagersHandler(
+            b.prisma as never,
+            b.rbac as never,
+        ).execute(new ListDirectionManagersFeature('w1', 'owner-1', 'head_coach', false))
+        expect(out.data).toHaveLength(1)
     })
 })
 
@@ -149,10 +168,19 @@ describe('assignDirectionManager', () => {
         })
     })
 
-    it('refuses a coach as the assigner', async () => {
-        const b = build({ admin: false })
-        await expect(assign(b)).rejects.toBeInstanceOf(ForbiddenError)
+    it('refuses a head coach as the assigner, even with every group in scope', async () => {
+        const b = build()
+        await expect(
+            assign(b, 'coach-1', { id: 'hc-1', role: 'head_coach' }),
+        ).rejects.toBeInstanceOf(ForbiddenError)
         expect(b.prisma.directionManager.create).not.toHaveBeenCalled()
+    })
+
+    it('lets the owner assign, whatever their member row says', async () => {
+        const b = build()
+        await expect(
+            assign(b, 'coach-1', { id: 'owner-1', role: 'head_coach' }),
+        ).resolves.toMatchObject({ directionId: 'dir-bjj', userId: 'coach-1' })
     })
 
     it('404s on a direction of another club', async () => {
@@ -193,14 +221,12 @@ describe('assignDirectionManager', () => {
 })
 
 describe('removeDirectionManager', () => {
-    const remove = (b: ReturnType<typeof build>) =>
+    const remove = (b: ReturnType<typeof build>, invokerId = 'admin-1', role = 'admin') =>
         new RemoveDirectionManagerHandler(
             b.prisma as never,
             b.rbac as never,
             b.audit as never,
-        ).execute(
-            new RemoveDirectionManagerFeature('w1', 'dm-1', 'admin-1', 'admin', false),
-        )
+        ).execute(new RemoveDirectionManagerFeature('w1', 'dm-1', invokerId, role, false))
 
     it('removes the assignment and audits it', async () => {
         const b = build()
@@ -224,8 +250,16 @@ describe('removeDirectionManager', () => {
         expect(b.prisma.directionManager.delete).not.toHaveBeenCalled()
     })
 
-    it('refuses a coach', async () => {
-        const b = build({ admin: false })
-        await expect(remove(b)).rejects.toBeInstanceOf(ForbiddenError)
+    it('refuses a head coach, even with every group in scope', async () => {
+        const b = build()
+        await expect(remove(b, 'hc-1', 'head_coach')).rejects.toBeInstanceOf(ForbiddenError)
+        expect(b.prisma.directionManager.delete).not.toHaveBeenCalled()
+    })
+
+    it('lets the owner remove, whatever their member row says', async () => {
+        const b = build()
+        await expect(remove(b, 'owner-1', 'head_coach')).resolves.toEqual({
+            status: 'deleted',
+        })
     })
 })

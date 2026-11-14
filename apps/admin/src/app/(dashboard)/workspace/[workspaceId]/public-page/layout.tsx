@@ -1,11 +1,11 @@
 "use client"
 
-import { AdminOnlyGate } from "../../../../../shared/workspace/admin-only-gate"
+import { ClubAdminGate } from "../../../../../shared/workspace/access-gate"
 
-export default function AdminOnlyLayout({
+export default function ClubAdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return <AdminOnlyGate>{children}</AdminOnlyGate>
+  return <ClubAdminGate>{children}</ClubAdminGate>
 }

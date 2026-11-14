@@ -111,7 +111,8 @@ export default function ChurnPage() {
             >
               {m.score} · {CHURN_LEVEL_LABEL[m.level]}
             </span>
-            {m.monthlySpend > 0 && (
+            {/* null: money is the club admins' to see. */}
+            {m.monthlySpend !== null && m.monthlySpend > 0 && (
               <span className="text-sm text-muted-foreground">
                 ~{formatMoney(m.monthlySpend, m.currency)}/мес
               </span>
@@ -235,12 +236,14 @@ export default function ChurnPage() {
             value={summary.high}
             tone={summary.high > 0 ? "danger" : "default"}
           />
-          <AnalyticsCard
-            label="На кону"
-            value={formatMoney(summary.moneyAtStake, summary.currency)}
-            subtitle="в месяц у учеников под риском"
-            tone={summary.moneyAtStake > 0 ? "warn" : "default"}
-          />
+          {summary.moneyAtStake !== null && (
+            <AnalyticsCard
+              label="На кону"
+              value={formatMoney(summary.moneyAtStake, summary.currency)}
+              subtitle="в месяц у учеников под риском"
+              tone={summary.moneyAtStake > 0 ? "warn" : "default"}
+            />
+          )}
           <AnalyticsCard
             label="Связались"
             value={summary.contactedRecently}

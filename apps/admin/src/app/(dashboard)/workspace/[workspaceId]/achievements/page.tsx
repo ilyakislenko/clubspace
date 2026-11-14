@@ -239,7 +239,7 @@ export default function AchievementsPage() {
       {!loading && (items.length === 0 || directions.length > 0) && (
         <div className="space-y-3 rounded-md border border-border bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
           <p>
-            {items.length === 0 && scope.isAdmin
+            {items.length === 0 && scope.isSportLead
               ? `Пока используется набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 / 365 ${vocabulary.session.genPl}). Как только вы добавите своё достижение — участники увидят именно ваш список.`
               : `Набор по умолчанию (1 / 10 / 25 / 50 / 100 / 200 / 365 ${vocabulary.session.genPl}) можно добавить для всего клуба или для направления — тогда считаются только ${vocabulary.session.nomPl} этого направления.`}
           </p>
@@ -371,7 +371,7 @@ export default function AchievementsPage() {
             directions={scope.filterOptions(directions)}
             value={directionFilter}
             onChange={setDirectionFilter}
-            includeClubOnly={scope.isAdmin}
+            includeClubOnly={scope.isSportLead}
           />
         </div>
       )}

@@ -225,9 +225,6 @@ export class AuditService {
         // Where a prefix is too coarse: the platform feed wants
         // workspace.create/update/transferOwner but not updateSettings.
         actions?: string[]
-        // Coach-scoped readers pass `extraOr` to narrow to their own students,
-        // groups and actions.
-        extraOr?: Array<Record<string, unknown>>
     }) {
         const perPage = Math.min(payload.perPage ?? 50, 200)
         const curPage = Math.max(payload.curPage ?? 1, 1)
@@ -241,9 +238,6 @@ export class AuditService {
             where.action = { in: payload.actions }
         } else if (payload.actionPrefix) {
             where.action = { startsWith: payload.actionPrefix }
-        }
-        if (payload.extraOr) {
-            where.OR = payload.extraOr
         }
 
         const [data, total] = await this.prisma.$transaction([

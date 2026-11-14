@@ -29,7 +29,11 @@ import {
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 import { errorMessage } from "../../../../../shared/lib/error-message"
-import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
+import {
+  canActOnRole,
+  isClubAdmin,
+  isSportLead,
+} from "../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../shared/lib/member-status"
 import { formatRoleName } from "../../../../../shared/lib/role-labels"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
@@ -148,7 +152,10 @@ export default function WorkspaceUsersPage() {
   const vocabulary = useVocabulary()
   const workspaceId = params?.workspaceId
   const myMembership = useMyMembership(workspaceId)
-  const canManageMembers = isWorkspaceAdmin(myMembership)
+  // Roster work is the sport leads'; staff roles, import and workspace
+  // settings are the club admins'.
+  const canManageMembers = isSportLead(myMembership)
+  const canAdmin = isClubAdmin(myMembership)
 
   const [error, setError] = useState<string | null>(null)
   const [members, setMembers] = useState<WorkspaceMember[]>([])
@@ -423,7 +430,8 @@ export default function WorkspaceUsersPage() {
       {workspaceId && (
         <InviteMembersCard
           workspaceId={workspaceId}
-          canAdmin={canManageMembers}
+          canRotateCode={canManageMembers}
+          canSetAutoApprove={canAdmin}
         />
       )}
 
@@ -511,6 +519,7 @@ export default function WorkspaceUsersPage() {
       {canManageMembers && workspaceId && (
         <InviteMemberForm
           workspaceId={workspaceId}
+          canInviteStaff={canAdmin}
           onInvited={() => {
             setInvitesKey((k) => k + 1)
             void refresh()
@@ -525,7 +534,7 @@ export default function WorkspaceUsersPage() {
         />
       )}
 
-      {canManageMembers && workspaceId && (
+      {canAdmin && workspaceId && (
         <div>
           <Button asChild size="sm" variant="secondary">
             <Link href={`/workspace/${workspaceId}/club-import`}>
@@ -721,7 +730,8 @@ export default function WorkspaceUsersPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-                    {!member.isOwner && canManageMembers && (
+                    {!member.isOwner &&
+                      canActOnRole(myMembership, member.roleName) && (
                       <>
                         <DatePicker
                           value={draft}

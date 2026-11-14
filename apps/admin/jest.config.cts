@@ -41,13 +41,14 @@ module.exports = {
 
   // A ratchet, not a target — see the note in apps/server/jest.config.cts.
   // The admin app starts far lower than the server because most of it is
-  // screens that had no render tests at all.
+  // screens that had no render tests at all. Raised 2026-11-14 to just below
+  // the measured 31.30 / 27.37 / 23.86 / 29.93.
   coverageThreshold: {
     global: {
-      statements: 14,
-      branches: 14,
-      functions: 12,
-      lines: 14,
+      statements: 31,
+      branches: 27,
+      functions: 23,
+      lines: 29,
     },
   },
 }

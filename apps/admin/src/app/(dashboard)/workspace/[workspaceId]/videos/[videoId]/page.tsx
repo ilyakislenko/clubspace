@@ -18,6 +18,10 @@ import {
 import { listTags, type TagResponse } from "../../../../../../shared/api/tags"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
 import {
+  confirmLeave,
+  useDirtyGuard,
+} from "../../../../../../shared/lib/use-dirty-guard"
+import {
   isVideoProcessing,
   videoStatusLabel,
 } from "../../../../../../shared/lib/video-status"
@@ -99,6 +103,7 @@ export default function WorkspaceVideoWatchPage() {
     description.trim() !== (video?.description?.trim() ?? "")
 
   const titleDirty = title.trim() !== (video?.title.trim() ?? "")
+  useDirtyGuard(descriptionDirty || titleDirty)
 
   const loadPlaylists = async () => {
     if (!workspaceId) return
@@ -138,21 +143,26 @@ export default function WorkspaceVideoWatchPage() {
       const details = await getVideo({ workspaceId, videoId })
       if (requestId !== loadVideoRequestRef.current) return
       setVideo(details)
+      // A video still processing (or failed) has no HLS yet — the playback
+      // endpoint would only answer 400 — so say so without asking.
+      if (isVideoProcessing(details.status)) {
+        setPlaybackError(
+          "Видео обрабатывается — плеер появится, когда обработка завершится.",
+        )
+        return
+      }
+      if (details.status === "failed") {
+        setPlaybackError("Видео не удалось обработать.")
+        return
+      }
       try {
         const playback = await getVideoPlayback({ videoId })
         if (requestId !== loadVideoRequestRef.current) return
         setPlaybackUrl(playback.hlsUrl)
       } catch {
         if (requestId !== loadVideoRequestRef.current) return
-        // A not-ready video legitimately has no HLS yet (the playback endpoint
-        // 400s), so surface the processing/failed state instead of leaking the
-        // raw "Request failed with status code 400" into the UI.
         setPlaybackError(
-          isVideoProcessing(details.status)
-            ? "Видео обрабатывается — плеер появится, когда обработка завершится."
-            : details.status === "failed"
-              ? "Видео не удалось обработать."
-              : "Не удалось загрузить плеер. Попробуйте обновить страницу."
+          "Не удалось загрузить плеер. Попробуйте обновить страницу.",
         )
       }
     } catch (error) {
@@ -416,7 +426,9 @@ export default function WorkspaceVideoWatchPage() {
         </div>
         <Button
           variant="secondary"
-          onClick={() => router.push(`/workspace/${workspaceId}/videos`)}
+          onClick={() => {
+            if (confirmLeave()) router.push(`/workspace/${workspaceId}/content`)
+          }}
         >
           Назад к библиотеке
         </Button>

@@ -81,12 +81,27 @@ export const conversationTitle = (question: string): string => {
 
 // ---- What the model is told ----
 
-export const SUGGESTED_QUESTIONS = [
+const MONEY_QUESTION = 'Выручка по направлениям за 3 месяца'
+
+const SUGGESTED_QUESTIONS = [
     'Кому позвонить сегодня?',
-    'Выручка по направлениям за 3 месяца',
+    MONEY_QUESTION,
     'Слабые слоты расписания',
     'Кому пора продлевать абонемент?',
 ] as const
+
+// The money question only for a club admin: nobody else has the tools for it.
+export const suggestedQuestions = (access: Pick<AiAccess, 'isClubAdmin'>): string[] =>
+    SUGGESTED_QUESTIONS.filter((q) => access.isClubAdmin || q !== MONEY_QUESTION)
+
+const accessLine = (access: AiAccess): string => {
+    if (access.isClubAdmin) return 'Доступ: весь клуб, включая выручку и долги.'
+    const noMoney =
+        'финансовых инструментов нет — если спросят про деньги, объясни, что это видят владелец и администраторы клуба.'
+    return access.directionIds === null
+        ? `Доступ: весь клуб, кроме денег; ${noMoney}`
+        : `Доступ: только направления, которыми руководит сотрудник; ${noMoney}`
+}
 
 export const buildSystemPrompt = (
     access: AiAccess,
@@ -99,9 +114,7 @@ export const buildSystemPrompt = (
         'Сверяй период и даты в ответе инструмента с вопросом: если инструмент вернул не тот период, вызови его с другими параметрами или прямо скажи, за какой период цифры. Прошедшую дату не выдавай за будущую.',
         'Доли от 0 до 1 из инструментов (rate, fill) пиши процентами: 0.83 → 83%. Даты — по-русски: 6 ноября, а не 2026-11-06. Сравнивая, ставь лучших первыми.',
         'Пиши только по-русски: ни одного английского слова, даже в скобках как пояснение — «доля продлений», а не «доля продлений (retention rate)»; «заполненность», а не «fill». Названия полей инструментов в ответ не переноси.',
-        access.directionIds === null
-            ? 'Доступ: весь клуб, включая выручку и долги.'
-            : 'Доступ: только направления, которыми руководит сотрудник; финансовых инструментов нет — если спросят про деньги, объясни, что это видит администратор клуба.',
+        accessLine(access),
         'Инструменты только читают данные. Начинай с club_overview или club_directory, если нужны id направлений, групп, залов и тарифов. Суммы — в целых единицах валюты клуба; время — местное время зала. Длинные списки постраничны (offset/limit, nextOffset).',
         `Люди обозначены псевдонимами: ученики — m_0123456789, ${vocabulary.coach.nomPl} — c_0123456789. Имён, телефонов и e-mail у тебя нет и быть не должно. Упоминая человека, пиши его псевдоним как есть, без кавычек и скобок, — админка сама покажет имя и ссылку на карточку. Никогда не придумывай имена.`,
         `Слова клуба: занятие по расписанию — «${vocabulary.session.nom}», сотрудник с ролью coach — «${vocabulary.coach.nom}», главный — «${vocabulary.headCoach.nom}», индивидуальное — «${vocabulary.personalSession.nom}». Пиши в ответе именно эти слова.`,

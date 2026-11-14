@@ -1,5 +1,5 @@
 import { type PrismaTransactionClientType } from '../../infrastructure/prisma'
-import { WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { SPORT_LEADS } from '../../shared/decorators/roles.decorator'
 
 // Who is asked to decide a member's freeze request: the owner, every ACTIVE
 // admin / head coach, and the member's group coaches (primary or assistant)
@@ -24,7 +24,7 @@ export const findFreezeRequestDeciders = async (
             workspaceId: p.workspaceId,
             status: 'ACTIVE',
             OR: [
-                { role: { name: { in: WORKSPACE_ADMINS } } },
+                { role: { name: { in: SPORT_LEADS } } },
                 { userId: { in: coachIds }, role: { name: 'coach' } },
             ],
         },

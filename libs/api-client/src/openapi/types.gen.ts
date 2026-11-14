@@ -6769,7 +6769,7 @@ export type ListChurnRiskOutputOutput = {
             points: number;
             text: string;
         }>;
-        monthlySpend: number;
+        monthlySpend: number | null;
         currency: string | null;
         lastVisitAt: string | null;
         lastContact: {
@@ -6785,7 +6785,7 @@ export type ListChurnRiskOutputOutput = {
         total: number;
         high: number;
         medium: number;
-        moneyAtStake: number;
+        moneyAtStake: number | null;
         currency: string | null;
         contactedRecently: number;
     };
@@ -8263,7 +8263,6 @@ export type ListAiTokensOutputOutput = {
             id: string;
             name: string;
         };
-        canRevoke: boolean;
     }>;
     mcpUrl: string;
     canUsePersonalData: boolean;
@@ -8300,7 +8299,6 @@ export type CreateAiTokenOutputOutput = {
             id: string;
             name: string;
         };
-        canRevoke: boolean;
     };
     secret: string;
 };
@@ -8320,7 +8318,6 @@ export type AiTokenOutputDtoOutput = {
         id: string;
         name: string;
     };
-    canRevoke: boolean;
 };
 
 export type AiChatStateOutputOutput = {

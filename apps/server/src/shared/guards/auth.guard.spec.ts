@@ -311,15 +311,23 @@ describe('AuthGuard owner role resolution', () => {
         )
     })
 
-    it('leaves an owner who is already head_coach alone', async () => {
+    // A head coach is a sport role; the owner always holds the club-admin tier.
+    it('lifts an owner whose member row is head_coach to the admin role', async () => {
         const { guard, rolesService, req, context } = build(
             role('head_coach', true),
         )
         await guard.canActivate(context as never)
-        expect(rolesService.getRoleForWorkspaceOwner).not.toHaveBeenCalled()
+        expect(rolesService.getRoleForWorkspaceOwner).toHaveBeenCalled()
         expect((req.user as { role: { name: string } }).role.name).toBe(
-            'head_coach',
+            'admin',
         )
+    })
+
+    it('leaves an owner who is already admin alone', async () => {
+        const { guard, rolesService, req, context } = build(role('admin', true))
+        await guard.canActivate(context as never)
+        expect(rolesService.getRoleForWorkspaceOwner).not.toHaveBeenCalled()
+        expect((req.user as { role: { name: string } }).role.name).toBe('admin')
     })
 })
 

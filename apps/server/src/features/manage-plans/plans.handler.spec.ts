@@ -6,36 +6,16 @@ import { DeletePlanHandler } from './delete-plan.handler'
 import { UpdatePlanFeature } from './update-plan.feature'
 import { UpdatePlanHandler } from './update-plan.handler'
 
-const rbac = (admin = true, managed: string[] = []) => ({
-    resolveCoachScope: jest
-        .fn()
-        .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
+// The tier is decided by the role name and ownership the controller hands
+// over (assertClubAdmin); `admin` only sets the resolved scope.
+const rbac = (admin = true) => ({
+    resolveCoachScope: jest.fn(async (p: { userId: string }) => ({
+        scope: admin ? 'admin' : 'coach_own_only',
+        userId: p.userId,
+        workspaceId: 'w1',
+        workspaceOwnerId: 'owner',
+    })),
     canWriteAllGroups: jest.fn().mockReturnValue(admin),
-    // Mirrors RbacService: admin passes; else every named direction must be
-    // managed, null (club-wide) or nothing named is refused.
-    assertCanManageDirection: jest.fn(
-        async (_ctx: unknown, ...ids: Array<string | null | undefined>) => {
-            if (admin) return
-            const named = ids.filter((d) => d !== undefined)
-            if (
-                named.length === 0 ||
-                named.some((d) => d === null || !managed.includes(d))
-            ) {
-                throw new ForbiddenError({
-                    message: 'Нужны права администратора клуба',
-                })
-            }
-        },
-    ),
-    assertManagesDirections: jest.fn(async () => {
-        if (admin) return null
-        if (managed.length === 0) {
-            throw new ForbiddenError({
-                message: 'Нужны права администратора клуба',
-            })
-        }
-        return managed
-    }),
 })
 
 describe('createPlan', () => {
@@ -351,9 +331,9 @@ describe('deletePlan', () => {
     })
 })
 
-describe('plans as a direction manager', () => {
-    const BJJ = '11111111-1111-4111-8111-111111111111'
-    const MMA = '22222222-2222-4222-8222-222222222222'
+// Tariffs and prices are club money: a head coach (and a direction manager,
+// who is a coach) is refused every write; the owner passes whatever their row.
+describe('plan writes by tier', () => {
     const planRow = {
         id: 'p1',
         workspaceId: 'w1',
@@ -369,149 +349,50 @@ describe('plans as a direction manager', () => {
         purchasableOnline: false,
         directions: [],
     }
-    // Every requested direction exists in the club.
-    const directions = {
-        findMany: jest.fn(async (args: { where: { id: { in: string[] } } }) =>
-            args.where.id.in.map((id) => ({ id })),
-        ),
-    }
-
-    it('creates a tariff of managed directions only; refuses another one in the set or club-wide', async () => {
-        const prisma = {
-            plan: { create: jest.fn().mockResolvedValue(planRow) },
-            direction: directions,
-        }
-        const r = rbac(false, [BJJ])
-        const handler = new CreatePlanHandler(prisma as never, r as never)
-        const f = (directionIds?: string[]) =>
-            new CreatePlanFeature(
-                { name: 'x', price: 0, currency: 'RUB', durationDays: 30, directionIds: directionIds ?? [] },
-                'w1',
-                'u1',
-                'coach',
-                false,
-            )
-        await handler.execute(f([BJJ]))
-        expect(r.assertCanManageDirection).toHaveBeenCalledWith(
-            expect.anything(),
-            BJJ,
-        )
-        // «БЖЖ + ММА» needs both directions.
-        await expect(handler.execute(f([BJJ, MMA]))).rejects.toBeInstanceOf(
-            ForbiddenError,
-        )
-        await expect(handler.execute(f([MMA]))).rejects.toBeInstanceOf(
-            ForbiddenError,
-        )
-        // Empty set = club-wide = admin only.
-        await expect(handler.execute(f())).rejects.toBeInstanceOf(
-            ForbiddenError,
-        )
-        expect(r.assertCanManageDirection).toHaveBeenLastCalledWith(
-            expect.anything(),
-            null,
-        )
-        expect(prisma.plan.create).toHaveBeenCalledTimes(1)
+    const prisma = () => ({
+        plan: {
+            create: jest.fn().mockResolvedValue(planRow),
+            findFirst: jest.fn().mockResolvedValue({ ...planRow, _count: { subscriptions: 0 } }),
+            update: jest.fn().mockResolvedValue(planRow),
+            delete: jest.fn().mockResolvedValue({}),
+        },
     })
+    const create = (role: string, userId = 'u1') =>
+        new CreatePlanFeature(
+            { name: 'x', price: 100, currency: 'RUB', durationDays: 30 },
+            'w1',
+            userId,
+            role,
+            false,
+        )
 
-    it('update checks the current and the target set; refuses moving to club-wide', async () => {
-        const prisma = {
-            plan: {
-                findFirst: jest.fn().mockResolvedValue({
-                    id: 'p1',
-                    price: 5000,
-                    isFreeTrial: false,
-                    purchasableOnline: false,
-                    directions: [{ directionId: BJJ }],
-                }),
-                update: jest.fn().mockResolvedValue(planRow),
-            },
-            direction: directions,
-        }
-        const r = rbac(false, [BJJ])
-        const handler = new UpdatePlanHandler(prisma as never, r as never)
-        await handler.execute(
-            new UpdatePlanFeature({ name: 'y' }, 'w1', 'p1', 'u1', 'coach', false),
-        )
-        expect(r.assertCanManageDirection).toHaveBeenLastCalledWith(
-            expect.anything(),
-            BJJ,
-        )
+    it.each(['head_coach', 'coach'])('refuses a %s create, update and delete', async (role) => {
+        const p = prisma()
+        const r = rbac(role === 'head_coach')
         await expect(
-            handler.execute(
-                new UpdatePlanFeature(
-                    { directionIds: [BJJ, MMA] },
-                    'w1',
-                    'p1',
-                    'u1',
-                    'coach',
-                    false,
-                ),
+            new CreatePlanHandler(p as never, r as never).execute(create(role)),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        await expect(
+            new UpdatePlanHandler(p as never, r as never).execute(
+                new UpdatePlanFeature({ price: 1 }, 'w1', 'p1', 'u1', role, false),
             ),
         ).rejects.toBeInstanceOf(ForbiddenError)
-        expect(r.assertCanManageDirection).toHaveBeenLastCalledWith(
-            expect.anything(),
-            BJJ,
-            BJJ,
-            MMA,
+        await expect(
+            new DeletePlanHandler(p as never, r as never).execute(
+                new DeletePlanFeature('w1', 'p1', 'u1', role, false),
+            ),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(p.plan.findFirst).not.toHaveBeenCalled()
+        expect(p.plan.create).not.toHaveBeenCalled()
+        expect(p.plan.update).not.toHaveBeenCalled()
+        expect(p.plan.delete).not.toHaveBeenCalled()
+    })
+
+    it('lets the owner create even with a head-coach member row', async () => {
+        const p = prisma()
+        await new CreatePlanHandler(p as never, rbac(true) as never).execute(
+            create('head_coach', 'owner'),
         )
-        await expect(
-            handler.execute(
-                new UpdatePlanFeature(
-                    { directionIds: [] },
-                    'w1',
-                    'p1',
-                    'u1',
-                    'coach',
-                    false,
-                ),
-            ),
-        ).rejects.toBeInstanceOf(ForbiddenError)
-        expect(prisma.plan.update).toHaveBeenCalledTimes(1)
-    })
-
-    it('refuses editing a club-wide tariff', async () => {
-        const prisma = {
-            plan: {
-                findFirst: jest.fn().mockResolvedValue({
-                    id: 'p1',
-                    price: 5000,
-                    isFreeTrial: false,
-                    purchasableOnline: false,
-                    directions: [],
-                }),
-                update: jest.fn(),
-            },
-            direction: directions,
-        }
-        await expect(
-            new UpdatePlanHandler(
-                prisma as never,
-                rbac(false, [BJJ]) as never,
-            ).execute(
-                new UpdatePlanFeature({ directionIds: [BJJ] }, 'w1', 'p1', 'u1', 'coach', false),
-            ),
-        ).rejects.toBeInstanceOf(ForbiddenError)
-        expect(prisma.plan.update).not.toHaveBeenCalled()
-    })
-
-    it('refuses deleting a tariff with a direction the manager does not run', async () => {
-        const prisma = {
-            plan: {
-                findFirst: jest.fn().mockResolvedValue({
-                    id: 'p1',
-                    directions: [{ directionId: BJJ }, { directionId: MMA }],
-                    _count: { subscriptions: 0 },
-                }),
-                delete: jest.fn(),
-            },
-        }
-        await expect(
-            new DeletePlanHandler(
-                prisma as never,
-                rbac(false, [BJJ]) as never,
-            ).execute(new DeletePlanFeature('w1', 'p1', 'u1', 'coach', false)),
-        ).rejects.toBeInstanceOf(ForbiddenError)
-        expect(prisma.plan.delete).not.toHaveBeenCalled()
+        expect(p.plan.create).toHaveBeenCalled()
     })
 })

@@ -8,7 +8,7 @@ import {
 } from '../../shared/decorators/current-user.decorator'
 import {
     Roles,
-    WORKSPACE_ADMINS,
+    SPORT_LEADS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -34,7 +34,7 @@ export class AddWorkspaceMemberController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: AddWorkspaceMemberOutput })
     async addMember(
         @Param('workspaceId') workspaceId: string,

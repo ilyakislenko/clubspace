@@ -101,31 +101,53 @@ const run = (
     handler.execute(new GetWorkspaceStatsFeature('w1', userId, roleName, false))
 
 describe('GetWorkspaceStatsHandler revenue visibility', () => {
-    it.each(['admin', 'head_coach'])('%s sees revenue', async (roleName) => {
+    it('an admin sees revenue', async () => {
         const { handler } = build()
-        const out = await run(handler, roleName)
+        const out = await run(handler, 'admin')
         expect(out.revenue).not.toBeNull()
         expect(out.revenue?.revenue30d).toBe(5000)
         expect(out.today.revenue).toBe(5000)
     })
 
-    it('the workspace owner sees revenue', async () => {
-        const { handler } = build()
-        const out = await run(handler, 'coach', 'owner-1')
-        expect(out.revenue).not.toBeNull()
-    })
-
-    it.each([false, true])(
-        'a coach never sees revenue (coachSeesAllGroups=%s)',
-        async (coachSeesAllGroups) => {
-            const { handler, subscriptionFindMany } = build(coachSeesAllGroups)
-            const out = await run(handler, 'coach')
-            expect(out.revenue).toBeNull()
-            expect(out.today.revenue).toBeNull()
-            expect(out.today.currency).toBeNull()
-            expect(subscriptionFindMany).not.toHaveBeenCalled()
+    it.each(['coach', 'head_coach'])(
+        'the workspace owner sees revenue whatever their row (%s)',
+        async (roleName) => {
+            const { handler } = build()
+            const out = await run(handler, roleName, 'owner-1')
+            expect(out.revenue).not.toBeNull()
         },
     )
+
+    // Club money is stripped on the server for everyone below club admin.
+    it.each([
+        ['head_coach', false],
+        ['coach', false],
+        ['coach', true],
+    ])('a %s never receives revenue (coachSeesAllGroups=%s)', async (roleName, all) => {
+        const { handler, subscriptionFindMany } = build(all)
+        const out = await run(handler, roleName)
+        expect(out.revenue).toBeNull()
+        expect(out.today.revenue).toBeNull()
+        expect(out.today.currency).toBeNull()
+        expect(subscriptionFindMany).not.toHaveBeenCalled()
+    })
+})
+
+// The audit feed («Последние действия») is a system view: club admins only.
+describe('GetWorkspaceStatsHandler recent events', () => {
+    const row = { id: 'e1', action: 'member.invite', targetType: 'member', targetId: 'u9', actorId: null, metadata: null, createdAt: new Date() }
+    it.each([
+        ['admin', 'u1', 10],
+        ['head_coach', 'owner-1', 10],
+        ['head_coach', 'u1', 0],
+        ['coach', 'u1', 0],
+    ])('%s (%s) reads %i audit rows', async (roleName, userId, take) => {
+        const findMany = jest.fn().mockResolvedValue(take ? [row] : [])
+        const { handler } = build(false, { 'auditEvent.findMany': findMany })
+        const out = await run(handler, roleName, userId)
+        expect(findMany.mock.calls[0][0].take).toBe(take)
+        expect(out.recentEvents).toHaveLength(take ? 1 : 0)
+    })
 })
 
 describe('GetWorkspaceStatsHandler paid-only revenue', () => {

@@ -7,6 +7,8 @@ import { Ticket, User, UserCog, Users } from 'lucide-react';
 import type { ClubVocabulary } from '@clubspace/ui-kit/brand';
 
 import type { AiChatEntity } from '../../shared/api/ai-chat';
+import { isClubAdmin } from '../../shared/lib/permissions';
+import { useMyMembership } from '../../shared/lib/use-my-membership';
 import { useVocabulary } from '../../shared/lib/vocabulary';
 import { type Inline, parseMarkdown } from './chat-markdown';
 
@@ -44,6 +46,8 @@ export function EntityChip({
   workspaceId: string;
 }) {
   const vocabulary = useVocabulary();
+  // The tariff page is the club admins'; others read the plan name only.
+  const canOpenPlans = isClubAdmin(useMyMembership(workspaceId));
   if (!entity) {
     return (
       <span
@@ -54,6 +58,7 @@ export function EntityChip({
       </span>
     );
   }
+  if (entity.type === 'plan' && !canOpenPlans) return <>{entity.label}</>;
   const Icon = ICON[entity.type];
   return (
     <Link

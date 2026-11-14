@@ -13,6 +13,7 @@ const access = (directionIds: string[] | null): AiAccess => ({
     userId: 'u0',
     roleName: null,
     isOwner: directionIds === null,
+    isClubAdmin: directionIds === null,
     directionIds,
 })
 

@@ -62,9 +62,6 @@ const DIRECTION_WRITES = [
     'CreateWorkspaceEventFeature',
     'UpdateWorkspaceEventFeature',
     'DeleteWorkspaceEventFeature',
-    'CreatePlanFeature',
-    'UpdatePlanFeature',
-    'DeletePlanFeature',
     'UpdateCourseAudienceFeature',
     // A group's coach keeps their rights; a manager moving it is held to the
     // target direction.
@@ -87,7 +84,8 @@ const DIRECTION_OWNED_WRITE =
 // Writes to those models that are not direction management: admin-only club
 // tools, member self-service and side effects of another authorized action.
 const OTHER_GATES = [
-    'assertWorkspaceAdmin(',
+    'assertClubAdmin(',
+    'assertSportLead(',
     'assertPlatformAdmin(',
 ]
 const NOT_DIRECTION_MANAGEMENT: string[] = []
@@ -101,8 +99,10 @@ describe('direction-owned writes go through the direction rule', () => {
     })
 
     it('no pinned direction write or list is still admin-only', () => {
-        const adminOnly = [...DIRECTION_WRITES, ...DIRECTION_LISTS].filter((f) =>
-            featureSource(f)?.includes('assertWorkspaceAdmin('),
+        const adminOnly = [...DIRECTION_WRITES, ...DIRECTION_LISTS].filter(
+            (f) =>
+                featureSource(f)?.includes('assertSportLead(') ||
+                featureSource(f)?.includes('assertClubAdmin('),
         )
         expect(adminOnly).toEqual([])
     })

@@ -57,7 +57,7 @@ export default function WorkspaceGroupsPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
   const scope = useDirectionScope(workspaceId)
-  const canEditGyms = scope.isAdmin
+  const canEditGyms = scope.isSportLead
   // A direction manager edits the groups of their directions plus the ones
   // they coach themselves; everyone else sees the page as before.
   const [myUserId, setMyUserId] = useState<string | null>(null)

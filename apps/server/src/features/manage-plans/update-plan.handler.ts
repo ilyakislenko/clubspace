@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     NotFoundError,
@@ -10,6 +11,7 @@ import {
     assertDirectionsInWorkspace,
     canSellOnline,
     ONLINE_FREE_PLAN_MESSAGE,
+    PLAN_WRITE_REFUSAL,
     planDtoInclude,
     serializePlan,
 } from './schemas'
@@ -28,12 +30,16 @@ export class UpdatePlanHandler
     ) {}
 
     async execute(f: UpdatePlanFeature) {
-        const ctx = await this.rbac.resolveCoachScope({
-            userId: f.invokerUserId,
-            workspaceId: f.workspaceId,
-            roleName: f.roleName,
-            isSuperAdmin: f.isSuperAdmin,
-        })
+        await assertClubAdmin(
+            this.rbac,
+            {
+                userId: f.invokerUserId,
+                workspaceId: f.workspaceId,
+                roleName: f.roleName,
+                isSuperAdmin: f.isSuperAdmin,
+            },
+            PLAN_WRITE_REFUSAL,
+        )
         const existing = await this.prisma.plan.findFirst({
             where: { id: f.planId, workspaceId: f.workspaceId },
             select: {
@@ -41,7 +47,6 @@ export class UpdatePlanHandler
                 price: true,
                 isFreeTrial: true,
                 purchasableOnline: true,
-                directions: { select: { directionId: true } },
             },
         })
         if (!existing) throw new NotFoundError({ message: 'Тариф не найден' })
@@ -64,18 +69,6 @@ export class UpdatePlanHandler
                       p.directionIds,
                   )
                 : undefined
-        // A direction manager must run every direction of the old set and of
-        // the new one; a club-wide set (empty) on either side is admin-only.
-        const oldIds = existing.directions.map((d) => d.directionId)
-        await this.rbac.assertCanManageDirection(
-            ctx,
-            ...(oldIds.length > 0 ? oldIds : [null]),
-            ...(directionIds === undefined
-                ? []
-                : directionIds.length > 0
-                  ? directionIds
-                  : [null]),
-        )
         // A new scope replaces the old set in the same write; abonements
         // already sold keep their snapshot.
         const plan = await this.prisma.plan.update({

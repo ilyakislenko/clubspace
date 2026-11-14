@@ -2,7 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { currentSubscriptionOrderBy } from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListRenewalCandidatesFeature,
@@ -30,7 +30,7 @@ export class ListRenewalCandidatesHandler
     ) {}
 
     async execute(f: ListRenewalCandidatesFeature) {
-        await assertWorkspaceAdmin(
+        await assertSportLead(
             this.rbac,
             {
                 userId: f.invokerUserId,

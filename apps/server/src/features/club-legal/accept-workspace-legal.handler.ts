@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { ClubLegalService } from '../../domains/billing/services/club-legal.service'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import {
     ConflictError,
     ForbiddenError,
@@ -30,7 +30,7 @@ export class AcceptWorkspaceLegalHandler
     ) {}
 
     async execute(f: AcceptWorkspaceLegalFeature): Promise<AcceptWorkspaceLegalFeatureResponse> {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,

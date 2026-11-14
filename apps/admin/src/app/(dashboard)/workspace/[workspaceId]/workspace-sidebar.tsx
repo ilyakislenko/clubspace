@@ -45,7 +45,8 @@ import {
 
 import { signOut } from "../../../../shared/api/client"
 import { fetchMe } from "../../../../shared/api/me"
-import { visibleNavItems } from "../../../../shared/lib/permissions"
+import { visibleNavItems, type Access } from "../../../../shared/lib/permissions"
+import { confirmLeave } from "../../../../shared/lib/use-dirty-guard"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import {
   featureOn,
@@ -57,13 +58,13 @@ import { analyticsSections } from "./analytics/sections"
 import { useVocabulary } from "../../../../shared/lib/vocabulary"
 import { cap, type ClubVocabulary } from "@clubspace/ui-kit/brand"
 
-type NavItem = {
+export type NavItem = {
   key: string
   label: string
   icon: LucideIcon
   path: string
-  adminOnly?: boolean
-  adminOrDirectionManager?: boolean
+  // Who sees the item (`visibleNavItems`); matches the page's gate.
+  access: Access
   // App section the item belongs to: hidden while the club has it switched
   // off in the settings (a dance studio without ranks sees no «Аттестации»).
   feature?: WorkspaceFeature
@@ -71,59 +72,65 @@ type NavItem = {
 
 // The daily pair (Обзор, Кто пропадает) is its own group so «Аналитика» can sit
 // right under it instead of below «Тариф», where owners had to scroll for it.
-const dailyNavItems: NavItem[] = [
+export const dailyNavItems: NavItem[] = [
   {
     key: "dashboard",
     label: "Обзор",
     icon: LayoutDashboard,
     path: "",
+    access: "staff",
   },
   {
     key: "retention",
     label: "Кто пропадает",
     icon: UserX,
     path: "retention",
+    access: "staff",
   },
 ]
 
-const manageNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
+export const manageNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
   {
     key: "users",
     label: "Участники",
     icon: Users,
     path: "users",
+    access: "staff",
   },
   {
     key: "club-import",
     label: "Импорт клуба",
     icon: Upload,
     path: "club-import",
-    adminOnly: true,
+    access: "clubAdmin",
   },
   {
     key: "groups",
     label: "Группы и расписание",
     icon: MapPin,
     path: "groups",
+    access: "lead",
   },
   {
     key: "schedule",
     label: cap(vocabulary.session.nomPl),
     icon: CalendarCheck,
     path: "schedule",
+    access: "staff",
   },
   {
     key: "directions",
     label: "Направления",
     icon: Layers,
     path: "directions",
-    adminOnly: true,
+    access: "clubAdmin",
   },
   {
     key: "content",
     label: "Курсы и видео",
     icon: FileText,
     path: "content",
+    access: "lead",
     feature: "videos",
   },
   {
@@ -131,7 +138,7 @@ const manageNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
     label: "Ранги",
     icon: Award,
     path: "ranks",
-    adminOrDirectionManager: true,
+    access: "lead",
     feature: "ranks",
   },
   {
@@ -139,6 +146,7 @@ const manageNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
     label: "Аттестации",
     icon: GraduationCap,
     path: "gradings",
+    access: "lead",
     feature: "ranks",
   },
   {
@@ -146,34 +154,35 @@ const manageNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
     label: "Тарифы и абонементы",
     icon: CreditCard,
     path: "subscriptions",
-    adminOrDirectionManager: true,
+    access: "clubAdmin",
   },
   {
     key: "payments",
     label: "Онлайн-оплата",
     icon: Wallet,
     path: "payments",
-    adminOnly: true,
+    access: "clubAdmin",
   },
   {
     key: "events",
     label: "События",
     icon: CalendarDays,
     path: "events",
+    access: "lead",
   },
   {
     key: "announcements",
     label: "Объявления",
     icon: Megaphone,
     path: "announcements",
-    adminOrDirectionManager: true,
+    access: "lead",
   },
   {
     key: "achievements",
     label: "Достижения",
     icon: Trophy,
     path: "achievements",
-    adminOrDirectionManager: true,
+    access: "lead",
     feature: "achievements",
   },
   {
@@ -181,53 +190,56 @@ const manageNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
     label: "История изменений",
     icon: History,
     path: "audit",
+    access: "clubAdmin",
   },
   {
     key: "public-page",
     label: "Публичная страница",
     icon: Globe,
     path: "public-page",
-    adminOnly: true,
+    access: "clubAdmin",
   },
   {
     key: "settings",
     label: "Настройки",
     icon: Settings,
     path: "settings",
-    adminOnly: true,
+    access: "clubAdmin",
   },
   {
-    // ИИ-ассистент (MCP): admins and руководители направлений.
+    // ИИ-ассистент (MCP) tokens act with the club's full rights.
     key: "integrations",
     label: "Интеграции",
     icon: Bot,
     path: "integrations",
-    adminOrDirectionManager: true,
+    access: "clubAdmin",
   },
   {
     key: "billing",
     label: "Тариф",
     icon: Gauge,
     path: "billing",
-    adminOnly: true,
+    access: "clubAdmin",
   },
 ]
 
-// «Аналитика» is staff-wide: no adminOnly flags, the server scopes the numbers.
-// The ИИ-ассистент chat closes the group: admins and руководители направлений.
-const analyticsNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
+// «Аналитика»: each section carries its own access level, the server scopes
+// the numbers. The ИИ-ассистент chat closes the group: sport leads and
+// руководители направлений.
+export const analyticsNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
   ...analyticsSections(vocabulary).map((s) => ({
     key: s.key,
     label: s.label,
     icon: s.icon,
     path: `analytics/${s.path}`,
+    access: s.access,
   })),
   {
     key: "ai-assistant",
     label: "ИИ-ассистент",
     icon: Sparkles,
     path: "ai-assistant",
-    adminOrDirectionManager: true,
+    access: "lead",
   },
 ]
 
@@ -261,6 +273,7 @@ export function WorkspaceSidebar() {
     !item.feature || featureOn(features, item.feature)
 
   const handleSignOut = async () => {
+    if (!confirmLeave()) return
     clearActiveWorkspaceId()
     await signOut()
     router.replace("/sign-in")

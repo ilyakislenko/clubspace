@@ -21,6 +21,11 @@ npm run test:coverage
 # API e2e: поднимает AppModule целиком в процессе против настоящих Postgres и
 # Redis (`npm run dev:infra`), сам создаёт базу `clubspace_e2e`:
 npm run test:e2e
+
+# Admin smoke e2e (Playwright): вход через UI за owner / admin / head_coach /
+# coach, обход всех доступных страниц. Нужен запущенный API с демо-клубами,
+# админку скрипт соберёт и поднимет сам — см. «Admin smoke e2e» ниже:
+npm run test:admin-e2e
 ```
 
 ## Стек
@@ -33,6 +38,7 @@ npm run test:e2e
 - **API e2e:** `apps/server-e2e` (Jest, настоящий AppModule + Postgres + Redis),
   61 spec-файл.
 - **Admin:** Jest + Testing Library (jsdom), 70 spec-файлов.
+- **Admin smoke e2e:** `apps/admin-e2e` (Playwright, Chromium), 4 роли.
 - **Video worker:** Jest, 15 spec-файлов. **api-client:** Jest, 1 spec-файл.
 
 ## Что сейчас под покрытием
@@ -76,13 +82,53 @@ mobile — 100 / 1365, video-worker — 15 / 271, api-client — 1 / 7. Табл
 
 ## Что добавить дальше
 
-- **Admin Playwright:** sign-in → дашборд, группы → добавить слот → сохранить.
-  Сейчас пакет не установлен. Установить + scaffold — отдельный PR.
+- **Admin Playwright, сценарии с действиями:** группы → добавить слот →
+  сохранить и т. п. — поверх `apps/admin-e2e` (сейчас там только обход
+  страниц без изменений данных).
 - **Mobile component-level (jest-expo + @testing-library/react-native):**
   экраны (`*.tsx`) сейчас не покрыты — тестируются только helpers (`*.ts`,
   coverage-порог в `apps/mobile/jest.config.cjs`).
 - **Client (`apps/client/specs`):** 4 spec-файла есть, но у проекта нет
   nx-цели `test`, поэтому они не запускаются ни в CI, ни в `verify`.
+
+## Admin smoke e2e
+
+`apps/admin-e2e` — Playwright-обход админки. Для каждой роли из
+`src/role-matrix.ts` (owner `owner@academy.demo`, admin `admin@academy.demo`,
+head_coach `coach@academy.demo`, coach `pedagog@ritm.demo`) тест входит через
+настоящую форму входа (код `DEMO_LOGIN_CODE`), берёт маршруты из отрисованного
+сайдбара, id для страниц-карточек (участник, группа, зал, курс, видео,
+аттестация, тариф) — из API тем же аккаунтом, и открывает каждую страницу.
+Страница падает, если на ней: ошибка в консоли, необработанное исключение,
+ответ API 5xx или неожиданный 4xx, экран ошибки («Что-то пошло не так») или
+404 Next, загрузка (скелетон, спиннер, «Загрузка…») дольше 15 с, текст
+`undefined` / `NaN` / `Invalid Date` / `[object Object]`, уведомление «Раздел
+доступен…» на странице из меню. Затем — таблица ролей: маршруты из `blocked`
+не должны быть в сайдбаре и при прямом заходе должны отказывать (уведомление
+или редирект; 403 от API там допустим), `offMenu` — нет в сайдбаре, но
+открываются. Данные клубов тест не меняет (остаются только записи о входе).
+
+Запуск:
+
+```bash
+# API: демо-режим (docs/demo.md), ADMIN_URL = адрес админки и он же в
+# CORS_ORIGINS — сессия живёт в HttpOnly-cookie, которую API выдаёт только
+# своей админке. Порт API — SERVER_PORT.
+npm run test:admin-e2e                       # :4200 → API :3000
+ADMIN_E2E_BASE_URL=http://localhost:4301 ADMIN_E2E_API_URL=http://localhost:3101 \
+  npm run test:admin-e2e -- -g coach         # свои порты, одна роль
+VERIFY_ADMIN_E2E=1 npm run verify            # как шаг verify
+```
+
+Если на адресе админки никто не отвечает, `run.sh` собирает её в production
+(`nx build`, `NEXT_PUBLIC_API_URL` = адрес API) и поднимает standalone-сервер
+(`.next/standalone/.../server.js`, как в Docker-образе; `next start` такие
+сборки не запускает) из своей копии в `dist/admin-e2e/<порт>`; если отвечает
+не админка — останавливается. Браузер: `npx playwright install chromium`
+(версия `@playwright/test` закреплена — 1.62.1, Chromium 1234). Отчёт и
+trace упавших тестов — `test-output/admin-e2e/`. Исключения (ожидаемые ошибки
+консоли, известные дефекты с 4xx) — только списком в `src/checks.ts`, у
+каждого причина; запись известного дефекта удаляется вместе с исправлением.
 
 ## Как добавить тест
 

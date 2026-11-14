@@ -1,4 +1,4 @@
-import { WORKSPACE_ADMINS } from '../decorators/roles.decorator'
+import { SPORT_LEADS } from '../decorators/roles.decorator'
 import { ForbiddenError, NotFoundError } from '../errors/shared.errors'
 import { ownGroupsWhere, RbacService } from './rbac.service'
 
@@ -402,7 +402,7 @@ describe('RbacService.resolveCoachScope', () => {
             isSuperAdmin: false,
         })
 
-    it.each(WORKSPACE_ADMINS)('%s resolves to admin scope', async (role) => {
+    it.each(SPORT_LEADS)('%s resolves to admin scope', async (role) => {
         await expect(resolve(role)).resolves.toMatchObject({ scope: 'admin' })
     })
 

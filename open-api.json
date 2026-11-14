@@ -47916,7 +47916,8 @@
                 "monthlySpend": {
                   "type": "integer",
                   "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "maximum": 9007199254740991,
+                  "nullable": true
                 },
                 "currency": {
                   "type": "string",
@@ -48007,7 +48008,8 @@
               "moneyAtStake": {
                 "type": "integer",
                 "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "maximum": 9007199254740991,
+                "nullable": true
               },
               "currency": {
                 "type": "string",
@@ -55719,9 +55721,6 @@
                     "name"
                   ],
                   "additionalProperties": false
-                },
-                "canRevoke": {
-                  "type": "boolean"
                 }
               },
               "required": [
@@ -55735,8 +55734,7 @@
                 "lastUsedAt",
                 "revokedAt",
                 "createdAt",
-                "createdBy",
-                "canRevoke"
+                "createdBy"
               ],
               "additionalProperties": false
             }
@@ -55917,9 +55915,6 @@
                   "name"
                 ],
                 "additionalProperties": false
-              },
-              "canRevoke": {
-                "type": "boolean"
               }
             },
             "required": [
@@ -55933,8 +55928,7 @@
               "lastUsedAt",
               "revokedAt",
               "createdAt",
-              "createdBy",
-              "canRevoke"
+              "createdBy"
             ],
             "additionalProperties": false
           },
@@ -56027,9 +56021,6 @@
               "name"
             ],
             "additionalProperties": false
-          },
-          "canRevoke": {
-            "type": "boolean"
           }
         },
         "required": [
@@ -56043,8 +56034,7 @@
           "lastUsedAt",
           "revokedAt",
           "createdAt",
-          "createdBy",
-          "canRevoke"
+          "createdBy"
         ],
         "additionalProperties": false
       },

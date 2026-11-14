@@ -17,7 +17,7 @@ import {
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
 import {
-    COACHING_ROLES,
+    CLUB_ADMINS,
     Roles,
     STAFF_ROLES,
 } from '../../shared/decorators/roles.decorator'
@@ -68,7 +68,7 @@ export class PlansController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
-    @Roles(COACHING_ROLES)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: PlanOutputDto })
     async createPlan(
         @Param('workspaceId') workspaceId: string,
@@ -111,10 +111,9 @@ export class PlansController {
         )
     }
 
-    // The tariff page; the direction rule (assertCanManageDirection) puts it
-    // behind COACHING_ROLES like the writes.
+    // The tariff page: holders and what it earned — club money.
     @Get(':planId')
-    @Roles(COACHING_ROLES)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: GetPlanOutput })
     async getPlan(
         @Param('workspaceId') workspaceId: string,
@@ -133,7 +132,7 @@ export class PlansController {
     }
 
     @Patch(':planId')
-    @Roles(COACHING_ROLES)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: UpdatePlanOutput })
     async updatePlan(
         @Param('workspaceId') workspaceId: string,
@@ -157,7 +156,7 @@ export class PlansController {
     }
 
     @Delete(':planId')
-    @Roles(COACHING_ROLES)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: DeletePlanOutput })
     async deletePlan(
         @Param('workspaceId') workspaceId: string,

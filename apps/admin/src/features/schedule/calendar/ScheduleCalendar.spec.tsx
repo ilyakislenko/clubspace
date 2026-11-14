@@ -59,7 +59,7 @@ const GROUP = {
 }
 
 const adminScope = {
-  isAdmin: true,
+  isSportLead: true,
   isDirectionManager: false,
   managedDirectionIds: [],
   canManageDirection: () => true,
@@ -177,7 +177,7 @@ describe("ScheduleCalendar", () => {
   })
 
   it("is read-only for a plain coach", async () => {
-    scopeMock.mockReturnValue({ ...adminScope, isAdmin: false, canManageDirection: () => false })
+    scopeMock.mockReturnValue({ ...adminScope, isSportLead: false, canManageDirection: () => false })
     render(<ScheduleCalendar workspaceId="w1" />)
     await screen.findByRole("button", { name: /Группа g1/ })
     expect(document.querySelector("[data-calendar-cell]")).toBeNull()

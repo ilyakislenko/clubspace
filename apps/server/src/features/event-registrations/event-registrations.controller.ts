@@ -19,7 +19,7 @@ import {
     COACHING_ROLES,
     Roles,
     STAFF_ROLES,
-    WORKSPACE_ADMINS,
+    SPORT_LEADS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -186,7 +186,7 @@ export class EventRegistrationsController {
     }
 
     @Delete('event-registrations/:registrationId/payment')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: UnmarkEventRegistrationPaidOutput })
     async unmarkEventRegistrationPaid(
         @Param('workspaceId') workspaceId: string,

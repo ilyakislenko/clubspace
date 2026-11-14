@@ -15,7 +15,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { Roles, CLUB_ADMINS } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -56,7 +56,7 @@ export class PaymentSettingsController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: PaymentSettingsOutput })
     async getPaymentSettings(
         @Param('workspaceId') workspaceId: string,
@@ -76,7 +76,7 @@ export class PaymentSettingsController {
     }
 
     @Put()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: PaymentSettingsOutput })
     async updatePaymentSettings(
         @Param('workspaceId') workspaceId: string,
@@ -98,7 +98,7 @@ export class PaymentSettingsController {
     }
 
     @Delete()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: PaymentSettingsOutput })
     async deletePaymentSettings(
         @Param('workspaceId') workspaceId: string,
@@ -118,7 +118,7 @@ export class PaymentSettingsController {
     }
 
     @Post('check')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: CheckPaymentConnectionOutput })
     async checkPaymentConnection(
         @Param('workspaceId') workspaceId: string,

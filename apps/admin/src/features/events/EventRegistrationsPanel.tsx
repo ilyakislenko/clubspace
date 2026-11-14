@@ -14,6 +14,8 @@ import {
   type EventRegistrations,
 } from "../../shared/api/events"
 import { errorMessage } from "../../shared/lib/error-message"
+import { isClubAdmin } from "../../shared/lib/permissions"
+import { useMyMembership } from "../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../shared/realtime/useWorkspaceRealtime"
 import {
   CLUB_PAYMENT_METHODS,
@@ -31,7 +33,7 @@ const statusLabel = (r: EventRegistrant): string =>
 type Props = {
   workspaceId: string
   eventId: string
-  // Unmarking a payment is admin-only (the server gates it the same way).
+  // Unmarking a payment is the sport leads' (the server gates it the same way).
   canUnmark: boolean
 }
 
@@ -40,6 +42,8 @@ type Props = {
 // online (marked by the payment; refunded from «Платежи»). Own fetch;
 // refreshes live as members register, cancel and move up from the waitlist.
 export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Props) {
+  // Refunds (online payments) are the club admins'.
+  const canRefund = isClubAdmin(useMyMembership(workspaceId))
   const [data, setData] = useState<EventRegistrations | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -164,12 +168,14 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
                       (r.paymentMethod === "ONLINE" ? (
                         // Paid through the club's provider: the money goes
                         // back by a refund, which takes the mark back too.
-                        <Link
-                          href={`/workspace/${workspaceId}/payments`}
-                          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                        >
-                          Возврат — в «Платежах»
-                        </Link>
+                        canRefund && (
+                          <Link
+                            href={`/workspace/${workspaceId}/payments`}
+                            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                          >
+                            Возврат — в «Платежах»
+                          </Link>
+                        )
                       ) : (
                         <Button
                           type="button"

@@ -87,7 +87,9 @@ const run = (
     )
 
 describe('updateClubPublicProfile', () => {
-    it.each(['coach', 'user'])(
+    // The head coach runs the sport side (every group writable) but the
+    // public page is club-admin (owner/admin) territory.
+    it.each(['head_coach', 'coach', 'user'])(
         'refuses a %s and writes nothing',
         async (roleName) => {
             const { handler, prisma, record } = build()
@@ -98,6 +100,12 @@ describe('updateClubPublicProfile', () => {
             expect(record).not.toHaveBeenCalled()
         },
     )
+
+    it('lets the owner save, whatever their member row says', async () => {
+        const { handler, prisma } = build()
+        await run(handler, {}, { userId: 'owner', roleName: 'head_coach' })
+        expect(prisma.workspace.update).toHaveBeenCalledTimes(1)
+    })
 
     it('404s when the club is gone', async () => {
         const { handler, prisma } = build(null)

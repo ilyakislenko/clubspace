@@ -1,10 +1,10 @@
 // Authorization is covered by the assert-admin-scope tests; stub it so these
 // specs focus on the candidate selection + ordering.
 jest.mock('../../shared/access/assert-admin-scope', () => ({
-    assertWorkspaceAdmin: jest.fn().mockResolvedValue(undefined),
+    assertSportLead: jest.fn().mockResolvedValue(undefined),
 }));
 
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope';
+import { assertSportLead } from '../../shared/access/assert-admin-scope';
 import { ForbiddenError } from '../../shared/errors/shared.errors';
 import { ListRenewalCandidatesFeature } from './list-renewal-candidates.feature';
 import { ListRenewalCandidatesHandler } from './list-renewal-candidates.handler';
@@ -81,7 +81,7 @@ const run = (members: unknown[], prisma = prismaFor(members)) => {
 
 describe('listRenewalCandidates', () => {
     it('refuses a non-admin (coach) before touching the roster', async () => {
-        (assertWorkspaceAdmin as jest.Mock).mockRejectedValueOnce(
+        (assertSportLead as jest.Mock).mockRejectedValueOnce(
             new ForbiddenError({ message: 'nope' }),
         );
         const findMany = jest.fn();

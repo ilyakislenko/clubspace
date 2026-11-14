@@ -157,7 +157,12 @@ describe("ConsentGate", () => {
       .mockResolvedValueOnce(status({ required: false }))
     setup()
 
-    expect(await screen.findByText("Network Error")).toBeTruthy()
+    expect(
+      await screen.findByText(
+        "Нет связи с сервером. Проверьте интернет и повторите.",
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByText("Network Error")).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Повторить" }))
     expect(await screen.findByText("Панель клуба")).toBeTruthy()
   })

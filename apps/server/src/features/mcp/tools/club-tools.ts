@@ -215,7 +215,7 @@ export const clubOverviewTool = defineTool({
                   })
 
         let money: Record<string, unknown> | null = null
-        if (scope.isAdmin) {
+        if (scope.seesMoney) {
             const monthStart = revenueTrendStart(now, tz, 1)
             const windowStart = monthStart < since30 ? monthStart : since30
             const [paidSubs, paidTickets, awaiting] = await Promise.all([

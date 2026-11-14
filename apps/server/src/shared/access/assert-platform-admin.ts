@@ -1,6 +1,6 @@
 import { ForbiddenError } from '../errors/shared.errors'
 
-// Platform-scope counterpart to assertWorkspaceAdmin. Handlers for `/platform/*`
+// Platform-scope counterpart to assertClubAdmin. Handlers for `/platform/*`
 // call this even though SuperAdminGuard already ran, because the repo's rule is
 // that authorization lives in the handler — a slice reachable from a bus, a
 // test, or a future controller that forgets the guard must still refuse.

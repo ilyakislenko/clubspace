@@ -24,7 +24,7 @@ import { EventForm } from "../../../../../features/events/EventForm"
 import { EventRegistrationsPanel } from "../../../../../features/events/EventRegistrationsPanel"
 import { ClassAttendancePanel } from "../../../../../features/schedule/ClassAttendancePanel"
 import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
-import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
+import { isSportLead } from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { timezoneLabel } from "../../../../../shared/lib/timezones"
 import { DirectionChip } from "../../../../../features/directions/DirectionChip"
@@ -79,7 +79,7 @@ export default function EventsPage() {
   const workspaceId = params?.workspaceId
   // Any coach edits events; a direction manager only their directions' ones.
   const scope = useDirectionScope(workspaceId)
-  const isAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
+  const isAdmin = isSportLead(useMyMembership(workspaceId))
 
   const [events, setEvents] = useState<WorkspaceEvent[]>([])
   const [gyms, setGyms] = useState<Gym[]>([])

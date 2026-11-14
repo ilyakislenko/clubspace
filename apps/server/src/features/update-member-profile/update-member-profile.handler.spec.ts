@@ -7,7 +7,7 @@ import { UpdateMemberProfileFeature } from './update-member-profile.feature'
 import { UpdateMemberProfileHandler } from './update-member-profile.handler'
 
 const makePrisma = (over: {
-    membership?: { id: string } | null
+    membership?: { id: string; role?: { name: string } } | null
     ownerId?: string | null
     targetSuperAdmin?: boolean
     ownsOther?: boolean
@@ -37,7 +37,7 @@ const makePrisma = (over: {
                             ? { id: 'other' }
                             : null
                         : over.membership === undefined
-                          ? { id: 'm1' }
+                          ? { id: 'm1', role: { name: 'user' } }
                           : over.membership,
                 ),
             ),
@@ -74,7 +74,12 @@ const makePrisma = (over: {
 const makeAudit = () => ({ record: jest.fn().mockResolvedValue(undefined) })
 const makeRealtime = () => ({ invalidate: jest.fn() })
 const makeRbac = (admin = true) => ({
-    resolveCoachScope: jest.fn().mockResolvedValue({}),
+    resolveCoachScope: jest.fn(async (p: { userId: string; workspaceId: string }) => ({
+        scope: admin ? 'admin' : 'coach_own_only',
+        userId: p.userId,
+        workspaceId: p.workspaceId,
+        workspaceOwnerId: 'someone-else',
+    })),
     canWriteAllGroups: jest.fn().mockReturnValue(admin),
 })
 
@@ -83,6 +88,7 @@ const run = (
     payload: any = { firstname: 'Иван' },
     rbac: any = makeRbac(),
     invoker = 'admin1',
+    roleName = 'admin',
 ) =>
     new UpdateMemberProfileHandler(
         prisma as any,
@@ -96,14 +102,14 @@ const run = (
             'w1',
             'u1',
             invoker,
-            'admin',
+            roleName,
             false,
         ),
     )
 
 describe('UpdateMemberProfileHandler', () => {
     it('updates a normal member name without touching sessions', async () => {
-        const prisma = makePrisma({ membership: { id: 'm1' } })
+        const prisma = makePrisma({ membership: { id: 'm1', role: { name: 'user' } } })
         const result = await run(prisma)
         expect(prisma.tx.user.update).toHaveBeenCalledTimes(1)
         expect(prisma.tx.refreshToken.deleteMany).not.toHaveBeenCalled()
@@ -116,6 +122,40 @@ describe('UpdateMemberProfileHandler', () => {
             run(prisma, { email: 'new@x.io' }, makeRbac(false)),
         ).rejects.toBeInstanceOf(ForbiddenError)
         expect(prisma.$transaction).not.toHaveBeenCalled()
+    })
+
+    // A head coach edits students and parents; a staff member's sign-in
+    // details are the club admins' call (no account takeover).
+    it.each(['coach', 'head_coach', 'admin'])(
+        'refuses a head coach editing a %s e-mail and changes nothing',
+        async (role) => {
+            const prisma = makePrisma({ membership: { id: 'm1', role: { name: role } } })
+            await expect(
+                run(prisma, { email: 'new@x.io' }, makeRbac(), 'hc1', 'head_coach'),
+            ).rejects.toBeInstanceOf(ForbiddenError)
+            expect(prisma.$transaction).not.toHaveBeenCalled()
+            expect(prisma.tx.user.update).not.toHaveBeenCalled()
+        },
+    )
+
+    it('refuses a head coach renaming the owner', async () => {
+        const prisma = makePrisma({ membership: null, ownerId: 'u1' })
+        await expect(
+            run(prisma, { firstname: 'X' }, makeRbac(), 'hc1', 'head_coach'),
+        ).rejects.toBeInstanceOf(ForbiddenError)
+        expect(prisma.tx.user.update).not.toHaveBeenCalled()
+    })
+
+    it('lets a head coach edit a student', async () => {
+        const prisma = makePrisma({ membership: { id: 'm1', role: { name: 'user' } } })
+        await run(prisma, { email: 'new@x.io' }, makeRbac(), 'hc1', 'head_coach')
+        expect(prisma.tx.user.update).toHaveBeenCalledTimes(1)
+    })
+
+    it('lets an admin edit a coach e-mail', async () => {
+        const prisma = makePrisma({ membership: { id: 'm1', role: { name: 'coach' } } })
+        await run(prisma, { email: 'new@x.io' })
+        expect(prisma.tx.user.update).toHaveBeenCalledTimes(1)
     })
 
     it('changes a plain member e-mail and ends all their sessions', async () => {

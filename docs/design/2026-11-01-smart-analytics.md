@@ -30,7 +30,9 @@ another club is a 404.
   private;
 - filters narrow the scope further; a coach asking for another direction gets
   an empty screen, not someone else's data;
-- `POST …/refresh` is `WORKSPACE_ADMINS` only.
+- `POST …/refresh` and `GET …/coaches` are `SPORT_LEADS` (owner, admin, head coach); the
+  revenue forecast is `CLUB_ADMINS` (owner, admin); the churn list's money (`monthlySpend`,
+  `moneyAtStake`) is `null` below club admin.
 
 «Связались» is the existing contact log (`at-risk-members/:userId/contacts`,
 `MemberRetentionContact`): a member contacted within 14 days moves to the
@@ -149,7 +151,7 @@ Over the groups a coach leads (inside the viewer's scope):
 ## Weekly digest
 
 `AnalyticsDigestService` — Monday 09:00–09:59 club time (coaches keep their
-«Кому позвонить» at 10:00), to the owner and active admins/head coaches, push
+«Кому позвонить» at 10:00), to the owner and active admins (it carries money), push
 and e-mail. Three facts and three actions picked by `digest-rules.ts` in a
 fixed order (risk + money, forecast, a mature cohort, the fullest class, trial
 conversion, active students; actions: call these three, offer renewals, add a

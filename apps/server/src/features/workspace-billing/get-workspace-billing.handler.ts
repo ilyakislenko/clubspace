@@ -4,7 +4,7 @@ import { ClubLegalService } from '../../domains/billing/services/club-legal.serv
 import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { serializeClubLegalStatus } from '../club-legal/schemas'
@@ -30,7 +30,7 @@ export class GetWorkspaceBillingHandler
     ) {}
 
     async execute(f: GetWorkspaceBillingFeature) {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,

@@ -3,19 +3,20 @@
 import {
   canManageDirection,
   isDirectionManager,
-  isWorkspaceAdmin,
+  isSportLead,
 } from "../lib/permissions"
 import { useMyMembership } from "../lib/use-my-membership"
 
 const NONE: readonly string[] = []
 
 export type DirectionScope = {
-  isAdmin: boolean
-  // A coach running one or more directions (never true for admins).
+  // Owner / admin / head_coach: every direction and club-wide rows.
+  isSportLead: boolean
+  // A coach running one or more directions (never true for sport leads).
   isDirectionManager: boolean
   managedDirectionIds: readonly string[]
   // Rows of sections opened to direction managers (ranks, gradings,
-  // achievements, announcements, plans): admin → always, manager → own
+  // achievements, announcements): sport lead → always, manager → own
   // directions only, plain coach → never.
   canManageDirection: (directionId: string | null | undefined) => boolean
   // Rows of staff-wide sections every coach could already edit (events,
@@ -41,7 +42,7 @@ export function useDirectionScope(
     ? (membership?.managedDirectionIds ?? NONE)
     : NONE
   return {
-    isAdmin: isWorkspaceAdmin(membership),
+    isSportLead: isSportLead(membership),
     isDirectionManager: manager,
     managedDirectionIds,
     canManageDirection: (directionId) =>

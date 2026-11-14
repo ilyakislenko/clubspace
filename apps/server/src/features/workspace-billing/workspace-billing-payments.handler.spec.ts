@@ -77,12 +77,25 @@ const PAYMENT_DTO = {
     refundedAt: null,
 }
 
-const CTX = ['w1', 'u1', 'coach', false] as const
+type Ctx = readonly [string, string, string, boolean]
+// The owner (u1) passes whatever their member row says.
+const CTX: Ctx = ['w1', 'u1', 'head_coach', false]
+const ADMIN_CTX: Ctx = ['w1', 'u2', 'admin', false]
+const HEAD_COACH_CTX: Ctx = ['w1', 'u3', 'head_coach', false]
 
-const build = (o: { denied?: boolean } = {}) => {
+const build = () => {
+    // Resolves the scope the way RbacService does: a head coach (like an
+    // admin) runs every group; only the caller decides who is a club admin.
     const rbac = {
-        resolveCoachScope: jest.fn().mockResolvedValue({ scope: 'admin' }),
-        canWriteAllGroups: jest.fn().mockReturnValue(!o.denied),
+        resolveCoachScope: jest.fn(
+            async (p: { userId: string; workspaceId: string; roleName: string | null }) => ({
+                scope: p.roleName === 'coach' ? 'coach_own_only' : 'admin',
+                userId: p.userId,
+                workspaceId: p.workspaceId,
+                workspaceOwnerId: 'u1',
+            }),
+        ),
+        canWriteAllGroups: jest.fn((ctx: { scope: string }) => ctx.scope === 'admin'),
     }
     const payments = {
         startCheckout: jest
@@ -118,63 +131,75 @@ const build = (o: { denied?: boolean } = {}) => {
 }
 
 describe('workspace billing payment handlers', () => {
-    describe('refuse a non-admin without touching the service', () => {
-        const cases: Array<[string, (d: ReturnType<typeof build>) => Promise<unknown>, string]> = [
+    describe('ClubSpace billing is for club admins only', () => {
+        const cases: Array<
+            [string, (d: ReturnType<typeof build>, ctx: Ctx) => Promise<unknown>, string]
+        > = [
             [
                 'checkout',
-                (d) =>
+                (d, ctx) =>
                     new StartWorkspaceBillingCheckoutHandler(d.rbac as never, d.payments as never, d.legal as never).execute(
-                        new StartWorkspaceBillingCheckoutFeature({ periodMonths: 1 }, ...CTX),
+                        new StartWorkspaceBillingCheckoutFeature({ periodMonths: 1 }, ...ctx),
                     ),
                 'startCheckout',
             ],
             [
                 'module',
-                (d) =>
+                (d, ctx) =>
                     new SetWorkspaceBillingModuleHandler(d.rbac as never, d.payments as never, d.legal as never).execute(
-                        new SetWorkspaceBillingModuleFeature({ module: 'VIDEO', enabled: true } as never, ...CTX),
+                        new SetWorkspaceBillingModuleFeature({ module: 'VIDEO', enabled: true } as never, ...ctx),
                     ),
                 'setModule',
             ],
             [
                 'list',
-                (d) =>
+                (d, ctx) =>
                     new ListWorkspaceBillingPaymentsHandler(d.rbac as never, d.payments as never).execute(
-                        new ListWorkspaceBillingPaymentsFeature(...CTX),
+                        new ListWorkspaceBillingPaymentsFeature(...ctx),
                     ),
                 'list',
             ],
             [
                 'get',
-                (d) =>
+                (d, ctx) =>
                     new GetWorkspaceBillingPaymentHandler(d.rbac as never, d.payments as never).execute(
-                        new GetWorkspaceBillingPaymentFeature('p1', ...CTX),
+                        new GetWorkspaceBillingPaymentFeature('p1', ...ctx),
                     ),
                 'refresh',
             ],
             [
                 'remove card',
-                (d) =>
+                (d, ctx) =>
                     new RemoveWorkspaceBillingCardHandler(
                         d.rbac as never,
                         d.payments as never,
                         d.billing as never,
-                    ).execute(new RemoveWorkspaceBillingCardFeature(...CTX)),
+                    ).execute(new RemoveWorkspaceBillingCardFeature(...ctx)),
                 'removePaymentMethod',
             ],
             [
                 'period',
-                (d) =>
+                (d, ctx) =>
                     new SetWorkspaceBillingPeriodHandler(d.rbac as never, d.payments as never).execute(
-                        new SetWorkspaceBillingPeriodFeature({ periodMonths: 12 }, ...CTX),
+                        new SetWorkspaceBillingPeriodFeature({ periodMonths: 12 }, ...ctx),
                     ),
                 'setBillingPeriod',
             ],
         ]
-        it.each(cases)('%s', async (_name, run, method) => {
-            const d = build({ denied: true })
-            await expect(run(d)).rejects.toBeInstanceOf(ForbiddenError)
-            expect(d.payments[method as keyof typeof d.payments]).not.toHaveBeenCalled()
+        it.each(cases)(
+            '%s: refuses a head coach, even one who runs every group, without touching the service',
+            async (_name, run, method) => {
+                const d = build()
+                await expect(run(d, HEAD_COACH_CTX)).rejects.toBeInstanceOf(ForbiddenError)
+                expect(d.payments[method as keyof typeof d.payments]).not.toHaveBeenCalled()
+            },
+        )
+        it.each(cases)('%s: lets an admin and the owner through', async (_name, run, method) => {
+            for (const ctx of [ADMIN_CTX, CTX]) {
+                const d = build()
+                await expect(run(d, ctx)).resolves.toBeDefined()
+                expect(d.payments[method as keyof typeof d.payments]).toHaveBeenCalledTimes(1)
+            }
         })
     })
 

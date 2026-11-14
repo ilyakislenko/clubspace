@@ -121,6 +121,45 @@ a comparison with other coaches and the audit log. The audit page claims «То�
 - Handler specs: one per category (refund, payment settings, billing, plan create, settings,
   import, audit) — head_coach 403, admin and owner pass.
 
+**Decisions (wave 1).**
+- Tiers: `CLUB_ADMINS = ['admin']`, `SPORT_LEADS = ['admin','head_coach']`; `WORKSPACE_ADMINS` and
+  `assertWorkspaceAdmin` removed. Owner = club admin always (AuthGuard now lifts an owner with a
+  `head_coach` row to `admin`; the owner's row must stay `admin`; a platform owner transfer raises a
+  head coach to `admin`).
+- **CLUB_ADMINS** (pinned in `route-tier-consistency.spec.ts`): online payments list + refund, payment
+  settings (4), ClubSpace billing (8), club import (6), exports (4), PATCH settings, public profile
+  (3), PUT club-about, member role change, role list, directions CRUD + direction managers (6),
+  onboarding help + checklist, club legal accept, audit list, revenue forecast, tariffs
+  create/update/delete **and the tariff page GET** (it shows what a tariff earned), AI tokens (3).
+- **SPORT_LEADS**: invite/add/approve/reject/remove members, access date, invitations, join code,
+  dependents, member notes/profile, gyms CRUD, awaiting payment, renewal candidates, cancel
+  abonement, unmark abonement/event payment, analytics refresh, **coaches comparison** (was all
+  staff). Assign abonement / mark paid / freezes stay `COACHING_ROLES` (Q1 default).
+- Staff are the club admins' call: inviting with a staff role, revoking a staff invitation,
+  approving a pending staff row, removing, changing access of, or editing the profile (e-mail,
+  phone, name) of coach/head coach/admin/owner needs a club admin (`assertCanManageRoles` covers
+  every staff role).
+- Money is stripped server-side for non-club-admins: dashboard `revenue`/`today.revenue`, churn
+  `monthlySpend` and `summary.moneyAtStake` (now nullable), AI money tools and amount fields
+  (`AiAccess.isClubAdmin`), the chat prompt's access line and the money suggestion. Dashboard
+  `recentEvents` (audit rows) is empty below club admin. Weekly digest (has money) → owner +
+  admins only (mobile toggle too).
+- «Тарифы и абонементы» page opens to sport leads for the awaiting-payment and renewal lists;
+  tariff management on it and the tariff page stay club-admin (until wave 3 moves the lists).
+- Tariffs left the direction rule: direction managers no longer edit tariffs (matrix ❌).
+- AI: tokens/MCP are club-admin only (a token stops working once its creator is not a club admin;
+  `canRevoke` dropped from the DTO). The in-app chat stays open to head coaches and direction
+  managers in their scope **without money tools** — matrix says ❌ for direction managers; kept
+  because the scope code already limits them and money is gated. Owner may flip to ❌.
+- Audit list: coach-narrowed feed removed (club admins see the whole feed).
+- Admin nav access levels: staff (dashboard, retention, churn, users, schedule) · lead = sport lead
+  or direction manager (groups, content, ranks, gradings, events, announcements, achievements,
+  cohorts, occupancy, AI chat) · sportLead (coaches) · clubAdmin (import, directions, tariffs,
+  payments, audit, public page, settings, integrations, billing, forecast). Gates: `ClubAdminGate`,
+  `SportLeadGate`, `LeadGate`, denied text «Раздел доступен …».
+- Mobile: only the digest toggle changed; substitution, join-request and coach-view helpers already
+  match the matrix (sport leads / coaching roles).
+
 ## 2. Single sources of truth (P0) — workstream B
 
 ### B1. One «Кому позвонить» list
@@ -296,6 +335,33 @@ Apply the UI rules to each page. Concrete targets (evidence in the UX audit, sec
 4. **Rows not links.** `features/content/VideoList.tsx:222`, `features/content/CourseList.tsx:44`
    use `router.push`; switch to `<Link>` rows (open in new tab, crawlable).
 
+**Decisions (wave 1, E1/E2/E4 + F5):**
+- E1 state is computed in the admin (`features/subscriptions/abonement-state.ts`), not on the
+  server: no other client needs it — mobile «Мой абонемент» already compares `endDate`, and the
+  mobile coach screen labels only current abonements. Expiry uses the server's «current» rule
+  (ACTIVE and `endDate` in the future; no `endDate` never expires); «Заморожен» = a freeze covering
+  today; «Начнётся» = waiting for the first visit or `startDate` still ahead; legacy `SUSPENDED`
+  reads as «Заморожен». «Отменить» only on a live (active/upcoming/frozen) current abonement and
+  never in the history list; payment-debt actions stay on history rows.
+- Profile header: the membership status is shown only when it is not «Активен», and the access
+  label always says «Доступ …» (`Доступ до` / `Доступ истёк` / `Доступ без ограничения`), so it no
+  longer reads as an abonement claim next to «Нет действующего абонемента».
+- E2: «Нет связи с сервером…» for any axios rejection without `response` (also timeouts) and for
+  `fetch` network TypeErrors; an aborted request (`ERR_CANCELED`) gets the caller's fallback.
+  Mobile and client helpers already map transport failures to Russian — unchanged.
+- F5: `shared/lib/use-dirty-guard.ts` — one tab-wide registry; `beforeunload`, a capture-phase
+  click listener on `window` (runs before React/Next `<Link>`; ignores new-tab clicks, other
+  origins, #hash jumps) and `confirmLeave()` for programmatic pushes. Native `confirm` until the
+  wave-5 `ConfirmDialog`. Browser Back/Forward is not intercepted. Dirty = differs from the last
+  saved values (`sameData`); wired into settings (booking rules, timezone, «О клубе»), the tariff
+  form, `EventForm`, announcements (new + edit), video detail (title, description, chapters,
+  subtitle upload/label, back button) and the member profile (`ProfileEditForm`, notes). A new
+  tariff's/announcement's default scope alone does not count as dirty (it loads after mount).
+- Member profile: the abonement panel is not mounted (no request) when a coach below the
+  sport-lead tier opens their own row — `features/subscriptions/panel-access.ts`. Their own
+  profile opens (progress has a self exception) but abonements refuse it; any other out-of-scope
+  member already fails on the profile request, so the panel never mounts there.
+
 ## 6. Stability and performance (P1, P2) — workstream F
 
 | # | Item | Evidence | Change | Pri |
@@ -312,6 +378,43 @@ Apply the UI rules to each page. Concrete targets (evidence in the UX audit, sec
 | F10 | Concurrent edits: last write wins | no `updatedAt`/`If-Match` checks in update-group, plans, settings, announcements | Send `updatedAt`, return 409 when stale, show «Изменено другим пользователем» | P2 |
 | F11 | No client cache: 7 bootstrap calls per page load, duplicates (`get-my-workspaces` 2–3×) | stability audit #11 | In-flight dedupe for bootstrap calls; TanStack Query optional | P2 |
 | F12 | Video preview silently breaks when API `ROOT_URL` ≠ admin `NEXT_PUBLIC_API_URL` (CSP `media-src`) | stability audit #15 | Startup check or derive both from one setting | P2 |
+
+**Decisions (wave 1, F4 + F7):**
+- F4 lives in `apps/admin-e2e` (Playwright, `@playwright/test` pinned to 1.62.1 = Chromium 1234;
+  fresh machine: `npx playwright install chromium`). Not an nx project and no `package.json`, so no
+  workspace/lock entry or nx sync change; run `npm run test:admin-e2e` (= `apps/admin-e2e/run.sh`,
+  extra args go to `playwright test`), typecheck `tsc -p apps/admin-e2e/tsconfig.json`. How to run
+  and what fails a page: `TESTS.md` «Admin smoke e2e».
+- Origins: `ADMIN_E2E_BASE_URL` / `ADMIN_E2E_API_URL` (default `:4200` / `:3000`). The script never
+  starts the API (it needs `DEMO_MODE`, `ADMIN_URL` = admin origin, that origin in `CORS_ORIGINS`;
+  the port variable is `SERVER_PORT`). If nothing answers on the admin origin it builds the admin
+  (`nx build --skip-nx-cache`, `NEXT_PUBLIC_API_URL` = API) and serves a private copy
+  (`dist/admin-e2e/<port>`) with the standalone `server.js` — the Docker artifact; `next start`
+  refuses `output: 'standalone'`. It passes `S3_UPLOAD_BUCKET_URL` / `S3_ACCELERATE_URL` (the
+  per-request CSP needs them, else every thumbnail is blocked), restores the `next-env.d.ts` that
+  `next build` rewrites, and refuses a port held by another app.
+- One test per role in one page (no parallel tabs: a rotated refresh cookie presented twice ends
+  the session). Routes = the rendered sidebar links + `offMenu` + one detail id per list, read
+  with the role's own token. A page is settled when no API request is in flight and no loader is
+  visible for 500 ms; still loading after 15 s (`ADMIN_E2E_STUCK_MS`) = stuck. Sidebar labels are
+  not loaders (the occupancy report is called «Загрузка расписания»). A sidebar link that opens the
+  access-denied notice fails too (no teasers, §1).
+- Role table `apps/admin-e2e/src/role-matrix.ts`: `blocked` (not in the sidebar, refused by URL —
+  notice or redirect; API 403 tolerated there) and `offMenu` (not in the sidebar, still opens).
+  Filled with the §1 tiers as implemented in this wave (head_coach: money/system blocked; coach:
+  sidebar Обзор/Расписание/Участники/Кто пропадает/Отток, lead pages blocked, groups/content/events/
+  cohorts/occupancy off-menu).
+- Exceptions only as listed data in `apps/admin-e2e/src/checks.ts` with a reason
+  (`CONSOLE_ALLOWLIST`, `KNOWN_DEFECTS`); both empty. The suite found two app defects, fixed in
+  this wave: a plain coach's own member page requested abonements (403), and the video page asked
+  for playback of a still-processing video (400; every lesson video on a fresh seed).
+- `scripts/verify.sh`: opt-in step `VERIFY_ADMIN_E2E=1`. CI: job `admin-e2e` — empty database,
+  `prisma db push`, API with `SEED_DEMO_WORKSPACE=true` (both demo clubs are generated before the
+  port opens) and a throwaway `DEMO_LOGIN_CODE`, then `run.sh`. The same recipe passed locally
+  (fresh database, `NODE_ENV=test`, storage unreachable); GitHub Actions itself is out of minutes
+  since 2026-07-07, so the job has not run there.
+- F7: admin `coverageThreshold` 31 / 27 / 23 / 29 (statements / branches / functions / lines),
+  just below the 31.30 / 27.37 / 23.86 / 29.93 measured on the wave-1 tree.
 
 ## 7. Phasing and PR plan
 

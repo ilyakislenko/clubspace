@@ -47,7 +47,9 @@ const makePrisma = () => ({
     },
 })
 
+const OWNER = { roleName: 'admin', userId: 'owner' }
 const ADMIN = { roleName: 'admin', userId: 'adm' }
+const HEAD_COACH = { roleName: 'head_coach', userId: 'hc' }
 const COACH = { roleName: 'coach', userId: 'coach' }
 const MEMBER = { roleName: 'user', userId: 'm' }
 type Who = { roleName: string | null; userId: string }
@@ -76,16 +78,6 @@ describe.each([
             ),
     },
     {
-        name: 'GetCoachAnalyticsHandler',
-        loader: loadCoachReport as jest.Mock,
-        report: { computedAt: null, weeks: 12, coaches: [] },
-        expected: { computedAt: null, weeks: 12, coaches: [] },
-        run: (p: ReturnType<typeof setup>, who: Who, payload = {}) =>
-            new GetCoachAnalyticsHandler(p.prisma as never, p.rbac).execute(
-                new GetCoachAnalyticsFeature(payload, 'ws', who.userId, who.roleName, false),
-            ),
-    },
-    {
         name: 'GetScheduleOccupancyHandler',
         loader: loadOccupancyReport as jest.Mock,
         report: {
@@ -109,16 +101,6 @@ describe.each([
         run: (p: ReturnType<typeof setup>, who: Who, payload = {}) =>
             new GetScheduleOccupancyHandler(p.prisma as never, p.rbac).execute(
                 new GetScheduleOccupancyFeature(payload, 'ws', who.userId, who.roleName, false),
-            ),
-    },
-    {
-        name: 'GetRevenueForecastHandler',
-        loader: loadForecastReport as jest.Mock,
-        report: { computedAt: AT, members: 3 },
-        expected: { computedAt: AT.toISOString(), members: 3 },
-        run: (p: ReturnType<typeof setup>, who: Who, payload = {}) =>
-            new GetRevenueForecastHandler(p.prisma as never, p.rbac).execute(
-                new GetRevenueForecastFeature(payload, 'ws', who.userId, who.roleName, false),
             ),
     },
 ])('$name', ({ loader, report, expected, run }) => {
@@ -165,6 +147,71 @@ describe('GetScheduleOccupancyHandler weeks', () => {
             new GetScheduleOccupancyFeature({ weeks: 4 }, 'ws', 'adm', 'admin', false),
         )
         expect((loadOccupancyReport as jest.Mock).mock.calls[0][1].weeks).toBe(4)
+    })
+})
+
+// Club money: the forecast is for the owner and admins only.
+describe('GetRevenueForecastHandler', () => {
+    const run = (p: ReturnType<typeof setup>, who: Who, payload = {}) =>
+        new GetRevenueForecastHandler(p.prisma as never, p.rbac).execute(
+            new GetRevenueForecastFeature(payload, 'ws', who.userId, who.roleName, false),
+        )
+
+    it.each([
+        ['a head coach', HEAD_COACH],
+        ['a coach', COACH],
+        ['a plain member', MEMBER],
+    ])('refuses %s before reading anything', async (_, who) => {
+        await expect(run(setup(), who)).rejects.toBeInstanceOf(ForbiddenError)
+        expect(loadForecastReport).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ['the owner', OWNER],
+        ['an admin', ADMIN],
+    ])('reads the whole club for %s', async (_, who) => {
+        ;(loadForecastReport as jest.Mock).mockResolvedValue({ computedAt: AT, members: 3 })
+        await expect(run(setup(), who)).resolves.toEqual({
+            computedAt: AT.toISOString(),
+            members: 3,
+        })
+        expect((loadForecastReport as jest.Mock).mock.calls[0][1]).toMatchObject({
+            workspaceId: 'ws',
+            scope: WHOLE,
+        })
+    })
+
+    it('404s on a gym of another club', async () => {
+        await expect(run(setup(), ADMIN, { gymId: 'foreign' })).rejects.toBeInstanceOf(
+            NotFoundError,
+        )
+    })
+})
+
+// Comparing coaches is for sport leads; a coach (a direction manager is one)
+// does not rank colleagues.
+describe('GetCoachAnalyticsHandler', () => {
+    const run = (p: ReturnType<typeof setup>, who: Who) =>
+        new GetCoachAnalyticsHandler(p.prisma as never, p.rbac).execute(
+            new GetCoachAnalyticsFeature({}, 'ws', who.userId, who.roleName, false),
+        )
+
+    it.each([
+        ['a coach', COACH],
+        ['a plain member', MEMBER],
+    ])('refuses %s before reading anything', async (_, who) => {
+        await expect(run(setup(), who)).rejects.toBeInstanceOf(ForbiddenError)
+        expect(loadCoachReport).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ['the owner', OWNER],
+        ['an admin', ADMIN],
+        ['a head coach', HEAD_COACH],
+    ])('reads the whole club for %s', async (_, who) => {
+        ;(loadCoachReport as jest.Mock).mockResolvedValue({ computedAt: null, weeks: 12, coaches: [] })
+        await expect(run(setup(), who)).resolves.toEqual({ computedAt: null, weeks: 12, coaches: [] })
+        expect((loadCoachReport as jest.Mock).mock.calls[0][1].scope).toEqual(WHOLE)
     })
 })
 
@@ -234,6 +281,21 @@ describe('ListChurnRiskHandler', () => {
         expect(own.data[0].canContact).toBe(true)
         ;(loadChurnReport as jest.Mock).mockResolvedValue(report(entry([])))
         expect((await run(setup(), COACH)).data[0].canContact).toBe(false)
+    })
+
+    it('sends the money at stake to the owner and admins only', async () => {
+        const money = { ...report(entry([])), summary: { ...report(entry([])).summary, moneyAtStake: 5000 } }
+        ;(loadChurnReport as jest.Mock).mockResolvedValue(money)
+        for (const who of [OWNER, ADMIN]) {
+            const res = await run(setup(), who)
+            expect(res.data[0].monthlySpend).toBe(5000)
+            expect(res.summary.moneyAtStake).toBe(5000)
+        }
+        for (const who of [HEAD_COACH, COACH]) {
+            const res = await run(setup(), who)
+            expect(res.data[0].monthlySpend).toBeNull()
+            expect(res.summary.moneyAtStake).toBeNull()
+        }
     })
 })
 

@@ -326,7 +326,7 @@ export const memberProfileTool = defineTool({
         })
         const entry = risk[0]
         let unpaid: Record<string, unknown> | null = null
-        if (scope.isAdmin) {
+        if (scope.seesMoney) {
             const debts = await prisma.subscription.findMany({
                 where: { ...awaitingPaymentWhere(scope.workspaceId), workspaceMemberId: member.id },
                 select: { amountPaid: true, currency: true },
@@ -357,7 +357,7 @@ export const memberProfileTool = defineTool({
                     frozenOrFreezePlanned: s.freezes.length > 0,
                     directions: s.directions.map((d) => d.direction.name),
                     isPaid: s.isPaid,
-                    ...(scope.isAdmin ? { amount: s.amountPaid, currency: s.currency } : {}),
+                    ...(scope.seesMoney ? { amount: s.amountPaid, currency: s.currency } : {}),
                 })),
                 attendance: {
                     visits30d,

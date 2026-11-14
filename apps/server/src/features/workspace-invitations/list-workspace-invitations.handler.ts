@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListWorkspaceInvitationsFeature,
@@ -29,7 +29,7 @@ export class ListWorkspaceInvitationsHandler
         roleName,
         isSuperAdmin,
     }: ListWorkspaceInvitationsFeature): Promise<ListWorkspaceInvitationsFeatureResponse> {
-        await assertWorkspaceAdmin(
+        await assertSportLead(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Приглашения видит только администратор клуба',

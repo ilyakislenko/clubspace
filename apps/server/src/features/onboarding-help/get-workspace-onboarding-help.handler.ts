@@ -2,7 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     GetWorkspaceOnboardingHelpFeature,
@@ -22,7 +22,7 @@ export class GetWorkspaceOnboardingHelpHandler
     ) {}
 
     async execute(f: GetWorkspaceOnboardingHelpFeature) {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,

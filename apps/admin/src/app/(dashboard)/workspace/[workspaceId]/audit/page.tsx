@@ -95,7 +95,7 @@ export default function WorkspaceAuditPage() {
         <div>
           <h1 className="text-2xl font-semibold">История изменений</h1>
           <p className="text-sm text-muted-foreground">
-            Кто и что делал в клубе. Только владелец видит этот раздел.
+            Кто и что делал в клубе. Видят владелец и администраторы.
           </p>
         </div>
         <select

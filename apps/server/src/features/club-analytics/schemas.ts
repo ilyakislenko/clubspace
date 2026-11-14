@@ -49,7 +49,8 @@ export const ChurnRiskMemberSchema = z.object({
         }),
     ),
     // Average monthly spend: what the club loses per month if they leave.
-    monthlySpend: z.number().int(),
+    // Club money: null unless the caller is the owner or an admin.
+    monthlySpend: z.number().int().nullable(),
     currency: z.string().nullable(),
     lastVisitAt: z.iso.datetime().nullable(),
     lastContact: z
@@ -69,12 +70,17 @@ export const ChurnRiskSummarySchema = z.object({
     total: z.number().int(),
     high: z.number().int(),
     medium: z.number().int(),
-    moneyAtStake: z.number().int(),
+    // Null unless the caller is the owner or an admin (club money).
+    moneyAtStake: z.number().int().nullable(),
     currency: z.string().nullable(),
     contactedRecently: z.number().int(),
 })
 
-export const serializeChurnRiskMember = (e: ChurnEntry, canContact: boolean) => ({
+export const serializeChurnRiskMember = (
+    e: ChurnEntry,
+    canContact: boolean,
+    seesMoney: boolean,
+) => ({
     userId: e.userId,
     firstname: e.firstname,
     lastname: e.lastname,
@@ -85,7 +91,7 @@ export const serializeChurnRiskMember = (e: ChurnEntry, canContact: boolean) => 
     score: e.score,
     level: e.level,
     reasons: e.reasons,
-    monthlySpend: e.monthlySpend,
+    monthlySpend: seesMoney ? e.monthlySpend : null,
     currency: e.currency,
     lastVisitAt: iso(e.lastVisitAt),
     lastContact: e.lastContact

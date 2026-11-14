@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { MemberSubscriptionPanel } from "../../../../../../features/subscriptions/MemberSubscriptionPanel"
+import { canOpenMemberSubscriptions } from "../../../../../../features/subscriptions/panel-access"
 import { MemberRankPanel } from "../../../../../../features/ranks/MemberRankPanel"
 
 import {
@@ -34,15 +35,18 @@ import {
   formatRelativeDays,
 } from "../../../../../../shared/lib/member-activity"
 import {
+  canActOnRole,
+  isClubAdmin,
   isDirectionManager,
+  isSportLead,
   isStaff,
-  isWorkspaceAdmin,
 } from "../../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../../shared/lib/member-status"
 import { formatPhone } from "../../../../../../shared/lib/phone"
 import { formatRoleName } from "../../../../../../shared/lib/role-labels"
 import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
 import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
+import { fetchMe } from "../../../../../../shared/api/me"
 import {
   featureOn,
   useWorkspaceFeatures,
@@ -64,17 +68,20 @@ const formatPosition = (sec: number): string => {
   return `${m}:${String(s).padStart(2, "0")}`
 }
 
+// App access, not the abonement (the panel below shows those): say «Доступ»
+// in every case so «Нет действующего абонемента» never sits under a bare
+// «Активен» or «Без ограничения».
 const formatAccessLabel = (iso: string | null): string => {
-  if (!iso) return "Без ограничения"
+  if (!iso) return "Доступ без ограничения"
   const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return "Без ограничения"
+  if (Number.isNaN(d.getTime())) return "Доступ без ограничения"
   const expired = d < new Date()
   const fmt = d.toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
     year: "numeric",
   })
-  return expired ? `Истёк ${fmt}` : `Доступ до ${fmt}`
+  return expired ? `Доступ истёк ${fmt}` : `Доступ до ${fmt}`
 }
 
 export default function MemberProgressPage() {
@@ -83,7 +90,10 @@ export default function MemberProgressPage() {
   const workspaceId = params?.workspaceId
   const userId = params?.userId
   const myMembership = useMyMembership(workspaceId)
-  const canManageProfile = isWorkspaceAdmin(myMembership)
+  // Notes, profile and attendance are the sport leads'; roles and tariffs
+  // are the club admins'.
+  const canManageProfile = isSportLead(myMembership)
+  const canAdmin = isClubAdmin(myMembership)
   // Direction managers promote on their directions' ladders (the server lists
   // only those ladders and that rank history to them).
   // The ranks block only where the club has ranks switched on.
@@ -100,6 +110,22 @@ export default function MemberProgressPage() {
   const [savingRole, setSavingRole] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
+  // Who is looking: only needed below the sport-lead tier, where the
+  // abonements of one's own row are out of scope.
+  const [viewerUserId, setViewerUserId] = useState<string | null>(null)
+  const needsViewer = isStaff(myMembership) && !isSportLead(myMembership)
+  useEffect(() => {
+    if (!needsViewer) return
+    let cancelled = false
+    fetchMe()
+      .then((me) => {
+        if (!cancelled) setViewerUserId(me.id)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [needsViewer])
 
   useEffect(() => {
     if (!workspaceId || !userId) return
@@ -109,13 +135,9 @@ export default function MemberProgressPage() {
 
     void (async () => {
       try {
-        const [progress, rolesResp] = await Promise.all([
-          getMemberProgress({ workspaceId, userId }),
-          listRoles({ workspaceId }).catch(() => ({ data: [] as Role[] })),
-        ])
+        const progress = await getMemberProgress({ workspaceId, userId })
         if (cancelled) return
         setData(progress)
-        setRoles(rolesResp.data)
       } catch (err) {
         if (cancelled) return
         setLoadError(
@@ -130,6 +152,18 @@ export default function MemberProgressPage() {
       cancelled = true
     }
   }, [workspaceId, userId])
+
+  // The role list is the club admins' (the server refuses everyone else).
+  useEffect(() => {
+    if (!workspaceId || !canAdmin) return
+    let cancelled = false
+    listRoles({ workspaceId })
+      .then((res) => !cancelled && setRoles(res.data))
+      .catch(() => !cancelled && setRoles([]))
+    return () => {
+      cancelled = true
+    }
+  }, [workspaceId, canAdmin])
 
   // Silent re-read (no skeleton) so the header's access status follows an
   // assignment made in the subscription panel without remounting the panels.
@@ -293,8 +327,13 @@ export default function MemberProgressPage() {
               <span>·</span>
             </>
           )}
-          <span>{memberStatusLabel(member.status)}</span>
-          <span>·</span>
+          {/* The membership's status only when it is not the normal one. */}
+          {member.status !== "ACTIVE" && (
+            <>
+              <span>{memberStatusLabel(member.status)}</span>
+              <span>·</span>
+            </>
+          )}
           <span>{formatRoleName(member.roleName, vocabulary)}</span>
           <span>·</span>
           <span
@@ -324,14 +363,18 @@ export default function MemberProgressPage() {
         />
       </div>
 
-      {!member.isOwner && isStaff(myMembership) && workspaceId && userId && (
-        <MemberSubscriptionPanel
-          workspaceId={workspaceId}
-          userId={userId}
-          isAdmin={canManageProfile}
-          onAssigned={() => void refreshMember()}
-        />
-      )}
+      {!member.isOwner &&
+        workspaceId &&
+        userId &&
+        canOpenMemberSubscriptions(myMembership, viewerUserId, userId) && (
+          <MemberSubscriptionPanel
+            workspaceId={workspaceId}
+            userId={userId}
+            isAdmin={canManageProfile}
+            canCreatePlans={canAdmin}
+            onAssigned={() => void refreshMember()}
+          />
+        )}
 
       {canPromote && workspaceId && userId && (
         <MemberRankPanel workspaceId={workspaceId} userId={userId} />
@@ -359,7 +402,8 @@ export default function MemberProgressPage() {
         <div className="space-y-2 rounded-lg border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">
             <div className="text-sm font-medium">Профиль</div>
-            {!editingProfile && (
+            {/* A staff member's profile is the club admins' to edit. */}
+            {!editingProfile && canActOnRole(myMembership, member.roleName) && (
               <Button
                 type="button"
                 size="sm"
@@ -370,7 +414,7 @@ export default function MemberProgressPage() {
               </Button>
             )}
           </div>
-          {editingProfile ? (
+          {editingProfile && canActOnRole(myMembership, member.roleName) ? (
             <ProfileEditForm
               initial={{
                 firstname: member.firstname ?? "",
@@ -421,14 +465,15 @@ export default function MemberProgressPage() {
         </div>
       )}
 
-      {!member.isOwner && canManageProfile && roles.length > 0 && (
+      {!member.isOwner && canAdmin && roles.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4">
           <div className="text-sm">
             <div className="font-medium">Роль в клубе</div>
             <div className="text-xs text-muted-foreground">
               Определяет доступ к админке: ученик — только мобильное
               приложение, {vocabulary.coach.nom} — свои группы,{" "}
-              {vocabulary.headCoach.nom} и администратор — всё.
+              {vocabulary.headCoach.nom} — участники, группы и расписание
+              всего клуба, администратор — всё, включая деньги и настройки.
             </div>
           </div>
           <div className="ml-auto w-56">

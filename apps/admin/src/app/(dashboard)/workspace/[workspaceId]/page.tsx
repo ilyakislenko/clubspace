@@ -23,7 +23,7 @@ import {
 } from "../../../../features/audit/audit-meta"
 import { AT_RISK_REFRESH_MS } from "../../../../shared/lib/at-risk"
 import { errorMessage } from "../../../../shared/lib/error-message"
-import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
+import { isClubAdmin, isSportLead } from "../../../../shared/lib/permissions"
 import { useThrottledCallback } from "../../../../shared/lib/throttle"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import {
@@ -64,7 +64,10 @@ export default function WorkspaceOverviewPage() {
   const vocabulary = useVocabulary()
   const actionMeta = useMemo(() => actionMetaFor(vocabulary), [vocabulary])
   const workspaceId = params?.workspaceId
-  const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
+  const membership = useMyMembership(workspaceId)
+  // Money & system blocks (onboarding, audit) vs the roster/renewal cards.
+  const canAdmin = isClubAdmin(membership)
+  const canLead = isSportLead(membership)
   // Blocks of a section the club switched off (video at a fitness club,
   // abonements, attendance) are not shown, as the menu hides them.
   const features = useWorkspaceFeatures(workspaceId)
@@ -115,17 +118,17 @@ export default function WorkspaceOverviewPage() {
     ])
   }, [workspaceId])
 
-  // Admin-only endpoint — own effect so the membership resolving doesn't
+  // Sport-lead endpoint — own effect so the membership resolving doesn't
   // re-run the stats/leaderboard load above.
   const loadRenewals = useCallback(async () => {
-    if (!workspaceId || !canAdmin) return
+    if (!workspaceId || !canLead) return
     try {
       const res = await listRenewalCandidates({ workspaceId })
       setRenewalsDue(res.data.length)
     } catch {
       setRenewalsDue(null)
     }
-  }, [workspaceId, canAdmin])
+  }, [workspaceId, canLead])
 
   // Best-effort and visible to all staff (the server scopes it for coaches).
   const loadAtRisk = useCallback(async () => {
@@ -254,7 +257,7 @@ export default function WorkspaceOverviewPage() {
             loading={loading}
             href={`/workspace/${workspaceId}/users`}
           />
-          {canAdmin && showSubscriptions && (
+          {canLead && showSubscriptions && (
             <StatCard
               label="К продлению"
               value={renewalsDue ?? undefined}
@@ -263,7 +266,7 @@ export default function WorkspaceOverviewPage() {
               href={`/workspace/${workspaceId}/subscriptions`}
             />
           )}
-          {canAdmin && pendingCount !== null && (
+          {canLead && pendingCount !== null && (
             <StatCard
               label="Заявки"
               value={pendingCount}
@@ -404,59 +407,55 @@ export default function WorkspaceOverviewPage() {
         {stats && <AttendanceTrend data={stats.attendance.trend} />}
       </section>
 
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium">Последние действия</h2>
-          <Link
-            href={`/workspace/${workspaceId}/audit`}
-            className="text-xs text-primary hover:underline"
-          >
-            Открыть историю →
-          </Link>
-        </div>
-
-        {loading && (
-          <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, idx) => (
-              <div
-                key={idx}
-                className="h-12 animate-pulse rounded-md border border-border bg-muted"
-              />
-            ))}
+      {/* Audit-derived: the server sends it to club admins only, and an
+          empty list renders no block. */}
+      {canAdmin && (loading || (stats?.recentEvents.length ?? 0) > 0) && (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium">Последние действия</h2>
+            <Link
+              href={`/workspace/${workspaceId}/audit`}
+              className="text-xs text-primary hover:underline"
+            >
+              Открыть историю →
+            </Link>
           </div>
-        )}
 
-        {!loading && stats && stats.recentEvents.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Событий пока нет.
-          </p>
-        )}
-
-        {!loading && stats && stats.recentEvents.length > 0 && (
-          <ul className="divide-y divide-border rounded-lg border border-border">
-            {stats.recentEvents.map((event) => (
-              <li
-                key={event.id}
-                className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
-              >
-                <div className="min-w-0">
-                  <div className="font-medium">
-                    {actionMeta[event.action]?.label ?? event.action}
+          {loading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="h-12 animate-pulse rounded-md border border-border bg-muted"
+                />
+              ))}
+            </div>
+          ) : (
+            <ul className="divide-y divide-border rounded-lg border border-border">
+              {stats?.recentEvents.map((event) => (
+                <li
+                  key={event.id}
+                  className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium">
+                      {actionMeta[event.action]?.label ?? event.action}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {formatActor(event)}
+                      {" · "}
+                      {targetTypeLabel(event.targetType)}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatActor(event)}
-                    {" · "}
-                    {targetTypeLabel(event.targetType)}
-                  </div>
-                </div>
-                <time className="text-xs text-muted-foreground">
-                  {formatRelative(event.createdAt)}
-                </time>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                  <time className="text-xs text-muted-foreground">
+                    {formatRelative(event.createdAt)}
+                  </time>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="space-y-2" hidden={!showVideos}>
         <h2 className="text-sm font-medium">Видео</h2>
@@ -468,7 +467,7 @@ export default function WorkspaceOverviewPage() {
               stats ? `${stats.counts.videosReady} готово к просмотру` : undefined
             }
             loading={loading}
-            href={`/workspace/${workspaceId}/videos`}
+            href={`/workspace/${workspaceId}/content`}
           />
           <StatCard
             label="Курсы"
@@ -531,7 +530,7 @@ export default function WorkspaceOverviewPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium">Топ видео за неделю</h2>
           <Link
-            href={`/workspace/${workspaceId}/videos`}
+            href={`/workspace/${workspaceId}/content`}
             className="text-xs text-primary hover:underline"
           >
             Все видео →

@@ -9,7 +9,10 @@ import {
   updateNotificationPreferences,
 } from "../../../../../shared/api/notification-preferences"
 import { errorMessage } from "../../../../../shared/lib/error-message"
-import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
+import {
+  isClubAdmin,
+  visibleNavItems,
+} from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { analyticsSections } from "./sections"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
@@ -19,7 +22,9 @@ export default function AnalyticsOverviewPage() {
   const params = useParams<{ workspaceId: string }>()
   const vocabulary = useVocabulary()
   const workspaceId = params?.workspaceId
-  const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
+  const membership = useMyMembership(workspaceId)
+  // The digest goes to the club admins (see analytics-digest.service).
+  const canAdmin = isClubAdmin(membership)
 
   return (
     <div className="space-y-6">
@@ -34,7 +39,7 @@ export default function AnalyticsOverviewPage() {
       {canAdmin && <DigestToggle />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {analyticsSections(vocabulary).map((s) => (
+        {visibleNavItems(analyticsSections(vocabulary), membership).map((s) => (
           <Link
             key={s.path}
             href={`/workspace/${workspaceId}/analytics/${s.path}`}

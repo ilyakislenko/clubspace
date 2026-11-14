@@ -18,6 +18,8 @@ import {
 
 import { createCategory, type CategoryResponse } from "../../shared/api/categories"
 import { errorMessage } from "../../shared/lib/error-message"
+import { isClubAdmin } from "../../shared/lib/permissions"
+import { useMyMembership } from "../../shared/lib/use-my-membership"
 import { readTrialLimit } from "../billing/billing-view"
 import { type PlaylistResponse } from "../../shared/api/playlists"
 import { createTag, type TagResponse } from "../../shared/api/tags"
@@ -76,6 +78,8 @@ export function VideoUploadSheet({
   onTagCreated,
   onCategoryCreated,
 }: Props) {
+  // «Тариф» (the ClubSpace plan) is the club admins' page.
+  const canOpenBilling = isClubAdmin(useMyMembership(workspaceId))
   const router = useRouter()
 
   const [videoTitle, setVideoTitle] = useState("")
@@ -696,7 +700,7 @@ export function VideoUploadSheet({
                   }
                 >
                   {uploadState.message}
-                  {uploadState.trialLimit && (
+                  {uploadState.trialLimit && canOpenBilling && (
                     <>
                       {" "}
                       <Link

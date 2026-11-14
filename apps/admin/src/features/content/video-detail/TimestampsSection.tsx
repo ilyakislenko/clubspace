@@ -5,6 +5,7 @@ import { useState } from "react"
 import { Button, Input, Label } from "@clubspace/ui-kit/ui"
 
 import { errorMessage } from "../../../shared/lib/error-message"
+import { useDirtyGuard } from "../../../shared/lib/use-dirty-guard"
 import {
   createVideoTimestamp,
   deleteVideoTimestamp,
@@ -77,6 +78,20 @@ export function TimestampsSection({
     title: string
   } | null>(null)
   const [editSaving, setEditSaving] = useState(false)
+
+  // Unsaved: a new chapter being typed, or an open edit that differs from
+  // the stored chapter.
+  const editedChapter = editing
+    ? timestamps.find((ts) => ts.id === editing.id)
+    : undefined
+  useDirtyGuard(
+    tsPosition.trim() !== "" ||
+      tsTitle.trim() !== "" ||
+      (editing !== null &&
+        editedChapter !== undefined &&
+        (editing.position !== formatTimestamp(editedChapter.positionSec) ||
+          editing.title !== editedChapter.title)),
+  )
 
   // The time and title typed, checked; null (after reporting why) if not.
   const validDraft = (

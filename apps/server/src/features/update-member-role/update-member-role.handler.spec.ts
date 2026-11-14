@@ -128,8 +128,8 @@ describe('UpdateMemberRoleHandler', () => {
         expect(audit.record).not.toHaveBeenCalled()
     })
 
-    it.each(['coach', 'user', null])(
-        'refuses a %s caller (not a workspace admin)',
+    it.each(['head_coach', 'coach', 'user', null])(
+        'refuses a %s caller (roles are the club admins\u2019 call)',
         async (roleName) => {
             const { handler, prisma } = build()
             await expect(run(handler, { roleName })).rejects.toThrow(
@@ -139,39 +139,16 @@ describe('UpdateMemberRoleHandler', () => {
         },
     )
 
-    describe('role hierarchy', () => {
-        it.each(['admin', 'head_coach'])(
-            'refuses a head_coach granting %s',
-            async (granted) => {
-                const { handler, prisma } = build({ role: role(granted) })
-                await expect(
-                    run(handler, { roleName: 'head_coach' }),
-                ).rejects.toThrow(ForbiddenError)
-                expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
-            },
-        )
-
-        it.each(['admin', 'head_coach'])(
-            'refuses a head_coach demoting a member who is %s',
-            async (current) => {
-                const { handler, prisma } = build({
-                    currentRole: current,
-                    role: role('user'),
-                })
-                await expect(
-                    run(handler, { roleName: 'head_coach' }),
-                ).rejects.toThrow(ForbiddenError)
-                expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
-            },
-        )
-
-        it('lets a head_coach move a member between coach and student', async () => {
+    describe('who grants roles', () => {
+        it('refuses a head_coach even moving a member between student and coach', async () => {
             const { handler, prisma } = build({
                 currentRole: 'user',
                 role: role('coach'),
             })
-            await run(handler, { roleName: 'head_coach' })
-            expect(prisma.workspaceMember.update).toHaveBeenCalled()
+            await expect(run(handler, { roleName: 'head_coach' })).rejects.toThrow(
+                'Менять роли может только владелец или администратор клуба',
+            )
+            expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
         })
 
         it('lets an admin grant admin', async () => {
@@ -214,16 +191,21 @@ describe('UpdateMemberRoleHandler', () => {
         expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
     })
 
-    it('refuses demoting the workspace owner below admin level', async () => {
-        const { handler, prisma } = build({ ownerId: 'target' })
-        await expect(run(handler)).rejects.toThrow(BadRequestError)
-        expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
-    })
+    // The owner is a club admin: their row stays 'admin' (head coach is a
+    // sport role below that).
+    it.each(['coach', 'head_coach'])(
+        'refuses moving the workspace owner to %s',
+        async (name) => {
+            const { handler, prisma } = build({ ownerId: 'target', role: role(name) })
+            await expect(run(handler)).rejects.toThrow(BadRequestError)
+            expect(prisma.workspaceMember.update).not.toHaveBeenCalled()
+        },
+    )
 
-    it('lets the owner keep an admin-level role', async () => {
+    it('lets the owner keep the admin role', async () => {
         const { handler, prisma } = build({
             ownerId: 'target',
-            role: role('head_coach'),
+            role: role('admin'),
         })
         await run(handler)
         expect(prisma.workspaceMember.update).toHaveBeenCalled()

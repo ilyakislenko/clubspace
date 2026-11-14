@@ -16,7 +16,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { Roles, CLUB_ADMINS } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -74,7 +74,7 @@ export class DirectionsController {
     }
 
     @Post()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: DirectionOutputDto })
     async createDirection(
         @Param('workspaceId') workspaceId: string,
@@ -96,7 +96,7 @@ export class DirectionsController {
     }
 
     @Patch(':directionId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: DirectionOutputDto })
     async updateDirection(
         @Param('workspaceId') workspaceId: string,
@@ -120,7 +120,7 @@ export class DirectionsController {
     }
 
     @Delete(':directionId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: DeleteDirectionOutput })
     async deleteDirection(
         @Param('workspaceId') workspaceId: string,

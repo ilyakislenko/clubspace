@@ -217,16 +217,16 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
   // their directions. A plain coach: reads their own groups only.
   const canManageGroup = useCallback(
     (g: { direction: { id: string } | null }) =>
-      scope.isAdmin || (scope.isDirectionManager && !!g.direction && scope.canManageDirection(g.direction.id)),
+      scope.isSportLead || (scope.isDirectionManager && !!g.direction && scope.canManageDirection(g.direction.id)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scope.isAdmin, scope.isDirectionManager, scope.managedDirectionIds],
+    [scope.isSportLead, scope.isDirectionManager, scope.managedDirectionIds],
   )
   const ownGroupIds = useMemo(() => {
-    if (scope.isAdmin || scope.isDirectionManager) return null
+    if (scope.isSportLead || scope.isDirectionManager) return null
     return new Set(
       groups.filter((g) => meId && g.coaches.some((c) => c.userId === meId)).map((g) => g.id),
     )
-  }, [scope.isAdmin, scope.isDirectionManager, groups, meId])
+  }, [scope.isSportLead, scope.isDirectionManager, groups, meId])
   const creatableGroups = useMemo(() => groups.filter((g) => canManageGroup(g)), [groups, canManageGroup])
   // A cell of a hall column offers only that hall's groups.
   const createGroups = useMemo(

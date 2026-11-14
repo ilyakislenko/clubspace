@@ -38,7 +38,7 @@ const run = (
     handler: CreateClubLogoUploadHandler,
     who: { userId: string; roleName: string | null } = {
         userId: 'admin1',
-        roleName: 'head_coach',
+        roleName: 'admin',
     },
 ) =>
     handler.execute(
@@ -52,12 +52,20 @@ const run = (
     )
 
 describe('createClubLogoUpload', () => {
-    it.each(['coach', 'user'])('refuses a %s', async (roleName) => {
+    // The head coach runs the sport side (every group writable) but the
+    // public page is club-admin (owner/admin) territory.
+    it.each(['head_coach', 'coach', 'user'])('refuses a %s', async (roleName) => {
         const { handler, files } = build()
         await expect(
             run(handler, { userId: 'u1', roleName }),
         ).rejects.toBeInstanceOf(ForbiddenError)
         expect(files.getPresignedPutUrl).not.toHaveBeenCalled()
+    })
+
+    it('lets the owner sign an upload, whatever their member row says', async () => {
+        const { handler, files } = build()
+        await run(handler, { userId: 'owner', roleName: 'head_coach' })
+        expect(files.getPresignedPutUrl).toHaveBeenCalledTimes(1)
     })
 
     it('404s when the club is gone', async () => {

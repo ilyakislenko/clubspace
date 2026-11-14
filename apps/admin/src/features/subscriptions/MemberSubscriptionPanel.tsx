@@ -15,17 +15,22 @@ import {
   type MemberAbonement,
   type MemberSubscriptions,
   type Plan,
+  type Subscription,
 } from "../../shared/api/subscriptions"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
 import { pluralRu } from "../../shared/lib/plural-ru"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { DirectionScopeChips } from "../directions/DirectionScopePicker"
+import {
+  ABONEMENT_STATE_LABEL,
+  abonementState,
+  isLiveState,
+} from "./abonement-state"
 import { FreezeHistory } from "./FreezeHistory"
 import {
   addDaysYmd,
   formatDay,
-  freezePhase,
   openFreezeOf,
   todayYmd,
 } from "./freeze-utils"
@@ -48,15 +53,6 @@ import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { agree, countForm, fromFirstSession } from "@clubspace/ui-kit/brand"
 
-const STATUS_LABEL: Record<string, string> = {
-  ACTIVE: "Активен",
-  SUSPENDED: "Приостановлен",
-  CANCELLED: "Отменён",
-  EXPIRED: "Истёк",
-}
-
-const statusLabel = (status: string): string => STATUS_LABEL[status] ?? status
-
 const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString("ru-RU") : "—"
 
@@ -71,11 +67,14 @@ export function MemberSubscriptionPanel({
   workspaceId,
   userId,
   isAdmin,
+  canCreatePlans,
   onAssigned,
 }: {
   workspaceId: string
   userId: string
   isAdmin: boolean
+  // Tariffs are the club admins' (the «Тарифы» page is theirs only).
+  canCreatePlans: boolean
   // Notified after an assignment so the parent can refresh accessUntil.
   onAssigned?: () => void
 }) {
@@ -214,20 +213,15 @@ export function MemberSubscriptionPanel({
     onAssigned?.()
   }
 
-  const today = todayYmd(new Date())
+  const now = new Date()
+  const today = todayYmd(now)
   const canManage = subs?.permissions.canManage ?? false
   const canCancel = subs?.permissions.canCancel ?? false
   const canUnmarkPayment = subs?.permissions.canUnmarkPayment ?? false
   const openFreezeOfAbonement = (id: string) =>
     subs ? openFreezeOf(subs.freezes, id, today) : null
-  const frozenNowIds = new Set(
-    abonements
-      .filter((a) => {
-        const f = openFreezeOfAbonement(a.id)
-        return f !== null && freezePhase(f, today) === "current"
-      })
-      .map((a) => a.id),
-  )
+  const stateOf = (s: Subscription) =>
+    abonementState(s, subs?.freezes ?? [], now)
   // A coach's sale date is capped by the same-scope abonement it renews.
   const renewFrom = selectedPlan
     ? renewFromForPlan(selectedPlan, abonements)
@@ -243,18 +237,24 @@ export function MemberSubscriptionPanel({
   const renderAbonement = (a: MemberAbonement) => {
     const freeze = openFreezeOfAbonement(a.id)
     const classes = classesLabel(a)
+    const state = stateOf(a)
+    const stateLine =
+      state === "frozen" && freeze
+        ? `Заморожен по ${formatDay(freeze.untilDate)}`
+        : state === "upcoming" && isPending(a)
+          ? `Начнётся ${fromFirstSession(vocabulary)}`
+          : state === "upcoming"
+            ? `Начнётся ${fmtDate(a.startDate)} · до ${fmtDate(a.endDate)}`
+            : a.endDate
+              ? `${ABONEMENT_STATE_LABEL[state]} · до ${fmtDate(a.endDate)}`
+              : ABONEMENT_STATE_LABEL[state]
     return (
       <li key={a.id} className="space-y-2 px-3 py-3">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="font-medium">{a.planName}</span>
           <DirectionScopeChips directions={a.directions} />
           <span className="text-muted-foreground">
-            {frozenNowIds.has(a.id) && freeze
-              ? `Заморожен по ${formatDay(freeze.untilDate)}`
-              : statusLabel(a.status)}{" "}
-            {isPending(a)
-              ? `· начнётся ${fromFirstSession(vocabulary)}`
-              : `· до ${fmtDate(a.endDate)}`}
+            {stateLine}
             {classes ? ` · ${classes}` : ""}
           </span>
         </div>
@@ -287,7 +287,7 @@ export function MemberSubscriptionPanel({
               Продлить
             </Button>
           )}
-          {canCancel && a.status === "ACTIVE" && (
+          {canCancel && isLiveState(state) && (
             <Button
               variant="outline"
               size="sm"
@@ -348,7 +348,7 @@ export function MemberSubscriptionPanel({
 
       {subs && canManage && plans.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          {isAdmin ? (
+          {canCreatePlans ? (
             <>
               В клубе нет тарифов.{" "}
               <Link
@@ -457,9 +457,7 @@ export function MemberSubscriptionPanel({
               <span className="min-w-0">
                 {s.planName} · {periodLabel(s, vocabulary)} ·{" "}
                 <span className="text-muted-foreground">
-                  {frozenNowIds.has(s.id)
-                    ? "Заморожен"
-                    : statusLabel(s.status)}
+                  {ABONEMENT_STATE_LABEL[stateOf(s)]}
                 </span>
                 {!s.isPaid && s.status !== "CANCELLED" && (
                   <span className="text-amber-700"> · ожидает оплаты</span>
@@ -490,17 +488,6 @@ export function MemberSubscriptionPanel({
                     >
                       Отменить отметку оплаты
                     </button>
-                  )}
-                {canCancel &&
-                  s.status === "ACTIVE" &&
-                  !currentIds.has(s.id) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void cancel(s.id)}
-                    >
-                      Отменить
-                    </Button>
                   )}
               </span>
             </li>

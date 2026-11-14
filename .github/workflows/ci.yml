@@ -327,6 +327,112 @@ jobs:
       - name: Run e2e suite
         run: npm run test:e2e -- --skip-nx-cache --output-style=stream
 
+  # The admin smoke e2e (apps/admin-e2e, TESTS.md «Admin smoke e2e»): the real
+  # API seeds both demo clubs into an empty database at boot, run.sh builds and
+  # starts the admin in production mode, Playwright signs in as owner, admin,
+  # head_coach and coach and walks every route each one can see.
+  admin-e2e:
+    name: E2E (admin smoke)
+    runs-on: ubuntu-latest
+    needs: install
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/clubspace_admin_e2e
+      SERVER_PORT: '3000'
+      # The session is an HttpOnly cookie the API issues only to its own admin.
+      ADMIN_URL: http://localhost:4200
+      CORS_ORIGINS: http://localhost:4200
+      # Demo clubs ACADEMY and «Ритм», created at boot (docs/demo.md). The code
+      # opens only this throwaway database's generated accounts.
+      DEMO_MODE: 'true'
+      DEMO_WORKSPACE_KEY: academy-demo
+      DEMO_LOGIN_CODE: '470918'
+      SEED_DEMO_WORKSPACE: 'true'
+      ADMIN_E2E_BASE_URL: http://localhost:4200
+      ADMIN_E2E_API_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: tree:0
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Restore deps cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/server/src/infrastructure/prisma/generated
+            libs/prisma-client/src/generated
+          key: deps-${{ runner.os }}-${{ github.sha }}
+
+      - name: Install (fallback if cache miss)
+        run: |
+          if [ ! -d node_modules ]; then
+            npm ci
+            npx prisma generate --schema=apps/server/prisma/schema.prisma
+          fi
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      # Creates the database too; it is empty, so there is no data loss to accept.
+      - name: Create the schema
+        run: npx prisma db push --config apps/server/prisma.config.ts
+
+      - name: Build the API
+        run: npx nx build @clubspace/server --skip-sync
+
+      # Demo seeding runs in onApplicationBootstrap, before the port opens, so
+      # a healthy /healthz means both clubs exist.
+      - name: Start the API
+        run: |
+          node dist/apps/server/main.js > api.log 2>&1 &
+          for _ in $(seq 1 90); do
+            curl -sf http://localhost:3000/healthz >/dev/null && exit 0
+            sleep 2
+          done
+          cat api.log
+          exit 1
+
+      - name: Run the admin smoke suite
+        run: bash apps/admin-e2e/run.sh
+
+      - name: Upload report and API log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-e2e
+          path: |
+            test-output/admin-e2e
+            api.log
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

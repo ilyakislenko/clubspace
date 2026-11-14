@@ -3,7 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { SubscriptionService } from '../../domains/subscriptions/services/subscription.service'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import { serializeSubscription } from './schemas'
 import {
@@ -27,7 +27,7 @@ export class UnmarkSubscriptionPaidHandler
     ) {}
 
     async execute(f: UnmarkSubscriptionPaidFeature) {
-        await assertWorkspaceAdmin(
+        await assertSportLead(
             this.rbac,
             {
                 userId: f.invokerUserId,

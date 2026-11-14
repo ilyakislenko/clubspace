@@ -16,7 +16,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { Roles, CLUB_ADMINS } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -65,7 +65,7 @@ export class PaymentsController {
     }
 
     @Get()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: ListPaymentsOutput })
     async listPayments(
         @Param('workspaceId') workspaceId: string,
@@ -84,7 +84,7 @@ export class PaymentsController {
     }
 
     @Post(':paymentId/refund')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: RefundPaymentOutput })
     async refundPayment(
         @Param('workspaceId') workspaceId: string,

@@ -9,7 +9,7 @@ import {
 } from '../../shared/decorators/current-user.decorator'
 import {
     Roles,
-    WORKSPACE_ADMINS,
+    CLUB_ADMINS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -38,7 +38,7 @@ class UpdateClubAboutOutputDto extends createZodDto(
 
 // Reads (GET) are open to any workspace member — contacts and rules are for
 // students — including one whose access has expired: the lock screen shows the
-// club's contacts. The write is workspace-admin only.
+// club's contacts. The write is club-admin only (owner, admin).
 @Controller('workspaces/:workspaceId/about')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class ClubAboutController {
@@ -55,7 +55,7 @@ export class ClubAboutController {
     }
 
     @Put()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: UpdateClubAboutOutputDto })
     async updateClubAbout(
         @Param('workspaceId') workspaceId: string,

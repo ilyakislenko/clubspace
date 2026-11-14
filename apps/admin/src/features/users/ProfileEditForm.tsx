@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react"
 
 import { Button, Input, Label } from "@clubspace/ui-kit/ui"
+import { useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 
 type Props = {
@@ -42,6 +43,7 @@ export function ProfileEditForm({
     (initial.email !== undefined &&
       email.trim().toLowerCase() !== initial.email.toLowerCase()) ||
     (initial.phone !== undefined && phone.trim() !== initial.phone)
+  useDirtyGuard(dirty)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()

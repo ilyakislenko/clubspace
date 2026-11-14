@@ -30,7 +30,7 @@ import {
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { cap } from "@clubspace/ui-kit/brand"
-import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
+import { isSportLead } from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 import { groupOptionLabel } from "../../../../../shared/lib/group-label"
@@ -171,7 +171,7 @@ export function AnalyticsFreshness({
   computedAt: string | null | undefined
   onRefreshed: () => void | Promise<void>
 }) {
-  const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
+  const canAdmin = isSportLead(useMyMembership(workspaceId))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

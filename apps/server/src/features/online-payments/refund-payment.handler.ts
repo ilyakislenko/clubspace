@@ -8,7 +8,7 @@ import { PaymentGatewayError } from '../../domains/payments/payment-gateway.type
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     NotFoundError,
@@ -43,7 +43,7 @@ export class RefundPaymentHandler
     ) {}
 
     async execute(f: RefundPaymentFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        await assertClubAdmin(this.rbac, {
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,

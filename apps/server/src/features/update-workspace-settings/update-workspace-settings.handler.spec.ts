@@ -70,7 +70,9 @@ const run = (
     )
 
 describe('updateWorkspaceSettings', () => {
-    it.each(['coach', 'user'])(
+    // Settings are club-admin (owner/admin) territory: the head coach runs
+    // every group of the sport side and is still refused.
+    it.each(['head_coach', 'coach', 'user'])(
         'refuses a %s and writes nothing',
         async (roleName) => {
             const { handler, update, record } = build()
@@ -86,15 +88,18 @@ describe('updateWorkspaceSettings', () => {
         },
     )
 
-    it('lets the owner (no member row) change settings', async () => {
-        const { handler, update } = build()
-        await run(
-            handler,
-            { joinAutoApprove: true },
-            { userId: 'owner', roleName: null },
-        )
-        expect(update).toHaveBeenCalled()
-    })
+    it.each([null, 'head_coach'])(
+        'lets the owner change settings, whatever their member row says (%s)',
+        async (roleName) => {
+            const { handler, update } = build()
+            await run(
+                handler,
+                { joinAutoApprove: true },
+                { userId: 'owner', roleName },
+            )
+            expect(update).toHaveBeenCalled()
+        },
+    )
 
     it('applies a single feature-flag toggle and touches nothing else', async () => {
         const { handler, update } = build()

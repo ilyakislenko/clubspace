@@ -5,8 +5,9 @@ import { useParams } from 'next/navigation';
 import { AiChat } from '../../../../../features/ai-chat/AiChat';
 
 // «ИИ-ассистент» (Аналитика): a chat with the club's data — streaming answers,
-// tool progress, links to members, groups and abonements. Admins and
-// руководители направлений (the server scopes the data).
+// tool progress, links to members, groups and abonements. Sport leads and
+// руководители направлений (the server scopes the data and keeps the money
+// tools for club admins).
 export default function AiAssistantPage() {
   const params = useParams<{ workspaceId: string }>();
   const workspaceId = params?.workspaceId;

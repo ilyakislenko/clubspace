@@ -16,7 +16,7 @@ const WS = {
 }
 
 const build = (
-    o: { denied?: boolean; ws?: unknown; found?: Partial<Record<string, boolean>> } = {},
+    o: { ws?: unknown; found?: Partial<Record<string, boolean>> } = {},
 ) => {
     const hit = (key: string) =>
         jest.fn().mockResolvedValue(o.found?.[key] ? { id: key } : null)
@@ -40,9 +40,18 @@ const build = (
                 .mockResolvedValue(o.found?.payments ? { workspaceId: 'w1' } : null),
         },
     }
+    // The setup checklist is club-admin (owner/admin) only; a head coach
+    // resolves to the sport-lead 'admin' scope and is still refused.
     const rbac = {
-        resolveCoachScope: jest.fn().mockResolvedValue({ scope: 'admin' }),
-        canWriteAllGroups: jest.fn().mockReturnValue(!o.denied),
+        resolveCoachScope: jest
+            .fn()
+            .mockImplementation(async (p: { userId: string; workspaceId: string }) => ({
+                scope: 'admin',
+                userId: p.userId,
+                workspaceId: p.workspaceId,
+                workspaceOwnerId: 'owner',
+            })),
+        canWriteAllGroups: jest.fn().mockReturnValue(true),
     }
     const handler = new GetWorkspaceOnboardingHandler(
         prisma as never,
@@ -51,14 +60,22 @@ const build = (
     return { handler, prisma }
 }
 
-const run = (handler: GetWorkspaceOnboardingHandler) =>
-    handler.execute(new GetWorkspaceOnboardingFeature('w1', 'u1', 'admin', false))
+const run = (handler: GetWorkspaceOnboardingHandler, userId = 'u1', role = 'admin') =>
+    handler.execute(new GetWorkspaceOnboardingFeature('w1', userId, role, false))
 
 describe('GetWorkspaceOnboardingHandler', () => {
-    it('refuses a coach', async () => {
-        const { handler, prisma } = build({ denied: true })
-        await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
+    it('refuses a head coach, even with every group in scope', async () => {
+        const { handler, prisma } = build()
+        await expect(run(handler, 'u1', 'head_coach')).rejects.toBeInstanceOf(ForbiddenError)
         expect(prisma.gym.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('shows the owner the checklist, whatever their member row says', async () => {
+        const { handler } = build()
+        await expect(run(handler, 'owner', 'head_coach')).resolves.toMatchObject({
+            doneCount: 0,
+            total: 7,
+        })
     })
 
     it('404s on a missing club', async () => {

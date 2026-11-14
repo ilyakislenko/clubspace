@@ -62,7 +62,7 @@ describe('club owner access', () => {
     // a way into somebody else's club.
     // AuthGuard takes the role from the member row first; an owner whose row
     // says coach (promoted before ownership transfer raised roles) must still
-    // reach WORKSPACE_ADMINS routes of their own club.
+    // reach CLUB_ADMINS routes of their own club.
     it('lets an owner whose membership row is a coach use admin-only routes', async () => {
         const { workspace, owner } = await createWorkspace(ctx, {
             ownerMembership: false,

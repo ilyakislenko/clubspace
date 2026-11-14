@@ -33,9 +33,9 @@ export const toolSuccess = (data: Record<string, unknown>): ToolCallResult => ({
     isError: false,
 })
 
-// A direction manager's scope doesn't list the money tools.
+// Money tools are listed for a club admin's access only (owner, admin).
 export const visibleReadTools = (access: AiAccess): McpTool[] =>
-    MCP_READ_TOOLS.filter((t) => access.directionIds === null || !t.adminOnly)
+    MCP_READ_TOOLS.filter((t) => access.isClubAdmin || !t.adminOnly)
 
 export type ToolDeps = {
     prisma: PrismaService
@@ -64,7 +64,7 @@ export const checkToolArgs = (
     args: Record<string, unknown>,
     access: AiAccess,
 ): { data: Record<string, unknown> } | { error: ToolCallResult } => {
-    if (tool.adminOnly && access.directionIds !== null) {
+    if (tool.adminOnly && !access.isClubAdmin) {
         return { error: toolError(ADMIN_ONLY_TOOL_MESSAGE) }
     }
     const parsed = tool.input.safeParse(args)

@@ -9,7 +9,8 @@ import {
     WorkspaceInvitationService,
 } from '../../domains/workspace/services/workspace-invitation.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
+import { assertCanManageRoles } from '../../shared/access/role-hierarchy'
 import {
     BadRequestError,
     ConflictError,
@@ -46,10 +47,19 @@ export class InviteWorkspaceMemberHandler
         roleName,
         isSuperAdmin,
     }: InviteWorkspaceMemberFeature) {
-        await assertWorkspaceAdmin(
+        const ctx = await assertSportLead(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Приглашать участников может только администратор клуба',
+        )
+        // A sport lead invites students and parents; staff are the club admins' call.
+        await assertCanManageRoles(
+            this.prisma,
+            ctx,
+            { roleName, isSuperAdmin },
+            [payload.role],
+            (v) =>
+                `Пригласить ${v.coach.acc}, ${v.headCoach.acc} или администратора может только владелец или администратор клуба`,
         )
 
         const workspace = await this.prisma.workspace.findUnique({

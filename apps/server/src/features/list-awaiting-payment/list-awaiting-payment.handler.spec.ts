@@ -1,10 +1,10 @@
 // Authorization is covered by the assert-admin-scope tests; stub it so these
 // specs focus on the query and the mapping.
 jest.mock('../../shared/access/assert-admin-scope', () => ({
-    assertWorkspaceAdmin: jest.fn().mockResolvedValue(undefined),
+    assertSportLead: jest.fn().mockResolvedValue(undefined),
 }))
 
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import { ForbiddenError } from '../../shared/errors/shared.errors'
 import { awaitingPaymentWhere } from '../get-workspace-stats/revenue'
 import { ListAwaitingPaymentFeature } from './list-awaiting-payment.feature'
@@ -51,7 +51,7 @@ const run = (
 
 describe('listAwaitingPayment', () => {
     it('refuses a non-admin (coach) before touching the table', async () => {
-        ;(assertWorkspaceAdmin as jest.Mock).mockRejectedValueOnce(
+        ;(assertSportLead as jest.Mock).mockRejectedValueOnce(
             new ForbiddenError({ message: 'nope' }),
         )
         const { prisma, result } = run([], 'coach')

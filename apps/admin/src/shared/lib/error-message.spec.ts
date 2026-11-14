@@ -46,6 +46,40 @@ describe("errorMessage", () => {
     expect(errorMessage("oops", "запасной")).toBe("запасной")
   })
 
+  it("turns an unanswered request into a Russian connection message", () => {
+    const offline = Object.assign(new Error("Network Error"), {
+      isAxiosError: true,
+      code: "ERR_NETWORK",
+      request: {},
+    })
+    expect(errorMessage(offline, "запасной")).toBe(
+      "Нет связи с сервером. Проверьте интернет и повторите.",
+    )
+    const timeout = Object.assign(new Error("timeout of 10000ms exceeded"), {
+      isAxiosError: true,
+      code: "ECONNABORTED",
+      request: {},
+    })
+    expect(errorMessage(timeout)).toBe(
+      "Нет связи с сервером. Проверьте интернет и повторите.",
+    )
+    expect(errorMessage(new Error("Network Error"))).toBe(
+      "Нет связи с сервером. Проверьте интернет и повторите.",
+    )
+    expect(errorMessage(new TypeError("Failed to fetch"))).toBe(
+      "Нет связи с сервером. Проверьте интернет и повторите.",
+    )
+  })
+
+  it("does not call an aborted request a connection problem", () => {
+    const aborted = Object.assign(new Error("canceled"), {
+      isAxiosError: true,
+      code: "ERR_CANCELED",
+      request: {},
+    })
+    expect(errorMessage(aborted, "запасной")).toBe("запасной")
+  })
+
   it("uses the fallback for null", () => {
     expect(errorMessage(null, "запасной")).toBe("запасной")
   })

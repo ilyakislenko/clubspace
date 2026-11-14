@@ -4,14 +4,30 @@ import {
   Repeat,
   TrendingUp,
   UserCheck,
+  type LucideIcon,
 } from "lucide-react"
 
 import { cap, type ClubVocabulary } from "@clubspace/ui-kit/brand"
 
+import type { Access } from "../../../../../shared/lib/permissions"
+
+type AnalyticsSection = {
+  key: string
+  label: string
+  title: string
+  description: string
+  icon: LucideIcon
+  path: string
+  // Who sees the section (sidebar + overview card); matches the server tier.
+  access: Access
+}
+
 // «Аналитика» sub-pages: the sidebar group and the overview cards read the
-// same list. Every staff role sees them; the server scopes the numbers. The
+// same list, filtered by `access`; the server scopes the numbers. The
 // coaches page is named in the club's words («Тренеры» or «Педагоги»).
-export const analyticsSections = (vocabulary: ClubVocabulary) => [
+export const analyticsSections = (
+  vocabulary: ClubVocabulary,
+): AnalyticsSection[] => [
   {
     key: "analytics-churn",
     label: "Кому позвонить",
@@ -20,6 +36,7 @@ export const analyticsSections = (vocabulary: ClubVocabulary) => [
       "Ученики с риском ухода, причины и сколько денег на кону. Отметьте звонок — список обновится.",
     icon: PhoneCall,
     path: "churn",
+    access: "staff",
   },
   {
     key: "analytics-cohorts",
@@ -29,6 +46,7 @@ export const analyticsSections = (vocabulary: ClubVocabulary) => [
       "Сколько новичков каждого месяца ходят через 1, 2, 3 и 6 месяцев.",
     icon: Repeat,
     path: "cohorts",
+    access: "lead",
   },
   {
     key: "analytics-occupancy",
@@ -38,6 +56,7 @@ export const analyticsSections = (vocabulary: ClubVocabulary) => [
       "Тепловая карта залов, слабые и сильные слоты и что поменять в расписании.",
     icon: CalendarClock,
     path: "occupancy",
+    access: "lead",
   },
   {
     key: "analytics-coaches",
@@ -46,6 +65,7 @@ export const analyticsSections = (vocabulary: ClubVocabulary) => [
     description: `Активные ученики, удержание, продления и посещаемость по каждому ${vocabulary.coach.dat}.`,
     icon: UserCheck,
     path: "coaches",
+    access: "sportLead",
   },
   {
     key: "analytics-forecast",
@@ -55,5 +75,6 @@ export const analyticsSections = (vocabulary: ClubVocabulary) => [
       "Ожидаемые продления на 30 и 90 дней, риск потерь и конверсия пробных.",
     icon: TrendingUp,
     path: "forecast",
+    access: "clubAdmin",
   },
 ]

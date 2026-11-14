@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
-import { WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { CLUB_ADMINS } from '../../shared/decorators/roles.decorator'
 import { escapeHtml } from '../../shared/utils/escape-html'
 import { NotificationProducerService } from '../notifications/services/notification-producer.service'
 import { NotificationsService } from '../notifications/services/notifications.service'
@@ -75,7 +75,7 @@ export class AnalyticsDigestService {
                 where: {
                     workspaceId: ws.id,
                     status: 'ACTIVE',
-                    role: { name: { in: WORKSPACE_ADMINS } },
+                    role: { name: { in: CLUB_ADMINS } },
                 },
                 select: { userId: true },
             }),

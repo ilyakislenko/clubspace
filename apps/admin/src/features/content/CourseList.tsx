@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 import { Button } from "@clubspace/ui-kit/ui"
 
@@ -21,8 +21,6 @@ export function CourseList({
   onEdit,
   onDelete,
 }: Props) {
-  const router = useRouter()
-
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-end">
@@ -37,13 +35,8 @@ export function CourseList({
             key={playlist.id}
             className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-muted/40"
           >
-            <button
-              type="button"
-              onClick={() =>
-                router.push(
-                  `/workspace/${workspaceId}/content/courses/${playlist.id}`,
-                )
-              }
+            <Link
+              href={`/workspace/${workspaceId}/content/courses/${playlist.id}`}
               className="flex min-w-0 flex-1 items-center gap-3 text-left hover:opacity-80"
             >
               {playlist.thumbnailUrl ? (
@@ -71,7 +64,7 @@ export function CourseList({
                   {playlist.slug}
                 </div>
               </div>
-            </button>
+            </Link>
             <div className="flex items-center gap-2">
               <Button
                 variant="secondary"

@@ -76,7 +76,7 @@ describe('UpdateWorkspaceMemberAccessHandler', () => {
         expect(prisma.workspaceMember.update).toHaveBeenCalled()
     })
 
-    // These two are the reported bug: the route declares WORKSPACE_ADMINS, but
+    // These two are the reported bug: the route declares SPORT_LEADS, but
     // the handler compared ownerId and 403'd everyone else — the UI showed the
     // date picker and «Сохранить» blew up.
     it('clears accessShifted on the member freezes so an explicit date stays final', async () => {

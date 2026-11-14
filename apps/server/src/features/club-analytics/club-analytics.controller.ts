@@ -7,9 +7,10 @@ import {
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
 import {
+    CLUB_ADMINS,
     Roles,
+    SPORT_LEADS,
     STAFF_ROLES,
-    WORKSPACE_ADMINS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -62,9 +63,10 @@ class GetRevenueForecastQuery extends createZodDto(GetRevenueForecastInputSchema
 class GetRevenueForecastOutput extends createZodDto(GetRevenueForecastOutputSchema) {}
 class RefreshAnalyticsOutput extends createZodDto(RefreshAnalyticsOutputSchema) {}
 
-// «Аналитика» (docs/design/2026-11-01-smart-analytics.md). Reads are staff-wide
-// and scoped in the handlers (analytics-scope.ts): admins the whole club,
-// coaches and direction managers their own groups.
+// «Аналитика» (docs/design/2026-11-01-smart-analytics.md). Churn, cohorts and
+// occupancy are staff-wide and scoped in the handlers (analytics-scope.ts):
+// sport leads the whole club, coaches and direction managers their own groups.
+// Comparing coaches is for sport leads; the revenue forecast for club admins.
 @Controller('workspaces/:workspaceId/analytics')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class ClubAnalyticsController {
@@ -128,7 +130,7 @@ export class ClubAnalyticsController {
     }
 
     @Get('coaches')
-    @Roles(STAFF_ROLES)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: GetCoachAnalyticsOutput })
     async getCoachAnalytics(
         @Param('workspaceId') workspaceId: string,
@@ -147,7 +149,7 @@ export class ClubAnalyticsController {
     }
 
     @Get('forecast')
-    @Roles(STAFF_ROLES)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: GetRevenueForecastOutput })
     async getRevenueForecast(
         @Param('workspaceId') workspaceId: string,
@@ -166,7 +168,7 @@ export class ClubAnalyticsController {
     }
 
     @Post('refresh')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: RefreshAnalyticsOutput })
     async refreshAnalytics(
         @Param('workspaceId') workspaceId: string,

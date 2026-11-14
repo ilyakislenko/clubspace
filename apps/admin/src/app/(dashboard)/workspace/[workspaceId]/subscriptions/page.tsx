@@ -18,9 +18,15 @@ import {
   type RenewalCandidate,
 } from "../../../../../shared/api/subscriptions"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+import { isClubAdmin } from "../../../../../shared/lib/permissions"
+import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { inputCls } from "../../../../../shared/lib/input-class"
 import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
 import { pluralRu } from "../../../../../shared/lib/plural-ru"
+import {
+  sameData,
+  useDirtyGuard,
+} from "../../../../../shared/lib/use-dirty-guard"
 import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
 import {
   ALL_DIRECTIONS,
@@ -30,12 +36,8 @@ import {
   DirectionScopeChips,
   DirectionScopePicker,
 } from "../../../../../features/directions/DirectionScopePicker"
-import {
-  canManageScope,
-  matchesScopeFilter,
-} from "../../../../../features/directions/direction-scope"
+import { matchesScopeFilter } from "../../../../../features/directions/direction-scope"
 import { useDirections } from "../../../../../features/directions/use-directions"
-import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { agree, fromFirstSession } from "@clubspace/ui-kit/brand"
 
@@ -74,9 +76,9 @@ export default function WorkspaceSubscriptionsPage() {
   const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
-  // Mounted behind AdminOrDirectionManagerGate, so the membership is loaded.
-  const scope = useDirectionScope(workspaceId)
-  const { isAdmin } = scope
+  // Sport leads follow payments and renewals here; tariffs are the club
+  // admins' (create, edit, archive, the tariff page).
+  const canManagePlans = isClubAdmin(useMyMembership(workspaceId))
 
   const [plans, setPlans] = useState<Plan[]>([])
   const [candidates, setCandidates] = useState<RenewalCandidate[]>([])
@@ -93,11 +95,8 @@ export default function WorkspaceSubscriptionsPage() {
   const [isFreeTrial, setIsFreeTrial] = useState(false)
   const [startsOnFirstVisit, setStartsOnFirstVisit] = useState(false)
   const [purchasableOnline, setPurchasableOnline] = useState(false)
-  // Empty = «Весь клуб»; a direction manager starts on their first direction.
-  const defaultDirectionIds = scope.defaultDirectionId
-    ? [scope.defaultDirectionId]
-    : []
-  const [directionIds, setDirectionIds] = useState<string[]>(defaultDirectionIds)
+  // Empty = «Весь клуб».
+  const [directionIds, setDirectionIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -113,24 +112,22 @@ export default function WorkspaceSubscriptionsPage() {
   const load = useCallback(async () => {
     if (!workspaceId) return
     try {
-      // Payment follow-ups are club-wide money matters — admins only; a
-      // direction manager just maintains the plans.
       const [plansRes, candidatesRes, awaitingRes] = await Promise.all([
         listPlans({ workspaceId, includeInactive: true }),
-        isAdmin ? listRenewalCandidates({ workspaceId }) : null,
-        isAdmin ? listAwaitingPayment({ workspaceId }) : null,
+        listRenewalCandidates({ workspaceId }),
+        listAwaitingPayment({ workspaceId }),
       ])
       setPlans(plansRes.data)
-      setCandidates(candidatesRes?.data ?? [])
-      setAwaiting(awaitingRes?.data ?? [])
-      setAwaitingTotal(awaitingRes?.total ?? 0)
+      setCandidates(candidatesRes.data)
+      setAwaiting(awaitingRes.data)
+      setAwaitingTotal(awaitingRes.total)
       setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить тарифы"))
     } finally {
       setLoading(false)
     }
-  }, [workspaceId, isAdmin])
+  }, [workspaceId])
 
   useEffect(() => {
     void load()
@@ -163,7 +160,7 @@ export default function WorkspaceSubscriptionsPage() {
     setIsFreeTrial(false)
     setStartsOnFirstVisit(false)
     setPurchasableOnline(false)
-    setDirectionIds(defaultDirectionIds)
+    setDirectionIds([])
     setFieldErrors({})
   }
 
@@ -181,6 +178,53 @@ export default function WorkspaceSubscriptionsPage() {
     setFieldErrors({})
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
+
+  // The form is dirty while it differs from what it opened with: the tariff
+  // being edited, or the blank new-tariff form. A new tariff's scope alone
+  // does not count — its default arrives with the membership, after mount.
+  const editingPlan = editingId
+    ? plans.find((p) => p.id === editingId)
+    : undefined
+  const savedForm = editingPlan
+    ? {
+        name: editingPlan.name,
+        price: String(editingPlan.price),
+        currency: editingPlan.currency,
+        durationDays: String(editingPlan.durationDays),
+        classCount:
+          editingPlan.classCount != null ? String(editingPlan.classCount) : "",
+        isFreeTrial: editingPlan.isFreeTrial,
+        startsOnFirstVisit: editingPlan.startsOnFirstVisit,
+        purchasableOnline: editingPlan.purchasableOnline,
+        directionIds: editingPlan.directions.map((d) => d.id).sort(),
+      }
+    : {
+        name: "",
+        price: "",
+        currency: "RUB",
+        durationDays: "30",
+        classCount: "",
+        isFreeTrial: false,
+        startsOnFirstVisit: false,
+        purchasableOnline: false,
+        directionIds: [...directionIds].sort(),
+      }
+  useDirtyGuard(
+    !sameData(
+      {
+        name,
+        price,
+        currency,
+        durationDays,
+        classCount,
+        isFreeTrial,
+        startsOnFirstVisit,
+        purchasableOnline,
+        directionIds: [...directionIds].sort(),
+      },
+      savedForm,
+    ),
+  )
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -256,6 +300,7 @@ export default function WorkspaceSubscriptionsPage() {
     if (!window.confirm(`Удалить тариф «${p.name}»?`)) return
     try {
       await deletePlan({ workspaceId, planId: p.id })
+      if (editingId === p.id) resetForm()
       await load()
     } catch (e) {
       setError(errorMessage(e, "Не удалось удалить тариф"))
@@ -279,7 +324,7 @@ export default function WorkspaceSubscriptionsPage() {
         </div>
       )}
 
-      {!loading && isAdmin && (
+      {!loading && (
         <div className="rounded-xl border border-border bg-card p-5">
           <div className="mb-1 font-medium">Ожидают оплаты</div>
           {awaiting.length === 0 ? (
@@ -373,6 +418,7 @@ export default function WorkspaceSubscriptionsPage() {
         </div>
       )}
 
+      {canManagePlans && (
       <form
         onSubmit={onSubmit}
         className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-card/40 p-4 sm:grid-cols-5"
@@ -496,7 +542,6 @@ export default function WorkspaceSubscriptionsPage() {
               directions={directions}
               value={directionIds}
               onChange={setDirectionIds}
-              allowedIds={scope.allowedDirectionIds}
               hint={`Абонемент по направлениям списывает занятия только с ${vocabulary.session.genPl} выбранных направлений. «Весь клуб» — с любых ${vocabulary.session.genPl}.`}
             />
           </div>
@@ -516,6 +561,7 @@ export default function WorkspaceSubscriptionsPage() {
           )}
         </div>
       </form>
+      )}
 
       {plans.length > 0 && directions.length > 0 && (
         <div className="flex justify-end">
@@ -544,10 +590,7 @@ export default function WorkspaceSubscriptionsPage() {
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  {canManageScope(
-                    scope.canManageDirection,
-                    p.directions.map((d) => d.id),
-                  ) ? (
+                  {canManagePlans ? (
                     <Link
                       href={`/workspace/${workspaceId}/subscriptions/plans/${p.id}`}
                       className="font-medium hover:underline"
@@ -588,33 +631,30 @@ export default function WorkspaceSubscriptionsPage() {
                   {p.description ? ` · ${p.description}` : ""}
                 </div>
               </div>
-              {canManageScope(
-                scope.canManageDirection,
-                p.directions.map((d) => d.id),
-              ) && (
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => startEdit(p)}
-                  >
-                    Изменить
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void toggleActive(p)}
-                  >
-                    {p.isActive ? "В архив" : "Вернуть"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void remove(p)}
-                  >
-                    Удалить
-                  </Button>
-                </div>
+              {canManagePlans && (
+              <div className="flex shrink-0 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => startEdit(p)}
+                >
+                  Изменить
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void toggleActive(p)}
+                >
+                  {p.isActive ? "В архив" : "Вернуть"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void remove(p)}
+                >
+                  Удалить
+                </Button>
+              </div>
               )}
             </li>
           ))}

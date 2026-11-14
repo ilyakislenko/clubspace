@@ -17,6 +17,7 @@ import {
 } from "../../../../../shared/api/exports"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
+import { useDirtyGuard } from "../../../../../shared/lib/use-dirty-guard"
 import { ClubAboutSection } from "../../../../../features/club-about/ClubAboutSection"
 import { formatDay } from "../../../../../features/billing/billing-view"
 import {
@@ -465,6 +466,7 @@ function BookingSettings({
     parsedWindow !== settings.bookingWindowDays ||
     parsedCancel !== settings.bookingCancelHours
   const invalid = parsedWindow === null || parsedCancel === null
+  useDirtyGuard(dirty)
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
@@ -584,6 +586,7 @@ function TimezoneSetting({
   }, [value])
 
   const dirty = draft.trim() !== value
+  useDirtyGuard(dirty)
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">

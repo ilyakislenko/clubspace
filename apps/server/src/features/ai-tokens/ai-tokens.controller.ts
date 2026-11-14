@@ -17,7 +17,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { COACHING_ROLES, Roles } from '../../shared/decorators/roles.decorator'
+import { CLUB_ADMINS, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -39,15 +39,15 @@ class CreateAiTokenOutput extends createZodDto(CreateAiTokenOutputSchema) {}
 class ListAiTokensOutput extends createZodDto(ListAiTokensOutputSchema) {}
 class AiTokenOutputDto extends createZodDto(AiTokenOutputSchema) {}
 
-// «Интеграции → ИИ-ассистент». COACHING_ROLES so a руководитель направления
-// reaches the handler; resolveAiAccess there refuses plain coaches.
+// «Интеграции → ИИ-ассистент»: a system setting, club admins only. The
+// handlers re-check through resolveAiAccess + assertAiTokenManager.
 @Controller('workspaces/:workspaceId/ai-tokens')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class AiTokensController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
-    @Roles(COACHING_ROLES)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: ListAiTokensOutput })
     async listAiTokens(
         @Param('workspaceId') workspaceId: string,
@@ -59,7 +59,7 @@ export class AiTokensController {
     }
 
     @Post()
-    @Roles(COACHING_ROLES)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: CreateAiTokenOutput })
     async createAiToken(
         @Param('workspaceId') workspaceId: string,
@@ -80,7 +80,7 @@ export class AiTokensController {
     }
 
     @Delete(':tokenId')
-    @Roles(COACHING_ROLES)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: AiTokenOutputDto })
     async revokeAiToken(
         @Param('workspaceId') workspaceId: string,

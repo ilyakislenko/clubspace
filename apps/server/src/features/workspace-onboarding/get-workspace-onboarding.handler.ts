@@ -5,7 +5,7 @@ import {
     isWorkspaceEntitled,
     moduleEntitlementSelect,
 } from '../../domains/billing/module-entitlement'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -28,7 +28,7 @@ export class GetWorkspaceOnboardingHandler
     ) {}
 
     async execute(f: GetWorkspaceOnboardingFeature) {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,

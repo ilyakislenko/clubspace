@@ -67,10 +67,16 @@ describe('updateClubAbout', () => {
         },
     )
 
-    it('lets a head coach (workspace-admin tier) save', async () => {
+    it('refuses a head coach — a sport lead, not a club admin — and writes nothing', async () => {
         const { handler, update } = build()
-        await run(handler, payload, { userId: 'hc1', roleName: 'head_coach' })
-        expect(update).toHaveBeenCalledTimes(1)
+        await expect(
+            run(handler, payload, { userId: 'hc1', roleName: 'head_coach' }),
+        ).rejects.toThrow(
+            new ForbiddenError({
+                message: 'Менять информацию о клубе может только администратор клуба',
+            }),
+        )
+        expect(update).not.toHaveBeenCalled()
     })
 
     it('lets a platform super admin save', async () => {
@@ -81,11 +87,14 @@ describe('updateClubAbout', () => {
         expect(update).toHaveBeenCalledTimes(1)
     })
 
-    it('lets the owner (no member row) save', async () => {
-        const { handler, update } = build()
-        await run(handler, payload, { userId: 'owner', roleName: null })
-        expect(update).toHaveBeenCalledTimes(1)
-    })
+    it.each([null, 'head_coach'])(
+        'lets the owner save, whatever their member row says (%s)',
+        async (roleName) => {
+            const { handler, update } = build()
+            await run(handler, payload, { userId: 'owner', roleName })
+            expect(update).toHaveBeenCalledTimes(1)
+        },
+    )
 
     it('normalizes phones, stamps aboutUpdatedAt, audits and invalidates', async () => {
         const { handler, update, record, invalidate } = build()

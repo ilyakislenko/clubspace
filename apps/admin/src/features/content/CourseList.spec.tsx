@@ -1,9 +1,6 @@
 /** @jest-environment jsdom */
 import { fireEvent, render, screen } from "@testing-library/react"
 
-const push = jest.fn()
-jest.mock("next/navigation", () => ({ useRouter: () => ({ push }) }))
-
 import { type PlaylistResponse } from "../../shared/api/playlists"
 import { CourseList } from "./CourseList"
 
@@ -20,8 +17,6 @@ const playlist = (over: Partial<PlaylistResponse> = {}): PlaylistResponse =>
 const noop = () => undefined
 
 describe("CourseList", () => {
-  beforeEach(() => push.mockClear())
-
   it("renders each course's title and slug", () => {
     render(
       <CourseList
@@ -68,7 +63,7 @@ describe("CourseList", () => {
     expect(onDelete).toHaveBeenCalledWith(p)
   })
 
-  it("navigates to the course detail when the row is clicked", () => {
+  it("makes the row a real link to the course detail", () => {
     render(
       <CourseList
         workspaceId="w1"
@@ -78,8 +73,9 @@ describe("CourseList", () => {
         onDelete={noop}
       />,
     )
-    fireEvent.click(screen.getByText("Closed Guard"))
-    expect(push).toHaveBeenCalledWith("/workspace/w1/content/courses/p1")
+    expect(
+      screen.getByText("Closed Guard").closest("a")?.getAttribute("href"),
+    ).toBe("/workspace/w1/content/courses/p1")
   })
 
   it("shows the empty state when there are no courses", () => {

@@ -15,12 +15,27 @@ import { RefundPaymentHandler } from './refund-payment.handler'
 
 const KEY = 'unit-test-encryption-key'
 
-const rbac = (admin = true) => ({
-    resolveCoachScope: jest
-        .fn()
-        .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
-    canWriteAllGroups: jest.fn().mockReturnValue(admin),
+const OWNER_ID = 'owner-1'
+
+// Resolves the scope the way RbacService does: a head coach (like an admin)
+// runs every group; only the caller's identity decides who is a club admin.
+const rbac = () => ({
+    resolveCoachScope: jest.fn(
+        async (p: { userId: string; workspaceId: string; roleName: string | null }) => ({
+            scope: p.roleName === 'coach' ? 'coach_own_only' : 'admin',
+            userId: p.userId,
+            workspaceId: p.workspaceId,
+            workspaceOwnerId: OWNER_ID,
+        }),
+    ),
+    canWriteAllGroups: jest.fn((ctx: { scope: string }) => ctx.scope === 'admin'),
 })
+
+type Caller = { userId: string; roleName: string }
+const ADMIN: Caller = { userId: 'a-1', roleName: 'admin' }
+// The owner passes whatever their member row says.
+const OWNER: Caller = { userId: OWNER_ID, roleName: 'head_coach' }
+const HEAD_COACH: Caller = { userId: 'hc-1', roleName: 'head_coach' }
 
 const row = (over: Record<string, unknown> = {}) => ({
     id: 'pay-1',
@@ -47,14 +62,31 @@ const row = (over: Record<string, unknown> = {}) => ({
 })
 
 describe('listPayments', () => {
-    it('refuses a coach', async () => {
-        const prisma = { payment: { findMany: jest.fn(), count: jest.fn() } }
-        await expect(
-            new ListPaymentsHandler(prisma as never, rbac(false) as never).execute(
-                new ListPaymentsFeature({}, 'ws-1', 'c-1', 'coach', false),
-            ),
-        ).rejects.toMatchObject({ statusCode: 403 })
-        expect(prisma.payment.findMany).not.toHaveBeenCalled()
+    const list = (caller: Caller) => {
+        const prisma = {
+            payment: {
+                findMany: jest.fn().mockResolvedValue([row()]),
+                count: jest.fn().mockResolvedValue(1),
+            },
+        }
+        const run = () =>
+            new ListPaymentsHandler(prisma as never, rbac() as never).execute(
+                new ListPaymentsFeature({}, 'ws-1', caller.userId, caller.roleName, false),
+            )
+        return { prisma, run }
+    }
+
+    it('refuses a head coach, even one who runs every group', async () => {
+        const s = list(HEAD_COACH)
+        await expect(s.run()).rejects.toMatchObject({ statusCode: 403 })
+        expect(s.prisma.payment.findMany).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ['an admin', ADMIN],
+        ['the owner', OWNER],
+    ])('shows the payments to %s', async (_, caller) => {
+        await expect(list(caller).run()).resolves.toMatchObject({ total: 1 })
     })
 
     it('lists this club only, newest first, filtered and paged', async () => {
@@ -107,7 +139,7 @@ describe('refundPayment', () => {
         settings?: Record<string, unknown> | null
         refundError?: Error
         casCount?: number
-        admin?: boolean
+        caller?: Caller
     } = {}) => {
         const prisma: Record<string, unknown> & {
             payment: Record<string, jest.Mock>
@@ -139,21 +171,34 @@ describe('refundPayment', () => {
         }
         const audit = { record: jest.fn() }
         const realtime = { invalidate: jest.fn() }
+        const caller = opts.caller ?? ADMIN
         const run = () =>
             new RefundPaymentHandler(
                 prisma as never,
-                rbac(opts.admin ?? true) as never,
+                rbac() as never,
                 gateway as never,
                 audit as never,
                 realtime as never,
-            ).execute(new RefundPaymentFeature('ws-1', 'pay-1', 'a-1', 'admin', false))
+            ).execute(
+                new RefundPaymentFeature('ws-1', 'pay-1', caller.userId, caller.roleName, false),
+            )
         return { prisma, gateway, audit, run }
     }
 
-    it('refuses a coach', async () => {
-        const s = setup({ admin: false })
+    it('refuses a head coach, even one who runs every group', async () => {
+        const s = setup({ caller: HEAD_COACH })
         await expect(s.run()).rejects.toMatchObject({ statusCode: 403 })
         expect(s.gateway.refund).not.toHaveBeenCalled()
+        expect(s.prisma.payment.updateMany).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ['an admin', ADMIN],
+        ['the owner', OWNER],
+    ])('lets %s refund', async (_, caller) => {
+        const s = setup({ caller })
+        await expect(s.run()).resolves.toMatchObject({ status: 'REFUNDED' })
+        expect(s.gateway.refund).toHaveBeenCalledTimes(1)
     })
 
     it('404s on a payment of another club', async () => {

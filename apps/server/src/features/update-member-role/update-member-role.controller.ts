@@ -8,7 +8,7 @@ import {
 } from '../../shared/decorators/current-user.decorator'
 import {
     Roles,
-    WORKSPACE_ADMINS,
+    CLUB_ADMINS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -33,7 +33,7 @@ export class UpdateMemberRoleController {
     constructor(private bus: FeaturesBus) {}
 
     @Patch(':userId/role')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: UpdateMemberRoleOutput })
     async updateRole(
         @Param('workspaceId') workspaceId: string,

@@ -16,8 +16,8 @@ const TopVideoSchema = z.object({
     completions: z.number().int(),
 })
 
-// Admin-only money view. Null for coach invokers — a coach never sees club
-// revenue. Amounts are in the subscription's own integer unit
+// Club-admin money view (owner, admin). Null for a head coach or a coach — they
+// never receive club revenue. Amounts are in the subscription's own integer unit
 // (same as elsewhere); `currency` is the dominant currency across the rows the
 // figure was summed over, so mixed-currency clubs get one coherent number.
 const RevenueSchema = z.object({
@@ -52,8 +52,8 @@ const RevenueSchema = z.object({
     ),
 })
 
-// A "so far today" glance (workspace-local calendar day). Revenue is owner-only
-// (null for a scoped coach), like the revenue card.
+// A "so far today" glance (workspace-local calendar day). Revenue is club-admin
+// only (null for a head coach or coach), like the revenue card.
 const TodaySchema = z.object({
     sessions: z.number().int(), // classes on today's timetable (cancelled excluded)
     checkins: z.number().int(), // check-ins recorded today

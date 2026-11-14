@@ -37,9 +37,9 @@ const fmt = (iso: string | null) =>
 type DataMode = "PSEUDONYMIZED" | "PERSONAL"
 
 // «ИИ-ассистент»: tokens an AI client (Claude, ChatGPT, Cursor) uses to read the
-// club over MCP. A token reads as its creator — admins the whole club, a
-// руководитель направления their directions — and only the owner can let
-// names and contacts through, after accepting the transfer warning.
+// club over MCP. Only club admins issue them (a token reads the whole club as
+// its creator), and only the owner can let names and contacts through, after
+// accepting the transfer warning.
 export function AiAssistantCard({ workspaceId }: { workspaceId: string }) {
   const [state, setState] = useState<AiTokensList | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -295,7 +295,7 @@ export function AiAssistantCard({ workspaceId }: { workspaceId: string }) {
                     {t.expiresAt ? fmt(t.expiresAt) : "отзыва"} · последний запрос {fmt(t.lastUsedAt)}
                   </div>
                 </div>
-                {t.canRevoke && t.state === "active" && (
+                {t.state === "active" && (
                   <Button
                     type="button"
                     size="sm"

@@ -14,6 +14,10 @@ import {
 } from "../../../../../shared/api/announcements"
 import { listGroups, type GroupSummary } from "../../../../../shared/api/groups"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+import {
+  sameData,
+  useDirtyGuard,
+} from "../../../../../shared/lib/use-dirty-guard"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { inputClsFull } from "../../../../../shared/lib/input-class"
 import { DirectionChip } from "../../../../../features/directions/DirectionChip"
@@ -113,6 +117,30 @@ export default function WorkspaceAnnouncementsPage() {
   }, [load])
 
   useWorkspaceRealtime(workspaceId, ["announcements"], () => void load())
+
+  // Unsaved: a started new announcement, or an open edit that differs from
+  // the stored one. The new form's target alone does not count (its default
+  // arrives with the membership, after mount); group order does not matter.
+  const comparable = (t: AnnouncementTarget) => ({
+    ...t,
+    groupIds: [...t.groupIds].sort(),
+  })
+  const editing = editingId ? items.find((a) => a.id === editingId) : undefined
+  const newDirty = !sameData(
+    { title, body, pinned, audience, scheduleAt },
+    { title: "", body: "", pinned: false, audience: "ALL", scheduleAt: "" },
+  )
+  const editDirty =
+    editing !== undefined &&
+    !sameData(
+      { title: editTitle, body: editBody, target: comparable(editTarget) },
+      {
+        title: editing.title,
+        body: editing.body,
+        target: comparable(targetOf(editing)),
+      },
+    )
+  useDirtyGuard(newDirty || editDirty)
 
   const submit = async (opts: { publish?: boolean; publishAt?: string }) => {
     if (!workspaceId || !title.trim() || !body.trim()) return
@@ -304,7 +332,7 @@ export default function WorkspaceAnnouncementsPage() {
             directions={scope.filterOptions(directions)}
             value={directionFilter}
             onChange={setDirectionFilter}
-            includeClubOnly={scope.isAdmin}
+            includeClubOnly={scope.isSportLead}
           />
         </div>
       )}

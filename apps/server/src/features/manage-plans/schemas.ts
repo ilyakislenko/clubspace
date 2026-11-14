@@ -91,6 +91,9 @@ export const assertDirectionsInWorkspace = async (
     return ids
 }
 
+// Tariffs and prices are club money: the owner and admins only.
+export const PLAN_WRITE_REFUSAL = 'Тарифы меняют владелец и администраторы клуба'
+
 // A free tariff (zero price, or the once-per-member trial) is never sold
 // online: there is nothing to pay, and the trial rule lives in the admin flow.
 export const ONLINE_FREE_PLAN_MESSAGE =

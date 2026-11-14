@@ -64,7 +64,12 @@ const build = (o: Opts = {}) => {
         $transaction: jest.fn(async (fn: (c: typeof tx) => unknown) => fn(tx)),
     }
     const rbac = {
-        resolveCoachScope: jest.fn().mockResolvedValue({ scope: 'admin' }),
+        resolveCoachScope: jest.fn(async (p: { userId: string; workspaceId: string }) => ({
+            scope: 'admin',
+            userId: p.userId,
+            workspaceId: p.workspaceId,
+            workspaceOwnerId: 'owner',
+        })),
         canWriteAllGroups: jest.fn().mockReturnValue(!o.denied),
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
@@ -111,6 +116,7 @@ const build = (o: Opts = {}) => {
 const run = (
     handler: InviteWorkspaceMemberHandler,
     payload: Record<string, unknown> = {},
+    caller: { userId: string; roleName: string } = { userId: 'admin1', roleName: 'admin' },
 ) =>
     handler.execute(
         new InviteWorkspaceMemberFeature(
@@ -121,11 +127,13 @@ const run = (
                 ...payload,
             } as never,
             'w1',
-            'admin1',
-            'admin',
+            caller.userId,
+            caller.roleName,
             false,
         ),
     )
+
+const HEAD_COACH = { userId: 'hc1', roleName: 'head_coach' }
 
 const GROUP_ID = '11111111-1111-4111-8111-111111111111'
 const EXISTING = { id: 'u1', firstname: 'A', lastname: 'B', status: 'ACTIVE' }
@@ -136,6 +144,31 @@ describe('inviteWorkspaceMember', () => {
         await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
         expect(prisma.$transaction).not.toHaveBeenCalled()
         expect(invitations.invite).not.toHaveBeenCalled()
+    })
+
+    // A sport lead invites students and parents; staff are the club admins' call.
+    it('lets a head coach invite a student', async () => {
+        const { handler, tx } = build()
+        await run(handler, {}, HEAD_COACH)
+        expect(tx.workspaceMember.create).toHaveBeenCalled()
+    })
+
+    it.each(['coach', 'head_coach', 'admin'])(
+        'refuses a head coach inviting a %s and writes nothing',
+        async (role) => {
+            const { handler, prisma, invitations } = build()
+            await expect(run(handler, { role }, HEAD_COACH)).rejects.toBeInstanceOf(
+                ForbiddenError,
+            )
+            expect(prisma.$transaction).not.toHaveBeenCalled()
+            expect(invitations.invite).not.toHaveBeenCalled()
+        },
+    )
+
+    it('lets the owner invite a coach whatever their member row', async () => {
+        const { handler, tx } = build()
+        await run(handler, { role: 'coach' }, { userId: 'owner', roleName: 'head_coach' })
+        expect(tx.workspaceMember.create).toHaveBeenCalled()
     })
 
     it('404s on a missing club', async () => {

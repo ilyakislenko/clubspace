@@ -11,7 +11,7 @@ import {
     serializeFeatureLock,
 } from '../../domains/workspace/feature-locks'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     ForbiddenError,
@@ -60,7 +60,7 @@ export class UpdateWorkspaceSettingsHandler
     }: UpdateWorkspaceSettingsFeature) {
         // Settings now include who may join without approval, so the handler
         // checks the role itself instead of trusting the route decorator alone.
-        await assertWorkspaceAdmin(this.rbac, {
+        await assertClubAdmin(this.rbac, {
             userId: invokerUserId,
             workspaceId,
             roleName,

@@ -2,9 +2,9 @@ import { ExecutionContext } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
 import {
+    CLUB_ADMINS,
     COACHING_ROLES,
     Roles,
-    WORKSPACE_ADMINS,
 } from '../decorators/roles.decorator'
 import { ForbiddenError } from '../errors/shared.errors'
 import { RoleGuard } from './role.guard'
@@ -17,7 +17,7 @@ import { RoleGuard } from './role.guard'
 class ClassLevelController {
     open() {}
 
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     overridden() {}
 }
 
@@ -69,12 +69,12 @@ describe('RoleGuard', () => {
         })
 
         it('lets a method-level @Roles override the class list', () => {
-            // class is COACHING_ROLES (coach passes), overridden() is
-            // WORKSPACE_ADMINS (coach does not)
+            // class is COACHING_ROLES (head coach passes), overridden() is
+            // CLUB_ADMINS (head coach does not)
             const ctx = buildContext(
                 ClassLevelController,
                 ClassLevelController.prototype.overridden,
-                { role: { name: 'coach' } },
+                { role: { name: 'head_coach' } },
             )
             expect(() => guard.canActivate(ctx)).toThrow(ForbiddenError)
         })

@@ -3,7 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { SubscriptionService } from '../../domains/subscriptions/services/subscription.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -28,7 +28,7 @@ export class CancelSubscriptionHandler
     ) {}
 
     async execute(f: CancelSubscriptionFeature) {
-        await assertWorkspaceAdmin(
+        await assertSportLead(
             this.rbac,
             {
                 userId: f.invokerUserId,
