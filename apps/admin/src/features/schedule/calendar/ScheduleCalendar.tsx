@@ -214,19 +214,24 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
 
   // ---- who may do what ------------------------------------------------------
   // Owner / admin / head coach: everything. A direction manager: classes of
-  // their directions. A plain coach: reads their own groups only.
-  const canManageGroup = useCallback(
-    (g: { direction: { id: string } | null }) =>
-      scope.isSportLead || (scope.isDirectionManager && !!g.direction && scope.canManageDirection(g.direction.id)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scope.isSportLead, scope.isDirectionManager, scope.managedDirectionIds],
+  // their directions. Anyone: the groups they coach (primary or assistant) —
+  // the server's assertCanWriteGroup. A plain coach sees only those.
+  const coachedGroupIds = useMemo(
+    () => new Set(groups.filter((g) => meId && g.coaches.some((c) => c.userId === meId)).map((g) => g.id)),
+    [groups, meId],
   )
-  const ownGroupIds = useMemo(() => {
-    if (scope.isSportLead || scope.isDirectionManager) return null
-    return new Set(
-      groups.filter((g) => meId && g.coaches.some((c) => c.userId === meId)).map((g) => g.id),
-    )
-  }, [scope.isSportLead, scope.isDirectionManager, groups, meId])
+  const canManageGroup = useCallback(
+    (g: { id: string; direction: { id: string } | null }) =>
+      scope.isSportLead ||
+      coachedGroupIds.has(g.id) ||
+      (scope.isDirectionManager && !!g.direction && scope.canManageDirection(g.direction.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scope.isSportLead, scope.isDirectionManager, scope.managedDirectionIds, coachedGroupIds],
+  )
+  const ownGroupIds = useMemo(
+    () => (scope.isSportLead || scope.isDirectionManager ? null : coachedGroupIds),
+    [scope.isSportLead, scope.isDirectionManager, coachedGroupIds],
+  )
   const creatableGroups = useMemo(() => groups.filter((g) => canManageGroup(g)), [groups, canManageGroup])
   // A cell of a hall column offers only that hall's groups.
   const createGroups = useMemo(
@@ -510,7 +515,14 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
           setDetailsKey(null)
           showToast({
             tone: "success",
-            message: `«${item.title}» ${slotLabel(item)} отменено`,
+            message:
+              exception.fromDate === exception.untilDate && exception.slotId !== null
+                ? `«${item.title}» ${slotLabel(item)} отменено`
+                : `«${item.title}»: ${exception.slotId === null ? `все ${vocabulary.session.nomPl}` : `${vocabulary.session.nomPl} в ${formatHm(item.startMin)}`} отменены ${
+                    exception.fromDate === exception.untilDate
+                      ? dayMonth(exception.fromDate)
+                      : `с ${dayMonth(exception.fromDate)} по ${dayMonth(exception.untilDate)}`
+                  }`,
             // A booking class has already released its places — no cheap undo.
             undo: item.session.booking
               ? undefined
@@ -531,6 +543,12 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
           void reloadGroups()
         }}
         onChanged={() => void refresh()}
+        onScheduleChanged={(message) => {
+          setDetailsKey(null)
+          showToast({ tone: "success", message })
+          void refresh()
+          void reloadGroups()
+        }}
       />
 
       <MoveDialog

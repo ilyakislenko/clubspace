@@ -21,12 +21,24 @@ import {
     GetGroupFeatureResponse,
     GetGroupOutputSchema,
 } from './get-group.feature'
+import {
+    ListGroupMembersFeature,
+    ListGroupMembersFeatureResponse,
+    ListGroupMembersInputSchema,
+    ListGroupMembersOutputSchema,
+} from './list-group-members.feature'
 
 class ListGroupsQuery extends createZodDto(ListGroupsFeatureInputSchema) {}
 
 class ListGroupsOutput extends createZodDto(ListGroupsFeatureOutputSchema) {}
 
 class GetGroupOutput extends createZodDto(GetGroupOutputSchema) {}
+
+class ListGroupMembersQuery extends createZodDto(ListGroupMembersInputSchema) {}
+
+class ListGroupMembersOutput extends createZodDto(
+    ListGroupMembersOutputSchema,
+) {}
 
 @Controller('workspaces/:workspaceId/groups')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
@@ -65,6 +77,31 @@ export class ListGroupsController {
     ) {
         return await this.bus.execute<GetGroupFeature, GetGroupFeatureResponse>(
             new GetGroupFeature(
+                groupId,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    // The roster of one group, paged and searched (`q`).
+    @Get(':groupId/members')
+    @Roles(STAFF_ROLES)
+    @ZodResponse({ type: ListGroupMembersOutput })
+    async listGroupMembers(
+        @Param('workspaceId') workspaceId: string,
+        @Param('groupId') groupId: string,
+        @CurrentUser() user: CurrentUserPayload,
+        @Query() query: ListGroupMembersQuery,
+    ) {
+        return await this.bus.execute<
+            ListGroupMembersFeature,
+            ListGroupMembersFeatureResponse
+        >(
+            new ListGroupMembersFeature(
+                query,
                 groupId,
                 workspaceId,
                 user.userId,

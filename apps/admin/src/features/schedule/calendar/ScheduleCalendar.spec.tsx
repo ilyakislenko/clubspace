@@ -51,10 +51,8 @@ const GROUP = {
   direction: { id: "d1", name: "БЖЖ", color: "#2563eb", icon: null },
   coach: { id: "c1", email: null, firstname: "Роман", lastname: "Савельев" },
   coaches: [{ userId: "c1", email: null, firstname: "Роман", lastname: "Савельев", role: "primary" }],
-  members: [],
   memberCount: 0,
-  slots: [],
-  exceptions: [],
+  week: [{ dayOfWeek: 3, startTime: "19:00" }],
   bookingMode: "FIXED",
 }
 
@@ -176,10 +174,26 @@ describe("ScheduleCalendar", () => {
     expect(await screen.findByText(/boom|Не удалось перенести/)).toBeTruthy()
   })
 
-  it("is read-only for a plain coach", async () => {
+  it("lets a plain coach edit the classes of the group they coach", async () => {
     scopeMock.mockReturnValue({ ...adminScope, isSportLead: false, canManageDirection: () => false })
     render(<ScheduleCalendar workspaceId="w1" />)
     await screen.findByRole("button", { name: /Группа g1/ })
+    await waitFor(() => expect(document.querySelector("[data-resize-handle]")).not.toBeNull())
+    expect(document.querySelector("[data-calendar-cell]")).not.toBeNull()
+  })
+
+  it("keeps another coach's group read-only for a direction manager outside its direction", async () => {
+    ;(fetchMe as jest.Mock).mockResolvedValue({ id: "someone-else" })
+    scopeMock.mockReturnValue({
+      ...adminScope,
+      isSportLead: false,
+      isDirectionManager: true,
+      managedDirectionIds: ["d2"],
+      canManageDirection: (id: string) => id === "d2",
+    })
+    render(<ScheduleCalendar workspaceId="w1" />)
+    await screen.findByRole("button", { name: /Группа g1/ })
+    await waitFor(() => expect(fetchMe).toHaveBeenCalled())
     expect(document.querySelector("[data-calendar-cell]")).toBeNull()
     expect(document.querySelector("[data-resize-handle]")).toBeNull()
   })

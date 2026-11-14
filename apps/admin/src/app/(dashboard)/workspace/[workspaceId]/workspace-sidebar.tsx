@@ -20,7 +20,7 @@ import {
   Megaphone,
   Settings,
   Sparkles,
-  UserX,
+  PhoneCall,
   Upload,
   Users,
   Wallet,
@@ -70,7 +70,7 @@ export type NavItem = {
   feature?: WorkspaceFeature
 }
 
-// The daily pair (Обзор, Кто пропадает) is its own group so «Аналитика» can sit
+// The daily pair (Обзор, Кому позвонить) is its own group so «Аналитика» can sit
 // right under it instead of below «Тариф», where owners had to scroll for it.
 export const dailyNavItems: NavItem[] = [
   {
@@ -82,8 +82,8 @@ export const dailyNavItems: NavItem[] = [
   },
   {
     key: "retention",
-    label: "Кто пропадает",
-    icon: UserX,
+    label: "Кому позвонить",
+    icon: PhoneCall,
     path: "retention",
     access: "staff",
   },
@@ -106,7 +106,7 @@ export const manageNavItems = (vocabulary: ClubVocabulary): NavItem[] => [
   },
   {
     key: "groups",
-    label: "Группы и расписание",
+    label: "Группы и залы",
     icon: MapPin,
     path: "groups",
     access: "lead",
@@ -297,6 +297,9 @@ export function WorkspaceSidebar() {
     )
   }
 
+  // A plain coach has no analytics page left: no empty group label either.
+  const analyticsItems = visibleNavItems(analyticsNavItems(vocabulary), membership)
+
   // `icon`: collapsing leaves a strip of icons (labels come back as tooltips)
   // instead of hiding navigation entirely — on a 1024 tablet it starts that
   // way (see `defaultSidebarOpen`). The strip has no room for the group
@@ -328,23 +331,21 @@ export function WorkspaceSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup>
-          {/* Faded out in the icon strip — and then must not catch clicks
-              meant for the item it overlaps. */}
-          <SidebarGroupLabel
-            asChild
-            className="group-data-[collapsible=icon]:pointer-events-none"
-          >
-            <Link href={`${basePath}/analytics`}>Аналитика</Link>
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleNavItems(analyticsNavItems(vocabulary), membership).map(
-                renderNavItem,
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {analyticsItems.length > 0 && (
+          <SidebarGroup>
+            {/* Faded out in the icon strip — and then must not catch clicks
+                meant for the item it overlaps. */}
+            <SidebarGroupLabel
+              asChild
+              className="group-data-[collapsible=icon]:pointer-events-none"
+            >
+              <Link href={`${basePath}/analytics`}>Аналитика</Link>
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>{analyticsItems.map(renderNavItem)}</SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
         <SidebarGroup>
           <SidebarGroupLabel>Управление</SidebarGroupLabel>
           <SidebarGroupContent>

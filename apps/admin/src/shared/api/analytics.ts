@@ -2,9 +2,6 @@ import type { ApiTypes } from "@clubspace/api-client"
 
 import { getApiClient } from "./client"
 
-export type ChurnRiskList = ApiTypes.ListChurnRiskOutputOutput
-export type ChurnRiskMember = ChurnRiskList["data"][number]
-export type ChurnRiskLevel = ChurnRiskMember["level"]
 export type CohortRetention = ApiTypes.GetCohortRetentionOutputOutput
 export type CohortRow = CohortRetention["cohorts"][number]
 export type CohortCell = CohortRow["cells"][number]
@@ -32,15 +29,6 @@ const scopeParams = (s: AnalyticsScope) => ({
   groupId: s.groupId,
   coachId: s.coachId,
 })
-
-export const listChurnRisk = async (
-  params: { workspaceId: string; minScore?: number } & AnalyticsScope,
-): Promise<ChurnRiskList> =>
-  await getApiClient().request<ChurnRiskList>({
-    method: "get",
-    url: `/workspaces/${params.workspaceId}/analytics/churn`,
-    params: { ...scopeParams(params), minScore: params.minScore },
-  })
 
 export const getCohortRetention = async (
   params: { workspaceId: string } & AnalyticsScope,

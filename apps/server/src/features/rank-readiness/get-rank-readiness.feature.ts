@@ -1,5 +1,10 @@
 import { z } from 'zod'
 
+import { strictBoolean } from '../../shared/utils/strict-boolean'
+
+export const READINESS_DEFAULT_PER_PAGE = 50
+export const READINESS_MAX_PER_PAGE = 200
+
 const RankRefSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
@@ -40,11 +45,28 @@ export const RankReadinessEntrySchema = z.object({
 export const GetRankReadinessInputSchema = z.object({
     ladderId: z.string().uuid().optional(),
     groupId: z.string().uuid().optional(),
+    // Only members who have met the rule for their next level.
+    readyOnly: strictBoolean().optional(),
+    curPage: z.coerce.number().int().positive().optional(),
+    perPage: z.coerce.number().int().positive().max(READINESS_MAX_PER_PAGE).optional(),
 })
 export const GetRankReadinessOutputSchema = z.object({
     ladders: z.array(z.object({ id: z.string().uuid(), name: z.string() })),
     ladderId: z.string().uuid().nullable(),
+    // One page: the ready first — those not yet on a grading's list ahead of
+    // those who are — then the closest to their rule.
     data: z.array(RankReadinessEntrySchema),
+    // Entries matching readyOnly, across all pages.
+    total: z.number().int(),
+    curPage: z.number().int(),
+    perPage: z.number().int(),
+    // The whole ladder in the caller's scope (and group), whatever the page
+    // and readyOnly: everyone measured, the ready, the ready not yet listed.
+    summary: z.object({
+        all: z.number().int(),
+        ready: z.number().int(),
+        readyUnlisted: z.number().int(),
+    }),
 })
 
 export class GetRankReadinessFeature {

@@ -1,6 +1,5 @@
 import {
   CalendarClock,
-  PhoneCall,
   Repeat,
   TrendingUp,
   UserCheck,
@@ -25,19 +24,10 @@ type AnalyticsSection = {
 // «Аналитика» sub-pages: the sidebar group and the overview cards read the
 // same list, filtered by `access`; the server scopes the numbers. The
 // coaches page is named in the club's words («Тренеры» or «Педагоги»).
+// «Кому позвонить» is a daily page of its own (/retention).
 export const analyticsSections = (
   vocabulary: ClubVocabulary,
 ): AnalyticsSection[] => [
-  {
-    key: "analytics-churn",
-    label: "Кому позвонить",
-    title: "Кому позвонить сегодня",
-    description:
-      "Ученики с риском ухода, причины и сколько денег на кону. Отметьте звонок — список обновится.",
-    icon: PhoneCall,
-    path: "churn",
-    access: "staff",
-  },
   {
     key: "analytics-cohorts",
     label: "Удержание",

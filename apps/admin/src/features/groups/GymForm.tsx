@@ -9,7 +9,6 @@ import { TimezoneSelect } from "../settings/TimezoneSelect"
 type Props = {
   initial?: { name: string; address: string; timezone: string | null }
   submitting: boolean
-  title?: string
   submitLabel?: string
   onCancel: () => void
   onSubmit: (payload: {
@@ -22,7 +21,6 @@ type Props = {
 export function GymForm({
   initial,
   submitting,
-  title = "Новый зал",
   submitLabel = "Создать",
   onCancel,
   onSubmit,
@@ -43,11 +41,7 @@ export function GymForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-3 rounded-lg border border-border bg-card p-4"
-    >
-      <h3 className="text-sm font-medium">{title}</h3>
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid gap-2 sm:grid-cols-2">
         <div>
           <Label htmlFor="gym-name">Название</Label>

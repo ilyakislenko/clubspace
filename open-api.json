@@ -4734,6 +4734,71 @@
       }
     },
     "/workspaces/{workspaceId}/groups/{groupId}/members": {
+      "get": {
+        "operationId": "listGroupMembers",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "curPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": true,
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 200,
+              "exclusiveMinimum": true,
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListGroupMembersOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "operationId": "add",
         "parameters": [
@@ -11490,19 +11555,17 @@
             }
           },
           {
-            "name": "scope",
+            "name": "gymId",
             "required": false,
             "in": "query",
             "schema": {
-              "type": "string",
-              "enum": [
-                "all",
-                "mine"
-              ]
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
             }
           },
           {
-            "name": "gymId",
+            "name": "directionId",
             "required": false,
             "in": "query",
             "schema": {
@@ -11519,6 +11582,58 @@
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "type": "string"
+            }
+          },
+          {
+            "name": "coachId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "reason",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "lapsed",
+                "newcomer",
+                "absent",
+                "declining"
+              ]
+            }
+          },
+          {
+            "name": "snoozed",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "type": "integer"
             }
           }
         ],
@@ -11574,83 +11689,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LogAtRiskContactOutput_Output"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/workspaces/{workspaceId}/analytics/churn": {
-      "get": {
-        "operationId": "listChurnRisk",
-        "parameters": [
-          {
-            "name": "workspaceId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "gymId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "directionId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "groupId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "coachId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "minScore",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListChurnRiskOutput_Output"
                 }
               }
             }
@@ -11950,7 +11988,7 @@
           }
         ],
         "responses": {
-          "default": {
+          "202": {
             "description": "",
             "content": {
               "application/json": {
@@ -12286,6 +12324,36 @@
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "type": "string"
+            }
+          },
+          {
+            "name": "readyOnly",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "curPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": true,
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 200,
+              "exclusiveMinimum": true,
+              "type": "integer",
+              "minimum": 0
             }
           }
         ],
@@ -27713,15 +27781,11 @@
                     },
                     "name": {
                       "type": "string"
-                    },
-                    "address": {
-                      "type": "string"
                     }
                   },
                   "required": [
                     "id",
-                    "name",
-                    "address"
+                    "name"
                   ],
                   "additionalProperties": false,
                   "nullable": true
@@ -27791,24 +27855,6 @@
                     "BOOKING"
                   ]
                 },
-                "capacity": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "nullable": true
-                },
-                "bookingWindowDays": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "nullable": true
-                },
-                "bookingCancelHours": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "nullable": true
-                },
                 "coaches": {
                   "type": "array",
                   "items": {
@@ -27854,54 +27900,11 @@
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
                 },
-                "members": {
+                "week": {
                   "type": "array",
                   "items": {
                     "type": "object",
                     "properties": {
-                      "userId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "email": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "firstname": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "lastname": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "joinedAt": {
-                        "type": "string",
-                        "format": "date-time",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                      }
-                    },
-                    "required": [
-                      "userId",
-                      "email",
-                      "firstname",
-                      "lastname",
-                      "joinedAt"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "slots": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
                       "dayOfWeek": {
                         "type": "integer",
                         "minimum": 1,
@@ -27909,88 +27912,14 @@
                       },
                       "startTime": {
                         "type": "string"
-                      },
-                      "durationMin": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "effectiveFrom": {
-                        "type": "string",
-                        "format": "date",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
-                        "nullable": true
-                      },
-                      "effectiveUntil": {
-                        "type": "string",
-                        "format": "date",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
-                        "nullable": true
-                      },
-                      "capacity": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991,
-                        "nullable": true
                       }
                     },
                     "required": [
-                      "id",
                       "dayOfWeek",
-                      "startTime",
-                      "durationMin",
-                      "effectiveFrom",
-                      "effectiveUntil",
-                      "capacity"
+                      "startTime"
                     ],
                     "additionalProperties": false
                   }
-                },
-                "exceptions": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "slotId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "nullable": true
-                      },
-                      "fromDate": {
-                        "type": "string",
-                        "format": "date",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                      },
-                      "untilDate": {
-                        "type": "string",
-                        "format": "date",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                      },
-                      "reason": {
-                        "type": "string",
-                        "nullable": true
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "slotId",
-                      "fromDate",
-                      "untilDate",
-                      "reason"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "createdAt": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
                 }
               },
               "required": [
@@ -28000,15 +27929,9 @@
                 "direction",
                 "coach",
                 "bookingMode",
-                "capacity",
-                "bookingWindowDays",
-                "bookingCancelHours",
                 "coaches",
                 "memberCount",
-                "members",
-                "slots",
-                "exceptions",
-                "createdAt"
+                "week"
               ],
               "additionalProperties": false
             }
@@ -28124,24 +28047,6 @@
               "BOOKING"
             ]
           },
-          "capacity": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991,
-            "nullable": true
-          },
-          "bookingWindowDays": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991,
-            "nullable": true
-          },
-          "bookingCancelHours": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991,
-            "nullable": true
-          },
           "coaches": {
             "type": "array",
             "items": {
@@ -28187,7 +28092,167 @@
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
-          "members": {
+          "week": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "dayOfWeek": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 7
+                },
+                "startTime": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "dayOfWeek",
+                "startTime"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "capacity": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
+          "bookingWindowDays": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
+          "bookingCancelHours": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "dayOfWeek": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 7
+                },
+                "startTime": {
+                  "type": "string"
+                },
+                "durationMin": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "effectiveFrom": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "nullable": true
+                },
+                "effectiveUntil": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "nullable": true
+                },
+                "capacity": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                }
+              },
+              "required": [
+                "id",
+                "dayOfWeek",
+                "startTime",
+                "durationMin",
+                "effectiveFrom",
+                "effectiveUntil",
+                "capacity"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "exceptions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "slotId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "nullable": true
+                },
+                "fromDate": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                },
+                "untilDate": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                },
+                "reason": {
+                  "type": "string",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "id",
+                "slotId",
+                "fromDate",
+                "untilDate",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "canEdit": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "gym",
+          "direction",
+          "coach",
+          "bookingMode",
+          "coaches",
+          "memberCount",
+          "week",
+          "capacity",
+          "bookingWindowDays",
+          "bookingCancelHours",
+          "slots",
+          "exceptions",
+          "canEdit"
+        ],
+        "additionalProperties": false
+      },
+      "ListGroupMembersOutput_Output": {
+        "type": "object",
+        "properties": {
+          "data": {
             "type": "array",
             "items": {
               "type": "object",
@@ -28322,127 +28387,27 @@
               "additionalProperties": false
             }
           },
-          "slots": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "dayOfWeek": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "maximum": 7
-                },
-                "startTime": {
-                  "type": "string"
-                },
-                "durationMin": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "effectiveFrom": {
-                  "type": "string",
-                  "format": "date",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
-                  "nullable": true
-                },
-                "effectiveUntil": {
-                  "type": "string",
-                  "format": "date",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
-                  "nullable": true
-                },
-                "capacity": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "nullable": true
-                }
-              },
-              "required": [
-                "id",
-                "dayOfWeek",
-                "startTime",
-                "durationMin",
-                "effectiveFrom",
-                "effectiveUntil",
-                "capacity"
-              ],
-              "additionalProperties": false
-            }
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
-          "exceptions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "slotId": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "nullable": true
-                },
-                "fromDate": {
-                  "type": "string",
-                  "format": "date",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                },
-                "untilDate": {
-                  "type": "string",
-                  "format": "date",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                },
-                "reason": {
-                  "type": "string",
-                  "nullable": true
-                }
-              },
-              "required": [
-                "id",
-                "slotId",
-                "fromDate",
-                "untilDate",
-                "reason"
-              ],
-              "additionalProperties": false
-            }
+          "curPage": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "canEdit": {
-            "type": "boolean"
+          "perPage": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
-          "id",
-          "name",
-          "gym",
-          "direction",
-          "coach",
-          "bookingMode",
-          "capacity",
-          "bookingWindowDays",
-          "bookingCancelHours",
-          "coaches",
-          "memberCount",
-          "members",
-          "slots",
-          "exceptions",
-          "createdAt",
-          "canEdit"
+          "data",
+          "total",
+          "curPage",
+          "perPage"
         ],
         "additionalProperties": false
       },
@@ -47599,8 +47564,31 @@
                 "snoozed": {
                   "type": "boolean"
                 },
-                "canContact": {
-                  "type": "boolean"
+                "score": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "high",
+                    "medium",
+                    "low",
+                    null
+                  ],
+                  "nullable": true
+                },
+                "monthlySpend": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "currency": {
+                  "type": "string",
+                  "nullable": true
                 }
               },
               "required": [
@@ -47617,7 +47605,10 @@
                 "facts",
                 "lastContact",
                 "snoozed",
-                "canContact"
+                "score",
+                "level",
+                "monthlySpend",
+                "currency"
               ],
               "additionalProperties": false
             }
@@ -47650,10 +47641,25 @@
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
               },
+              "high": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
               "snoozed": {
                 "type": "integer",
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
+              },
+              "moneyAtStake": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
+              "currency": {
+                "type": "string",
+                "nullable": true
               }
             },
             "required": [
@@ -47662,14 +47668,42 @@
               "newcomer",
               "absent",
               "declining",
-              "snoozed"
+              "high",
+              "snoozed",
+              "moneyAtStake",
+              "currency"
             ],
             "additionalProperties": false
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "page": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "perPage": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "scoredAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "nullable": true
           }
         },
         "required": [
           "data",
-          "summary"
+          "summary",
+          "total",
+          "page",
+          "perPage",
+          "scoredAt"
         ],
         "additionalProperties": false
       },
@@ -47740,302 +47774,6 @@
           "note",
           "reason",
           "signals"
-        ],
-        "additionalProperties": false
-      },
-      "ListChurnRiskOutput_Output": {
-        "type": "object",
-        "properties": {
-          "computedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
-            "nullable": true
-          },
-          "data": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "userId": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "firstname": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "lastname": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "email": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "phone": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "guardians": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "userId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "firstname": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "lastname": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "email": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "phone": {
-                        "type": "string",
-                        "nullable": true
-                      },
-                      "relation": {
-                        "type": "string",
-                        "enum": [
-                          "PARENT",
-                          "GUARDIAN",
-                          "OTHER"
-                        ]
-                      },
-                      "confirmed": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "userId",
-                      "firstname",
-                      "lastname",
-                      "email",
-                      "phone",
-                      "relation",
-                      "confirmed"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "groups": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "gymId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "nullable": true
-                      },
-                      "gymName": {
-                        "type": "string",
-                        "nullable": true
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "name",
-                      "gymId",
-                      "gymName"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "score": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "level": {
-                  "type": "string",
-                  "enum": [
-                    "high",
-                    "medium",
-                    "low"
-                  ]
-                },
-                "reasons": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "code": {
-                        "type": "string",
-                        "enum": [
-                          "absent",
-                          "never_visited",
-                          "after_freeze",
-                          "declining",
-                          "expired",
-                          "out_of_classes",
-                          "ending_soon",
-                          "missed_bookings",
-                          "newcomer",
-                          "debt",
-                          "frozen",
-                          "veteran"
-                        ]
-                      },
-                      "points": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "text": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "code",
-                      "points",
-                      "text"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "monthlySpend": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "nullable": true
-                },
-                "currency": {
-                  "type": "string",
-                  "nullable": true
-                },
-                "lastVisitAt": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
-                  "nullable": true
-                },
-                "lastContact": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "format": "uuid",
-                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                    },
-                    "at": {
-                      "type": "string",
-                      "format": "date-time",
-                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                    },
-                    "byName": {
-                      "type": "string"
-                    },
-                    "note": {
-                      "type": "string",
-                      "nullable": true
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "at",
-                    "byName",
-                    "note"
-                  ],
-                  "additionalProperties": false,
-                  "nullable": true
-                },
-                "contactedRecently": {
-                  "type": "boolean"
-                },
-                "canContact": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "userId",
-                "firstname",
-                "lastname",
-                "email",
-                "phone",
-                "guardians",
-                "groups",
-                "score",
-                "level",
-                "reasons",
-                "monthlySpend",
-                "currency",
-                "lastVisitAt",
-                "lastContact",
-                "contactedRecently",
-                "canContact"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "summary": {
-            "type": "object",
-            "properties": {
-              "total": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              "high": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              "medium": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              "moneyAtStake": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "nullable": true
-              },
-              "currency": {
-                "type": "string",
-                "nullable": true
-              },
-              "contactedRecently": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              }
-            },
-            "required": [
-              "total",
-              "high",
-              "medium",
-              "moneyAtStake",
-              "currency",
-              "contactedRecently"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "required": [
-          "computedAt",
-          "data",
-          "summary"
         ],
         "additionalProperties": false
       },
@@ -48840,6 +48578,13 @@
       "RefreshAnalyticsOutput_Output": {
         "type": "object",
         "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "fresh",
+              "queued"
+            ]
+          },
           "historyComputedAt": {
             "type": "string",
             "format": "date-time",
@@ -48854,6 +48599,7 @@
           }
         },
         "required": [
+          "status",
           "historyComputedAt",
           "riskComputedAt"
         ],
@@ -49888,12 +49634,57 @@
               ],
               "additionalProperties": false
             }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "curPage": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "perPage": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "all": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "ready": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "readyUnlisted": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "all",
+              "ready",
+              "readyUnlisted"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
           "ladders",
           "ladderId",
-          "data"
+          "data",
+          "total",
+          "curPage",
+          "perPage",
+          "summary"
         ],
         "additionalProperties": false
       },

@@ -207,6 +207,7 @@ import { UpdateWorkspaceSettingsHandler } from '../features/update-workspace-set
 import { ListGroupsController } from '../features/list-groups/list-groups.controller'
 import { ListGroupsHandler } from '../features/list-groups/list-groups.handler'
 import { GetGroupHandler } from '../features/list-groups/get-group.handler'
+import { ListGroupMembersHandler } from '../features/list-groups/list-group-members.handler'
 import { ListGymsController } from '../features/list-gyms/list-gyms.controller'
 import { ListGymsHandler } from '../features/list-gyms/list-gyms.handler'
 import { ListRolesController } from '../features/list-roles/list-roles.controller'
@@ -304,6 +305,7 @@ import { GetMemberRanksHandler } from '../features/member-ranks/get-member-ranks
 import { LadderRosterController } from '../features/member-ranks/ladder-roster.controller'
 import { GetLadderRosterHandler } from '../features/member-ranks/get-ladder-roster.handler'
 import { AtRiskMembersController } from '../features/at-risk-members/at-risk-members.controller'
+import { CallListCacheService } from '../domains/retention/call-list-cache.service'
 import { ListAtRiskMembersHandler } from '../features/at-risk-members/list-at-risk-members.handler'
 import { LogAtRiskContactHandler } from '../features/at-risk-members/log-at-risk-contact.handler'
 import { ClubAnalyticsController } from '../features/club-analytics/club-analytics.controller'
@@ -311,8 +313,11 @@ import { GetCoachAnalyticsHandler } from '../features/club-analytics/get-coach-a
 import { GetCohortRetentionHandler } from '../features/club-analytics/get-cohort-retention.handler'
 import { GetRevenueForecastHandler } from '../features/club-analytics/get-revenue-forecast.handler'
 import { GetScheduleOccupancyHandler } from '../features/club-analytics/get-schedule-occupancy.handler'
-import { ListChurnRiskHandler } from '../features/club-analytics/list-churn-risk.handler'
 import { RefreshAnalyticsHandler } from '../features/club-analytics/refresh-analytics.handler'
+import {
+    ANALYTICS_REFRESH_QUEUE,
+    AnalyticsRefreshProcessor,
+} from '../features/club-analytics/refresh-analytics.processor'
 import { PromoteMembersHandler } from '../features/member-ranks/promote-members.handler'
 import { RankGradingsController } from '../features/rank-gradings/rank-gradings.controller'
 import { CreateRankGradingHandler } from '../features/rank-gradings/create-rank-grading.handler'
@@ -703,6 +708,7 @@ const coreModules: ModuleMetadata['imports'] = [
     BullModule.registerQueue({ name: 'video-transcode' }),
     BullModule.registerQueue({ name: PLATFORM_AUTOPAY_QUEUE }),
     BullModule.registerQueue({ name: CLUB_IMPORT_QUEUE }),
+    BullModule.registerQueue({ name: ANALYTICS_REFRESH_QUEUE }),
     SchedulerModule,
 ]
 
@@ -997,6 +1003,7 @@ const handlers: ModuleMetadata['providers'] = [
     DeleteGymHandler,
     ListGroupsHandler,
     GetGroupHandler,
+    ListGroupMembersHandler,
     CreateGroupHandler,
     UpdateGroupHandler,
     DeleteGroupHandler,
@@ -1179,9 +1186,9 @@ const handlers: ModuleMetadata['providers'] = [
     PromoteMemberHandler,
     GetMemberRanksHandler,
     GetLadderRosterHandler,
+    CallListCacheService,
     ListAtRiskMembersHandler,
     LogAtRiskContactHandler,
-    ListChurnRiskHandler,
     GetCohortRetentionHandler,
     GetScheduleOccupancyHandler,
     GetCoachAnalyticsHandler,
@@ -1376,6 +1383,8 @@ z.config(z.locales.ru())
       // «Импорт клуба»: the shared engine and its background worker.
       ClubImportEngine,
       ClubImportProcessor,
+      // «Пересчитать» analytics: one background rebuild per club at a time.
+      AnalyticsRefreshProcessor,
       MailHealthService,
       GeocodingService,
       BootstrapSeedService,

@@ -130,11 +130,12 @@ export default function WorkspaceOverviewPage() {
     }
   }, [workspaceId, canLead])
 
-  // Best-effort and visible to all staff (the server scopes it for coaches).
+  // «Кому позвонить» count, the same number as the list header and the apps
+  // (the server scopes it for coaches). Only the summary is needed.
   const loadAtRisk = useCallback(async () => {
     if (!workspaceId) return
     try {
-      const res = await listAtRiskMembers({ workspaceId })
+      const res = await listAtRiskMembers({ workspaceId, perPage: 1 })
       setAtRisk(res.summary.total)
     } catch {
       setAtRisk(null)
@@ -277,9 +278,9 @@ export default function WorkspaceOverviewPage() {
             />
           )}
           <StatCard
-            label="Под риском"
+            label="Кому позвонить"
             value={atRisk ?? undefined}
-            subtitle="могут уйти — позвоните"
+            subtitle="ученики, которые могут уйти"
             loading={loading}
             tone="warn"
             href={`/workspace/${workspaceId}/retention`}

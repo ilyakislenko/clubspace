@@ -2,17 +2,20 @@ jest.mock('../../environments/environment', () => ({
     environment: { adminUrl: 'https://admin.example.com/' },
 }))
 jest.mock('./analytics-reports', () => ({
-    loadChurnReport: jest.fn(),
     loadCohortReport: jest.fn(),
     loadForecastReport: jest.fn(),
     loadOccupancyReport: jest.fn(),
 }))
+jest.mock('../retention/call-list', () => ({
+    ...jest.requireActual('../retention/call-list'),
+    loadCallList: jest.fn(),
+}))
 
 import { Logger } from '@nestjs/common'
 
+import { loadCallList } from '../retention/call-list'
 import { AnalyticsDigestService, renderDigestHtml } from './analytics-digest.service'
 import {
-    loadChurnReport,
     loadCohortReport,
     loadForecastReport,
     loadOccupancyReport,
@@ -22,11 +25,7 @@ import {
 const MONDAY = new Date('2026-11-02T02:15:00.000Z')
 
 const mockReports = (members: number) => {
-    ;(loadChurnReport as jest.Mock).mockResolvedValue({
-        computedAt: null,
-        entries: [],
-        summary: { total: 0, high: 0, medium: 0, moneyAtStake: 0, currency: 'RUB', contactedRecently: 0 },
-    })
+    ;(loadCallList as jest.Mock).mockResolvedValue({ scoredAt: null, entries: [] })
     ;(loadForecastReport as jest.Mock).mockResolvedValue({
         computedAt: null,
         currency: 'RUB',
@@ -155,7 +154,7 @@ describe('renderDigestHtml', () => {
     it('escapes the copy and omits links without an admin URL', () => {
         const html = renderDigestHtml(
             'Клуб <b>',
-            { facts: ['5 > 3'], actions: [{ text: 'Позвоните', path: 'analytics/churn' }] },
+            { facts: ['5 > 3'], actions: [{ text: 'Позвоните', path: 'retention' }] },
             null,
         )
         expect(html).toContain('Клуб &lt;b&gt;')

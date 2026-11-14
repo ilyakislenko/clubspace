@@ -141,16 +141,27 @@ describe('demo kit', () => {
         const stats = await ctx.http().get(`/workspaces/${workspaceId}/stats`).set(...auth).expect(200)
         const students = stats.body.counts.members as number
         const share = (n: number) => n / students
-        const atRisk = await ctx.http().get(`/workspaces/${workspaceId}/at-risk-members`).set(...auth).expect(200)
+        const atRisk = await ctx
+            .http()
+            .get(`/workspaces/${workspaceId}/at-risk-members?perPage=200`)
+            .set(...auth)
+            .expect(200)
         expect(share(atRisk.body.summary.total)).toBeGreaterThan(0.06)
         expect(share(atRisk.body.summary.total)).toBeLessThan(0.14)
-        // «Кто пропадает» has someone to call for every entry.
+        // «Кому позвонить» has someone to call for every entry, and people
+        // worth a call with money at stake.
         expect(
             atRisk.body.data.every(
                 (m: { phone: string | null; guardians: { phone: string | null }[] }) =>
                     m.phone || m.guardians.some((g) => g.phone),
             ),
         ).toBe(true)
+        expect(
+            atRisk.body.data.filter(
+                (e: { level: string | null; monthlySpend: number | null }) =>
+                    e.level === 'high' && (e.monthlySpend ?? 0) > 0,
+            ).length,
+        ).toBeGreaterThanOrEqual(3)
         const renewals = await ctx.http().get(`/workspaces/${workspaceId}/renewal-candidates`).set(...auth).expect(200)
         expect(share(renewals.body.data.length)).toBeGreaterThan(0.05)
         expect(share(renewals.body.data.length)).toBeLessThan(0.2)
@@ -169,8 +180,7 @@ describe('demo kit', () => {
 
         // «Аналитика» is rebuilt by the reset and has a story on every screen:
         // weak slots and one over its roster, a coach whose people stay, a
-        // falling cohort curve, people worth a call with money at stake, and
-        // trials both converted and not.
+        // falling cohort curve, and trials both converted and not.
         const analytics = (path: string) =>
             ctx.http().get(`/workspaces/${workspaceId}/analytics/${path}`).set(...auth).expect(200)
         const occupancy = await analytics('occupancy')
@@ -194,12 +204,6 @@ describe('demo kit', () => {
         ).toBeGreaterThanOrEqual(3)
         const average = cohorts.body.average as { offset: number; rate: number }[]
         expect(average.find((a) => a.offset === 3)!.rate).toBeLessThan(average.find((a) => a.offset === 1)!.rate)
-        const churn = await analytics('churn')
-        expect(
-            churn.body.data.filter(
-                (e: { level: string; monthlySpend: number }) => e.level === 'high' && e.monthlySpend > 0,
-            ).length,
-        ).toBeGreaterThanOrEqual(3)
         const forecast = await analytics('forecast')
         expect(forecast.body.trial.converted).toBeGreaterThan(0)
         expect(forecast.body.trial.converted).toBeLessThan(forecast.body.trial.trials)

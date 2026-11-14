@@ -5,6 +5,7 @@ import {
     currentSubscriptionWhere,
     subscriptionScopeSelect,
 } from '../../domains/subscriptions/current-subscriptions'
+import { userSearchWhere } from '../../domains/users/user-search'
 import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { STAFF_ROLES } from '../../shared/decorators/roles.decorator'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -21,41 +22,12 @@ import {
 } from './list-workspace-members.feature'
 
 const MS_1D = 24 * 3600 * 1000
-// More words than this in a search add nothing but query cost.
-const MAX_SEARCH_TERMS = 5
 
-// Every word of the query must appear in the member's name, e-mail or phone,
-// or in one of a child's guardians' (the guardian is who the club knows).
+// Every word of the query must match the member (userSearchWhere).
 export const memberSearchWhere = (
     q: string,
 ): Prisma.WorkspaceMemberWhereInput[] =>
-    q
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, MAX_SEARCH_TERMS)
-        .map((term) => {
-            const contains = { contains: term, mode: 'insensitive' as const }
-            const person: Prisma.UserWhereInput[] = [
-                { firstname: contains },
-                { lastname: contains },
-                { email: contains },
-                { phone: contains },
-            ]
-            return {
-                user: {
-                    OR: [
-                        ...person,
-                        {
-                            dependentOf: {
-                                some: {
-                                    guardian: { status: 'ACTIVE', OR: person },
-                                },
-                            },
-                        },
-                    ],
-                },
-            }
-        })
+    userSearchWhere(q).map((user) => ({ user }))
 
 // The dashboard retention segments (get-workspace-stats): ACTIVE students —
 // neither the owner nor staff — whose access lapsed, lapses within 14 days

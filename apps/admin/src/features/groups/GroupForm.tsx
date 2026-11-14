@@ -21,7 +21,8 @@ import {
 import { type WorkspaceMember } from "../../shared/api/members"
 import { DirectionSelect } from "../directions/DirectionSelect"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
-import { formatMemberLabel, matchesMemberQuery } from "./helpers"
+import { formatMemberLabel } from "./helpers"
+import { MemberSearchPicker } from "./MemberSearchPicker"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { agree, cap } from "@clubspace/ui-kit/brand"
 
@@ -58,7 +59,6 @@ type Props = {
     gymId: string
     coachId: string
     directionId: string | null
-    memberIds: string[]
     bookingMode: GroupBookingMode
     capacity: number | null
     bookingWindowDays: number | null
@@ -67,8 +67,10 @@ type Props = {
   gyms: Gym[]
   // Club directions; the selector hides itself when empty.
   directions: Direction[]
-  members: WorkspaceMember[]
+  // Staff who may coach a group.
   coachOptions: WorkspaceMember[]
+  // Needed in create mode: the student picker searches the club server-side.
+  workspaceId: string
   submitting: boolean
   // Set for a direction manager: the direction selector offers only their
   // directions — except while creating a group they coach themselves, which
@@ -87,8 +89,8 @@ export function GroupForm({
   initial,
   gyms,
   directions,
-  members,
   coachOptions,
+  workspaceId,
   submitting,
   directionScope,
   onCancel,
@@ -101,8 +103,8 @@ export function GroupForm({
   const [directionId, setDirectionId] = useState<string | null>(
     initial ? initial.directionId : (directionScope?.defaultDirectionId ?? null),
   )
-  const [memberIds, setMemberIds] = useState<string[]>(initial?.memberIds ?? [])
-  const [memberQuery, setMemberQuery] = useState("")
+  // Students to enrol at creation; later the roster lives on the group card.
+  const [picked, setPicked] = useState<WorkspaceMember[]>([])
   const [bookingMode, setBookingMode] = useState<GroupBookingMode>(
     initial?.bookingMode ?? "FIXED",
   )
@@ -119,15 +121,9 @@ export function GroupForm({
   const bookingInvalid =
     bookingMode === "BOOKING" &&
     (!parsedCapacity.ok || !parsedWindow.ok || !parsedCancel.ok)
-  const visibleMembers = members.filter((m) => matchesMemberQuery(m, memberQuery))
+  const pickedIds = new Set(picked.map((m) => m.userId))
+  if (coachId) pickedIds.add(coachId)
 
-  const toggleMember = (userId: string) => {
-    setMemberIds((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId],
-    )
-  }
 
   const ownGroupInCreate =
     mode === "create" &&
@@ -147,7 +143,7 @@ export function GroupForm({
       gymId,
       coachId,
       directionId,
-      memberIds,
+      memberIds: mode === "create" ? picked.map((m) => m.userId) : undefined,
       bookingMode,
       capacity: keep
         ? (initial?.capacity ?? null)
@@ -168,14 +164,7 @@ export function GroupForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-3 rounded-lg border border-border bg-card p-4"
-    >
-      <h3 className="text-sm font-medium">
-        {mode === "create" ? "Новая группа" : "Редактирование группы"}
-      </h3>
-
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="group-name">Название</Label>
         <Input
@@ -212,7 +201,7 @@ export function GroupForm({
               // The new coach can't simultaneously be a student of the
               // same group — drop them from the desired member list when
               // they get promoted.
-              setMemberIds((prev) => prev.filter((id) => id !== next))
+              setPicked((prev) => prev.filter((m) => m.userId !== next))
             }}
           >
             <SelectTrigger>
@@ -322,53 +311,42 @@ export function GroupForm({
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Расписание группы и отмены задаются ниже после сохранения карточки.
-      </p>
-
-      <div className="space-y-1.5">
-        <Label>Ученики ({memberIds.length} выбрано)</Label>
-        {members.length > 0 && (
-          <Input
-            type="search"
-            value={memberQuery}
-            onChange={(e) => setMemberQuery(e.target.value)}
-            placeholder="Поиск по имени или email"
-            className="h-9"
+      {mode === "create" && (
+        <div className="space-y-1.5">
+          <Label>Ученики</Label>
+          <MemberSearchPicker
+            workspaceId={workspaceId}
+            excludeIds={pickedIds}
+            onPick={(m) => setPicked((prev) => [...prev, m])}
           />
-        )}
-        <div className="max-h-48 overflow-y-auto rounded-md border border-border">
-          {members.length === 0 ? (
-            <p className="p-3 text-xs text-muted-foreground">
-              В клубе пока нет учеников
-            </p>
-          ) : visibleMembers.length === 0 ? (
-            <p className="p-3 text-xs text-muted-foreground">
-              Никто не подходит под «{memberQuery}»
-            </p>
-          ) : (
-            visibleMembers.map((m) => (
-              <label
-                key={m.userId}
-                className="flex cursor-pointer items-center gap-2 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:bg-muted/40"
-              >
-                <input
-                  type="checkbox"
-                  checked={memberIds.includes(m.userId)}
-                  onChange={() => toggleMember(m.userId)}
-                  disabled={m.userId === coachId}
-                />
-                <span className="flex-1 truncate">{formatMemberLabel(m)}</span>
-                {m.userId === coachId && (
-                  <span className="text-xs text-muted-foreground italic">
-                    {vocabulary.coach.nom}
-                  </span>
-                )}
-              </label>
-            ))
+          {picked.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5 pt-1">
+              {picked.map((m) => (
+                <li
+                  key={m.userId}
+                  className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
+                >
+                  {formatMemberLabel(m)}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPicked((prev) => prev.filter((p) => p.userId !== m.userId))
+                    }
+                    className="rounded-full px-1 text-muted-foreground hover:bg-muted-foreground/20"
+                    aria-label={`Убрать ${formatMemberLabel(m)}`}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
+          <p className="text-xs text-muted-foreground">
+            Можно добавить и позже, в карточке группы. Время {vocabulary.session.genPl} задаётся
+            в календаре «{cap(vocabulary.session.nomPl)}».
+          </p>
         </div>
-      </div>
+      )}
 
       <div className="flex justify-end gap-2">
         <Button

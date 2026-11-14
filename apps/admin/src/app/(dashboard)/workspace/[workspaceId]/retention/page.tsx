@@ -2,24 +2,10 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { Fragment, useCallback, useEffect, useState } from "react"
+import { Fragment, useCallback, useEffect, useRef, useState } from "react"
 
-import {
-  Button,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@clubspace/ui-kit/ui"
+import { Button, Input } from "@clubspace/ui-kit/ui"
 
-import {
-  listGroups,
-  listGyms,
-  type Gym,
-  type GroupSummary,
-} from "../../../../../shared/api/groups"
 import {
   listAtRiskMembers,
   logAtRiskContact,
@@ -28,21 +14,31 @@ import {
   type AtRiskReason,
 } from "../../../../../shared/api/retention"
 import {
+  EMPTY_ANALYTICS_FILTER,
+  analyticsScope,
+  personName,
+} from "../../../../../shared/lib/analytics"
+import {
   AT_RISK_CHIP,
   AT_RISK_LABEL,
+  AT_RISK_LEVEL_LABEL,
+  AT_RISK_LEVEL_TEXT,
   AT_RISK_REFRESH_MS,
-  filterAtRisk,
 } from "../../../../../shared/lib/at-risk"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+import { groupOptionLabel } from "../../../../../shared/lib/group-label"
 import { formatRelativeDays } from "../../../../../shared/lib/member-activity"
-import { useThrottledCallback } from "../../../../../shared/lib/throttle"
 import { formatPhone } from "../../../../../shared/lib/phone"
+import { pluralRu } from "../../../../../shared/lib/plural-ru"
+import { useThrottledCallback } from "../../../../../shared/lib/throttle"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
-import { groupOptionLabel } from "../../../../../shared/lib/group-label"
-import { useVocabulary } from "../../../../../shared/lib/vocabulary"
+import { AnalyticsFilters, formatMoney } from "../analytics/analytics-toolbar"
 
-const ALL = "all"
+const PER_PAGE = 50
+// The server's page cap: a refresh reloads everything already shown.
+const MAX_PER_PAGE = 200
 
 const CHIPS: { key: AtRiskReason | null; label: string }[] = [
   { key: null, label: "Все" },
@@ -52,60 +48,82 @@ const CHIPS: { key: AtRiskReason | null; label: string }[] = [
   { key: "declining", label: "Реже, чем раньше" },
 ]
 
-const memberName = (m: AtRiskMember) =>
-  [m.firstname, m.lastname].filter(Boolean).join(" ") || m.email || "—"
-
-export default function RetentionPage() {
+// «Кому позвонить»: the one call list (the dashboard tile and the apps show
+// the same count). Who and why come from the live rules, the risk score and
+// the money at stake from the hourly snapshot; the server scopes it to the
+// caller's groups and hides money below club admin.
+export default function CallListPage() {
   const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
 
-  const [list, setList] = useState<AtRiskList | null>(null)
-  const [gyms, setGyms] = useState<Gym[]>([])
-  const [groups, setGroups] = useState<GroupSummary[]>([])
-  const [gymId, setGymId] = useState(ALL)
-  const [groupId, setGroupId] = useState(ALL)
+  const [filter, setFilter] = useState(EMPTY_ANALYTICS_FILTER)
   const [reason, setReason] = useState<AtRiskReason | null>(null)
-  const [showSnoozed, setShowSnoozed] = useState(false)
+  const [snoozed, setSnoozed] = useState(false)
+  const [list, setList] = useState<AtRiskList | null>(null)
+  const [rows, setRows] = useState<AtRiskMember[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [note, setNote] = useState("")
   const [saving, setSaving] = useState(false)
+  // Rows already on screen, so a refresh doesn't fold «Показать ещё» back.
+  const shown = useRef(0)
+
+  const query = useCallback(
+    (page: number, perPage: number) =>
+      listAtRiskMembers({
+        workspaceId: workspaceId!,
+        ...analyticsScope(filter),
+        reason: snoozed ? undefined : (reason ?? undefined),
+        snoozed,
+        page,
+        perPage,
+      }),
+    [workspaceId, filter, reason, snoozed],
+  )
 
   const load = useCallback(async () => {
     if (!workspaceId) return
     try {
-      setList(
-        await listAtRiskMembers({
-          workspaceId,
-          gymId: gymId === ALL ? undefined : gymId,
-          groupId: groupId === ALL ? undefined : groupId,
-        }),
-      )
+      const perPage = Math.min(MAX_PER_PAGE, Math.max(PER_PAGE, shown.current))
+      const res = await query(1, perPage)
+      setList(res)
+      setRows(res.data)
+      shown.current = res.data.length
       setError(null)
     } catch (err) {
       setError(errorMessage(err, "Не удалось загрузить список."))
     } finally {
       setLoading(false)
     }
-  }, [workspaceId, gymId, groupId])
+  }, [workspaceId, query])
 
   useEffect(() => {
+    shown.current = 0
     setLoading(true)
     void load()
   }, [load])
 
-  // Filters are best-effort: the list works without them.
-  useEffect(() => {
-    if (!workspaceId) return
-    void listGyms({ workspaceId })
-      .then((res) => setGyms(res.data))
-      .catch(() => setGyms([]))
-    void listGroups({ workspaceId })
-      .then((res) => setGroups(res.data))
-      .catch(() => setGroups([]))
-  }, [workspaceId])
+  const loadMore = async () => {
+    if (!list || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const page = Math.floor(rows.length / PER_PAGE) + 1
+      const res = await query(page, PER_PAGE)
+      // Rows a refresh already holds are not repeated.
+      const seen = new Set(rows.map((r) => r.userId))
+      const next = [...rows, ...res.data.filter((r) => !seen.has(r.userId))]
+      setList(res)
+      setRows(next)
+      shown.current = next.length
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось загрузить список."))
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const refresh = useThrottledCallback(() => void load(), AT_RISK_REFRESH_MS)
   useWorkspaceRealtime(
@@ -113,9 +131,6 @@ export default function RetentionPage() {
     ["members", "attendance", "subscription"],
     refresh,
   )
-
-  const visibleGroups =
-    gymId === ALL ? groups : groups.filter((g) => g.gym?.id === gymId)
 
   const startEditing = (userId: string) => {
     setEditingId(userId)
@@ -145,16 +160,31 @@ export default function RetentionPage() {
   const summary = list?.summary
   const count = (key: AtRiskReason | null) =>
     summary ? (key === null ? summary.total : summary[key]) : 0
-  const rows = filterAtRisk(list?.data ?? [], reason, showSnoozed)
+  const hasMore = !!list && rows.length < list.total
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Кто пропадает</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Ученики, которые могут уйти. Один звонок {vocabulary.coach.gen} заметно продлевает
-          членство.
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold">Кому позвонить</h1>
+        <p className="text-sm text-muted-foreground">
+          Ученики, которые могут уйти. Один звонок {vocabulary.coach.gen}{" "}
+          заметно продлевает членство.
         </p>
+        {summary && (
+          <p className="text-sm">
+            <span className="font-semibold tabular-nums">{summary.total}</span>{" "}
+            {pluralRu(summary.total, "ученик", "ученика", "учеников")} стоит
+            позвонить
+            {summary.high > 0 && <> · с высоким риском — {summary.high}</>}
+            {summary.moneyAtStake !== null && summary.moneyAtStake > 0 && (
+              <>
+                {" "}
+                · на кону ~{formatMoney(summary.moneyAtStake, summary.currency)}{" "}
+                в месяц
+              </>
+            )}
+          </p>
+        )}
       </div>
 
       {error && (
@@ -163,68 +193,38 @@ export default function RetentionPage() {
         </p>
       )}
 
-      <div className="flex flex-wrap gap-3">
-        <div className="w-56">
-          <Select
-            value={gymId}
-            onValueChange={(v) => {
-              setGymId(v)
-              setGroupId(ALL)
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Зал" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Все залы</SelectItem>
-              {gyms.map((g) => (
-                <SelectItem key={g.id} value={g.id}>
-                  {g.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-56">
-          <Select value={groupId} onValueChange={setGroupId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Группа" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Все группы</SelectItem>
-              {visibleGroups.map((g) => (
-                <SelectItem key={g.id} value={g.id}>
-                  {groupOptionLabel(g)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <AnalyticsFilters
+        workspaceId={workspaceId}
+        value={filter}
+        onChange={setFilter}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
-        {CHIPS.map((c) => (
-          <button
-            key={c.label}
-            type="button"
-            onClick={() => setReason(c.key)}
-            className={`rounded-full px-3 py-1 text-sm ${
-              reason === c.key
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-foreground hover:bg-muted/70"
-            }`}
-          >
-            {c.label} · {count(c.key)}
-          </button>
-        ))}
-        <label className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={showSnoozed}
-            onChange={(e) => setShowSnoozed(e.target.checked)}
-          />
-          Показать отработанных ({summary?.snoozed ?? 0})
-        </label>
+        {!snoozed &&
+          CHIPS.map((c) => (
+            <button
+              key={c.label}
+              type="button"
+              onClick={() => setReason(c.key)}
+              className={`rounded-full px-3 py-1 text-sm ${
+                reason === c.key
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-foreground hover:bg-muted/70"
+              }`}
+            >
+              {c.label} · {count(c.key)}
+            </button>
+          ))}
+        {(snoozed || (summary?.snoozed ?? 0) > 0) && (
+          <label className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={snoozed}
+              onChange={(e) => setSnoozed(e.target.checked)}
+            />
+            Связались недавно ({summary?.snoozed ?? 0})
+          </label>
+        )}
       </div>
 
       {loading ? (
@@ -238,16 +238,19 @@ export default function RetentionPage() {
         </div>
       ) : rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Сейчас никто не под риском.
+          {snoozed
+            ? "За две недели ни с кем не связывались."
+            : "Сейчас звонить никому не нужно."}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
+            <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="p-3">Участник</th>
                 <th className="p-3">Причина</th>
                 <th className="p-3">Что видно</th>
+                <th className="p-3">Риск</th>
                 <th className="p-3">Группы</th>
                 <th className="p-3">Телефон</th>
                 <th className="p-3">Последний контакт</th>
@@ -257,105 +260,132 @@ export default function RetentionPage() {
             <tbody className="divide-y divide-border">
               {rows.map((m) => (
                 <Fragment key={m.userId}>
-                <tr className="align-top">
-                  <td className="p-3">
-                    <Link
-                      href={`/workspace/${workspaceId}/users/${m.userId}`}
-                      className="font-medium hover:underline"
-                    >
-                      {memberName(m)}
-                    </Link>
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${AT_RISK_CHIP[m.reason]}`}
-                    >
-                      {AT_RISK_LABEL[m.reason]}
-                    </span>
-                  </td>
-                  <td className="min-w-64 p-3">{m.factsText}</td>
-                  <td className="p-3 text-xs text-muted-foreground">
-                    {m.groups
-                      .map((g) => groupOptionLabel(g))
-                      .join(", ")}
-                  </td>
-                  <td className="whitespace-nowrap p-3">
-                    {m.phone ? (
-                      <a
-                        href={`tel:${m.phone}`}
-                        className="text-primary hover:underline"
+                  <tr className="align-top">
+                    <td className="p-3">
+                      <Link
+                        href={`/workspace/${workspaceId}/users/${m.userId}`}
+                        className="font-medium hover:underline"
                       >
-                        {formatPhone(m.phone)}
-                      </a>
-                    ) : m.guardians.length === 0 ? (
-                      <span className="italic text-muted-foreground">
-                        не указан
+                        {personName(m)}
+                      </Link>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${AT_RISK_CHIP[m.reason]}`}
+                      >
+                        {AT_RISK_LABEL[m.reason]}
                       </span>
-                    ) : null}
-                    <GuardianContacts
-                      guardians={m.guardians}
-                      className="mt-1 whitespace-normal text-xs text-muted-foreground"
-                    />
-                  </td>
-                  <td className="p-3 text-xs text-muted-foreground">
-                    {m.lastContact
-                      ? `${formatRelativeDays(m.lastContact.at)} — ${m.lastContact.byName}${
-                          m.lastContact.note ? ` «${m.lastContact.note}»` : ""
-                        }`
-                      : "—"}
-                  </td>
-                  <td className="p-3">
-                    {m.canContact && editingId !== m.userId ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => startEditing(m.userId)}
-                      >
-                        Связались
-                      </Button>
-                    ) : null}
-                  </td>
-                </tr>
-                {editingId === m.userId && (
-                  // A row of its own: inside the last cell the note pushed the
-                  // table past the right edge on a 1440 screen.
-                  <tr>
-                    <td colSpan={7} className="px-3 pb-3 pt-0">
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <Input
-                          value={note}
-                          onChange={(e) => setNote(e.target.value)}
-                          placeholder="Заметка (необязательно)"
-                          maxLength={500}
-                          className="max-w-md"
-                          autoFocus
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => void save(m)}
-                          disabled={saving}
+                    </td>
+                    <td className="min-w-64 p-3">{m.factsText}</td>
+                    <td className="whitespace-nowrap p-3 text-xs">
+                      {m.score !== null && m.level !== null ? (
+                        <span className={`tabular-nums ${AT_RISK_LEVEL_TEXT[m.level]}`}>
+                          {m.score} · {AT_RISK_LEVEL_LABEL[m.level]}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                      {/* null: money is the club admins' to see. */}
+                      {m.monthlySpend !== null && m.monthlySpend > 0 && (
+                        <div className="text-muted-foreground">
+                          ~{formatMoney(m.monthlySpend, m.currency)}/мес
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3 text-xs text-muted-foreground">
+                      {m.groups.map((g) => groupOptionLabel(g)).join(", ")}
+                    </td>
+                    <td className="whitespace-nowrap p-3">
+                      {m.phone ? (
+                        <a
+                          href={`tel:${m.phone}`}
+                          className="text-primary hover:underline"
                         >
-                          {saving ? "Сохраняю…" : "Сохранить"}
-                        </Button>
+                          {formatPhone(m.phone)}
+                        </a>
+                      ) : m.guardians.length === 0 ? (
+                        <span className="italic text-muted-foreground">
+                          не указан
+                        </span>
+                      ) : null}
+                      <GuardianContacts
+                        guardians={m.guardians}
+                        className="mt-1 whitespace-normal text-xs text-muted-foreground"
+                      />
+                    </td>
+                    <td className="p-3 text-xs text-muted-foreground">
+                      {m.lastContact
+                        ? `${formatRelativeDays(m.lastContact.at)} — ${m.lastContact.byName}${
+                            m.lastContact.note ? ` «${m.lastContact.note}»` : ""
+                          }`
+                        : "—"}
+                    </td>
+                    <td className="p-3">
+                      {!m.snoozed && editingId !== m.userId ? (
                         <Button
                           type="button"
                           size="sm"
                           variant="secondary"
-                          onClick={() => setEditingId(null)}
-                          disabled={saving}
+                          onClick={() => startEditing(m.userId)}
                         >
-                          Отмена
+                          Связались
                         </Button>
-                      </div>
+                      ) : null}
                     </td>
                   </tr>
-                )}
+                  {editingId === m.userId && (
+                    // A row of its own: inside the last cell the note pushed the
+                    // table past the right edge on a 1440 screen.
+                    <tr>
+                      <td colSpan={8} className="px-3 pb-3 pt-0">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <Input
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            placeholder="Заметка (необязательно)"
+                            maxLength={500}
+                            className="max-w-md"
+                            autoFocus
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => void save(m)}
+                            disabled={saving}
+                          >
+                            {saving ? "Сохраняю…" : "Сохранить"}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setEditingId(null)}
+                            disabled={saving}
+                          >
+                            Отмена
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </Fragment>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {hasMore && (
+        <div className="flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={loadingMore || loading}
+            onClick={() => void loadMore()}
+          >
+            {loadingMore ? "Загружаем..." : "Показать ещё"}
+          </Button>
         </div>
       )}
     </div>

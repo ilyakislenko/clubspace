@@ -28,7 +28,6 @@ const m = (
 const SPORT_KEYS = [
   "dashboard",
   "retention",
-  "analytics-churn",
   "analytics-cohorts",
   "analytics-occupancy",
   "analytics-coaches",
@@ -62,7 +61,7 @@ describe("workspace sidebar visibility", () => {
   })
 
   it("shows a plain coach only the daily items", () => {
-    const daily = ["dashboard", "retention", "analytics-churn", "users", "schedule"]
+    const daily = ["dashboard", "retention", "users", "schedule"]
     expect(visibleKeys(m("coach"))).toEqual(daily)
     expect(visibleKeys(null)).toEqual(daily)
   })

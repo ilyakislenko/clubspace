@@ -1,4 +1,4 @@
-import type { ChurnRiskMember, CoachStats } from "../api/analytics"
+import type { CoachStats } from "../api/analytics"
 import {
   ANALYTICS_ALL,
   EMPTY_ANALYTICS_FILTER,
@@ -15,7 +15,6 @@ import {
   personName,
   rateCellClass,
   slotLabel,
-  splitChurnList,
 } from "./analytics"
 
 const person = (firstname: string | null, lastname: string | null = null) => ({
@@ -123,20 +122,6 @@ describe("formatPercent / formatAverage", () => {
     expect(formatAverage(4.56)).toBe("4,6")
     expect(formatAverage(7)).toBe("7")
     expect(formatAverage(null)).toBe("—")
-  })
-})
-
-describe("splitChurnList", () => {
-  it("keeps the order and moves recently contacted members aside", () => {
-    const m = (userId: string, contactedRecently: boolean) =>
-      ({ userId, contactedRecently }) as ChurnRiskMember
-    const { toCall, contacted } = splitChurnList([
-      m("a", false),
-      m("b", true),
-      m("c", false),
-    ])
-    expect(toCall.map((x) => x.userId)).toEqual(["a", "c"])
-    expect(contacted.map((x) => x.userId)).toEqual(["b"])
   })
 })
 

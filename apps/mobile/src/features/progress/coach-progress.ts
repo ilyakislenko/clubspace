@@ -1,7 +1,7 @@
 import { countForm, type ClubVocabulary } from "@clubspace/ui-kit/brand"
 
 import type { AttendanceOverview } from "../../shared/api/attendance"
-import type { RankReadinessEntry } from "../../shared/api/rank-readiness"
+import type { RankReadiness, RankReadinessEntry } from "../../shared/api/rank-readiness"
 import { pluralRu } from "../../shared/format-ru"
 
 /**
@@ -26,6 +26,9 @@ export const memberName = (e: {
   e.email ||
   "Без имени"
 
+/** How many ready members the Progress card lists (one page of the report). */
+export const READINESS_SHOWN = 5
+
 export type ReadinessDigest = {
   /** Who to show, those not yet put on a grading first (the coach's move). */
   shown: RankReadinessEntry[]
@@ -38,21 +41,19 @@ export type ReadinessDigest = {
   soon: number
 }
 
+/**
+ * The card's numbers from one `readyOnly` page of the report: the server
+ * orders the ready (unlisted first) and counts the whole ladder.
+ */
 export const readinessDigest = (
-  entries: readonly RankReadinessEntry[],
-  limit: number,
-): ReadinessDigest => {
-  const ready = entries.filter((e) => e.ready)
-  const unlisted = ready.filter((e) => !e.pendingGrading)
-  const ordered = [...unlisted, ...ready.filter((e) => e.pendingGrading)]
-  return {
-    shown: ordered.slice(0, limit),
-    more: Math.max(0, ordered.length - limit),
-    ready: ready.length,
-    unlisted: unlisted.length,
-    soon: entries.length - ready.length,
-  }
-}
+  report: Pick<RankReadiness, "data" | "summary">,
+): ReadinessDigest => ({
+  shown: report.data,
+  more: Math.max(0, report.summary.ready - report.data.length),
+  ready: report.summary.ready,
+  unlisted: report.summary.readyUnlisted,
+  soon: report.summary.all - report.summary.ready,
+})
 
 /** «12 тренировок · 148 отметок · 37 учеников» over the overview's window. */
 export const overviewLine = (o: AttendanceOverview, vocabulary: ClubVocabulary): string =>

@@ -14,7 +14,7 @@ import {
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { listGyms, type Gym } from "../../../../../shared/api/groups"
 import {
-  listAllWorkspaceMembers,
+  listAllStaffMembers,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 import { getWorkspaceSettings } from "../../../../../shared/api/workspaces"
@@ -106,7 +106,7 @@ export default function EventsPage() {
       const [eventsResp, gymsResp, membersResp, settings] = await Promise.all([
         listEvents({ workspaceId }),
         listGyms({ workspaceId }),
-        listAllWorkspaceMembers({ workspaceId, staffOnly: true }).catch(
+        listAllStaffMembers({ workspaceId }).catch(
           () => null,
         ),
         getWorkspaceSettings({ workspaceId }).catch(() => null),

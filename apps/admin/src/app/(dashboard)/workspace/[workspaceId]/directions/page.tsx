@@ -16,7 +16,7 @@ import {
   type Direction,
 } from "../../../../../shared/api/directions"
 import {
-  listAllWorkspaceMembers,
+  listAllStaffMembers,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 import { errorMessage } from "../../../../../shared/lib/error-message"
@@ -67,7 +67,7 @@ export default function DirectionsPage() {
     try {
       const [managersRes, membersRes] = await Promise.all([
         listDirectionManagers({ workspaceId }),
-        listAllWorkspaceMembers({ workspaceId, staffOnly: true }),
+        listAllStaffMembers({ workspaceId }),
       ])
       setManagers(managersRes.data)
       setCoaches(membersRes.filter(isDirectionManagerCandidate))

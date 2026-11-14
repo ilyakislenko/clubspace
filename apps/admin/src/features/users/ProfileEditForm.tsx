@@ -108,7 +108,7 @@ export function ProfileEditForm({
             placeholder="+7 900 000-00-00"
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            По нему {vocabulary.coach.nom} звонит в списке «Кто пропадает».
+            По нему {vocabulary.coach.nom} звонит в списке «Кому позвонить».
           </p>
         </div>
       )}

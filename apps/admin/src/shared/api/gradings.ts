@@ -21,11 +21,20 @@ export const getRankReadiness = async (p: {
   workspaceId: string
   ladderId?: string
   groupId?: string
+  readyOnly?: boolean
+  curPage?: number
+  perPage?: number
 }): Promise<RankReadiness> =>
   await getApiClient().request<RankReadiness>({
     method: "get",
     url: `/workspaces/${p.workspaceId}/rank-readiness`,
-    params: { ladderId: p.ladderId, groupId: p.groupId },
+    params: {
+      ladderId: p.ladderId,
+      groupId: p.groupId,
+      readyOnly: p.readyOnly,
+      curPage: p.curPage,
+      perPage: p.perPage,
+    },
   })
 
 export const listRankGradings = async (p: {

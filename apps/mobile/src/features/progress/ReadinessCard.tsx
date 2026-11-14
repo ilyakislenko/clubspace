@@ -10,8 +10,6 @@ import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { formatLevelWithStripes, swatchBlendsIn } from "../ranks/rank-format"
 import { memberName, readinessDigest } from "./coach-progress"
 
-const SHOWN = 5
-
 /**
  * Staff's «Готовы к аттестации» on the Progress tab: who in their groups has
  * met the admission rule for the next level on one ladder, from the same
@@ -28,7 +26,7 @@ export function ReadinessCard({
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const vocabulary = useVocabulary()
-  const digest = readinessDigest(data.data, SHOWN)
+  const digest = readinessDigest(data)
 
   return (
     <View style={styles.card}>

@@ -15,6 +15,7 @@ import { localDateInTz } from '../attendance/attendance-utils'
 import {
     GetRankReadinessFeature,
     GetRankReadinessFeatureResponse,
+    READINESS_DEFAULT_PER_PAGE,
 } from './get-rank-readiness.feature'
 
 const USER_SELECT = {
@@ -84,8 +85,18 @@ export class GetRankReadinessHandler
         if (f.payload.ladderId && !ladders.some((l) => l.id === f.payload.ladderId)) {
             throw new NotFoundError({ message: 'Лестница не найдена' })
         }
+        const curPage = f.payload.curPage ?? 1
+        const perPage = f.payload.perPage ?? READINESS_DEFAULT_PER_PAGE
         if (ladders.length === 0) {
-            return { ladders: [], ladderId: null, data: [] }
+            return {
+                ladders: [],
+                ladderId: null,
+                data: [],
+                total: 0,
+                curPage,
+                perPage,
+                summary: { all: 0, ready: 0, readyUnlisted: 0 },
+            }
         }
         const ladder =
             ladders.find((l) => l.id === f.payload.ladderId) ?? ladders[0]
@@ -228,14 +239,32 @@ export class GetRankReadinessHandler
                     : null,
             }
         })
+        // The coach's next move first: the ready not yet on a grading's list.
+        // The user id keeps pages stable when everything else ties.
         data.sort(
             (a, b) =>
                 Number(b.ready) - Number(a.ready) ||
+                (a.ready ? Number(a.pendingGrading !== null) - Number(b.pendingGrading !== null) : 0) ||
                 a.remainingVisits - b.remainingVisits ||
                 a.remainingWeeks - b.remainingWeeks ||
-                sortName(a).localeCompare(sortName(b), 'ru'),
+                sortName(a).localeCompare(sortName(b), 'ru') ||
+                a.userId.localeCompare(b.userId),
         )
+        const ready = data.filter((e) => e.ready)
+        const matching = f.payload.readyOnly ? ready : data
 
-        return { ladders: ladderList, ladderId: ladder.id, data }
+        return {
+            ladders: ladderList,
+            ladderId: ladder.id,
+            data: matching.slice((curPage - 1) * perPage, curPage * perPage),
+            total: matching.length,
+            curPage,
+            perPage,
+            summary: {
+                all: data.length,
+                ready: ready.length,
+                readyUnlisted: ready.filter((e) => e.pendingGrading === null).length,
+            },
+        }
     }
 }

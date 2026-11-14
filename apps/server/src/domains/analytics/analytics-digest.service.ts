@@ -6,11 +6,11 @@ import { CLUB_ADMINS } from '../../shared/decorators/roles.decorator'
 import { escapeHtml } from '../../shared/utils/escape-html'
 import { NotificationProducerService } from '../notifications/services/notification-producer.service'
 import { NotificationsService } from '../notifications/services/notifications.service'
+import { loadCallList } from '../retention/call-list'
 import { findClubsDue } from '../scheduler/clubs-due'
 import { claimDispatch, releaseDispatch } from '../scheduler/dispatch-claims'
 import {
     type AnalyticsScope,
-    loadChurnReport,
     loadCohortReport,
     loadForecastReport,
     loadOccupancyReport,
@@ -66,8 +66,8 @@ export class AnalyticsDigestService {
         now: Date,
     ): Promise<number> {
         const p = { workspaceId: ws.id, scope: WHOLE_CLUB, now }
-        const [churn, forecast, occupancy, cohorts, admins] = await Promise.all([
-            loadChurnReport(this.prisma, p),
+        const [callList, forecast, occupancy, cohorts, admins] = await Promise.all([
+            loadCallList(this.prisma, p),
             loadForecastReport(this.prisma, p),
             loadOccupancyReport(this.prisma, p),
             loadCohortReport(this.prisma, p),
@@ -82,7 +82,12 @@ export class AnalyticsDigestService {
         ])
         // Nothing to say about a club without students yet.
         if (forecast.members === 0) return 0
-        const digest = buildWeeklyDigest({ churn, forecast, occupancy, cohorts })
+        const digest = buildWeeklyDigest({
+            callList: callList.entries,
+            forecast,
+            occupancy,
+            cohorts,
+        })
 
         const recipientIds = [...new Set([ws.ownerId, ...admins.map((a) => a.userId)])]
         const [users, optedOut] = await Promise.all([

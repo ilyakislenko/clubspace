@@ -146,7 +146,7 @@ export default function ForecastPage() {
               value={money(data.highRiskMoney)}
               subtitle={
                 <Link
-                  href={`/workspace/${workspaceId}/analytics/churn`}
+                  href={`/workspace/${workspaceId}/retention`}
                   className="text-primary hover:underline"
                 >
                   Кому позвонить →

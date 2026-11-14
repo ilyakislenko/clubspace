@@ -29,7 +29,13 @@ const make = (over: { member?: unknown } = {}) => {
             ),
         },
     }
-    return { rbac, prisma, handler: new LogAtRiskContactHandler(prisma as never, rbac as never) }
+    const callLists = { invalidate: jest.fn().mockResolvedValue(undefined) }
+    return {
+        rbac,
+        prisma,
+        callLists,
+        handler: new LogAtRiskContactHandler(prisma as never, rbac as never, callLists as never),
+    }
 }
 
 const run = (
@@ -48,10 +54,11 @@ beforeEach(() => {
 
 describe('LogAtRiskContactHandler', () => {
     it('refuses a coach outside the member groups and writes nothing', async () => {
-        const { handler, rbac, prisma } = make()
+        const { handler, rbac, prisma, callLists } = make()
         rbac.assertCanWriteMember.mockRejectedValueOnce(new ForbiddenError({ message: 'no' }))
         await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
         expect(prisma.memberRetentionContact.create).not.toHaveBeenCalled()
+        expect(callLists.invalidate).not.toHaveBeenCalled()
     })
 
     it('404s when the target is not an ACTIVE member', async () => {
@@ -89,6 +96,15 @@ describe('LogAtRiskContactHandler', () => {
             reason: 'lapsed',
             signals: ['lapsed', 'absent'],
         })
+    })
+
+    it('drops the club call list so the member leaves every surface at once', async () => {
+        const { handler, prisma, callLists } = make()
+        await run(handler)
+        expect(callLists.invalidate).toHaveBeenCalledWith('w1')
+        expect(callLists.invalidate.mock.invocationCallOrder[0]).toBeGreaterThan(
+            prisma.memberRetentionContact.create.mock.invocationCallOrder[0],
+        )
     })
 
     it('stores no reason and no signals when the member is not at risk', async () => {

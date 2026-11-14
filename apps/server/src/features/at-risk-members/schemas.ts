@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { WorkspaceRiskEntry } from '../../domains/retention/load-workspace-risk'
+import type { CallListEntry } from '../../domains/retention/call-list'
 import { displayName } from '../attendance/schemas'
 import { MemberGuardianSchema } from '../dependents/schemas'
 
@@ -53,56 +53,57 @@ export const AtRiskMemberSchema = z.object({
         planName: z.string().nullable(),
     }),
     lastContact: AtRiskContactSchema.nullable(),
+    // A «Связались» that still covers every current signal (listed only
+    // with `snoozed=true`).
     snoozed: z.boolean(),
-    canContact: z.boolean(),
+    // Churn score 0-100 from the hourly snapshot; null before the member's
+    // first snapshot.
+    score: z.number().int().nullable(),
+    level: z.enum(['high', 'medium', 'low']).nullable(),
+    // Average monthly spend: what the club loses per month if they leave.
+    // Club money: null unless the caller is the owner or an admin.
+    monthlySpend: z.number().int().nullable(),
+    currency: z.string().nullable(),
 })
 
+// Over the caller's scope and the gym / direction / group / coach filters,
+// not the reason chip or the page, so every chip keeps its count.
 export const AtRiskSummarySchema = z.object({
     total: z.number().int(),
     lapsed: z.number().int(),
     newcomer: z.number().int(),
     absent: z.number().int(),
     declining: z.number().int(),
+    high: z.number().int(),
     snoozed: z.number().int(),
+    // Null unless the caller is the owner or an admin (club money).
+    moneyAtStake: z.number().int().nullable(),
+    currency: z.string().nullable(),
 })
 
-export const serializeAtRiskMember = (
-    e: WorkspaceRiskEntry & { canContact: boolean },
-) => ({
+export const serializeAtRiskMember = (e: CallListEntry, seesMoney: boolean) => ({
     userId: e.userId,
     firstname: e.firstname,
     lastname: e.lastname,
     email: e.email,
     phone: e.phone,
     guardians: e.guardians,
-    groups: e.groups,
-    reason: e.risk.reason,
-    signals: e.risk.signals,
+    groups: e.groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        gymId: g.gymId,
+        gymName: g.gymName,
+    })),
+    reason: e.reason,
+    signals: e.signals,
     factsText: e.factsText,
-    facts: {
-        lastVisitAt: e.risk.facts.lastVisitAt?.toISOString() ?? null,
-        daysSinceLastVisit: e.risk.facts.daysSinceLastVisit,
-        firstVisitAt: e.risk.facts.firstVisitAt?.toISOString() ?? null,
-        visitsLast14d: e.risk.facts.visitsLast14d,
-        recentPerWeek: e.risk.facts.recentPerWeek,
-        baselinePerWeek: e.risk.facts.baselinePerWeek,
-        lapseKind: e.risk.facts.lapseKind,
-        lapsedAt: e.risk.facts.lapsedAt?.toISOString() ?? null,
-        planName: e.risk.facts.planName,
-    },
-    lastContact: e.lastContact
-        ? {
-              id: e.lastContact.id,
-              userId: e.userId,
-              at: e.lastContact.at.toISOString(),
-              byName: e.lastContact.byName,
-              note: e.lastContact.note,
-              reason: e.lastContact.reason,
-              signals: e.lastContact.signals,
-          }
-        : null,
+    facts: e.facts,
+    lastContact: e.lastContact ? { ...e.lastContact, userId: e.userId } : null,
     snoozed: e.snoozed,
-    canContact: e.canContact,
+    score: e.score,
+    level: e.level,
+    monthlySpend: seesMoney ? e.monthlySpend : null,
+    currency: e.currency,
 })
 
 export const serializeRetentionContact = (c: {

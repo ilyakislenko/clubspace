@@ -26,6 +26,9 @@ import { cap } from "@clubspace/ui-kit/brand"
 const memberName = (e: ReadinessEntry) =>
   [e.firstname, e.lastname].filter(Boolean).join(" ") || e.email
 
+// Rows per request; «Показать ещё» reads the next page.
+const READINESS_PAGE = 50
+
 const todayYmd = (): string => {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, "0")
@@ -47,7 +50,10 @@ export function ReadinessPanel({
   ownLaddersOnly: boolean
 }) {
   const vocabulary = useVocabulary()
+  // The last page read (ladders, totals); `rows` = every page shown so far.
   const [data, setData] = useState<RankReadiness | null>(null)
+  const [rows, setRows] = useState<ReadinessEntry[]>([])
+  const [loadingMore, setLoadingMore] = useState(false)
   const [ladderId, setLadderId] = useState<string | undefined>()
   const [groupId, setGroupId] = useState("")
   const [groups, setGroups] = useState<GroupSummary[]>([])
@@ -66,14 +72,38 @@ export function ReadinessPanel({
         workspaceId,
         ladderId,
         groupId: groupId || undefined,
+        readyOnly: onlyReady,
+        perPage: READINESS_PAGE,
       })
       setData(res)
+      setRows(res.data)
       setSelected(new Set())
       setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить готовность к аттестации"))
     }
-  }, [workspaceId, ladderId, groupId])
+  }, [workspaceId, ladderId, groupId, onlyReady])
+
+  const loadMore = async () => {
+    if (!data) return
+    setLoadingMore(true)
+    try {
+      const res = await getRankReadiness({
+        workspaceId,
+        ladderId: data.ladderId ?? undefined,
+        groupId: groupId || undefined,
+        readyOnly: onlyReady,
+        curPage: data.curPage + 1,
+        perPage: READINESS_PAGE,
+      })
+      setData(res)
+      setRows((prev) => [...prev, ...res.data])
+    } catch (e) {
+      setError(errorMessage(e, "Не удалось загрузить готовность к аттестации"))
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   useEffect(() => {
     void load()
@@ -161,8 +191,7 @@ export function ReadinessPanel({
     )
   }
 
-  const rows = data.data.filter((e) => !onlyReady || e.ready)
-  const readyCount = data.data.filter((e) => e.ready).length
+  const readyCount = data.summary.ready
 
   return (
     <div className="space-y-3">
@@ -341,6 +370,19 @@ export function ReadinessPanel({
             </tbody>
           </table>
         </div>
+      )}
+
+      {rows.length < data.total && (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={loadingMore}
+          onClick={() => void loadMore()}
+        >
+          {loadingMore
+            ? "Загрузка…"
+            : `Показать ещё (${data.total - rows.length})`}
+        </Button>
       )}
     </div>
   )

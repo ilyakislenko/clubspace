@@ -66,16 +66,21 @@ export const listWorkspaceMembers = async (
   })
 }
 
-// Every match, page by page — for pickers that offer the whole set (staff for
-// the coach pickers, the roster for a group's students).
-export const listAllWorkspaceMembers = async (params: {
+// Every staff member and the owner, page by page — for the coach / manager
+// pickers (a club has a handful). Students are never downloaded whole: pick
+// them with MemberSearchPicker (server-side `q`).
+export const listAllStaffMembers = async (params: {
   workspaceId: string
-  staffOnly?: boolean
 }): Promise<WorkspaceMember[]> => {
   const perPage = 200
   const all: WorkspaceMember[] = []
   for (let curPage = 1; ; curPage++) {
-    const page = await listWorkspaceMembers({ ...params, curPage, perPage })
+    const page = await listWorkspaceMembers({
+      workspaceId: params.workspaceId,
+      staffOnly: true,
+      curPage,
+      perPage,
+    })
     all.push(...page.data)
     if (page.data.length < perPage || all.length >= page.total) return all
   }

@@ -1,5 +1,4 @@
 jest.mock('../../domains/analytics/analytics-reports', () => ({
-    loadChurnReport: jest.fn(),
     loadCohortReport: jest.fn(),
     loadOccupancyReport: jest.fn(),
     loadCoachReport: jest.fn(),
@@ -7,8 +6,6 @@ jest.mock('../../domains/analytics/analytics-reports', () => ({
 }))
 
 import {
-    type ChurnEntry,
-    loadChurnReport,
     loadCoachReport,
     loadCohortReport,
     loadForecastReport,
@@ -24,10 +21,6 @@ import { GetRevenueForecastFeature } from './get-revenue-forecast.feature'
 import { GetRevenueForecastHandler } from './get-revenue-forecast.handler'
 import { GetScheduleOccupancyFeature } from './get-schedule-occupancy.feature'
 import { GetScheduleOccupancyHandler } from './get-schedule-occupancy.handler'
-import { ListChurnRiskFeature } from './list-churn-risk.feature'
-import { ListChurnRiskHandler } from './list-churn-risk.handler'
-import { RefreshAnalyticsFeature } from './refresh-analytics.feature'
-import { RefreshAnalyticsHandler } from './refresh-analytics.handler'
 
 const AT = new Date('2026-11-02T03:00:00.000Z')
 
@@ -212,119 +205,5 @@ describe('GetCoachAnalyticsHandler', () => {
         ;(loadCoachReport as jest.Mock).mockResolvedValue({ computedAt: null, weeks: 12, coaches: [] })
         await expect(run(setup(), who)).resolves.toEqual({ computedAt: null, weeks: 12, coaches: [] })
         expect((loadCoachReport as jest.Mock).mock.calls[0][1].scope).toEqual(WHOLE)
-    })
-})
-
-describe('ListChurnRiskHandler', () => {
-    const entry = (groups: ChurnEntry['groups']): ChurnEntry => ({
-        userId: 'u1',
-        firstname: 'Иван',
-        lastname: null,
-        email: null,
-        phone: '+79000000000',
-        guardians: [],
-        groups,
-        score: 72,
-        level: 'high',
-        reasons: [{ code: 'absent', points: 40, text: 'Не был на тренировке 50 дней' }],
-        monthlySpend: 5000,
-        currency: 'RUB',
-        lastVisitAt: AT,
-        lastContact: { id: 'c1', at: AT, byName: 'Тренер', note: null, reason: null, signals: [] },
-        contactedRecently: true,
-    })
-    const report = (e: ChurnEntry) => ({
-        computedAt: AT,
-        entries: [e],
-        summary: { total: 0, high: 0, medium: 0, moneyAtStake: 0, currency: null, contactedRecently: 1 },
-    })
-    const run = (p: ReturnType<typeof setup>, who: Who, payload = {}) =>
-        new ListChurnRiskHandler(p.prisma as never, p.rbac).execute(
-            new ListChurnRiskFeature(payload, 'ws', who.userId, who.roleName, false),
-        )
-
-    it('refuses a plain member', async () => {
-        await expect(run(setup(), MEMBER)).rejects.toBeInstanceOf(ForbiddenError)
-        expect(loadChurnReport).not.toHaveBeenCalled()
-    })
-
-    it('404s on a group of another club', async () => {
-        await expect(run(setup(), ADMIN, { groupId: 'foreign' })).rejects.toBeInstanceOf(NotFoundError)
-    })
-
-    it('serializes the list and lets an admin contact anyone', async () => {
-        ;(loadChurnReport as jest.Mock).mockResolvedValue(report(entry([])))
-        const res = await run(setup(), ADMIN, { minScore: 50 })
-        expect((loadChurnReport as jest.Mock).mock.calls[0][1]).toMatchObject({
-            scope: WHOLE,
-            minScore: 50,
-        })
-        expect(res.computedAt).toBe(AT.toISOString())
-        expect(res.data[0]).toMatchObject({
-            userId: 'u1',
-            score: 72,
-            level: 'high',
-            lastVisitAt: AT.toISOString(),
-            lastContact: { id: 'c1', at: AT.toISOString(), byName: 'Тренер', note: null },
-            contactedRecently: true,
-            canContact: true,
-        })
-        expect(res.summary.contactedRecently).toBe(1)
-    })
-
-    it('lets a coach contact only members left in their groups', async () => {
-        ;(loadChurnReport as jest.Mock).mockResolvedValue(
-            report(entry([{ id: 'own', name: 'Вечер', gymId: null, gymName: null }])),
-        )
-        const own = await run(setup(), COACH)
-        expect((loadChurnReport as jest.Mock).mock.calls[0][1].scope).toEqual(OWN)
-        expect(own.data[0].canContact).toBe(true)
-        ;(loadChurnReport as jest.Mock).mockResolvedValue(report(entry([])))
-        expect((await run(setup(), COACH)).data[0].canContact).toBe(false)
-    })
-
-    it('sends the money at stake to the owner and admins only', async () => {
-        const money = { ...report(entry([])), summary: { ...report(entry([])).summary, moneyAtStake: 5000 } }
-        ;(loadChurnReport as jest.Mock).mockResolvedValue(money)
-        for (const who of [OWNER, ADMIN]) {
-            const res = await run(setup(), who)
-            expect(res.data[0].monthlySpend).toBe(5000)
-            expect(res.summary.moneyAtStake).toBe(5000)
-        }
-        for (const who of [HEAD_COACH, COACH]) {
-            const res = await run(setup(), who)
-            expect(res.data[0].monthlySpend).toBeNull()
-            expect(res.summary.moneyAtStake).toBeNull()
-        }
-    })
-})
-
-describe('RefreshAnalyticsHandler', () => {
-    const run = (p: ReturnType<typeof setup>, who: Who, snapshots = { refresh: jest.fn() }) =>
-        new RefreshAnalyticsHandler(p.prisma as never, p.rbac, snapshots as never).execute(
-            new RefreshAnalyticsFeature('ws', who.userId, who.roleName, false),
-        )
-
-    it('refuses a coach', async () => {
-        const snapshots = { refresh: jest.fn() }
-        await expect(run(setup(), COACH, snapshots)).rejects.toBeInstanceOf(ForbiddenError)
-        expect(snapshots.refresh).not.toHaveBeenCalled()
-    })
-
-    it('rebuilds the club snapshots for an admin and the owner', async () => {
-        for (const who of [ADMIN, { roleName: null, userId: 'owner' }] as Who[]) {
-            const snapshots = { refresh: jest.fn() }
-            await expect(run(setup(), who, snapshots)).resolves.toEqual({
-                historyComputedAt: AT.toISOString(),
-                riskComputedAt: AT.toISOString(),
-            })
-            expect(snapshots.refresh).toHaveBeenCalledWith('ws')
-        }
-    })
-
-    it('reports nothing computed when the run is missing', async () => {
-        const p = setup()
-        p.prisma.analyticsRun.findUnique.mockResolvedValue(null)
-        await expect(run(p, ADMIN)).resolves.toEqual({ historyComputedAt: null, riskComputedAt: null })
     })
 })

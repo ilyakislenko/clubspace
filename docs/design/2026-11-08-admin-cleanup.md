@@ -186,6 +186,52 @@ coach home card, mobile call list.
 home; marking «Связались» drops the count by one on all of them without reload beyond the existing
 realtime/poll.
 
+**Decisions (wave 2, B1 + the F6 risk cache).**
+- Model as recommended: `domains/retention/call-list.ts` `loadCallList` = the live engine
+  (`loadWorkspaceRisk`: who and why) + the hourly snapshot joined by `userId` (`score`, `level`,
+  `monthlySpend`, `currency`; no snapshot → `null`, still listed). Order: reason priority (lapsed,
+  newcomer, absent, declining), then score, then the longest absence, then the name. The snapshot's
+  score reasons are not sent (the live `factsText` explains the row).
+- One endpoint: `GET workspaces/:id/at-risk-members` (kept: the contacts route lives there);
+  `GET analytics/churn`, `ListChurnRisk*`, `loadChurnReport`, `CONTACT_FRESH_DAYS`,
+  `CHURN_LIST_MIN_SCORE` and the admin `listChurnRisk`/`splitChurnList`/`CHURN_LEVEL_*` are deleted.
+  Query: `gymId`/`directionId`/`groupId`/`coachId` (resolved by `resolveAnalyticsScope`, foreign id →
+  404), `reason` (chip), `snoozed` (`true` = the contacted ones instead of the ones to call), `page`,
+  `perPage` (50, max 200). Response: `data`, `summary` (`total` + per reason + `high` + `snoozed` +
+  `moneyAtStake`, over scope and filters, not over the chip or the page), `total` (rows matching
+  everything), `page`, `perPage`, `scoredAt`.
+- Scope = the matrix: sport leads the whole club (group-less members included), a coach or a
+  direction manager the groups they act on as their own (`ownGroupsWhere`) **regardless of
+  `coachSeesAllGroups`** — the old `scope=mine` parameter and the read-all coach's view of other
+  coaches' students are gone, so the admin page and the app show a coach the same number. Every
+  listed row is therefore callable: `canContact` is removed. Rows show only in-scope groups.
+- Money stays club-admin only (`isClubAdmin`): `monthlySpend` and `summary.moneyAtStake` are `null`
+  for head coaches and coaches.
+- «Связались» = the existing snooze (14 days unless a new signal appears): a contacted member leaves
+  `total` and the list on every surface and shows under `snoozed=true`.
+- Cache: `CallListCacheService` (Redis `call-list:<workspaceId>`, the whole club's list as JSON,
+  60 s TTL, same pattern as the leaderboard cache); `LogAtRiskContactHandler` drops it after writing;
+  a computation that started before the drop does not store its result (`…:dropped` timestamp);
+  Redis down → computed from the database. Check-ins and abonements rely on the TTL (the admin
+  polls/refreshes at most once a minute anyway).
+- The Monday «Аналитика за неделю» reads the same list (`loadCallList`): «N под риском» = the open
+  count, «Позвоните сегодня» = the first three, the renewal action counts `lapsed` («абонемент
+  закончился»); both actions link to `retention`.
+- Admin: `ws/retention` is the one page, titled «Кому позвонить» (sidebar label, dashboard tile and
+  the AI answer use the same name): header «N учеников стоит позвонить · с высоким риском — N · на
+  кону …» (money for club admins), the analytics filters, reason chips with counts, «Связались
+  недавно (N)» switch, a «Риск» column, «Показать ещё». `ws/analytics/churn` redirects there; the
+  churn card left «Аналитика»; the sidebar group «Аналитика» is hidden when a role has no item in it
+  (a plain coach). The dashboard tile reads the summary with `perPage=1`.
+- Mobile: the home and «Прогресс» cards read `atrisk:<ws>:summary` (`perPage=1`); «Кому позвонить»
+  pages its own keys per view (`atrisk:<ws>:open|snoozed:<reason>`), chips filter on the server,
+  «Связались» removes the row, moves every count (`applyContact`) and invalidates `atrisk:<ws>` so
+  the home card refetches.
+- Smoke (local DB, ACADEMY): owner, admin and head coach 250 on list / tile / app keys (the demo data
+  has aged since it was generated; the live engine counts every absence), direction manager 209,
+  Ритм coach 20; one «Связались» → 249 / 249 / 249 everywhere (the BJJ manager stays 209: not his
+  group), the coach 20 → 19. First read ~180 ms, cached ~15 ms.
+
 ### B2. Metric glossary — one name, one formula, one number
 **Problem.** Students: 315 (dashboard) / 313 (forecast) / 325 (members) / 293 (billing) / 283
 («Активны за месяц»). Money per month: 1 178 900 (regular income) / 1 093 800 (revenue 30 days) /
@@ -241,6 +287,53 @@ student chips, slots with «Удалить», «Отмены и отпуска»
 
 **Acceptance.** Groups page with the demo club (21 groups) fits in ~2 screens; no slot/cancellation
 controls outside the calendar.
+
+**Decisions (wave 2, B4 + F1 + F2).**
+- **Calendar = the only editor of time.** Absorbed from the group pages into the class panel
+  (`ClassDetailsSheet`, which now reads `GET groups/:id` for the class's group): a break of several
+  days (from / to, whole group or only this time; = the old «Отмены и отпуска» form), lifting a
+  period or whole-group cancellation from any of its cancelled classes («Снять отмену»; a one-day
+  cancellation keeps «Вернуть»), places per weekly time for a booking group, and «Убрать из
+  расписания с этой даты» — ends the weekly series the day before (`effectiveUntil`), so past classes
+  stay in history; a series that starts on/after that date is deleted. The old «Удалить» slot
+  deleted the series with its history. `GroupScheduleBlock` is gone; nothing outside the calendar
+  creates, moves or cancels classes. Anyone may edit the classes of a group they coach (primary or
+  assistant), like the server's `assertCanWriteGroup`; sport leads everything, direction managers
+  their directions. Ending a booking series (`effectiveUntil`) or deleting a booking slot releases
+  the live bookings of the classes that no longer happen (`cancelByClub`, push, nothing burned);
+  classes up to the end keep theirs. The running-slot cut for the list and the card is today in the
+  club's time zone.
+- **«Группы и залы»** (sidebar renamed from «Группы и расписание»): tabs «Группы» (compact table:
+  name with a direction dot · hall · coach +N assistants · students · «Пн, Ср 19:00 · Сб 11:00»)
+  and «Залы» (`?tab=gyms`; name · address · N groups). One primary button per tab («Добавить
+  группу» / «Добавить зал», the latter for sport leads); create/edit in side panels
+  (`GroupFormSheet`, `GymFormSheet`); a new group opens its card. Demo club: 21 rows ≈ 1.2 screens
+  at 1440×900, 8 buttons (was 12.1 screens, 191 buttons).
+- **Group card**: hall (→ gym card), coaches (assistants added/removed here), mode with spots and
+  booking overrides, students count, the schedule read-only (weekly times with their date bounds,
+  one-off classes, cancellations) with «Изменить в расписании» → `/schedule?group=<id>`, occupancy,
+  and the roster. «Изменить» opens the panel (name, hall, coach, direction, mode — no roster);
+  «Удалить группу» lives in «⋯». The old `?edit=` deep link to the list is gone.
+- **Roster**: `GET groups/:groupId/members?q=&curPage=&perPage=` (default 50, max 200; ordered by
+  last name, first name, id). Who may read it = who may open the card (`resolveGroupAccess`: admin
+  scope and `coach_read_all` any group, `coach_own_only` only own/managed-direction groups, 403
+  otherwise); abonements and «Кому позвонить» risk only for whoever runs the group, computed for the
+  page only. `q` = the members-list search (every word in name / e-mail / phone or a guardian's),
+  now shared as `domains/users/user-search.ts`. Admin card: 25 per page, search, «Добавить ученика»
+  (server-side picker) and «Убрать из группы» in a row «⋯» (single add/remove endpoints; the admin
+  no longer calls the full-list `PATCH …/members` sync — the endpoint stays for API clients).
+- **Slim `GET /groups`**: id, name, gym {id, name}, direction, coach, coaches, bookingMode,
+  memberCount, `week` [{dayOfWeek, startTime}] — distinct weekly times of slots still running today
+  or later, one-off classes excluded. Dropped: members, slots, exceptions, createdAt, gym address,
+  booking spots/overrides (all on `GET groups/:id`, which no longer carries a roster either). Demo
+  club: 84.6 KB → 15.5 KB raw (≈2.5 KB gzip, which Caddy serves in prod); the card 16.8 KB → 1.4 KB
+  plus 12.6 KB per 25-row roster page. Every other `listGroups` caller compiled unchanged (they use
+  ids, names, hall, direction, coaches).
+- **F2**: `listAllWorkspaceMembers` → `listAllStaffMembers` (always `staffOnly`; coach and manager
+  pickers on groups, directions, events). Students are picked with `MemberSearchPicker`
+  (`q`, 20 results, debounced) — in the new-group panel and on the card. Groups page API data
+  311 KB → 24.7 KB (of which `groups` 15.1 KB; the rest is the shell: billing, gyms, settings).
+- Mobile has no `GET /groups` caller (it uses `me/groups` and the schedule) — unchanged.
 
 ### B5. Smaller merges
 - «Ранги» + «Аттестации» → «Пояса» with tabs «Аттестации» (default) · «Лестницы». Remove «Присвоить
@@ -415,6 +508,36 @@ Apply the UI rules to each page. Concrete targets (evidence in the UX audit, sec
   since 2026-07-07, so the job has not run there.
 - F7: admin `coverageThreshold` 31 / 27 / 23 / 29 (statements / branches / functions / lines),
   just below the 31.30 / 27.37 / 23.86 / 29.93 measured on the wave-1 tree.
+
+**Decisions (wave 2, F3 + F6 without the risk cache and renewal candidates):**
+- F3 `POST analytics/refresh`: skipped while both `historyComputedAt` and `riskComputedAt` are
+  younger than 5 minutes (`ANALYTICS_FRESH_MS`) — HTTP 200 `{ status: 'fresh', …computedAt }`;
+  otherwise HTTP 202 `{ status: 'queued', … }` and a BullMQ job on the new `analytics-refresh`
+  queue (feature-local processor like club import, concurrency 2). Single-flight per club by job
+  id `refresh-<workspaceId>` (BullMQ ignores an add while that id waits or runs; finished/failed
+  jobs are removed, freeing the id). When done — also after a failure — the job emits the
+  existing realtime `invalidate` with resource `analytics` to the club room (Redis adapter, so
+  any replica). `@Throttle` 5 per minute per person (the user-bucketed `ClubThrottlerGuard`).
+- Admin «Пересчитать» shows «Пересчитываем…» and stays disabled until the `analytics` signal or a
+  poll (page reload every 5 s) sees a new computedAt; gives up after 3 minutes with a note. A
+  fresh answer shows «Данные только что пересчитаны.». Any finished rebuild reloads every open
+  analytics page.
+- Known, unchanged: the hourly scheduler and a manual job can rebuild the same club at once (as
+  the old synchronous refresh could); snapshot rows replace per club in one transaction.
+- F6 `rank-readiness`: `curPage`/`perPage` (default 50, max 200, members-list convention),
+  `readyOnly`, output `total` (matching rows) + `summary { all, ready, readyUnlisted }` over the
+  whole ladder in scope. Order: ready first, within them not yet on a grading list first, then by
+  what is left. Gradings page asks for 50 ready (or all) with «Показать ещё»; «Готовы · N» =
+  `summary.ready`. Mobile Progress card asks for 5 ready and takes its counts from `summary`
+  (cache key gained `:ready`, so an old persisted payload is never read). Demo club: 75 KB → 30 KB
+  (gradings default) / 3 KB (mobile); totals 122 / 52 / 44 identical to the old full list.
+- F6 `events`: from/to stay optional (default today + 60 days, all callers use it); `to` before
+  `from` or a window over 366 days (`EVENTS_MAX_RANGE_DAYS`) is a 400.
+- F6 cohorts: one span per member is now summed in SQL (`groupBy userId` with min/max/sum over the
+  scope's groups, `having` first visit inside the cohort window ± a month) instead of loading
+  every visit stat; the coaches report reads only the scope's groups. Before/after JSON on the
+  demo club (8 scopes: club, group, direction, head coach, direction manager; coaches club,
+  direction, group) byte-identical, on two different snapshots.
 
 ## 7. Phasing and PR plan
 

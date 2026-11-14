@@ -7,12 +7,12 @@ the sentence that explains it.
 
 | Screen | Endpoint | Code |
 |---|---|---|
-| «Кому позвонить сегодня» | `GET /workspaces/:id/analytics/churn` | `domains/analytics/churn-score.ts` |
+| «Кому позвонить» (admin `/retention`, not under «Аналитика») | `GET /workspaces/:id/at-risk-members` — live rules + this score joined by userId | `domains/retention/call-list.ts`, `domains/analytics/churn-score.ts` |
 | «Удержание по когортам» | `GET …/analytics/cohorts` | `cohorts.ts` |
 | «Загрузка расписания» | `GET …/analytics/occupancy?weeks=` | `occupancy.ts` |
 | «Тренеры» | `GET …/analytics/coaches` | `coach-stats.ts` |
 | «Прогноз» | `GET …/analytics/forecast` | `forecast.ts` |
-| «Пересчитать» (admins) | `POST …/analytics/refresh` | `analytics-snapshot.service.ts` |
+| «Пересчитать» (sport leads) | `POST …/analytics/refresh` (202 queued / 200 fresh) | `refresh-analytics.processor.ts` → `analytics-snapshot.service.ts` |
 
 All reads take `gymId`, `directionId`, `groupId`, `coachId` filters; an id of
 another club is a 404.
@@ -35,9 +35,10 @@ another club is a 404.
   `moneyAtStake`) is `null` below club admin.
 
 «Связались» is the existing contact log (`at-risk-members/:userId/contacts`,
-`MemberRetentionContact`): a member contacted within 14 days moves to the
-«Связались» block at the bottom of the list. Logging follows the existing rule
-(admins: anyone; others: members of their own groups — `canContact`).
+`MemberRetentionContact`): a contacted member leaves the list for 14 days (unless a new
+signal appears) and shows under «Связались недавно». Since the admin cleanup (B1,
+`docs/design/2026-11-08-admin-cleanup.md`) the list is one: `GET at-risk-members`, scoped so
+that every listed member is the caller's to contact (`canContact` is gone).
 
 ## Snapshots and schedule
 
@@ -56,7 +57,11 @@ transaction):
 The `scheduler-analytics` BullMQ queue runs hourly: first the owners' digest
 (clubs where it is Monday 09:00), then the rebuild — member scores for every
 active club, history for clubs at their 04:00 (or with none / older than 25 h).
-A demo reset and «Пересчитать» rebuild both parts at once.
+A demo reset and «Пересчитать» rebuild both parts at once. «Пересчитать» is a
+job on the `analytics-refresh` queue, one per club at a time, skipped while
+both parts are under 5 minutes old, 5 presses a minute per person; when it is
+done the club gets the realtime `invalidate` of `analytics` and open pages
+reload.
 
 All date buckets use the club's timezone: «N дней назад» counts club-local
 calendar days, cohorts bucket by the club-local month of the first visit, slot
@@ -68,8 +73,8 @@ marks).
 ## Churn risk score (0–100)
 
 Sum of the points below, clamped to 0..100. Levels: **≥ 60 высокий**,
-**35–59 средний**, below — низкий. The list shows medium and high
-(`minScore` to change), strongest reasons first, top three on screen.
+**35–59 средний**, below — низкий. Shown as the «Риск» of a member the live
+rules put on «Кому позвонить» (no snapshot yet → no score).
 
 | Signal | Points | Text (example) |
 |---|---|---|

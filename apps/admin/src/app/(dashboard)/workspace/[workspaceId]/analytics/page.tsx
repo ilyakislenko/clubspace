@@ -31,7 +31,7 @@ export default function AnalyticsOverviewPage() {
       <div>
         <h1 className="text-2xl font-semibold">Аналитика</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Кто может уйти, как держатся новички, где пустые залы и чего ждать по
+          Как держатся новички, где пустые залы и чего ждать по
           деньгам. {cap(vocabulary.coach.nomPl)} видят цифры только по своим группам.
         </p>
       </div>

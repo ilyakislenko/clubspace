@@ -47,7 +47,8 @@ export const ROLE_MATRIX: readonly RoleCase[] = [
     offMenu: ['subscriptions'],
   },
   {
-    // Sidebar: Обзор, Расписание, Участники, Кто пропадает, Отток.
+    // Sidebar: Обзор, Кому позвонить, Участники, Расписание (no «Аналитика»
+    // group: every analytics page is a lead's).
     role: 'coach',
     email: 'pedagog@ritm.demo',
     blocked: [

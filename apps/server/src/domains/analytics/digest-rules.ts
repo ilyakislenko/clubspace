@@ -9,8 +9,8 @@ import {
 import { displayName } from '../../features/attendance/schemas'
 import { pluralRu } from '../../shared/utils/plural-ru'
 import { ymdToDbDate } from '../subscriptions/freeze-dates'
+import { type CallListEntry, summarizeCallList } from '../retention/call-list'
 import type {
-    ChurnReport,
     CohortReport,
     ForecastReport,
     OccupancyReport,
@@ -47,15 +47,16 @@ const students = (n: number): string =>
     `${n} ${pluralRu(n, 'ученик', 'ученика', 'учеников')}`
 
 export const buildWeeklyDigest = (r: {
-    churn: ChurnReport
+    // The whole club's «Кому позвонить» (retention/call-list.ts).
+    callList: CallListEntry[]
     forecast: ForecastReport
     occupancy: OccupancyReport
     cohorts: CohortReport
 }): WeeklyDigest => {
     const facts: string[] = []
     const actions: DigestAction[] = []
-    const ccy = r.forecast.currency ?? r.churn.summary.currency
-    const s = r.churn.summary
+    const s = summarizeCallList(r.callList)
+    const ccy = r.forecast.currency ?? s.currency
 
     facts.push(
         s.total > 0
@@ -94,22 +95,19 @@ export const buildWeeklyDigest = (r: {
         `Активных учеников: ${r.forecast.members}, вместе они платят ${formatMoney(r.forecast.monthlyRecurring, ccy)} в месяц`,
     )
 
-    const open = r.churn.entries.filter((e) => !e.contactedRecently)
+    const open = r.callList.filter((e) => !e.snoozed)
     if (open.length > 0) {
         const names = open.slice(0, 3).map((e) => displayName(e))
-        const money = open.slice(0, 3).reduce((sum, e) => sum + e.monthlySpend, 0)
+        const money = open.slice(0, 3).reduce((sum, e) => sum + (e.monthlySpend ?? 0), 0)
         actions.push({
             text: `Позвоните сегодня: ${names.join(', ')}${money > 0 ? ` — на кону ${formatMoney(money, ccy)} в месяц` : ''}`,
-            path: 'analytics/churn',
+            path: 'retention',
         })
     }
-    const renewals = open.filter((e) =>
-        e.reasons.some((x) => x.code === 'expired' || x.code === 'ending_soon' || x.code === 'out_of_classes'),
-    ).length
-    if (renewals > 0) {
+    if (s.lapsed > 0) {
         actions.push({
-            text: `Предложите продление ${renewals} ${pluralRu(renewals, 'ученику', 'ученикам', 'ученикам')}: абонемент закончился или заканчивается`,
-            path: 'analytics/churn',
+            text: `Предложите продление ${s.lapsed} ${pluralRu(s.lapsed, 'ученику', 'ученикам', 'ученикам')}: абонемент закончился`,
+            path: 'retention',
         })
     }
     const add = r.occupancy.suggestions.find((x) => x.kind === 'add_class')

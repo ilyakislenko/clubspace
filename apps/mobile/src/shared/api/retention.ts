@@ -9,16 +9,25 @@ export type AtRiskReason = AtRiskMember["reason"]
 export type AtRiskContact = ApiTypes.LogAtRiskContactOutputOutput
 export type AtRiskContactInput = ApiTypes.LogAtRiskContactInput
 
-// A coach sees the members of their own groups; the server narrows to those
-// when `scope` is "mine" (an owner / admin would otherwise get the whole club).
+// «Кому позвонить» — the same list as the admin page and the dashboard: the
+// server scopes it to the caller (a coach: their own groups). The summary
+// counts ignore `reason` and the page; `snoozed` lists the contacted ones.
 export const listAtRiskMembers = async (params: {
   workspaceId: string
-  scope?: "all" | "mine"
+  reason?: AtRiskReason
+  snoozed?: boolean
+  page?: number
+  perPage?: number
 }): Promise<AtRiskList> =>
   await getApiClient().request<AtRiskList>({
     method: "get",
     url: `/workspaces/${params.workspaceId}/at-risk-members`,
-    params: { scope: params.scope },
+    params: {
+      reason: params.reason,
+      snoozed: params.snoozed,
+      page: params.page,
+      perPage: params.perPage,
+    },
   })
 
 export const logAtRiskContact = async (params: {

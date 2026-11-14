@@ -69,48 +69,64 @@ export const callListReason = (summary: AtRiskSummary): string | null => {
   return top === null ? null : REASON_LINE[top](summary[top])
 }
 
-/** Reason chips filter locally so the counts in the summary stay whole. */
-export const visibleEntries = (
-  list: AtRiskList,
-  reason: AtRiskReason | null,
-  showSnoozed: boolean,
-): AtRiskList["data"] =>
-  list.data.filter(
-    (m) => (showSnoozed || !m.snoozed) && (reason === null || m.reason === reason),
-  )
+// Cache keys live under `atrisk:<workspaceId>`, so
+// invalidateResource("atrisk", workspaceId) refreshes every view of the list.
+export const AT_RISK_RESOURCE = "atrisk"
 
-// Mirror of the server's summarizeRisk: snoozed entries count only in `snoozed`.
-const summarize = (data: AtRiskList["data"]): AtRiskSummary => {
-  const out: AtRiskSummary = {
-    total: 0,
-    lapsed: 0,
-    newcomer: 0,
-    absent: 0,
-    declining: 0,
-    snoozed: 0,
-  }
-  for (const m of data) {
-    if (m.snoozed) {
-      out.snoozed += 1
-      continue
-    }
-    out.total += 1
-    out[m.reason] += 1
-  }
-  return out
+/** Home and «Прогресс» cards: only the summary (one row is fetched). */
+export const callListSummaryKey = (workspaceId: string): string =>
+  `${AT_RISK_RESOURCE}:${workspaceId}:summary`
+
+/** «Кому позвонить», first page of one view (to call / contacted, chip). */
+export const callListKey = (
+  workspaceId: string,
+  snoozed: boolean,
+  reason: AtRiskReason | null,
+): string =>
+  `${AT_RISK_RESOURCE}:${workspaceId}:${snoozed ? "snoozed" : "open"}:${reason ?? "all"}`
+
+/**
+ * The first page, then the pages loaded with «Показать ещё», each member once.
+ * The list shifts under the pages (a contact takes a row off page 1), so a
+ * later page may repeat rows of an earlier «more» page too.
+ */
+export const mergePages = (
+  first: readonly AtRiskMember[],
+  more: readonly AtRiskMember[],
+): AtRiskMember[] => {
+  const seen = new Set<string>()
+  return [...first, ...more].filter((m) => {
+    if (seen.has(m.userId)) return false
+    seen.add(m.userId)
+    return true
+  })
 }
 
-/** Optimistic update after «Связались»: hide the member and recount. */
+/**
+ * Optimistic update after «Связались»: the member leaves the list to call and
+ * every count moves by one, as the server will report on the next fetch.
+ */
 export const applyContact = (
   prev: AtRiskList | null,
   userId: string,
-  contact: AtRiskContact,
 ): AtRiskList | null => {
-  if (!prev) return prev
-  const data = prev.data.map((m) =>
-    m.userId === userId ? { ...m, snoozed: true, lastContact: contact } : m,
-  )
-  return { ...prev, data, summary: summarize(data) }
+  const m = prev?.data.find((x) => x.userId === userId)
+  if (!prev || !m || m.snoozed) return prev
+  const s = prev.summary
+  return {
+    ...prev,
+    data: prev.data.filter((x) => x.userId !== userId),
+    total: prev.total - 1,
+    summary: {
+      ...s,
+      total: s.total - 1,
+      [m.reason]: s[m.reason] - 1,
+      high: m.level === "high" ? s.high - 1 : s.high,
+      snoozed: s.snoozed + 1,
+      moneyAtStake:
+        s.moneyAtStake === null ? null : s.moneyAtStake - (m.monthlySpend ?? 0),
+    },
+  }
 }
 
 const agoShort = (iso: string, now: Date): string => {
