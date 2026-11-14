@@ -1182,6 +1182,8 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
                 isPaid: s.isPaid,
                 paidAt: s.isPaid ? s.soldAt : null,
                 paymentMethod: s.isPaid && s.tariff.price > 0 ? demoPaymentMethod(s.id) : null,
+                // The studio's owner sells at the reception (like its tickets).
+                markedPaidById: s.isPaid ? ownerId : null,
                 classesTotal: s.tariff.classes,
                 classesRemaining: s.remaining,
                 // Those who left keep the abonements with no member.

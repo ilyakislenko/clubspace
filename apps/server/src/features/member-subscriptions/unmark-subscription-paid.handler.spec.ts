@@ -82,12 +82,14 @@ describe('UnmarkSubscriptionPaidHandler', () => {
                 targetId: 'u1',
                 workspaceId: 'w1',
                 actorId: 'inv',
-                metadata: { planName: 'Monthly', amount: 4500, currency: 'RUB' },
+                metadata: { subscriptionId: 's1', planName: 'Monthly', amount: 4500, currency: 'RUB' },
             }),
         )
+        // The row leaves «Платежи».
         expect(realtime.invalidate).toHaveBeenCalledWith('w1', [
             'members',
             'subscription',
+            'payments',
         ])
     })
 

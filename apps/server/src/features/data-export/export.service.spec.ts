@@ -1,14 +1,16 @@
 import { ExportService } from './export.service'
 
-// Revenue reads event tickets too; other exports never touch them.
+// Every export reads the club's time zone; payments go through the journal.
 const svc = (prisma: object) =>
-    new ExportService({
-        eventRegistration: { findMany: jest.fn().mockResolvedValue([]) },
-        workspace: {
-            findUnique: jest.fn().mockResolvedValue({ timezone: 'UTC' }),
-        },
-        ...prisma,
-    } as never)
+    new ExportService(
+        {
+            workspace: {
+                findUnique: jest.fn().mockResolvedValue({ timezone: 'UTC' }),
+            },
+            ...prisma,
+        } as never,
+        {} as never,
+    )
 
 describe('ExportService.membersCsv', () => {
     it('builds a member roster row with contacts, access and pack', async () => {
@@ -153,241 +155,129 @@ describe('ExportService.membersCsv — current abonements', () => {
     })
 })
 
-describe('ExportService.revenueCsv', () => {
-    it('builds a revenue row per purchase', async () => {
-        const prisma = {
-            subscription: {
-                findMany: jest.fn().mockResolvedValue([
-                    {
-                        createdAt: new Date('2026-07-01T00:00:00Z'),
-                        amountPaid: 4000,
-                        currency: 'RUB',
-                        source: 'MANUAL',
-                        classesTotal: 8,
-                        plan: { name: '8 занятий' },
-                        workspaceMember: {
-                            user: {
-                                firstname: 'Иван',
-                                lastname: 'Петров',
-                                email: 'ivan@x',
-                            },
-                        },
-                    },
-                ]),
-            },
-        }
-        const csv = await svc(prisma).revenueCsv('w1')
-        expect(csv).toContain(
-            'Дата оплаты;Участник;Email;Тариф / событие;Сумма;Валюта;Источник;Занятий в пакете;Вид;Способ оплаты',
-        )
-        expect(csv).toContain(
-            '2026-07-01;Иван Петров;ivan@x;8 занятий;4000;RUB;Вручную;8;Абонемент;',
-        )
-    })
+type ExportPrisma = {
+    workspace: { findUnique: jest.Mock }
+    subscription: { findMany: jest.Mock }
+    eventRegistration: { findMany: jest.Mock }
+    user: { findMany: jest.Mock }
+    workspaceMember: { findMany: jest.Mock }
+    group: { findFirst: jest.Mock; findMany: jest.Mock }
+}
 
-    it('prints the stored payment method of an abonement, empty when not recorded', async () => {
-        const sale = (paymentMethod: string | null, source = 'MANUAL') => ({
-            createdAt: new Date('2026-07-01T00:00:00Z'),
-            amountPaid: 4000,
-            currency: 'RUB',
-            source,
-            paymentMethod,
-            classesTotal: null,
-            plan: { name: 'Месяц' },
-            user: { firstname: 'Иван', lastname: null, email: 'ivan@x' },
-        })
-        const prisma = {
-            subscription: {
-                findMany: jest.fn().mockResolvedValue([
-                    sale('CASH'),
-                    sale('TRANSFER'),
-                    sale('CARD'),
-                    sale('ONLINE', 'GATEWAY'),
-                    // A checkout sale from before the method was stored.
-                    sale(null, 'GATEWAY'),
-                    // Sold by hand before it was stored, or imported.
-                    sale(null),
-                ]),
-            },
-        }
-        const csv = await svc(prisma).revenueCsv('w1')
-        const methods = csv
-            .split(/\r?\n/)
-            .filter((l) => l.startsWith('2026-'))
-            .map((l) => l.split(';').at(-1))
-        expect(methods).toEqual([
-            'Наличные',
-            'Перевод',
-            'Карта в клубе',
-            'Онлайн',
-            'Онлайн',
-            '',
-        ])
-    })
-
-    it('prints the payment day in the club timezone', async () => {
-        const prisma = {
-            workspace: {
-                findUnique: jest
-                    .fn()
-                    .mockResolvedValue({ timezone: 'Asia/Novosibirsk' }),
-            },
-            subscription: {
-                findMany: jest.fn().mockResolvedValue([
-                    {
-                        createdAt: new Date('2026-11-02T21:30:00Z'),
-                        paidAt: new Date('2026-11-02T21:30:00Z'),
-                        amountPaid: 5600,
-                        currency: 'RUB',
-                        source: 'GATEWAY',
-                        classesTotal: 8,
-                        plan: { name: '8 занятий' },
-                        user: null,
-                        workspaceMember: null,
-                    },
-                ]),
-            },
-        }
-        const csv = await svc(prisma).revenueCsv('w1')
-        // Paid through the checkout: the payment method is online.
-        expect(csv).toContain(
-            '2026-11-03;;;8 занятий;5600;RUB;Онлайн-оплата;8;Абонемент;Онлайн',
-        )
-    })
-
-    it('dates a row by its payment, falling back to the sale date, newest first', async () => {
-        const row = (createdAt: string, paidAt: string | null, name: string) => ({
-            createdAt: new Date(createdAt),
-            paidAt: paidAt ? new Date(paidAt) : null,
-            amountPaid: 1000,
-            currency: 'RUB',
-            source: 'MANUAL',
-            classesTotal: null,
-            plan: { name },
-            workspaceMember: null,
-        })
-        const prisma = {
-            subscription: {
-                findMany: jest.fn().mockResolvedValue([
-                    row('2026-07-01T00:00:00Z', null, 'Старый'),
-                    row('2026-06-01T00:00:00Z', '2026-07-09T00:00:00Z', 'Оплачен позже'),
-                ]),
-            },
-        }
-        const csv = await svc(prisma).revenueCsv('w1')
-        expect(csv.indexOf('2026-07-09;;;Оплачен позже')).toBeGreaterThan(-1)
-        expect(csv.indexOf('2026-07-09')).toBeLessThan(csv.indexOf('2026-07-01'))
-    })
-
-    it('exports paid rows only', async () => {
-        const findMany = jest.fn().mockResolvedValue([])
-        await svc({ subscription: { findMany } }).revenueCsv('w1')
-        expect(findMany.mock.calls[0][0].where).toEqual({
-            workspaceId: 'w1',
-            isPaid: true,
-        })
-    })
-
-    it('handles a purchase with no linked member', async () => {
-        const prisma = {
-            subscription: {
-                findMany: jest.fn().mockResolvedValue([
-                    {
-                        createdAt: new Date('2026-06-01T00:00:00Z'),
-                        amountPaid: 800,
-                        currency: 'RUB',
-                        source: 'MANUAL',
-                        classesTotal: null,
-                        plan: { name: 'Разовое' },
-                        workspaceMember: null,
-                    },
-                ]),
-            },
-        }
-        const csv = await svc(prisma).revenueCsv('w1')
-        expect(csv).toContain('2026-06-01;;;Разовое;800;RUB;Вручную;')
-    })
-
-    it('applies a date range to the payment date (sale date for legacy rows)', async () => {
-        const findMany = jest.fn().mockResolvedValue([])
-        const from = new Date('2026-06-01T00:00:00.000Z')
-        const to = new Date('2026-06-30T23:59:59.999Z')
-        await svc({ subscription: { findMany } }).revenueCsv('w1', {
-            from: '2026-06-01',
-            to: '2026-06-30',
-        })
-        expect(findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: {
-                    workspaceId: 'w1',
-                    isPaid: true,
-                    OR: [
-                        { paidAt: { gte: from, lte: to } },
-                        { paidAt: null, createdAt: { gte: from, lte: to } },
-                    ],
-                },
-            }),
-        )
-    })
-
-    const ticket = (paidAt: string, title: string, amountPaid = 1500) => ({
-        createdAt: new Date('2026-06-01T00:00:00Z'),
+describe('ExportService.paymentsCsv', () => {
+    const ADMIN = { workspaceId: 'w1', invokerUserId: 'a-1', roleName: 'admin', isSuperAdmin: false }
+    const rbac = {
+        resolveCoachScope: jest.fn(async () => ({ scope: 'admin', userId: 'a-1', workspaceId: 'w1', workspaceOwnerId: 'o-1' })),
+        canWriteAllGroups: jest.fn(() => true),
+    }
+    const person = { firstname: 'Иван', lastname: 'Петров', email: 'ivan@x' }
+    const sub = (id: string, paidAt: string, over: Record<string, unknown> = {}) => ({
+        id,
         paidAt: new Date(paidAt),
-        amountPaid,
+        createdAt: new Date('2026-06-01T00:00:00Z'),
+        amountPaid: 5000,
         currency: 'RUB',
-        paymentMethod: 'TRANSFER',
-        event: { title, currency: 'RUB' },
-        user: { firstname: 'Анна', lastname: 'Смирнова', email: 'anna@x' },
+        paymentMethod: 'CASH',
+        markedPaidById: 'staff-1',
+        classesTotal: 8,
+        userId: 'u1',
+        plan: { name: '8 занятий' },
+        user: person,
+        workspaceMember: { userId: 'u1', user: person },
+        payment: null,
+        ...over,
     })
+    const ticket = (id: string, paidAt: string) => ({
+        id,
+        paidAt: new Date(paidAt),
+        createdAt: new Date('2026-06-01T00:00:00Z'),
+        amountPaid: 1500,
+        currency: null,
+        paymentMethod: 'TRANSFER',
+        markedPaidById: null,
+        userId: 'u2',
+        eventId: 'e1',
+        event: { title: 'Мастер-класс', currency: 'RUB' },
+        user: { firstname: 'Анна', lastname: null, email: null },
+        payments: [],
+    })
+    const prisma = (o: { subs?: unknown[]; tickets?: unknown[]; tz?: string } = {}): ExportPrisma => ({
+        workspace: { findUnique: jest.fn().mockResolvedValue({ timezone: o.tz ?? 'UTC' }) },
+        subscription: { findMany: jest.fn().mockResolvedValue(o.subs ?? []) },
+        eventRegistration: { findMany: jest.fn().mockResolvedValue(o.tickets ?? []) },
+        user: {
+            findMany: jest.fn().mockResolvedValue([{ id: 'staff-1', firstname: 'Ольга', lastname: 'Админ', email: null }]),
+        },
+        workspaceMember: { findMany: jest.fn().mockResolvedValue([]) },
+        group: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    })
+    const exportWith = (p: ExportPrisma) => new ExportService(p as never, rbac as never)
 
-    it('adds a row per paid event ticket, mixed into the payment-date order', async () => {
-        const prisma = {
-            subscription: {
-                findMany: jest.fn().mockResolvedValue([
-                    {
-                        createdAt: new Date('2026-07-05T00:00:00Z'),
-                        paidAt: new Date('2026-07-05T00:00:00Z'),
-                        amountPaid: 4000,
-                        currency: 'RUB',
-                        source: 'MANUAL',
-                        classesTotal: 8,
-                        plan: { name: '8 занятий' },
-                        user: null,
-                        workspaceMember: null,
-                    },
-                ]),
-            },
-            eventRegistration: {
-                findMany: jest
-                    .fn()
-                    .mockResolvedValue([
-                        ticket('2026-07-09T10:00:00Z', 'Мастер-класс'),
-                        ticket('2026-07-01T10:00:00Z', 'Семинар', 2000),
-                    ]),
-            },
-        }
-        const csv = await svc(prisma).revenueCsv('w1')
-        const lines = csv.split(/\r?\n/).filter((l) => l.startsWith('2026-'))
-        // Each sale exactly once: one abonement and two tickets.
-        expect(lines).toEqual([
-            '2026-07-09;Анна Смирнова;anna@x;Мастер-класс;1500;RUB;;;Событие;Перевод',
-            '2026-07-05;;;8 занятий;4000;RUB;Вручную;8;Абонемент;',
-            '2026-07-01;Анна Смирнова;anna@x;Семинар;2000;RUB;;;Событие;Перевод',
+    it('prints every row of the journal view, newest payment first, in the journal’s columns', async () => {
+        const p = prisma({
+            subs: [
+                sub('s2', '2026-11-03T10:00:00Z', { paymentMethod: null, markedPaidById: null, classesTotal: null, plan: { name: 'Разовое' } }),
+                sub('s1', '2026-11-01T10:00:00Z'),
+            ],
+            tickets: [ticket('r1', '2026-11-02T10:00:00Z')],
+        })
+        const { csv } = await exportWith(p).paymentsCsv(ADMIN, { from: '2026-11-01', to: '2026-11-30' })
+        const lines = csv.split(/\r?\n/)
+        expect(lines[0]).toContain(
+            'Дата;Вид;Участник;Email;Тариф / событие;Сумма;Валюта;Способ оплаты;Отметил / вернул;Причина возврата;Источник;Занятий в пакете',
+        )
+        expect(lines.filter((l) => l.startsWith('2026-'))).toEqual([
+            '2026-11-03;Оплата;Иван Петров;ivan@x;Разовое;5000;RUB;;;;Абонемент;',
+            // A ticket without its own currency is in the event's.
+            '2026-11-02;Оплата;Анна;;Мастер-класс;1500;RUB;Перевод;;;Событие;',
+            '2026-11-01;Оплата;Иван Петров;ivan@x;8 занятий;5000;RUB;Наличные;Ольга Админ;;Абонемент;8',
         ])
     })
 
-    it('reads only tickets marked paid, by payment date — unmarking drops the row', async () => {
-        const findMany = jest.fn().mockResolvedValue([])
-        const from = new Date('2026-06-01T00:00:00.000Z')
-        const to = new Date('2026-06-30T23:59:59.999Z')
-        await svc({
-            subscription: { findMany: jest.fn().mockResolvedValue([]) },
-            eventRegistration: { findMany },
-        }).revenueCsv('w1', { from: '2026-06-01', to: '2026-06-30' })
-        expect(findMany.mock.calls[0][0].where).toEqual({
+    it('reads the sources with the journal’s filters, the period in club-local days', async () => {
+        // Novosibirsk is UTC+7: its 3 November runs 2 Nov 17:00Z – 3 Nov 16:59:59.999Z.
+        const p = prisma({ tz: 'Asia/Novosibirsk' })
+        const out = await exportWith(p).paymentsCsv(ADMIN, {
+            from: '2026-11-03',
+            to: '2026-11-03',
+            method: 'NONE',
+            markedById: 'staff-1',
+        })
+        const nskDay = { gte: new Date('2026-11-02T17:00:00.000Z'), lte: new Date('2026-11-03T16:59:59.999Z') }
+        expect(p.subscription.findMany.mock.calls[0][0].where).toEqual({
             workspaceId: 'w1',
             isPaid: true,
-            paidAt: { gte: from, lte: to },
+            paidAt: nskDay,
+            paymentMethod: null,
+            markedPaidById: 'staff-1',
+        })
+        expect(p.eventRegistration.findMany.mock.calls[0][0].where).toMatchObject({ paidAt: nskDay, paymentMethod: null })
+        // Unpaged: the file holds the whole view.
+        expect(p.subscription.findMany.mock.calls[0][0]).not.toHaveProperty('take')
+        expect(out).toMatchObject({ from: '2026-11-03', to: '2026-11-03' })
+    })
+
+    it('no dates = the journal’s default, the revenue_30d window', async () => {
+        const p = prisma()
+        const before = Date.now()
+        const out = await exportWith(p).paymentsCsv(ADMIN, {})
+        const gte: Date = p.subscription.findMany.mock.calls[0][0].where.paidAt.gte
+        expect(before - gte.getTime()).toBeGreaterThanOrEqual(30 * 24 * 3600 * 1000 - 1000)
+        expect(out.to).toBe(new Date().toISOString().slice(0, 10))
+        expect(out.from).toBe(gte.toISOString().slice(0, 10))
+    })
+
+    it('a group of another club is a 404, nothing read', async () => {
+        const p = prisma()
+        await expect(
+            exportWith(p).paymentsCsv(ADMIN, { groupId: '7a1b2c3d-4e5f-4a6b-8c7d-8e9f0a1b2c3d' }),
+        ).rejects.toMatchObject({ statusCode: 404 })
+        expect(p.subscription.findMany).not.toHaveBeenCalled()
+    })
+
+    it('a period the journal refuses is a 400', async () => {
+        await expect(exportWith(prisma()).paymentsCsv(ADMIN, { from: '2026-11-03' })).rejects.toMatchObject({
+            statusCode: 400,
         })
     })
 })
@@ -416,21 +306,6 @@ describe('ExportService date-range filters', () => {
         gte: new Date('2026-11-02T17:00:00.000Z'),
         lte: new Date('2026-11-03T16:59:59.999Z'),
     }
-
-    it('revenue: the bounds are club-local days, not UTC days', async () => {
-        const subs = jest.fn().mockResolvedValue([])
-        const tickets = jest.fn().mockResolvedValue([])
-        await svc({
-            ...novosibirsk,
-            subscription: { findMany: subs },
-            eventRegistration: { findMany: tickets },
-        }).revenueCsv('w1', { from: '2026-11-03', to: '2026-11-03' })
-        expect(subs.mock.calls[0][0].where.OR).toEqual([
-            { paidAt: nskDay },
-            { paidAt: null, createdAt: nskDay },
-        ])
-        expect(tickets.mock.calls[0][0].where.paidAt).toEqual(nskDay)
-    })
 
     it('attendance: a session at 00:30 local is that day — filtered and printed so', async () => {
         const findMany = jest.fn().mockResolvedValue([

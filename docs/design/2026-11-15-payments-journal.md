@@ -681,6 +681,62 @@ Mobile: payment text helper spec (refunded line); `notification-route` spec for 
   «Выгрузка» stays the hub of all CSVs (wave 4).
 - **Pre-journal refunded tickets get no refund row.** They were unmarked by the old handler, so they are
   already outside revenue and sales.
+- **Online sales stay refundable between the phases (phase A).** The entry panel of an online sale whose
+  payment is still `SUCCEEDED` keeps «Вернуть деньги» (outline, `confirmDialog`) on the existing full-refund
+  endpoint `POST payments/:paymentId/refund`, like the removed list did; the «не зачислено» strip uses the
+  same call. Otherwise phase A would take away the only way to return online money until phase B.
+- **Phase-A UI shows only what exists (phase A).** No «Показывать» (payments / refunds) picker in the
+  filters panel, and the summary reads «Итого N · K оплат» until a period has refunds (then «Получено … ·
+  возвращено … · итого …»). The «Выгрузка» card is «Платежи (CSV)»; phase B renames it «Платежи и
+  возвраты» together with the picker.
+- **The URL holds dates, not preset names (phase A).** «Этот месяц» / «Прошлый месяц» write `from/to`;
+  the select shows the preset whose dates match the club-local today. Club-local days come from the club
+  time zone in `GET …/settings`. The search box writes `q` 250 ms after typing stops.
+- **Audit label `export.payments` = «Выгрузка CSV: платежи» (phase A)**, in the form of the other export
+  labels («Выгрузка CSV: …»), not «Выгрузка платежей». Its metadata shows period, method and search;
+  `markedById` / `directionId` stay unresolved ids on the server, so the log leaves them out.
+- **The member card links a paid abonement's payment line to its journal row for club admins (phase A)**
+  (`paymentEntryHref` in `subscription-display.ts`); the unmark/refund changes there stay in phase B.
+- **The default window is open-ended, exactly `loadSales` (phase A).** No dates = `paidAt ≥
+  revenueWindowStart(now)` with no upper bound, so a clock-skewed future `paidAt` can't split the journal
+  from `revenue_30d`. The CSV file name and its audit entry name the club-local days `from = day(now −
+  30 d)`, `to = today`.
+- **The period is checked in one domain function, not in zod (phase A).** `resolveJournalPeriod`
+  (`domains/payments/journal.ts`) refuses one date only, `to < from` and more than 366 club-local days
+  with a 400; the list and `payments.csv` share it (and the analytics-scope resolution, via
+  `features/payment-journal/payment-journal-filter.ts`). The club-local day bounds moved from
+  `export.service.ts` `rangeFilter` to `shared/utils/local-day-range.ts` (`localDayRange`), used by
+  attendance CSV too.
+- **`payments.csv` without dates is the journal's default period, not all time (phase A)**, so «CSV rows =
+  list rows» holds for every view; «Выгрузка» passes a period. Audit `export.payments` metadata always
+  carries the effective `from`/`to` plus every filter that was set (`method`, `kind`, `markedById`,
+  `gymId`, `directionId`, `groupId`, `coachId`, `q`). `export.revenue` left the server's action list (old
+  entries keep their label in the admin). The admin names the file from `Content-Disposition`
+  (`payments-<from>_<to>.csv`), so CORS exposes that header (`app/main.ts`). Unapplied items' `member`
+  carries `isMember` like journal rows.
+- **Journal rows filter and order on `paidAt` alone (phase A).** The backfill fills legacy rows, and
+  `domains/payments/journal-writers.spec.ts` greps every `subscription`/`eventRegistration` write: a
+  `data` that sets `isPaid` must set `paidAt`; each demo abonement push must set `paidAt` and
+  `markedPaidById`.
+- **The backfill's «left to do» check includes attribution (phase A).** `deploy/update.sh` runs
+  `backfill-payment-journal.sql` while a paid row lacks `paidAt`, a GATEWAY row lacks its method, or a
+  manual paid row with `markedPaidById IS NULL` still has a matching audit entry; after one run all three
+  are false (unmatched rows stay «—»). An audit entry whose metadata names another `subscriptionId` is
+  not a match; the nearest timestamp wins.
+- **«Is a member» = has a `WorkspaceMember` row in the club now (phase A)**, looked up by the holder's
+  `userId` for both sources (a rejoined member's old abonement still opens their card). Search (`q`) uses
+  the holder column `Subscription.userId`, the scope filter the abonement's own membership (former members
+  drop out, as designed).
+- **Ticket mark/unmark emit realtime `payments` (phase A)** (`mark-/unmark-event-registration-paid.handler.ts`),
+  so an open journal reloads when «Записавшиеся» marks a ticket. Assign emits it only for a sale made as
+  paid. Unmark of an abonement clears `markedPaidById` and its audit gains `subscriptionId`.
+- **Demo «Отметил» (phase A).** ACADEMY's paid abonements are marked by the administrator (≈ 60 %), the
+  owner or the senior coach, drawn from the sale id (`demoPaymentMarker`); РИТМ's by its owner, like its
+  tickets. Existing demo clubs show «—» until their next reset.
+- **Phase A `refundable` = `amount`** on payment rows and on unapplied payments; `refundedAmount` = 0.
+- **The e2e callers of the removed endpoints moved to the journal (phase A):** `online-payment`,
+  `event-ticket-online-payment` (unapplied → `unapplied` strip; CSV → `payments.csv`) and
+  `removed-member-history` (`payments.csv`).
 
 ## 12. Implementation slices
 

@@ -6,21 +6,25 @@ import { Button, Input, Label } from "@clubspace/ui-kit/ui"
 
 import { downloadExport, type ExportKind } from "../../shared/api/exports"
 import { errorMessage } from "../../shared/lib/error-message"
+import { customRangeError } from "../payments/journal-view"
 
 const EXPORTS: { kind: ExportKind; label: string }[] = [
   { kind: "members", label: "Участники (CSV)" },
   { kind: "renewals", label: "На продление (CSV)" },
   { kind: "attendance", label: "Посещаемость (CSV)" },
-  { kind: "revenue", label: "Выручка (CSV)" },
+  { kind: "payments", label: "Платежи (CSV)" },
 ]
 
 // «Отчёты → Выгрузка»: CSV files for Excel / Google Таблицы. The period
-// filters attendance, renewals and revenue; members is always the full list.
+// filters attendance, renewals and payments; members is always the full list.
 export function DataExportCard({ workspaceId }: { workspaceId: string }) {
   const [exporting, setExporting] = useState<ExportKind | null>(null)
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")
   const [error, setError] = useState<string | null>(null)
+  // payments.csv takes both dates or neither, ≤ 366 days (the journal's rule);
+  // attendance and renewals also take an open-ended period.
+  const paymentsRangeError = from || to ? customRangeError(from, to) : null
 
   const handleExport = async (kind: ExportKind) => {
     setExporting(kind)
@@ -31,7 +35,7 @@ export function DataExportCard({ workspaceId }: { workspaceId: string }) {
         kind,
         ...(kind === "members"
           ? {}
-          : { from: from || undefined, to: to || undefined }),
+          : { query: { from: from || undefined, to: to || undefined } }),
       })
     } catch (err) {
       setError(errorMessage(err, "Не удалось выгрузить данные"))
@@ -44,9 +48,10 @@ export function DataExportCard({ workspaceId }: { workspaceId: string }) {
     <div className="rounded-xl border border-border bg-card p-5">
       <p className="text-sm text-muted-foreground">
         Выгрузка в CSV — открывается в Excel / Google Таблицах. Участники —
-        контакты, роль, доступ и абонемент; Выручка — покупки абонементов и
-        оплаченные билеты на события для бухгалтерии. Период фильтрует
-        посещаемость и выручку (участники — всегда полный список).
+        контакты, роль, доступ и абонемент; Платежи — оплаты абонементов и
+        событий для бухгалтерии, как в «Абонементы → Платежи».
+        Период фильтрует посещаемость и платежи (без периода платежи — за
+        последние 30 дней; участники — всегда полный список).
       </p>
       {error && (
         <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -95,6 +100,9 @@ export function DataExportCard({ workspaceId }: { workspaceId: string }) {
           </Button>
         )}
       </div>
+      {paymentsRangeError && (
+        <p className="mt-2 text-sm text-destructive">Для платежей: {paymentsRangeError}</p>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
         {EXPORTS.map(({ kind, label }) => (
           <Button
@@ -102,7 +110,7 @@ export function DataExportCard({ workspaceId }: { workspaceId: string }) {
             type="button"
             size="sm"
             variant="secondary"
-            disabled={exporting !== null}
+            disabled={exporting !== null || (kind === "payments" && paymentsRangeError !== null)}
             onClick={() => void handleExport(kind)}
           >
             {exporting === kind ? "Готовим…" : label}

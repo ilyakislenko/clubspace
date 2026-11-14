@@ -2006,6 +2006,12 @@ model Subscription {
   // recorded the payment; null while unpaid, on rows from before it was
   // recorded and on imported ones («не указано»).
   paymentMethod PaymentMethod?
+  // Who recorded the payment: staff marking it paid, or selling it as paid.
+  // Display only, no FK — survives the actor's removal (like
+  // EventRegistration.markedPaidById). null: online, unpaid, imported, legacy
+  // rows the backfill could not attribute
+  // (apps/server/scripts/backfill-payment-journal.sql).
+  markedPaidById String? @db.Uuid
 
   // Class-pack balance (null for time-only tariffs). classesTotal is what the
   // tariff granted; classesRemaining is decremented on attendance check-in
@@ -2069,6 +2075,8 @@ model Subscription {
   @@index([status, isPaid, startDate])
   @@index([status, startsOnFirstVisit, startDate])
   @@index([workspaceId, status, isPaid, startDate])
+  // «Платежи» journal + revenue window reads (paid rows by payment date).
+  @@index([workspaceId, isPaid, paidAt])
 }
 
 // A pause of an abonement's clock ("заморозка"), e.g. while a member is injured.

@@ -571,6 +571,11 @@ export const actionMetaFor = (
     icon: Download,
     tone: "amber",
   },
+  "export.payments": {
+    label: "Выгрузка CSV: платежи",
+    icon: Download,
+    tone: "amber",
+  },
   "platform.accessClub": {
     label: "Платформа открыла клуб",
     icon: ShieldAlert,
@@ -750,6 +755,10 @@ export const META_KEY_LABEL: Record<string, string> = {
   count: "Количество",
   from: "С",
   to: "По",
+  // The payments journal's filters (export.payments); `markedById` and
+  // `directionId` stay ids on the server, so they are left out.
+  method: "Способ оплаты",
+  q: "Поиск",
   lockoutMinutes: "Блокировка, мин",
   provider: "Платёжная система",
   previousProvider: "Платёжная система до",
@@ -906,6 +915,13 @@ const ENUM_LABEL: Record<string, Record<string, string>> = {
   dataMode: AI_DATA_MODE_LABEL,
   scopes: { read: "чтение", actions: "действия" },
   currency: { RUB: "₽", USD: "$", EUR: "€" },
+  method: {
+    CASH: "наличные",
+    TRANSFER: "перевод",
+    CARD: "карта в клубе",
+    ONLINE: "онлайн",
+    NONE: "не указан",
+  },
   provider: PROVIDER_LABEL,
   previousProvider: PROVIDER_LABEL,
   dayOfWeek: { "1": "Пн", "2": "Вт", "3": "Ср", "4": "Чт", "5": "Пт", "6": "Сб", "7": "Вс" },

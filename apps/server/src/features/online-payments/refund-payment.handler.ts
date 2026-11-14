@@ -14,7 +14,6 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
-import { paymentListInclude } from './list-payments.handler'
 import {
     RefundPaymentFeature,
     RefundPaymentFeatureResponse,
@@ -156,7 +155,7 @@ export class RefundPaymentHandler
 
         const updated = await this.prisma.payment.findUniqueOrThrow({
             where: { id: payment.id },
-            include: paymentListInclude,
+            include: { user: { select: { firstname: true, lastname: true, email: true } } },
         })
         return serializePayment(updated)
     }

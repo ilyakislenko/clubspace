@@ -111,7 +111,8 @@ export type AuditAction =
     | 'export.members'
     | 'export.renewals'
     | 'export.attendance'
-    | 'export.revenue'
+    // Old entries keep 'export.revenue' (revenue.csv, replaced by payments.csv).
+    | 'export.payments'
     // A platform admin opened a club they are not a member of. Recorded at
     // most once per admin, club and hour.
     | 'platform.accessClub'

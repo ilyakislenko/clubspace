@@ -24,7 +24,9 @@ import { GetOnlinePurchaseOptionsHandler } from '../features/online-payments/get
 import { GetPaymentSettingsHandler } from '../features/online-payments/get-payment-settings.handler'
 import { HandleStripeWebhookHandler } from '../features/online-payments/handle-stripe-webhook.handler'
 import { HandleYookassaWebhookHandler } from '../features/online-payments/handle-yookassa-webhook.handler'
-import { ListPaymentsHandler } from '../features/online-payments/list-payments.handler'
+import { GetPaymentJournalEntryHandler } from '../features/payment-journal/get-payment-journal-entry.handler'
+import { ListPaymentJournalHandler } from '../features/payment-journal/list-payment-journal.handler'
+import { PaymentJournalController } from '../features/payment-journal/payment-journal.controller'
 import { MyPaymentsController } from '../features/online-payments/my-payments.controller'
 import { PaymentSettingsController } from '../features/online-payments/payment-settings.controller'
 import { PaymentWebhooksController } from '../features/online-payments/payment-webhooks.controller'
@@ -880,6 +882,7 @@ const controllers: ModuleMetadata['controllers'] = [
     SelfServeController,
     PaymentSettingsController,
     PaymentsController,
+    PaymentJournalController,
     MyPaymentsController,
     PaymentWebhooksController,
     // ИИ-ассистент (docs/mcp.md): tokens in the admin, the MCP endpoint.
@@ -1230,7 +1233,8 @@ const handlers: ModuleMetadata['providers'] = [
     UpdatePaymentSettingsHandler,
     DeletePaymentSettingsHandler,
     CheckPaymentConnectionHandler,
-    ListPaymentsHandler,
+    ListPaymentJournalHandler,
+    GetPaymentJournalEntryHandler,
     RefundPaymentHandler,
     GetOnlinePurchaseOptionsHandler,
     CreatePaymentHandler,

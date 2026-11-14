@@ -5,6 +5,7 @@ import {
   renewFromForPlan,
   formatAmount,
   isPending,
+  paymentEntryHref,
   paymentLabel,
   periodLabel,
 } from "./subscription-display"
@@ -154,6 +155,12 @@ describe("paymentLabel", () => {
         }),
       ),
     ).toBe("Оплачено 4 000 ₽ · Онлайн")
+  })
+})
+
+describe("paymentEntryHref", () => {
+  it("opens the abonement's row of the payments journal", () => {
+    expect(paymentEntryHref("w1", "s1")).toBe("/workspace/w1/subscriptions/payments?entry=sub:s1")
   })
 })
 

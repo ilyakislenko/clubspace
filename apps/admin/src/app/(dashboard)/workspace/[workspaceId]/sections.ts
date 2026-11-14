@@ -47,7 +47,7 @@ export const reportTabs = (vocabulary: ClubVocabulary): SectionTab[] => [
   },
 ]
 
-// «Абонементы»: tariffs and the online payments list, both money.
+// «Абонементы»: tariffs and the payments journal, both money.
 export const subscriptionTabs: SectionTab[] = [
   {
     key: "subscriptions",

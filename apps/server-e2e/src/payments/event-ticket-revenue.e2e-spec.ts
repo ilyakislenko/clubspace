@@ -4,9 +4,9 @@ import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
 
 const HOUR_MS = 3600_000
 
-// A paid event ticket (a master class) is a sale: the dashboard, revenue.csv
-// and the AI revenue report count it once, from the «paid» mark; taking the
-// mark back takes it out of all three.
+// A paid event ticket (a master class) is a sale: the dashboard, «Платежи»,
+// payments.csv and the AI revenue report count it once, from the «paid» mark;
+// taking the mark back takes it out of all of them.
 describe('event tickets in revenue', () => {
     let ctx: TestApp
 
@@ -58,7 +58,7 @@ describe('event tickets in revenue', () => {
         const csv = () =>
             ctx
                 .http()
-                .get(`/workspaces/${workspace.id}/exports/revenue.csv`)
+                .get(`/workspaces/${workspace.id}/exports/payments.csv`)
                 .set(...ownerActor.auth)
                 .expect(200)
                 .then((r) => r.text.split(/\r?\n/).filter((l) => l.includes('Мастер-класс')))
@@ -88,7 +88,24 @@ describe('event tickets in revenue', () => {
 
         const rows = await csv()
         expect(rows).toHaveLength(1)
-        expect(rows[0]).toContain(`;${user.email};Мастер-класс по растяжке;1500;RUB;;;Событие;Перевод`)
+        expect(rows[0]).toContain(`;Оплата;`)
+        expect(rows[0]).toContain(`;${user.email};Мастер-класс по растяжке;1500;RUB;Перевод;`)
+        expect(rows[0]).toMatch(/;;Событие;$/)
+        // The same sale in «Платежи», marked by the owner.
+        const journal = await ctx
+            .http()
+            .get(`/workspaces/${workspace.id}/payment-journal`)
+            .query({ method: 'TRANSFER' })
+            .set(...ownerActor.auth)
+            .expect(200)
+        expect(journal.body.data).toEqual([
+            expect.objectContaining({
+                id: `reg:${reg.body.id}`,
+                source: 'ticket',
+                amount: 1500,
+                markedBy: expect.objectContaining({ userId: owner.id }),
+            }),
+        ])
         expect(await stats()).toBe(before + 1500)
 
         await ctx

@@ -97,6 +97,9 @@ async function bootstrap() {
         origin: allowAnyOrigin ? true : corsOrigins,
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
         credentials: !allowAnyOrigin,
+        // The admin names a downloaded CSV after the period the server
+        // resolved (exports/payments.csv without dates = the last 30 days).
+        exposedHeaders: ['Content-Disposition'],
     })
 
     const port = get('SERVER_PORT').default(3000).asPortNumber()

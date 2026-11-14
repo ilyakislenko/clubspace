@@ -264,20 +264,23 @@ describe('online payment of an abonement', () => {
             .set(...coach.auth)
         expect(foreign.status).toBe(404)
 
+        // The sale is a «Платежи» row with its provider side; no one marked it.
         const list = await ctx
             .http()
-            .get(`/workspaces/${s.workspace.id}/payments`)
+            .get(`/workspaces/${s.workspace.id}/payment-journal`)
             .set(...s.ownerActor.auth)
         expect(list.status).toBe(200)
         expect(list.body.data).toHaveLength(1)
         expect(list.body.data[0]).toMatchObject({
-            id: paymentId,
-            status: 'SUCCEEDED',
+            id: `sub:${subs[0].id}`,
+            method: 'ONLINE',
+            markedBy: null,
             member: { userId: s.memberUser.id },
+            online: { paymentId, status: 'SUCCEEDED' },
         })
         const coachList = await ctx
             .http()
-            .get(`/workspaces/${s.workspace.id}/payments`)
+            .get(`/workspaces/${s.workspace.id}/payment-journal`)
             .set(...coach.auth)
         expect(coachList.status).toBe(403)
 

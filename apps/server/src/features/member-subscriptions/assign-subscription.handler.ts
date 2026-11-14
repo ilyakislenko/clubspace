@@ -153,6 +153,7 @@ export class AssignSubscriptionHandler
                 amountPaid: f.payload.amountPaid,
                 paid: f.payload.paid,
                 paymentMethod: f.payload.paymentMethod,
+                markedPaidById: f.invokerUserId,
                 source: 'MANUAL',
             })
 
@@ -163,9 +164,11 @@ export class AssignSubscriptionHandler
             workspaceId: f.workspaceId,
             actorId: f.invokerUserId,
             metadata: {
+                subscriptionId: subscription.id,
                 planName: subscription.plan.name,
                 amount: subscription.amountPaid,
                 paid: subscription.isPaid,
+                method: subscription.paymentMethod,
                 currency: subscription.currency,
                 // The plan's list price next to the amount, so a coach discount shows.
                 listPrice: plan?.price ?? null,
@@ -180,7 +183,11 @@ export class AssignSubscriptionHandler
             },
         })
 
-        this.realtime.invalidate(f.workspaceId, ['members', 'subscription'])
+        // Sold as paid: a new row in «Платежи».
+        this.realtime.invalidate(
+            f.workspaceId,
+            subscription.isPaid ? ['members', 'subscription', 'payments'] : ['members', 'subscription'],
+        )
 
         return {
             subscription: serializeSubscription(subscription),

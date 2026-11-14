@@ -23,9 +23,11 @@ import { Roles, CLUB_ADMINS } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
-import { DayRange, ExportService } from './export.service'
+import { PaymentJournalFilterSchema } from '../payment-journal/schemas'
+import { ExportService } from './export.service'
+import type { DayRange } from '../../shared/utils/local-day-range'
 
-// Optional YYYY-MM-DD bounds for the attendance/revenue exports: inclusive
+// Optional YYYY-MM-DD bounds for the attendance export: inclusive
 // club-local days (the service resolves them in the club's timezone). The Zod
 // pipe rejects a malformed value with a 400; both absent = full export.
 const ExportRangeQuerySchema = z.object({
@@ -33,6 +35,7 @@ const ExportRangeQuerySchema = z.object({
     to: z.iso.date().optional(),
 })
 class ExportRangeQuery extends createZodDto(ExportRangeQuerySchema) {}
+class ExportPaymentsQuery extends createZodDto(PaymentJournalFilterSchema) {}
 
 const attach = (res: Response, name: string, range: DayRange) => {
     // Name the file after the range when one is set, else today's date.
@@ -66,6 +69,7 @@ export class ExportController {
         user: CurrentUserPayload,
         range: DayRange,
         csv: string,
+        filters: Record<string, string> = {},
     ): Promise<string> {
         await this.audit.record({
             action,
@@ -76,6 +80,7 @@ export class ExportController {
             metadata: {
                 ...(range.from ? { from: range.from } : {}),
                 ...(range.to ? { to: range.to } : {}),
+                ...filters,
             },
         })
         return csv
@@ -137,23 +142,41 @@ export class ExportController {
         )
     }
 
-    @Get('revenue.csv')
+    // The payments journal as a file: the same rows, order and filters as
+    // «Платежи» (the journal button passes them all, «Выгрузка» the period);
+    // no dates = the journal's default, the `revenue_30d` window.
+    @Get('payments.csv')
     @Roles(CLUB_ADMINS)
     @Header('Content-Type', 'text/csv; charset=utf-8')
-    async revenue(
+    async payments(
         @Param('workspaceId') workspaceId: string,
-        @Query() query: ExportRangeQuery,
+        @Query() query: ExportPaymentsQuery,
         @CurrentUser() user: CurrentUserPayload,
         @Res({ passthrough: true }) res: Response,
     ): Promise<string> {
-        const range: DayRange = query
-        attach(res, 'revenue', range)
+        const file = await this.exportService.paymentsCsv(
+            {
+                workspaceId,
+                invokerUserId: user.userId,
+                roleName: user.role?.name ?? null,
+                isSuperAdmin: user.isSuperAdmin,
+            },
+            query,
+        )
+        attach(res, 'payments', { from: file.from, to: file.to })
+        // The view's filters beside the period, so the trail says what left.
+        const filters = Object.fromEntries(
+            Object.entries(query).filter(
+                (e): e is [string, string] => e[0] !== 'from' && e[0] !== 'to' && !!e[1],
+            ),
+        )
         return await this.audited(
-            'export.revenue',
+            'export.payments',
             workspaceId,
             user,
-            range,
-            await this.exportService.revenueCsv(workspaceId, range),
+            { from: file.from, to: file.to },
+            file.csv,
+            filters,
         )
     }
 }

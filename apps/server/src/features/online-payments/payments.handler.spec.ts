@@ -8,8 +8,6 @@ jest.mock('../../environments/environment', () => ({
 
 import { encryptPaymentSecret } from '../../domains/payments/payment-credentials'
 import { PaymentGatewayError } from '../../domains/payments/payment-gateway.types'
-import { ListPaymentsFeature } from './list-payments.feature'
-import { ListPaymentsHandler } from './list-payments.handler'
 import { RefundPaymentFeature } from './refund-payment.feature'
 import { RefundPaymentHandler } from './refund-payment.handler'
 
@@ -59,67 +57,6 @@ const row = (over: Record<string, unknown> = {}) => ({
     refundedAt: null,
     user: { firstname: 'Иван', lastname: 'Петров', email: 'ivan@example.com' },
     ...over,
-})
-
-describe('listPayments', () => {
-    const list = (caller: Caller) => {
-        const prisma = {
-            payment: {
-                findMany: jest.fn().mockResolvedValue([row()]),
-                count: jest.fn().mockResolvedValue(1),
-            },
-        }
-        const run = () =>
-            new ListPaymentsHandler(prisma as never, rbac() as never).execute(
-                new ListPaymentsFeature({}, 'ws-1', caller.userId, caller.roleName, false),
-            )
-        return { prisma, run }
-    }
-
-    it('refuses a head coach, even one who runs every group', async () => {
-        const s = list(HEAD_COACH)
-        await expect(s.run()).rejects.toMatchObject({ statusCode: 403 })
-        expect(s.prisma.payment.findMany).not.toHaveBeenCalled()
-    })
-
-    it.each([
-        ['an admin', ADMIN],
-        ['the owner', OWNER],
-    ])('shows the payments to %s', async (_, caller) => {
-        await expect(list(caller).run()).resolves.toMatchObject({ total: 1 })
-    })
-
-    it('lists this club only, newest first, filtered and paged', async () => {
-        const prisma = {
-            payment: {
-                findMany: jest.fn().mockResolvedValue([row()]),
-                count: jest.fn().mockResolvedValue(51),
-            },
-        }
-        const out = await new ListPaymentsHandler(
-            prisma as never,
-            rbac() as never,
-        ).execute(
-            new ListPaymentsFeature(
-                { status: 'SUCCEEDED', page: 2, perPage: 25 },
-                'ws-1',
-                'a-1',
-                'admin',
-                false,
-            ),
-        )
-        const args = prisma.payment.findMany.mock.calls[0][0]
-        expect(args.where).toEqual({ workspaceId: 'ws-1', status: 'SUCCEEDED' })
-        expect(args.orderBy).toEqual({ createdAt: 'desc' })
-        expect(args.skip).toBe(25)
-        expect(args.take).toBe(25)
-        expect(out).toMatchObject({ total: 51, page: 2, perPage: 25 })
-        expect(out.data[0]).toMatchObject({
-            id: 'pay-1',
-            status: 'SUCCEEDED',
-            member: { userId: 'u-1', name: 'Иван Петров', email: 'ivan@example.com' },
-        })
-    })
 })
 
 describe('refundPayment', () => {

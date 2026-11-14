@@ -1,13 +1,4 @@
-import {
-    Body,
-    Controller,
-    Get,
-    Param,
-    ParseUUIDPipe,
-    Post,
-    Query,
-    UseGuards,
-} from '@nestjs/common'
+import { Body, Controller, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -27,12 +18,6 @@ import {
     type CreatePaymentFeatureResponse,
 } from './create-payment.feature'
 import {
-    ListPaymentsFeature,
-    ListPaymentsInputSchema,
-    ListPaymentsOutputSchema,
-    type ListPaymentsFeatureResponse,
-} from './list-payments.feature'
-import {
     RefundPaymentFeature,
     RefundPaymentOutputSchema,
     type RefundPaymentFeatureResponse,
@@ -40,8 +25,6 @@ import {
 
 class CreatePaymentInput extends createZodDto(CreatePaymentInputSchema) {}
 class CreatePaymentOutput extends createZodDto(CreatePaymentOutputSchema) {}
-class ListPaymentsQuery extends createZodDto(ListPaymentsInputSchema) {}
-class ListPaymentsOutput extends createZodDto(ListPaymentsOutputSchema) {}
 class RefundPaymentOutput extends createZodDto(RefundPaymentOutputSchema) {}
 
 @Controller('workspaces/:workspaceId/payments')
@@ -61,25 +44,6 @@ export class PaymentsController {
     ) {
         return this.bus.execute<CreatePaymentFeature, CreatePaymentFeatureResponse>(
             new CreatePaymentFeature(body, workspaceId, user.userId),
-        )
-    }
-
-    @Get()
-    @Roles(CLUB_ADMINS)
-    @ZodResponse({ type: ListPaymentsOutput })
-    async listPayments(
-        @Param('workspaceId') workspaceId: string,
-        @Query() query: ListPaymentsQuery,
-        @CurrentUser() user: CurrentUserPayload,
-    ) {
-        return this.bus.execute<ListPaymentsFeature, ListPaymentsFeatureResponse>(
-            new ListPaymentsFeature(
-                query,
-                workspaceId,
-                user.userId,
-                user.role?.name ?? null,
-                user.isSuperAdmin,
-            ),
         )
     }
 

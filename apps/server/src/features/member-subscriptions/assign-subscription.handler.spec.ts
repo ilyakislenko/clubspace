@@ -19,6 +19,7 @@ const subRow = () => ({
   currency: 'RUB',
   isPaid: true,
   paidAt: new Date('2026-07-01T00:00:00Z'),
+  paymentMethod: 'CARD',
   source: 'MANUAL',
   createdAt: new Date('2026-07-01T00:00:00Z'),
 });
@@ -224,7 +225,8 @@ describe('assignSubscription', () => {
       { scope: 'coach_own_only' },
       'member',
     );
-    expect(service.grantFromPlan).toHaveBeenCalled();
+    // The coach selling it is the journal's «Отметил».
+    expect(service.grantFromPlan.mock.calls[0][0]).toMatchObject({ markedPaidById: 'coach1' });
     expect(auditMock.record).toHaveBeenCalledWith({
       action: 'member.assignSubscription',
       targetType: 'member',
@@ -232,9 +234,11 @@ describe('assignSubscription', () => {
       workspaceId: 'w1',
       actorId: 'coach1',
       metadata: {
+        subscriptionId: 's1',
         planName: 'Monthly',
         amount: 5000,
         paid: true,
+        method: 'CARD',
         currency: 'RUB',
         listPrice: 6000,
         startDate: '2026-07-01',
@@ -242,10 +246,39 @@ describe('assignSubscription', () => {
         accessUntil: '2026-07-31T00:00:00.000Z',
       },
     });
+    // Sold as paid: a new row in «Платежи».
     expect(realtime.invalidate).toHaveBeenCalledWith('w1', [
       'members',
       'subscription',
+      'payments',
     ]);
+  });
+
+  it('a sale on credit adds no journal row', async () => {
+    const prisma = {
+      workspace: {
+        findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner', timezone: 'Asia/Tomsk' }),
+      },
+      workspaceMember: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
+      plan: { findFirst: jest.fn().mockResolvedValue({ isActive: true, price: 6000 }) },
+    };
+    const service = {
+      grantFromPlan: jest.fn().mockResolvedValue({
+        subscription: { ...subRow(), isPaid: false, paidAt: null, paymentMethod: null },
+        accessUntil: new Date('2026-07-31T00:00:00Z'),
+      }),
+    };
+    const realtime = { invalidate: jest.fn() };
+    await new AssignSubscriptionHandler(
+      prisma as never,
+      rbac() as never,
+      service as never,
+      realtime as never,
+      audit() as never,
+    ).execute(
+      new AssignSubscriptionFeature({ planId: 'p1', paid: false }, 'w1', 'member', 'u1', 'admin', false),
+    );
+    expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['members', 'subscription']);
   });
 
   it('forbids a coach whose groups do not include the member', async () => {

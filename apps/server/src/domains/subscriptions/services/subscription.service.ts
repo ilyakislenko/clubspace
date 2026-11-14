@@ -52,6 +52,9 @@ export type GrantFromPlanParams = {
     // How staff were paid for a sale recorded as paid; ignored on credit.
     // A GATEWAY sale is always ONLINE.
     paymentMethod?: ClubPaymentMethodValue | null
+    // The staff member recording a sale made as paid (the journal's
+    // «Отметил»); ignored on credit and for a GATEWAY sale.
+    markedPaidById?: string | null
     // MANUAL for admin-recorded abonements; GATEWAY for an online payment
     // confirmed by the provider's webhook.
     source?: SubscriptionSourceValue
@@ -235,6 +238,11 @@ export class SubscriptionService {
                         : (params.paid ?? true)
                           ? (params.paymentMethod ?? null)
                           : null,
+                // Who recorded a sale made as paid; an online one has none.
+                markedPaidById:
+                    params.source !== 'GATEWAY' && (params.paid ?? true)
+                        ? (params.markedPaidById ?? null)
+                        : null,
                 // Class-pack balance (null for a time-only tariff).
                 classesTotal: plan.classCount,
                 classesRemaining: plan.classCount,
@@ -303,6 +311,8 @@ export class SubscriptionService {
         amount?: number
         // Omitted = not recorded («не указано»).
         paymentMethod?: ClubPaymentMethodValue | null
+        // The staff member recording it (the journal's «Отметил»).
+        markedById: string
         now?: Date
     }) {
         return this.prisma.$transaction(async (tx) => {
@@ -348,6 +358,7 @@ export class SubscriptionService {
                     paidAt: now,
                     amountPaid: params.amount ?? sub.amountPaid,
                     paymentMethod: params.paymentMethod ?? null,
+                    markedPaidById: params.markedById,
                 },
             })
             if (res.count !== 1) {
@@ -361,8 +372,8 @@ export class SubscriptionService {
     }
 
     // Undo of markPaid for a mistaken mark. Back to «Ожидает оплаты»: amountPaid
-    // stays — it is the agreed price again while unpaid; the method goes with
-    // the payment.
+    // stays — it is the agreed price again while unpaid; the method and who
+    // marked it go with the payment.
     async unmarkPaid(params: {
         workspaceId: string
         userId: string
@@ -392,7 +403,7 @@ export class SubscriptionService {
                     isPaid: true,
                     status: { not: 'CANCELLED' },
                 },
-                data: { isPaid: false, paidAt: null, paymentMethod: null },
+                data: { isPaid: false, paidAt: null, paymentMethod: null, markedPaidById: null },
             })
             if (res.count !== 1) {
                 throw new BadRequestError({ message: CHANGED_MESSAGE })

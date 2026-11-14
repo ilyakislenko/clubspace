@@ -47,12 +47,15 @@ import {
   classesLabel,
   formatAmount,
   isPending,
+  paymentEntryHref,
   paymentLabel,
   periodLabel,
   renewFromForPlan,
 } from "./subscription-display"
 import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+import { isClubAdmin } from "../../shared/lib/permissions"
+import { useMyMembership } from "../../shared/lib/use-my-membership"
 import { agree, countForm, fromFirstSession } from "@clubspace/ui-kit/brand"
 
 const SALE_AMOUNT = FORM_LIMITS.payment.saleAmount
@@ -83,6 +86,8 @@ export function MemberSubscriptionPanel({
   onAssigned?: () => void
 }) {
   const vocabulary = useVocabulary()
+  // Club admins open a paid abonement's payment in «Абонементы → Платежи».
+  const seesJournal = isClubAdmin(useMyMembership(workspaceId))
   const [plans, setPlans] = useState<Plan[]>([])
   const [subs, setSubs] = useState<MemberSubscriptions | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -272,9 +277,15 @@ export function MemberSubscriptionPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className={a.isPaid ? "" : "text-amber-700"}>
-            {paymentLabel(a)}
-          </span>
+          {a.isPaid && seesJournal ? (
+            <Link href={paymentEntryHref(workspaceId, a.id)} className="hover:underline">
+              {paymentLabel(a)}
+            </Link>
+          ) : (
+            <span className={a.isPaid ? "" : "text-amber-700"}>
+              {paymentLabel(a)}
+            </span>
+          )}
           {/* One payment form at a time: the others wait until it is closed. */}
           {canManage && !a.isPaid && payingId === null && (
             <Button

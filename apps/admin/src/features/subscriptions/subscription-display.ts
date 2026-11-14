@@ -74,6 +74,10 @@ export const paymentLabel = (s: PaymentSubscription): string => {
     .join(" · ")
 }
 
+// A paid abonement's row in «Абонементы → Платежи» (club admins).
+export const paymentEntryHref = (workspaceId: string, subscriptionId: string): string =>
+  `/workspace/${workspaceId}/subscriptions/payments?entry=sub:${subscriptionId}`
+
 // «Занятий: 3 / 12» for a class pack; null for a time-based abonement.
 export const classesLabel = (s: {
   classesTotal: number | null

@@ -122,7 +122,7 @@ describe('event ticket paid online', () => {
     const csvTicketRows = (c: Club) =>
         ctx
             .http()
-            .get(`/workspaces/${c.workspace.id}/exports/revenue.csv`)
+            .get(`/workspaces/${c.workspace.id}/exports/payments.csv`)
             .set(...c.ownerActor.auth)
             .expect(200)
             .then((r) => r.text.split(/\r?\n/).filter((l) => l.includes('dancehall')))
@@ -206,7 +206,8 @@ describe('event ticket paid online', () => {
         expect(await revenue30d(c)).toBe(before + 1500)
         const rows = await csvTicketRows(c)
         expect(rows).toHaveLength(1)
-        expect(rows[0]).toContain(`;${m.user.email};Мастер-класс: dancehall;1500;RUB;;;Событие;Онлайн`)
+        expect(rows[0]).toContain(`;Оплата;`)
+        expect(rows[0]).toContain(`;${m.user.email};Мастер-класс: dancehall;1500;RUB;Онлайн;;;Событие;`)
 
         // Staff marking it again does not sell it twice; the mark stays ONLINE.
         await ctx
@@ -312,19 +313,22 @@ describe('event ticket paid online', () => {
         })
         expect((await registrationRow(waiting.id)).isPaid).toBe(false)
         expect(await revenue30d(c)).toBe(before)
+        // Not a sale: only the «needs decision» strip of «Платежи» shows it.
         const list = await ctx
             .http()
-            .get(`/workspaces/${c.workspace.id}/payments`)
+            .get(`/workspaces/${c.workspace.id}/payment-journal`)
             .set(...c.ownerActor.auth)
             .expect(200)
-        expect(list.body.data).toEqual([
-            expect.objectContaining({
-                id: paymentId,
-                status: 'SUCCEEDED',
-                eventRegistrationId: booked.id,
-                activationError: 'Запись отменена до оплаты',
-            }),
-        ])
+        expect(list.body.unapplied).toEqual({
+            total: 1,
+            data: [
+                expect.objectContaining({
+                    paymentId,
+                    amount: 1500,
+                    activationError: 'Запись отменена до оплаты',
+                }),
+            ],
+        })
         const mine = await ctx
             .http()
             .get(`/workspaces/${c.workspace.id}/me/payments/${paymentId}`)
@@ -472,15 +476,15 @@ describe('event ticket paid online', () => {
             paymentMethod: 'CASH',
             amountPaid: 1500,
         })
+        // Not a sale: only the «needs decision» strip of «Платежи» shows it.
         const list = await ctx
             .http()
-            .get(`/workspaces/${c.workspace.id}/payments`)
+            .get(`/workspaces/${c.workspace.id}/payment-journal`)
             .set(...c.ownerActor.auth)
             .expect(200)
-        expect(list.body.data).toEqual([
+        expect(list.body.unapplied.data).toEqual([
             expect.objectContaining({
-                id: paymentId,
-                status: 'SUCCEEDED',
+                paymentId,
                 activationError: 'Билет уже отмечен оплаченным',
             }),
         ])

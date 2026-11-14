@@ -2,6 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import {
@@ -33,6 +34,7 @@ export class UnmarkEventRegistrationPaidHandler
         private readonly rbac: RbacService,
         private readonly audit: AuditService,
         private readonly registrations: EventRegistrationService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(f: UnmarkEventRegistrationPaidFeature) {
@@ -91,6 +93,8 @@ export class UnmarkEventRegistrationPaidHandler
                 },
             })
             this.registrations.invalidate(f.workspaceId)
+            // The row leaves «Платежи».
+            this.realtime.invalidate(f.workspaceId, ['payments'])
         }
         return serializeRegistrant(row, null)
     }

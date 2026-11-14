@@ -1,38 +1,41 @@
-import { getApiClient } from "./client"
+import { getApiAxios } from "./client"
+import type { PaymentJournalFilters } from "./payment-journal"
 
-export type ExportKind = "members" | "renewals" | "attendance" | "revenue"
+export type ExportKind = "members" | "renewals" | "attendance" | "payments"
+
+// `attachment; filename="payments-2026-10-16_2026-11-15.csv"` → the name.
+export const attachmentFileName = (disposition: string | undefined): string | null =>
+  disposition?.match(/filename="?([^";]+)"?/i)?.[1] ?? null
 
 /**
- * Fetch a CSV export (authenticated) and trigger a browser download. The
- * endpoint returns text/csv, so axios keeps the body as a string. `from`/`to`
- * (YYYY-MM-DD) optionally bound attendance/revenue to a date range.
+ * Fetch a CSV export (authenticated) and trigger a browser download under the
+ * name the server gives it (Content-Disposition: the period's dates, the
+ * default 30-day window included). `from`/`to` (YYYY-MM-DD) optionally bound
+ * attendance/renewals/payments to a date range; payments also takes the rest
+ * of the journal's filters (no dates = the journal's default 30 days).
  */
 export const downloadExport = async (params: {
   workspaceId: string
   kind: ExportKind
-  from?: string
-  to?: string
+  query?: PaymentJournalFilters
 }): Promise<void> => {
-  const csv = await getApiClient().request<string>({
-    method: "get",
-    url: `/workspaces/${params.workspaceId}/exports/${params.kind}.csv`,
-    params: {
-      ...(params.from ? { from: params.from } : {}),
-      ...(params.to ? { to: params.to } : {}),
-    },
-  })
+  const query = Object.fromEntries(
+    Object.entries(params.query ?? {}).filter(([, v]) => v !== undefined && v !== ""),
+  )
+  const response = await getApiAxios().get<string>(
+    `/workspaces/${params.workspaceId}/exports/${params.kind}.csv`,
+    { params: query, responseType: "text" },
+  )
+  const name =
+    attachmentFileName(response.headers["content-disposition"]) ??
+    `${params.kind}-${new Date().toISOString().slice(0, 10)}.csv`
 
-  const range =
-    params.from || params.to
-      ? `-${params.from ?? "_"}_${params.to ?? "_"}`
-      : `-${new Date().toISOString().slice(0, 10)}`
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+  const blob = new Blob([response.data], { type: "text/csv;charset=utf-8" })
   const url = URL.createObjectURL(blob)
   try {
     const a = document.createElement("a")
     a.href = url
-    a.download = `${params.kind}${range}.csv`
+    a.download = name
     document.body.appendChild(a)
     a.click()
     a.remove()

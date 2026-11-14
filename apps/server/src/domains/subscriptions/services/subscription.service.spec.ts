@@ -110,6 +110,26 @@ describe('grantFromPlan', () => {
         expect(tx.subscription.create.mock.calls[0][0].data.paymentMethod).toBe('ONLINE')
     })
 
+    it('records who sold it as paid; nobody for a sale on credit or an online one', async () => {
+        const sell = async (over: Record<string, unknown>) => {
+            const tx = makeTx()
+            tx.plan.findFirst.mockResolvedValue(plan)
+            tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null, subscriptions: [] })
+            await svcWith(tx).grantFromPlan({
+                workspaceId: 'w1',
+                workspaceMemberId: 'm1',
+                planId: 'p1',
+                startDate: new Date('2026-07-01T00:00:00Z'),
+                markedPaidById: 'staff-1',
+                ...over,
+            })
+            return tx.subscription.create.mock.calls[0][0].data.markedPaidById
+        }
+        expect(await sell({})).toBe('staff-1')
+        expect(await sell({ paid: false })).toBeNull()
+        expect(await sell({ source: 'GATEWAY' })).toBeNull()
+    })
+
     it('records an unpaid sale with no paidAt', async () => {
         const tx = makeTx()
         tx.plan.findFirst.mockResolvedValue(plan)
@@ -779,7 +799,7 @@ describe('markPaid', () => {
         workspace: { timezone: 'Asia/Tomsk' },
         ...over,
     })
-    const params = { workspaceId: 'w1', userId: 'u1', subscriptionId: 's1', now }
+    const params = { workspaceId: 'w1', userId: 'u1', subscriptionId: 's1', markedById: 'staff-1', now }
 
     it('looks the abonement up by workspace and member user', async () => {
         const tx = makeTx()
@@ -800,7 +820,8 @@ describe('markPaid', () => {
         const res = await svcWith(tx).markPaid(params)
         expect(tx.subscription.updateMany).toHaveBeenCalledWith({
             where: { id: 's1', isPaid: false, status: { not: 'CANCELLED' } },
-            data: { isPaid: true, paidAt: now, amountPaid: 5000, paymentMethod: null },
+            // The staff member marking it is the journal's «Отметил».
+            data: { isPaid: true, paidAt: now, amountPaid: 5000, paymentMethod: null, markedPaidById: 'staff-1' },
         })
         expect(res).toEqual({ id: 's1', isPaid: true })
     })
@@ -874,7 +895,7 @@ describe('unmarkPaid', () => {
     })
     const params = { workspaceId: 'w1', userId: 'u1', subscriptionId: 's1' }
 
-    it('puts a paid abonement back to unpaid, keeps the amount, drops the method', async () => {
+    it('puts a paid abonement back to unpaid, keeps the amount, drops the method and the marker', async () => {
         const tx = makeTx()
         tx.subscription.findFirst.mockResolvedValue(paid())
         tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1', isPaid: false })
@@ -886,7 +907,8 @@ describe('unmarkPaid', () => {
         })
         expect(tx.subscription.updateMany).toHaveBeenCalledWith({
             where: { id: 's1', isPaid: true, status: { not: 'CANCELLED' } },
-            data: { isPaid: false, paidAt: null, paymentMethod: null },
+            // Who marked it goes with the payment (the journal row leaves).
+            data: { isPaid: false, paidAt: null, paymentMethod: null, markedPaidById: null },
         })
         expect(res).toEqual({ id: 's1', isPaid: false })
     })

@@ -1,0 +1,163 @@
+import { z } from 'zod'
+
+import {
+    JOURNAL_KINDS,
+    JOURNAL_METHODS,
+    type JournalPeople,
+    type JournalRow,
+    type UnappliedPaymentRow,
+} from '../../domains/payments/journal'
+import { PaymentMethodSchema } from '../../shared/utils/payment-method'
+import { displayName } from '../attendance/schemas'
+import { AnalyticsFilterSchema } from '../club-analytics/schemas'
+import { PaymentProviderSchema, PaymentStatusSchema } from '../online-payments/schemas'
+
+export const PaymentJournalMethodSchema = z.enum(JOURNAL_METHODS)
+
+// The journal's view, shared by the list and the CSV (exports/payments.csv).
+// Dates: inclusive club-local days, both or neither (neither = the
+// `revenue_30d` window), checked by domains/payments/journal
+// resolveJournalPeriod. Gym / direction / group / coach = the analytics scope.
+export const PaymentJournalFilterSchema = AnalyticsFilterSchema.extend({
+    from: z.iso.date().optional(),
+    to: z.iso.date().optional(),
+    method: PaymentJournalMethodSchema.optional(),
+    kind: z.enum(JOURNAL_KINDS).optional(),
+    // Who marked the payment paid.
+    markedById: z.string().uuid().optional(),
+    q: z.string().trim().max(100).optional(),
+})
+export type PaymentJournalFilter = z.infer<typeof PaymentJournalFilterSchema>
+
+const PersonRefSchema = z.object({ userId: z.string().uuid(), name: z.string() })
+
+// One journal row, flat (no union): a payment (sale) or, from phase B, a
+// refund of one.
+export const PaymentJournalEntrySchema = z.object({
+    // `sub:<uuid>` / `reg:<uuid>` / `ref:<uuid>` — also the detail key.
+    id: z.string(),
+    kind: z.enum(['payment', 'refund']),
+    source: z.enum(['abonement', 'ticket']),
+    // Paid at (refund: refunded at).
+    at: z.iso.datetime(),
+    // Always positive; a refund row is drawn as «−».
+    amount: z.number().int(),
+    currency: z.string(),
+    // null = not recorded («Не указан»).
+    method: PaymentMethodSchema.nullable(),
+    member: z.object({
+        // null on a legacy row sold before the holder was stored.
+        userId: z.string().uuid().nullable(),
+        name: z.string(),
+        // A member of the club now (their card opens); former members are text.
+        isMember: z.boolean(),
+    }),
+    // Tariff name / event title.
+    itemName: z.string(),
+    subscriptionId: z.string().uuid().nullable(),
+    eventRegistrationId: z.string().uuid().nullable(),
+    eventId: z.string().uuid().nullable(),
+    // Payment: who marked it paid (null: online, imported, unattributed).
+    markedBy: PersonRefSchema.nullable(),
+    // Payment rows: refunded so far and what may still be refunded.
+    refundedAmount: z.number().int(),
+    refundable: z.number().int(),
+    // The provider's side of an online sale.
+    online: z
+        .object({
+            paymentId: z.string().uuid(),
+            provider: PaymentProviderSchema,
+            // The provider's payment id, last 6 characters.
+            providerRef: z.string().nullable(),
+            status: PaymentStatusSchema,
+        })
+        .nullable(),
+    // Refund rows only.
+    reason: z.string().nullable(),
+    refundOf: z
+        .object({ id: z.string(), at: z.iso.datetime(), amount: z.number().int() })
+        .nullable(),
+})
+export type PaymentJournalEntry = z.infer<typeof PaymentJournalEntrySchema>
+
+export const PaymentJournalTotalSchema = z.object({
+    currency: z.string(),
+    received: z.number().int(),
+    refunded: z.number().int(),
+    net: z.number().int(),
+    byMethod: z.array(
+        z.object({
+            method: PaymentJournalMethodSchema,
+            received: z.number().int(),
+            refunded: z.number().int(),
+            // Payment rows of this method.
+            count: z.number().int(),
+        }),
+    ),
+})
+
+// Paid online, but the abonement / place could not be granted.
+export const PaymentJournalUnappliedSchema = z.object({
+    paymentId: z.string().uuid(),
+    at: z.iso.datetime(),
+    // isMember: a member of the club now (their card opens).
+    member: PersonRefSchema.extend({ isMember: z.boolean() }),
+    itemName: z.string(),
+    amount: z.number().int(),
+    refundable: z.number().int(),
+    currency: z.string(),
+    provider: PaymentProviderSchema,
+    activationError: z.string().nullable(),
+})
+
+export const serializePaymentJournalEntry = (
+    row: JournalRow,
+    people: JournalPeople,
+): PaymentJournalEntry => ({
+    id: row.id,
+    kind: row.kind,
+    source: row.source,
+    at: row.at.toISOString(),
+    amount: row.amount,
+    currency: row.currency,
+    method: row.method,
+    member: {
+        userId: row.userId,
+        name: row.person ? displayName(row.person) : 'Участник',
+        isMember: row.userId !== null && people.members.has(row.userId),
+    },
+    itemName: row.itemName,
+    subscriptionId: row.subscriptionId,
+    eventRegistrationId: row.eventRegistrationId,
+    eventId: row.eventId,
+    markedBy: row.markedById
+        ? { userId: row.markedById, name: people.names.get(row.markedById) ?? 'Сотрудник' }
+        : null,
+    refundedAmount: 0,
+    refundable: row.amount,
+    online: row.online
+        ? {
+              paymentId: row.online.id,
+              provider: row.online.provider,
+              providerRef: row.online.providerPaymentId?.slice(-6) ?? null,
+              status: row.online.status,
+          }
+        : null,
+    reason: null,
+    refundOf: null,
+})
+
+export const serializePaymentJournalUnapplied = (
+    p: UnappliedPaymentRow,
+    people: JournalPeople,
+): z.infer<typeof PaymentJournalUnappliedSchema> => ({
+    paymentId: p.id,
+    at: (p.paidAt ?? p.createdAt).toISOString(),
+    member: { userId: p.userId, name: displayName(p.user), isMember: people.members.has(p.userId) },
+    itemName: p.planName,
+    amount: p.amount,
+    refundable: p.amount,
+    currency: p.currency,
+    provider: p.provider,
+    activationError: p.activationError,
+})

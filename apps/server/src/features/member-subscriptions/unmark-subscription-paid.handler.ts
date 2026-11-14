@@ -51,13 +51,15 @@ export class UnmarkSubscriptionPaidHandler
             workspaceId: f.workspaceId,
             actorId: f.invokerUserId,
             metadata: {
+                subscriptionId: subscription.id,
                 planName: subscription.plan.name,
                 amount: subscription.amountPaid,
                 currency: subscription.currency,
             },
         })
 
-        this.realtime.invalidate(f.workspaceId, ['members', 'subscription'])
+        // The row leaves «Платежи».
+        this.realtime.invalidate(f.workspaceId, ['members', 'subscription', 'payments'])
 
         return { subscription: serializeSubscription(subscription) }
     }

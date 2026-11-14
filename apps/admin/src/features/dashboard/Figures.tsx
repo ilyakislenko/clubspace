@@ -8,11 +8,35 @@ import { useVocabulary } from "../../shared/lib/vocabulary"
 import { revenueChangePct } from "./decisions"
 
 // One number of a summary block: sentence-case label, the value, one note.
-function Figure({ label, value, note }: { label: string; value: ReactNode; note?: ReactNode }) {
+// With `href` the label and value open the page behind the number.
+function Figure({
+  label,
+  value,
+  note,
+  href,
+}: {
+  label: string
+  value: ReactNode
+  note?: ReactNode
+  href?: string
+}) {
+  const head = (
+    <>
+      <div className="text-sm text-muted-foreground">{label}</div>
+      <div className="whitespace-nowrap text-2xl font-semibold tabular-nums group-hover:text-primary">
+        {value}
+      </div>
+    </>
+  )
   return (
     <div className="min-w-0 space-y-0.5">
-      <div className="text-sm text-muted-foreground">{label}</div>
-      <div className="whitespace-nowrap text-2xl font-semibold tabular-nums">{value}</div>
+      {href ? (
+        <Link href={href} className="group block space-y-0.5">
+          {head}
+        </Link>
+      ) : (
+        head
+      )}
       {note && <div className="text-xs text-muted-foreground">{note}</div>}
     </div>
   )
@@ -20,8 +44,9 @@ function Figure({ label, value, note }: { label: string; value: ReactNode; note?
 
 /**
  * Club money for club admins: the two monthly figures of the glossary (B2),
- * revenue with its change against the previous 30 days. The expected revenue
- * lives on «Выручка и прогноз», one link away.
+ * revenue with its change against the previous 30 days. Revenue opens
+ * «Абонементы → Платежи», whose default period is the same 30 days; the
+ * expected revenue lives on «Выручка и прогноз», one link away.
  */
 export function MoneyBlock({
   workspaceId,
@@ -49,6 +74,7 @@ export function MoneyBlock({
         />
         <Figure
           label="Выручка за 30 дней"
+          href={`/workspace/${workspaceId}/subscriptions/payments`}
           value={format(revenue.revenue30d)}
           note={
             change === null ? (

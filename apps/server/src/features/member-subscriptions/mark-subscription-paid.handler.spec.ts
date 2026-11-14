@@ -110,7 +110,7 @@ describe('MarkSubscriptionPaidHandler', () => {
         expect(subscriptions.markPaid).toHaveBeenCalled()
     })
 
-    it('marks with the agreed price when no amount is sent', async () => {
+    it('marks with the agreed price when no amount is sent, as the caller', async () => {
         const { handler, subscriptions } = build()
         const out = await handler.execute(feature())
         expect(subscriptions.markPaid).toHaveBeenCalledWith({
@@ -118,6 +118,8 @@ describe('MarkSubscriptionPaidHandler', () => {
             userId: 'u1',
             subscriptionId: 's1',
             amount: undefined,
+            // The caller is the journal's «Отметил».
+            markedById: 'inv',
         })
         expect(out.subscription).toMatchObject({
             id: 's1',
@@ -140,8 +142,9 @@ describe('MarkSubscriptionPaidHandler', () => {
         expect(subscriptions.markPaid.mock.calls[0][0].amount).toBe(4500)
     })
 
-    it('audits the payment and refreshes member and subscription views', async () => {
-        const { handler, audit, realtime } = build()
+    it('audits the payment with the abonement and method, refreshes members, abonements and «Платежи»', async () => {
+        const { handler, audit, realtime, subscriptions } = build()
+        subscriptions.markPaid.mockResolvedValue(paidRow({ paymentMethod: 'CASH' }))
         await handler.execute(feature(4500))
         expect(audit.record).toHaveBeenCalledWith({
             action: 'member.markSubscriptionPaid',
@@ -149,11 +152,18 @@ describe('MarkSubscriptionPaidHandler', () => {
             targetId: 'u1',
             workspaceId: 'w1',
             actorId: 'inv',
-            metadata: { planName: 'Monthly', amount: 4500, currency: 'RUB' },
+            metadata: {
+                subscriptionId: 's1',
+                planName: 'Monthly',
+                amount: 4500,
+                currency: 'RUB',
+                method: 'CASH',
+            },
         })
         expect(realtime.invalidate).toHaveBeenCalledWith('w1', [
             'members',
             'subscription',
+            'payments',
         ])
     })
 
