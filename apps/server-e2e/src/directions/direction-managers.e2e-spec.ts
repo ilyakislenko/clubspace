@@ -5,8 +5,10 @@ import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
 
 // Руководитель направления: a coach assigned to run БЖЖ writes everything of
 // БЖЖ — groups and schedule, ladders, gradings, promotions, achievements,
-// announcements, events, tariffs — and nothing of ММА, nothing club-wide, no
-// club settings. Admins, head coaches and plain coaches keep their rights.
+// announcements, events — and nothing of ММА, nothing club-wide, no club
+// settings. Tariffs and the assignment itself are club-admin only (admin
+// cleanup §1, wave 1): neither a manager nor a head coach touches them.
+// Admins, head coaches and plain coaches keep their rights.
 describe('direction managers', () => {
     let ctx: TestApp
 
@@ -186,19 +188,6 @@ describe('direction managers', () => {
                         directionId,
                     }),
             ),
-            tariff: await s(
-                http()
-                    .post(`${base}/plans`)
-                    .set(...actor.auth)
-                    .send({
-                        name: '12 занятий',
-                        price: 500000,
-                        currency: 'RUB',
-                        durationDays: 30,
-                        classCount: 12,
-                        directionIds: directionId ? [directionId] : [],
-                    }),
-            ),
         }
     }
 
@@ -230,10 +219,12 @@ describe('direction managers', () => {
             expect(me.body.managedDirectionIds).toEqual([c.bjj])
         })
 
-        it('a head coach may assign; a coach or a manager may not; only coaches can be assigned', async () => {
+        it('only a club admin may assign — not a head coach, a coach or a manager; only coaches can be assigned', async () => {
             const c = await setup()
             const head = await memberActor(c.w, RolesEnum.HEAD_COACH)
-            await assign(c.w, head.actor, c.mma, c.coach.user.id).expect(201)
+            const admin = await memberActor(c.w, RolesEnum.ADMIN)
+            await assign(c.w, head.actor, c.mma, c.coach.user.id).expect(403)
+            await assign(c.w, admin.actor, c.mma, c.coach.user.id).expect(201)
             await assign(c.w, c.coach.actor, c.bjj, c.coach.user.id).expect(403)
             await assign(c.w, c.manager.actor, c.bjj, c.coach.user.id).expect(403)
             await assign(c.w, c.ownerActor, c.bjj, c.student.id).expect(400)
@@ -308,21 +299,41 @@ describe('direction managers', () => {
                 const res = await req.set(...c.manager.actor.auth)
                 expect(res.status).toBe(403)
             }
-            const plan = await http()
-                .post(`${base}/plans`)
-                .set(...c.manager.actor.auth)
-                .send({ name: 'БЖЖ 8', price: 400000, currency: 'RUB', durationDays: 30, directionIds: [c.bjj] })
-                .expect(201)
-            // Moving it to ММА, widening it to «БЖЖ + ММА» or to the whole club: refused.
-            for (const directionIds of [[c.mma], [c.bjj, c.mma], []]) {
-                await http()
-                    .patch(`${base}/plans/${plan.body.id}`)
-                    .set(...c.manager.actor.auth)
-                    .send({ directionIds })
-                    .expect(403)
-            }
             const group = await ctx.prisma.group.findUniqueOrThrow({ where: { id: c.groups.bjj.id } })
             expect(group.directionId).toBe(c.bjj)
+        })
+
+        it('tariffs are club-admin only: a БЖЖ manager and a head coach may not create or edit one, even in БЖЖ', async () => {
+            const c = await setup()
+            const base = ws(c.w)
+            const head = await memberActor(c.w, RolesEnum.HEAD_COACH)
+            const plan = await http()
+                .post(`${base}/plans`)
+                .set(...c.ownerActor.auth)
+                .send({ name: 'БЖЖ 8', price: 400000, currency: 'RUB', durationDays: 30, directionIds: [c.bjj] })
+                .expect(201)
+            for (const actor of [c.manager.actor, head.actor]) {
+                await http()
+                    .post(`${base}/plans`)
+                    .set(...actor.auth)
+                    .send({ name: 'БЖЖ 12', price: 500000, currency: 'RUB', durationDays: 30, directionIds: [c.bjj] })
+                    .expect(403)
+                // Renaming it, moving it to ММА, widening it to «БЖЖ + ММА» or to the whole club.
+                for (const patch of [{ name: 'БЖЖ 8+' }, ...[[c.mma], [c.bjj, c.mma], []].map((directionIds) => ({ directionIds }))]) {
+                    await http()
+                        .patch(`${base}/plans/${plan.body.id}`)
+                        .set(...actor.auth)
+                        .send(patch)
+                        .expect(403)
+                }
+            }
+            const stored = await ctx.prisma.plan.findUniqueOrThrow({
+                where: { id: plan.body.id },
+                include: { directions: true },
+            })
+            expect(stored.name).toBe('БЖЖ 8')
+            expect(stored.directions.map((d) => d.directionId)).toEqual([c.bjj])
+            expect(await ctx.prisma.plan.count({ where: { workspaceId: c.w } })).toBe(1)
         })
 
         it('admin-only lists show only БЖЖ', async () => {

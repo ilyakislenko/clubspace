@@ -283,7 +283,7 @@ describe('platform locks and promos', () => {
                 'workspace.promoApply',
             )
 
-            // The club's «Тариф» page lists the promo with its end date.
+            // The club's «Подписка ClubSpace» page lists the promo with its end date.
             const club = await clubBilling(workspace.id, ownerActor).expect(200)
             expect(club.body.billing.promos).toEqual([
                 { kind: 'DISCOUNT', title: 'Скидка 50% на подписку и модули', until },

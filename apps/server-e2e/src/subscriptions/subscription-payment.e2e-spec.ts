@@ -88,7 +88,7 @@ describe('marking an abonement as paid', () => {
         const before = await stats(ownerActor.auth, workspace.id)
         expect(before.body.revenue.revenue30d).toBe(0)
         expect(before.body.revenue.awaitingPayment).toEqual({
-            count: 1,
+            students: 1,
             amount: 4500,
         })
         const awaiting = await ctx
@@ -121,7 +121,7 @@ describe('marking an abonement as paid', () => {
         const after = await stats(ownerActor.auth, workspace.id)
         expect(after.body.revenue.revenue30d).toBe(4500)
         expect(after.body.revenue.awaitingPayment).toEqual({
-            count: 0,
+            students: 0,
             amount: 0,
         })
     })
@@ -199,7 +199,7 @@ describe('marking an abonement as paid', () => {
         const after = await stats(ownerActor.auth, workspace.id)
         expect(after.body.revenue.revenue30d).toBe(0)
         expect(after.body.revenue.awaitingPayment).toEqual({
-            count: 1,
+            students: 1,
             amount: 4000,
         })
         const awaiting = await ctx

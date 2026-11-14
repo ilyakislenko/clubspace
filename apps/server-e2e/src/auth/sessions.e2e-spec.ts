@@ -204,9 +204,29 @@ describe('role hierarchy', () => {
             .expect(403)
     })
 
-    it('lets a head coach make a student a coach', async () => {
+    // Staff roles are the club admins' call (admin cleanup §1, wave 1): the
+    // head coach is a sport role and can't hand out even the coach role.
+    it('refuses a head coach making a student a coach', async () => {
         const { workspace, headCoach, student } = await setUp()
         const actor = await signIn(ctx, headCoach.email)
+
+        const res = await setRole(actor, workspace.id, student.id, 'coach')
+
+        expect(res.status).toBe(403)
+        const member = await ctx.prisma.workspaceMember.findFirstOrThrow({
+            where: { workspaceId: workspace.id, userId: student.id },
+            include: { role: true },
+        })
+        expect(member.role.name).toBe('user')
+    })
+
+    it('lets a club admin make a student a coach', async () => {
+        const { workspace, student } = await setUp()
+        const { user: admin } = await addMember(ctx, {
+            workspaceId: workspace.id,
+            role: RolesEnum.ADMIN,
+        })
+        const actor = await signIn(ctx, admin.email)
 
         const res = await setRole(actor, workspace.id, student.id, 'coach')
 

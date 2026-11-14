@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -31,6 +32,23 @@ const bodyFor = (label: string, workspaceId: string) =>
             contentType: 'image/jpeg',
         },
         'POST /admin/videos/{id}/complete-upload': { workspaceId },
+        // Personal study data (bookmarks, notes, review grades): a well-formed
+        // write, stamped now so last-write-wins actually applies it.
+        'PUT /videos/{videoId}/my-bookmarks/{bookmarkId}': {
+            positionSec: 10,
+            endSec: null,
+            label: 'probe',
+            note: '',
+            updatedAt: new Date().toISOString(),
+        },
+        'PUT /videos/{videoId}/my-note': {
+            text: 'probe',
+            updatedAt: new Date().toISOString(),
+        },
+        'POST /videos/{videoId}/my-bookmarks/{bookmarkId}/review': {
+            grade: 'good',
+            reviewedAt: new Date().toISOString(),
+        },
     })[label] ?? {}
 
 // Creation takes no existing resource id, so there is nothing of the victim's
@@ -97,6 +115,7 @@ describe('cross-club isolation by resource', () => {
     let outsiderWorkspaceId: string
     let victimVideoId: string
     let outsiderVideoId: string
+    let victimBookmarkId: string
     let victimOwnerAuth: [string, string]
     let outsiderAuth: [string, string]
     let strangerAuth: [string, string]
@@ -105,6 +124,7 @@ describe('cross-club isolation by resource', () => {
         const url = op.path
             .replace('{videoId}', victimVideoId)
             .replace('{id}', victimVideoId)
+            .replace('{bookmarkId}', victimBookmarkId)
         return op.needsWorkspaceQuery ? `${url}?workspaceId=${workspaceId}` : url
     }
 
@@ -160,6 +180,21 @@ describe('cross-club isolation by resource', () => {
         })
         victimVideoId = video.id
 
+        // The victim owner's own bookmark on that video: the bookmark and
+        // review routes address one, and a grade needs it to exist — so the
+        // owner gets a real 200 and an outsider is pointed at a live row.
+        victimBookmarkId = randomUUID()
+        await ctx.prisma.videoBookmark.create({
+            data: {
+                id: victimBookmarkId,
+                userId: victim.owner.id,
+                videoId: victimVideoId,
+                workspaceId: victimWorkspaceId,
+                positionSec: 5,
+                updatedAt: new Date(Date.now() - 60_000),
+            },
+        })
+
         const outsider = await createWorkspace(ctx, { name: 'Outsider Club' })
         outsiderWorkspaceId = outsider.workspace.id
         outsiderAuth = (await signIn(ctx, outsider.owner.email)).auth
@@ -189,7 +224,9 @@ describe('cross-club isolation by resource', () => {
     // route out of the /videos prefix and the sweep would quietly shrink, with
     // every remaining assertion still green, so the count is pinned exactly.
     it('found the resource-scoped surface to probe', () => {
-        expect(OPERATIONS.length).toBe(12) // + GET /videos/{id}/web-playback
+        // + GET /videos/{id}/web-playback, and the study routes: my-bookmarks
+        // (GET, PUT), my-note (GET, PUT) and the bookmark review grade.
+        expect(OPERATIONS.length).toBe(17)
     })
 
     // The exclusion lists are the other way the sweep can shrink in silence:
@@ -244,7 +281,7 @@ describe('cross-club isolation by resource', () => {
         OPERATIONS.map((op) => [`${op.method} ${op.path}`, op] as const),
     )('%s', (_label, op) => {
         // 403 exactly, not any 4xx. Three of these routes have no positive
-        // control, and two authorize inside the handler — after the Zod pipe.
+        // control, and several authorize inside the handler — after the Zod pipe.
         // Add a required field to one of those schemas and a loose assertion
         // would keep passing on a 400 that has nothing to do with tenancy.
         it('refuses the owner of another club', async () => {

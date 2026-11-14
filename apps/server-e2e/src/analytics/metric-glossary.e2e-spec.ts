@@ -62,18 +62,22 @@ describe('metric glossary', () => {
                 data: { lastAttendedAt: at },
             })
         }
-        const sell = (
+        // Like a sale in the admin (grantFromPlan): the abonement, and the
+        // member's access window extended to its end — the window a lapsed
+        // student's renewal is judged by (renewal-rules.ts).
+        const sell = async (
             memberId: string,
             s: { amount: number; from: number; days: number; paid: boolean; status?: 'ACTIVE' | 'EXPIRED' },
-        ) =>
-            ctx.prisma.subscription.create({
+        ) => {
+            const endDate = ago(s.from - s.days)
+            await ctx.prisma.subscription.create({
                 data: {
                     workspaceId: w,
                     planId: plan.id,
                     workspaceMemberId: memberId,
                     status: s.status ?? 'ACTIVE',
                     startDate: ago(s.from),
-                    endDate: ago(s.from - s.days),
+                    endDate,
                     durationDays: s.days,
                     amountPaid: s.amount,
                     currency: 'RUB',
@@ -82,6 +86,11 @@ describe('metric glossary', () => {
                     createdAt: ago(s.from),
                 },
             })
+            const { accessUntil } = await ctx.prisma.workspaceMember.findUniqueOrThrow({ where: { id: memberId } })
+            if (!accessUntil || accessUntil < endDate) {
+                await ctx.prisma.workspaceMember.update({ where: { id: memberId }, data: { accessUntil: endDate } })
+            }
+        }
 
         const coach = await addMember(ctx, { workspaceId: w, role: RolesEnum.COACH })
         await visit(coach.user.id, 2)
@@ -178,8 +187,10 @@ describe('metric glossary', () => {
         expect(awaiting.members).toBe(1)
         expect(unpaid.total).toBe(1)
 
-        // renewals_due: the tile, the «Продлить» list and the members filter.
-        expect(stats.retention.renewalsDue).toBeGreaterThanOrEqual(1)
+        // renewals_due: s3, whose abonement ended 10 days ago (everyone else's
+        // runs past the 7-day window) — the tile, the «Продлить» list and the
+        // members filter.
+        expect(stats.retention.renewalsDue).toBe(1)
         expect(renewals.total).toBe(stats.retention.renewalsDue)
         expect(renew.total).toBe(stats.retention.renewalsDue)
     })

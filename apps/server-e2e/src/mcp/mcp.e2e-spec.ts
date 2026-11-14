@@ -1,4 +1,5 @@
 import { RolesEnum } from '../../../server/src/shared/interfaces/shared.intefaces'
+import { generateAiToken } from '../../../server/src/domains/ai-assistant/ai-token'
 import { AI_PERSONAL_DATA_WARNING } from '../../../server/src/domains/ai-assistant/personal-data-warning'
 import { signIn, type Actor } from '../support/actors'
 import { addMember, createWorkspace } from '../support/fixtures'
@@ -16,9 +17,10 @@ type ToolAnswer = {
 
 // ИИ-ассистент over MCP (docs/mcp.md): a club token created in the admin reads
 // the club through POST /mcp. The JSON-RPC lifecycle, then the guarantees:
-// one club per token, the creator's direction scope, «обезличено» means no
-// names/phones/e-mails in any answer, revoked/expired tokens are refused,
-// every tool call is audited and each token is rate-limited.
+// one club per token, tokens are club-admin only (a creator who stops being
+// one takes the token's access along), «обезличено» means no names/phones/
+// e-mails in any answer, revoked/expired tokens are refused, every tool call
+// is audited and each token is rate-limited.
 describe('MCP server (ИИ-ассистент)', () => {
     let ctx: TestApp
 
@@ -561,62 +563,75 @@ describe('MCP server (ИИ-ассистент)', () => {
         const expired = await rpc(second.body.secret, 'tools/call', { name: 'club_overview' }).expect(401)
         expect(expired.body.error.message).toBe('Срок действия токена истёк')
 
-        // A creator who lost the role takes the token's access with them.
-        const managerToken = await createToken(c.manager, c.w).expect(201)
-        await ctx.prisma.directionManager.deleteMany({ where: { userId: c.managerUser.id } })
-        await rpc(managerToken.body.secret, 'ping').expect(403)
+        // A creator who lost the role takes the token's access with them:
+        // tokens are club-admin only, an admin moved to head coach loses it.
+        const { member: adminMember, user: admin } = await addMember(ctx, {
+            workspaceId: c.w,
+            role: RolesEnum.ADMIN,
+        })
+        const adminToken = await createToken(await signIn(ctx, admin.email!), c.w).expect(201)
+        await rpc(adminToken.body.secret, 'ping').expect(200)
+        await ctx.prisma.workspaceMember.update({
+            where: { id: adminMember.id },
+            data: { role: { connect: { name: 'head_coach' } } },
+        })
+        const demoted = await rpc(adminToken.body.secret, 'ping').expect(403)
+        expect(demoted.body.error.code).toBe(-32003)
     })
 
-    it('a direction manager token sees only its directions and no money', async () => {
+    it('tokens are club-admin only: a head coach, direction manager or coach is refused', async () => {
         const c = await setup()
-        // A plain coach has no ИИ-ассистент; a manager can't go personal.
-        await createToken(c.coach, c.w).expect(403)
-        await createToken(c.manager, c.w, {
-            dataMode: 'PERSONAL',
-            personalDataWarningVersion: AI_PERSONAL_DATA_WARNING.version,
-        }).expect(403)
-        const created = await createToken(c.manager, c.w).expect(201)
-        const secret = created.body.secret as string
-
-        const tools = (await rpc(secret, 'tools/list').expect(200)).body.result.tools as { name: string }[]
-        const names = tools.map((t) => t.name)
-        expect(names).toContain('search_members')
-        expect(names).not.toContain('revenue_report')
-        expect(names).not.toContain('unpaid_abonements')
-        expect((await call(secret, 'revenue_report')).isError).toBe(true)
-
-        const directory = (await call(secret, 'club_directory')).structuredContent!
-        expect(directory).toMatchObject({
-            directions: [{ name: 'БЖЖ' }],
-            groups: [{ name: 'БЖЖ взрослые' }],
-        })
-
-        const members = (await call(secret, 'search_members', { status: 'all' })).structuredContent!
-        expect(members).toMatchObject({ total: 1, items: [{ groups: [{ name: 'БЖЖ взрослые' }] }] })
-
-        const schedule = (await call(secret, 'schedule')).structuredContent!
-        expect(schedule.items!.length).toBeGreaterThan(0)
-        expect(new Set(schedule.items!.map((s) => s.direction))).toEqual(new Set(['БЖЖ']))
-        expect(schedule).toMatchObject({ events: [{ title: 'Семинар по БЖЖ' }] })
-
-        const overview = (await call(secret, 'club_overview')).structuredContent!
-        expect(overview).toMatchObject({ students: { total: 1 }, attendance: { checkins30d: 2 }, money: null })
-        expect((await call(secret, 'attendance_stats')).structuredContent!.checkins).toBe(2)
-        expect((await call(secret, 'schedule', { directionId: c.mma })).isError).toBe(true)
-        expect((await call(secret, 'list_events')).structuredContent!.items).toHaveLength(1)
-
-        // The manager lists and revokes only their own tokens.
+        const { user: headCoachUser } = await addMember(ctx, { workspaceId: c.w, role: RolesEnum.HEAD_COACH })
+        const headCoach = await signIn(ctx, headCoachUser.email!)
         const ownerToken = await createToken(c.ownerActor, c.w).expect(201)
-        const listed = await http().get(`/workspaces/${c.w}/ai-tokens`).set(...c.manager.auth).expect(200)
-        expect(listed.body.data.map((t: { id: string }) => t.id)).toEqual([created.body.token.id])
+
+        for (const actor of [headCoach, c.manager, c.coach]) {
+            await createToken(actor, c.w).expect(403)
+            await http().get(`/workspaces/${c.w}/ai-tokens`).set(...actor.auth).expect(403)
+            await http()
+                .delete(`/workspaces/${c.w}/ai-tokens/${ownerToken.body.token.id}`)
+                .set(...actor.auth)
+                .expect(403)
+        }
+        await rpc(ownerToken.body.secret, 'ping').expect(200)
+
+        // A token a direction manager made before the rule reads nothing now.
+        const leftover = generateAiToken()
+        const leftoverRow = await ctx.prisma.aiAccessToken.create({
+            data: {
+                workspaceId: c.w,
+                createdById: c.managerUser.id,
+                name: 'Старый токен руководителя',
+                tokenHash: leftover.hash,
+                tokenPrefix: leftover.prefix,
+                scopes: ['read'],
+                dataMode: 'PSEUDONYMIZED',
+                expiresAt: new Date(Date.now() + 30 * DAY),
+            },
+        })
+        const refused = await rpc(leftover.secret, 'tools/call', { name: 'club_directory' }).expect(403)
+        expect(refused.body.error.code).toBe(-32003)
+
+        // An admin who isn't the owner manages every token of the club and
+        // reads the money tools, but can't go personal.
+        const { user: adminUser } = await addMember(ctx, { workspaceId: c.w, role: RolesEnum.ADMIN })
+        const admin = await signIn(ctx, adminUser.email!)
+        const created = await createToken(admin, c.w).expect(201)
+        const tools = (await rpc(created.body.secret, 'tools/list').expect(200)).body.result.tools as {
+            name: string
+        }[]
+        expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['revenue_report', 'unpaid_abonements']))
+        const listed = await http().get(`/workspaces/${c.w}/ai-tokens`).set(...admin.auth).expect(200)
         expect(listed.body.canUsePersonalData).toBe(false)
-        await http()
+        expect(listed.body.mcpUrl).toMatch(/\/mcp$/)
+        expect(listed.body.data.map((t: { id: string }) => t.id).sort()).toEqual(
+            [ownerToken.body.token.id, leftoverRow.id, created.body.token.id].sort(),
+        )
+        const revoked = await http()
             .delete(`/workspaces/${c.w}/ai-tokens/${ownerToken.body.token.id}`)
-            .set(...c.manager.auth)
-            .expect(403)
-        const ownerList = await http().get(`/workspaces/${c.w}/ai-tokens`).set(...c.ownerActor.auth).expect(200)
-        expect(ownerList.body.data).toHaveLength(2)
-        expect(ownerList.body.mcpUrl).toMatch(/\/mcp$/)
+            .set(...admin.auth)
+            .expect(200)
+        expect(revoked.body.state).toBe('revoked')
     })
 
     it('audits token management and every tool call', async () => {

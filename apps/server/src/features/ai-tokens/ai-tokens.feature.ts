@@ -4,8 +4,8 @@ import { AI_TOKEN_SCOPES } from '../../domains/ai-assistant/ai-token'
 
 // «Интеграции → ИИ-ассистент»: personal access tokens an AI client (Claude,
 // ChatGPT, Cursor) uses to read the club over MCP (docs/mcp.md). Created by
-// the club's admins and руководители направлений; a token reads as its
-// creator, with the creator's current role and directions.
+// the club's owner and admins only; a token reads as its creator and stops
+// working once the creator is no longer a club admin.
 
 export const AI_TOKEN_DATA_MODES = ['PSEUDONYMIZED', 'PERSONAL'] as const
 
