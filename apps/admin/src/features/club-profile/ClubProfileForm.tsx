@@ -241,7 +241,9 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
       />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="rounded-xl border border-border bg-card">
-          <div className="space-y-8 p-5">
+          {/* Locked while the parts save one after another: an edit typed
+              mid-save would be overwritten by the stored value. */}
+          <fieldset disabled={saving || uploading} className="min-w-0 space-y-8 p-5">
             <section className="space-y-4">
               <div>
                 <h3 className="font-medium">Публичная страница</h3>
@@ -505,7 +507,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                 className="max-w-sm"
               />
             </section>
-          </div>
+          </fieldset>
 
           <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-3 rounded-b-xl border-t border-border bg-card/95 px-5 py-3 backdrop-blur">
             {error ? (
