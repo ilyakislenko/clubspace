@@ -16,6 +16,7 @@ import {
   BadRequestError,
   ForbiddenError,
   NotFoundError,
+  StaleUpdateError,
 } from '../../shared/errors/shared.errors';
 
 const BJJ = '11111111-1111-4111-8111-111111111111';
@@ -397,11 +398,19 @@ describe('announcements by direction', () => {
           .fn()
           .mockResolvedValue({ id: 'a1', groups: [], ...existing }),
         update: jest.fn().mockResolvedValue(updated),
+        // The compare-and-set: matches only the stored version (row()'s).
+        updateMany: jest.fn(async (args: { where: { updatedAt: Date } }) => ({
+          count:
+            args.where.updatedAt.getTime() === row().updatedAt.getTime() ? 1 : 0,
+        })),
       },
       direction: {
         findFirst: jest
           .fn()
           .mockResolvedValue(directionFound ? { id: BJJ } : null),
+      },
+      $transaction(fn: (tx: unknown) => unknown) {
+        return fn(this);
       },
     };
     const rt = realtime();
@@ -432,6 +441,44 @@ describe('announcements by direction', () => {
     expect(out.direction).toEqual(bjjRef);
     expect(rt.invalidate).toHaveBeenCalledWith('w1', ['announcements']);
     expect(rt.emitListDelta).not.toHaveBeenCalled();
+  });
+
+  it('update: refuses a form that read an older version with 409, writing nothing', async () => {
+    const { promise, prisma, notifyWorkspace } = runUpdate(
+      { publishedAt: null, directionId: null },
+      row({ title: 'New' }),
+      { title: 'New', expectedUpdatedAt: '2026-07-03T00:00:00.000Z' },
+    );
+    const err = await promise.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(StaleUpdateError);
+    expect((err as StaleUpdateError).statusCode).toBe(409);
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+    expect(notifyWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('update: saves a form that read the current version', async () => {
+    const { promise, prisma } = runUpdate(
+      { publishedAt: null, directionId: null },
+      row({ title: 'New' }),
+      { title: 'New', expectedUpdatedAt: row().updatedAt.toISOString() },
+    );
+    await promise;
+    expect(prisma.announcement.updateMany.mock.calls[0][0].where).toEqual({
+      id: 'a1',
+      updatedAt: row().updatedAt,
+    });
+    expect(prisma.announcement.update.mock.calls[0][0].data).toEqual({ title: 'New' });
+  });
+
+  it('update: keeps last-write-wins when the version is omitted', async () => {
+    const { promise, prisma } = runUpdate(
+      { publishedAt: null, directionId: null },
+      row({ title: 'New' }),
+      { title: 'New' },
+    );
+    await promise;
+    expect(prisma.announcement.updateMany).not.toHaveBeenCalled();
+    expect(prisma.announcement.update).toHaveBeenCalled();
   });
 
   it('update: publishing a direction draft notifies its members and refetches feeds', async () => {
@@ -733,6 +780,9 @@ describe('announcements as a direction manager', () => {
         count: jest.fn().mockResolvedValue(0),
       },
       direction: { findFirst: jest.fn().mockResolvedValue({ id: BJJ }) },
+      $transaction(fn: (tx: unknown) => unknown) {
+        return fn(this);
+      },
     },
     rbac: rbac(false, [BJJ]),
     rt: { invalidate: jest.fn(), emitListDelta: jest.fn() },
@@ -846,6 +896,9 @@ describe('announcements addressed to groups', () => {
             .filter((id) => id in groupDirection)
             .map((id) => ({ directionId: groupDirection[id] })),
         ),
+      },
+      $transaction(fn: (tx: unknown) => unknown) {
+        return fn(this);
       },
     },
     rbac: rbac(admin, managed),

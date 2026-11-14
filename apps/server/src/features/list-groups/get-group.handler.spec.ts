@@ -48,6 +48,7 @@ const groupRow = {
         },
     ],
     _count: { members: 2 },
+    updatedAt: new Date('2026-11-14T10:00:00.000Z'),
 }
 
 const make = (opts: {

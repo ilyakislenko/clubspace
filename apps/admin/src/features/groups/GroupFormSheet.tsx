@@ -4,11 +4,19 @@ import { useEffect, useState } from "react"
 
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@clubspace/ui-kit/ui"
 
-import { createGroup, listGyms, updateGroup, type GroupDetails, type Gym } from "../../shared/api/groups"
+import {
+  createGroup,
+  getGroup,
+  listGyms,
+  updateGroup,
+  type GroupDetails,
+  type Gym,
+} from "../../shared/api/groups"
 import { fetchMe } from "../../shared/api/me"
 import { listAllStaffMembers, type WorkspaceMember } from "../../shared/api/members"
 import { errorMessage } from "../../shared/lib/error-message"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+import { isStaleUpdate, StaleUpdateNotice } from "../../shared/ui/stale-update-notice"
 import { useDirectionScope } from "../../shared/workspace/use-direction-scope"
 import { useDirections } from "../directions/use-directions"
 import { GroupForm } from "./GroupForm"
@@ -50,6 +58,10 @@ function GroupFormBody({ workspaceId, onOpenChange, group, onSaved }: Props) {
   const [myUserId, setMyUserId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The group as the form opened it: its `updatedAt` goes back with the save,
+  // so a page reload behind the open panel cannot hide someone else's edit.
+  const [current, setCurrent] = useState(group)
+  const [stale, setStale] = useState<unknown>(null)
 
   useEffect(() => {
     let alive = true
@@ -77,7 +89,7 @@ function GroupFormBody({ workspaceId, onOpenChange, group, onSaved }: Props) {
 
   // A direction manager picks among their directions — except for a group
   // they coach themselves, which their plain coach rights cover anywhere.
-  const coachesIt = !!group && myUserId !== null && group.coaches.some((c) => c.userId === myUserId)
+  const coachesIt = !!current && myUserId !== null && current.coaches.some((c) => c.userId === myUserId)
   const directionScope =
     scope.allowedDirectionIds && !coachesIt
       ? {
@@ -87,9 +99,22 @@ function GroupFormBody({ workspaceId, onOpenChange, group, onSaved }: Props) {
         }
       : undefined
 
+  // «Обновить» after a 409: the stored group replaces the draft.
+  const reload = async () => {
+    if (!current) return
+    try {
+      setCurrent(await getGroup({ workspaceId, groupId: current.id }))
+      setStale(null)
+      setError(null)
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось загрузить группу"))
+    }
+  }
+
   return (
     <>
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {stale !== null && <StaleUpdateNotice error={stale} onReload={reload} />}
       {gyms === null ? (
         <div className="h-64 animate-pulse rounded-md bg-muted" />
       ) : gyms.length === 0 ? (
@@ -100,19 +125,19 @@ function GroupFormBody({ workspaceId, onOpenChange, group, onSaved }: Props) {
         </p>
       ) : (
         <GroupForm
-          key={group?.id ?? "new"}
-          mode={group ? "edit" : "create"}
+          key={current ? `${current.id}:${current.updatedAt}` : "new"}
+          mode={current ? "edit" : "create"}
           workspaceId={workspaceId}
           initial={
-            group && {
-              name: group.name,
-              gymId: group.gym?.id ?? "",
-              coachId: group.coach.id,
-              directionId: group.direction?.id ?? null,
-              bookingMode: group.bookingMode,
-              capacity: group.capacity,
-              bookingWindowDays: group.bookingWindowDays,
-              bookingCancelHours: group.bookingCancelHours,
+            current && {
+              name: current.name,
+              gymId: current.gym?.id ?? "",
+              coachId: current.coach.id,
+              directionId: current.direction?.id ?? null,
+              bookingMode: current.bookingMode,
+              capacity: current.capacity,
+              bookingWindowDays: current.bookingWindowDays,
+              bookingCancelHours: current.bookingCancelHours,
             }
           }
           gyms={gyms}
@@ -124,11 +149,12 @@ function GroupFormBody({ workspaceId, onOpenChange, group, onSaved }: Props) {
           onSubmit={async (payload) => {
             setSubmitting(true)
             setError(null)
+            setStale(null)
             try {
-              const saved = group
+              const saved = current
                 ? await updateGroup({
                     workspaceId,
-                    groupId: group.id,
+                    groupId: current.id,
                     name: payload.name,
                     gymId: payload.gymId,
                     coachId: payload.coachId,
@@ -137,12 +163,14 @@ function GroupFormBody({ workspaceId, onOpenChange, group, onSaved }: Props) {
                     capacity: payload.capacity,
                     bookingWindowDays: payload.bookingWindowDays,
                     bookingCancelHours: payload.bookingCancelHours,
+                    expectedUpdatedAt: current.updatedAt,
                   })
                 : await createGroup({ workspaceId, ...payload })
               onOpenChange(false)
               await onSaved(saved.id)
             } catch (err) {
-              setError(errorMessage(err, group ? "Не удалось сохранить" : "Не удалось создать группу"))
+              if (current && isStaleUpdate(err)) setStale(err)
+              else setError(errorMessage(err, current ? "Не удалось сохранить" : "Не удалось создать группу"))
             } finally {
               setSubmitting(false)
             }

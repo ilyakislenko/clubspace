@@ -25,6 +25,9 @@ export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     // Switches the platform pinned («Установлено платформой»): the club
     // cannot change these until the lock ends or the platform lifts it.
     lockedFeatures: z.array(FeatureLockSchema),
+    // The club row's version: settings edits (and the club profile's public
+    // page and time zone) send it back as `expectedUpdatedAt`.
+    updatedAt: z.iso.datetime(),
 })
 
 export class GetWorkspaceSettingsFeature {

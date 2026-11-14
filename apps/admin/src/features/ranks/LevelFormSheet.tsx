@@ -20,11 +20,14 @@ import {
   updateRankLevel,
   type RankLevel,
 } from "../../shared/api/ranks"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { confirmLeave, sameData, useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 import { pluralRu } from "../../shared/lib/plural-ru"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+
+const L = FORM_LIMITS.level
 
 // Common belt colours; any CSS colour can still be typed.
 const PRESET_COLORS = [
@@ -117,23 +120,21 @@ export function LevelFormSheet({
 
   const handleSubmit = async () => {
     if (!name.trim()) return
-    const stripes = parseIntInput(maxStripes, { min: 0, max: 20 })
+    const stripes = parseIntInput(maxStripes, L.maxStripes)
     if (stripes === null) {
-      setError("Полоски — целое число от 0 до 20")
+      setError(`Полоски — целое число от ${L.maxStripes.min} до ${L.maxStripes.max}`)
       return
     }
-    const minVisits = visits.trim()
-      ? parseIntInput(visits, { min: 1, max: 5000 })
-      : null
-    const minWeeks = weeks.trim()
-      ? parseIntInput(weeks, { min: 1, max: 520 })
-      : null
+    const minVisits = visits.trim() ? parseIntInput(visits, L.minVisits) : null
+    const minWeeks = weeks.trim() ? parseIntInput(weeks, L.minWeeks) : null
     if (withRule && visits.trim() && minVisits === null) {
-      setError(`${cap(vocabulary.session.nomPl)} — целое число от 1 до 5000`)
+      setError(
+        `${cap(vocabulary.session.nomPl)} — целое число от ${L.minVisits.min} до ${L.minVisits.max}`,
+      )
       return
     }
     if (withRule && weeks.trim() && minWeeks === null) {
-      setError("Недели — целое число от 1 до 520")
+      setError(`Недели — целое число от ${L.minWeeks.min} до ${L.minWeeks.max}`)
       return
     }
     setSaving(true)
@@ -179,7 +180,7 @@ export function LevelFormSheet({
             <Input
               id="level-name"
               value={name}
-              maxLength={255}
+              maxLength={L.name.max}
               onChange={(e) => setName(e.target.value)}
               placeholder="Например: Синий пояс или Продолжающие"
             />
@@ -207,7 +208,7 @@ export function LevelFormSheet({
               <Input
                 id="level-color"
                 value={color}
-                maxLength={32}
+                maxLength={L.color.max}
                 onChange={(e) => setColor(e.target.value)}
                 placeholder="#2563EB"
                 className="w-32 font-mono"
@@ -230,8 +231,8 @@ export function LevelFormSheet({
             <Input
               id="level-stripes"
               type="number"
-              min={0}
-              max={20}
+              min={L.maxStripes.min}
+              max={L.maxStripes.max}
               value={maxStripes}
               onChange={(e) => setMaxStripes(e.target.value)}
               className="w-28"

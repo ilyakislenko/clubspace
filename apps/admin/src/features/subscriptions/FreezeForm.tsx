@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { Button } from "@clubspace/ui-kit/ui"
 
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { inputCls } from "../../shared/lib/input-class"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import {
@@ -12,9 +13,10 @@ import {
   formatDayRange,
   FREEZE_DAY_PRESETS,
   FREEZE_REASON_PRESETS,
-  MAX_FREEZE_DAYS,
   todayYmd,
 } from "./freeze-utils"
+
+const L = FORM_LIMITS.freeze
 
 export type FreezeFormValues = {
   days: number
@@ -46,7 +48,7 @@ export function FreezeForm({
   const [fromDate, setFromDate] = useState(initial?.fromDate ?? today)
   const [reason, setReason] = useState(initial?.reason ?? "")
 
-  const days = parseIntInput(daysText, { min: 1, max: MAX_FREEZE_DAYS })
+  const days = parseIntInput(daysText, L.days)
   const fromValid = /^\d{4}-\d{2}-\d{2}$/.test(fromDate) && fromDate >= today
   const valid = days !== null && fromValid
 
@@ -73,7 +75,7 @@ export function FreezeForm({
       </div>
       {days === null && (
         <p className="text-xs text-destructive">
-          Введите число дней от 1 до {MAX_FREEZE_DAYS}
+          Введите число дней от {L.days.min} до {L.days.max}
         </p>
       )}
 
@@ -109,7 +111,7 @@ export function FreezeForm({
         ))}
         <input
           className={`${inputCls} min-w-56 flex-1`}
-          maxLength={200}
+          maxLength={L.reason.max}
           placeholder="Например, травма колена"
           value={reason}
           onChange={(e) => setReason(e.target.value)}

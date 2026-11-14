@@ -18,6 +18,7 @@ import {
   type RankGradingDetail,
   type RankGradingResult,
 } from "../../../../../../shared/api/gradings"
+import { FORM_LIMITS } from "../../../../../../shared/lib/contract-limits"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
 import { formatAmount } from "../../../../../../features/subscriptions/subscription-display"
 import { formatYmd } from "../../../../../../shared/lib/format-ymd"
@@ -111,9 +112,11 @@ export default function GradingDetailPage() {
     e.preventDefault()
     let feeAmount: number | null = null
     if (fee.trim()) {
-      const parsed = parseIntInput(fee, { min: 0, max: 10_000_000 })
+      const parsed = parseIntInput(fee, FORM_LIMITS.grading.feeAmount)
       if (parsed === null) {
-        setError("Взнос: целое число")
+        setError(
+          `Взнос: целое число до ${FORM_LIMITS.grading.feeAmount.max.toLocaleString("ru-RU")}`,
+        )
         return
       }
       feeAmount = parsed
@@ -275,7 +278,7 @@ export default function GradingDetailPage() {
           <input
             className={inputCls}
             aria-label="Название"
-            maxLength={255}
+            maxLength={FORM_LIMITS.grading.title.max}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />

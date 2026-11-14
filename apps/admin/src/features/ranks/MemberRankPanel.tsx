@@ -12,6 +12,7 @@ import {
   type MemberRanks,
   type RankLadder,
 } from "../../shared/api/ranks"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
 import { RankChip } from "./RankChip"
@@ -167,7 +168,8 @@ export function MemberRankPanel({
         <input
           className={`${inputCls} w-20`}
           type="number"
-          min={0}
+          min={FORM_LIMITS.promote.stripes.min}
+          max={FORM_LIMITS.promote.stripes.max}
           value={stripes}
           onChange={(e) => setStripes(e.target.value)}
           title="Полоски"
@@ -176,6 +178,7 @@ export function MemberRankPanel({
           className={inputCls}
           placeholder="Заметка"
           title="Заметка (необязательно)"
+          maxLength={FORM_LIMITS.promote.note.max}
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />

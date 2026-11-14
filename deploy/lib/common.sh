@@ -92,6 +92,70 @@ state_dir() {
     mkdir -p "$CS_STATE_DIR" 2> /dev/null || die "не могу создать $CS_STATE_DIR (запускайте через sudo или задайте CLUBSPACE_STATE_DIR)"
 }
 
+# A URL's origin as a browser compares it (`new URL(u).origin`): scheme and
+# host in lower case, no default port, no path.
+url_origin() {
+    local origin
+    origin="$(printf '%s' "$1" | sed -E 's#^([A-Za-z][A-Za-z0-9+.-]*://[^/?#]+).*#\1#' | tr '[:upper:]' '[:lower:]')"
+    case "$origin" in
+        https://*:443) origin="${origin%:443}" ;;
+        http://*:80) origin="${origin%:80}" ;;
+    esac
+    printf '%s' "$origin"
+}
+
+# check_api_origin — the server hands out HLS playlist URLs under its ROOT_URL,
+# while the admin and client pages allow media only from the API origin baked
+# into their bundle at build time (NEXT_PUBLIC_API_URL) — the `media-src` of
+# their Content-Security-Policy. When the two differ, the browser blocks video
+# preview and nothing on the server side logs an error. Compares what is
+# running: the server container's ROOT_URL against the policy each web app
+# actually sends. Silent and 0 when they match; otherwise prints what is wrong
+# and how to fix it, and returns 1. A web app that sends no policy (down or
+# still starting — asked 3 times, 3 s apart) is reported as not answering, not
+# as a wrong build.
+check_api_origin() {
+    local root origin svc try policy media down="" bad="" msg=""
+    root="$(compose exec -T server printenv ROOT_URL 2> /dev/null || true)"
+    if [ -z "$root" ]; then
+        echo "не удалось прочитать ROOT_URL из контейнера server (docker compose ps server)"
+        return 1
+    fi
+    origin="$(url_origin "$root")"
+    for svc in admin client; do
+        policy=""
+        for try in 1 2 3; do
+            policy="$(compose exec -T "$svc" wget -S -O /dev/null http://127.0.0.1:3000/sign-in 2>&1 \
+                | tr -d '\r' | grep -i -m 1 'content-security-policy:' || true)"
+            [ -n "$policy" ] && break
+            [ "$try" = 3 ] || sleep 3
+        done
+        if [ -z "$policy" ]; then
+            down="$down $svc"
+            continue
+        fi
+        media="$(printf '%s' "$policy" | tr ';' '\n' | grep 'media-src' | sed -E 's/^ *media-src *//' || true)"
+        case " $media " in
+            *" $origin "*) ;;
+            *) bad="$bad $svc (media-src: $media)" ;;
+        esac
+    done
+    for svc in $down; do
+        msg="$msg$svc не ответил на 127.0.0.1:3000 (docker compose ps $svc; docker compose logs $svc). "
+    done
+    if [ -n "$bad" ]; then
+        msg="${msg}ROOT_URL сервера ($origin) не разрешён для видео в Content-Security-Policy:$bad."
+        msg="$msg Предпросмотр видео в браузере будет заблокирован: веб-приложения собраны с другим"
+        msg="$msg адресом API (NEXT_PUBLIC_API_URL запекается при сборке). Пересоберите и перезапустите их:"
+        msg="$msg docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build admin client."
+        msg="$msg Оба адреса берутся из DOMAIN и PUBLIC_PORT_SUFFIX в docker-compose.prod.yml —"
+        msg="$msg не задавайте ROOT_URL или NEXT_PUBLIC_API_URL отдельно."
+    fi
+    [ -z "$msg" ] && return 0
+    printf '%s\n' "${msg% }"
+    return 1
+}
+
 # One ops job at a time: a nightly backup must not start in the middle of an
 # update, and two updates must never interleave. Children of a lock holder
 # (update.sh -> backup-s3.sh) inherit CS_LOCK_HELD and skip it.

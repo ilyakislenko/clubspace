@@ -21,6 +21,7 @@ import {
   updateRankLadder,
   type RankLadder,
 } from "../../shared/api/ranks"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { confirmLeave, sameData, useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 import { pluralRu } from "../../shared/lib/plural-ru"
@@ -155,7 +156,7 @@ export function LadderFormSheet({
             <Input
               id="ladder-name"
               value={name}
-              maxLength={255}
+              maxLength={FORM_LIMITS.ladder.name.max}
               onChange={(e) => setName(e.target.value)}
               placeholder="Например: Взрослые"
             />
@@ -166,7 +167,7 @@ export function LadderFormSheet({
             <Input
               id="ladder-audience"
               value={audience}
-              maxLength={64}
+              maxLength={FORM_LIMITS.ladder.audience.max}
               onChange={(e) => setAudience(e.target.value)}
               placeholder="Например: взрослые или дети 5–13 лет"
             />

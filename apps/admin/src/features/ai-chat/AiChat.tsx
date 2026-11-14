@@ -27,6 +27,7 @@ import {
   getAiChatState,
   listAiChatConversations,
 } from '../../shared/api/ai-chat';
+import { FORM_LIMITS } from '../../shared/lib/contract-limits';
 import { errorMessage } from '../../shared/lib/error-message';
 import { pluralRu } from '../../shared/lib/plural-ru';
 import { confirmDialog } from '../../shared/ui/confirm-dialog';
@@ -554,7 +555,7 @@ export function AiChat({ workspaceId }: { workspaceId: string }) {
                 }
               }}
               rows={2}
-              maxLength={2000}
+              maxLength={FORM_LIMITS.aiChat.question.max}
               disabled={!canAsk}
               placeholder={
                 !ready

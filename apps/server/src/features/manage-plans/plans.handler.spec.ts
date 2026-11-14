@@ -1,4 +1,7 @@
-import { ForbiddenError } from '../../shared/errors/shared.errors'
+import {
+    ForbiddenError,
+    StaleUpdateError,
+} from '../../shared/errors/shared.errors'
 import { CreatePlanFeature } from './create-plan.feature'
 import { CreatePlanHandler } from './create-plan.handler'
 import { DeletePlanFeature } from './delete-plan.feature'
@@ -18,6 +21,15 @@ const rbac = (admin = true) => ({
     canWriteAllGroups: jest.fn().mockReturnValue(admin),
 })
 
+// The tariff's current version in the mocked database.
+const STORED_AT = new Date('2026-11-14T10:00:00.000Z')
+
+// Interactive transactions run against the same fake.
+const withTx = <T extends object>(prisma: T) =>
+    Object.assign(prisma, {
+        $transaction: jest.fn(async (fn: (tx: T) => unknown) => fn(prisma)),
+    })
+
 describe('createPlan', () => {
     it('creates when admin (currency upper-cased)', async () => {
         const prisma = {
@@ -32,6 +44,7 @@ describe('createPlan', () => {
                     durationDays: 30,
                     isActive: true,
                     directions: [],
+                    updatedAt: STORED_AT,
                 }),
             },
         }
@@ -65,6 +78,7 @@ describe('createPlan', () => {
             startsOnFirstVisit: true,
             isActive: true,
             directions: [],
+            updatedAt: STORED_AT,
         }
         const prisma = { plan: { create: jest.fn().mockResolvedValue(row) } }
         const create = (startsOnFirstVisit?: boolean) =>
@@ -131,6 +145,7 @@ describe('createPlan', () => {
                     isActive: true,
                     purchasableOnline: false,
                     directions: [{ direction: bjj }],
+                    updatedAt: STORED_AT,
                 }),
             },
         }
@@ -192,7 +207,7 @@ describe('createPlan', () => {
 
 describe('updatePlan', () => {
     it('changes startsOnFirstVisit only when it is sent', async () => {
-        const prisma = {
+        const prisma = withTx({
             plan: {
                 findFirst: jest.fn().mockResolvedValue({ id: 'p1', directions: [] }),
                 update: jest.fn().mockResolvedValue({
@@ -208,9 +223,10 @@ describe('updatePlan', () => {
                     startsOnFirstVisit: true,
                     isActive: true,
                     directions: [],
+                    updatedAt: STORED_AT,
                 }),
             },
-        }
+        })
         const update = (payload: { startsOnFirstVisit?: boolean; name?: string }) =>
             new UpdatePlanHandler(prisma as never, rbac(true) as never).execute(
                 new UpdatePlanFeature(payload, 'w1', 'p1', 'u1', 'admin', false),
@@ -224,26 +240,80 @@ describe('updatePlan', () => {
         expect(prisma.plan.update.mock.calls[1][0].data).toEqual({ name: 'x' })
     })
 
-    const updatable = () => ({
-        direction: { findMany: jest.fn().mockResolvedValue([{ id: 'd2' }]) },
-        plan: {
-            findFirst: jest.fn().mockResolvedValue({ id: 'p1', directions: [] }),
-            update: jest.fn().mockResolvedValue({
-                id: 'p1',
-                workspaceId: 'w1',
-                name: 'Monthly',
-                description: null,
-                price: 5000,
-                currency: 'RUB',
-                durationDays: 30,
-                classCount: null,
-                isFreeTrial: false,
-                startsOnFirstVisit: false,
-                isActive: true,
-                purchasableOnline: false,
-                directions: [],
-            }),
-        },
+    const updatable = () =>
+        withTx({
+            direction: { findMany: jest.fn().mockResolvedValue([{ id: 'd2' }]) },
+            plan: {
+                findFirst: jest.fn().mockResolvedValue({ id: 'p1', directions: [] }),
+                // The compare-and-set: matches only the stored version.
+                updateMany: jest.fn(
+                    async (args: { where: { updatedAt: Date } }) => ({
+                        count:
+                            args.where.updatedAt.getTime() === STORED_AT.getTime()
+                                ? 1
+                                : 0,
+                    }),
+                ),
+                update: jest.fn().mockResolvedValue({
+                    id: 'p1',
+                    workspaceId: 'w1',
+                    name: 'Monthly',
+                    description: null,
+                    price: 5000,
+                    currency: 'RUB',
+                    durationDays: 30,
+                    classCount: null,
+                    isFreeTrial: false,
+                    startsOnFirstVisit: false,
+                    isActive: true,
+                    purchasableOnline: false,
+                    directions: [],
+                    updatedAt: new Date('2026-11-14T11:00:00.000Z'),
+                }),
+            },
+        })
+
+    const rename = (
+        prisma: ReturnType<typeof updatable>,
+        expectedUpdatedAt?: string,
+    ) =>
+        new UpdatePlanHandler(prisma as never, rbac(true) as never).execute(
+            new UpdatePlanFeature(
+                { name: 'Безлимит', expectedUpdatedAt },
+                'w1',
+                'p1',
+                'u1',
+                'admin',
+                false,
+            ),
+        )
+
+    it('refuses a form that read an older version with 409, writing nothing', async () => {
+        const prisma = updatable()
+        const err = await rename(prisma, '2026-11-14T09:00:00.000Z').catch(
+            (e: unknown) => e,
+        )
+        expect(err).toBeInstanceOf(StaleUpdateError)
+        expect((err as StaleUpdateError).statusCode).toBe(409)
+        expect(prisma.plan.update).not.toHaveBeenCalled()
+    })
+
+    it('saves a form that read the current version and returns the new one', async () => {
+        const prisma = updatable()
+        const out = await rename(prisma, STORED_AT.toISOString())
+        expect(prisma.plan.updateMany.mock.calls[0][0].where).toEqual({
+            id: 'p1',
+            updatedAt: STORED_AT,
+        })
+        expect(prisma.plan.update.mock.calls[0][0].data).toEqual({ name: 'Безлимит' })
+        expect(out.updatedAt).toBe('2026-11-14T11:00:00.000Z')
+    })
+
+    it('keeps last-write-wins when the version is omitted', async () => {
+        const prisma = updatable()
+        await rename(prisma)
+        expect(prisma.plan.updateMany).not.toHaveBeenCalled()
+        expect(prisma.plan.update).toHaveBeenCalled()
     })
 
     it('replaces the whole scope in the same write when directionIds is sent', async () => {
@@ -348,15 +418,17 @@ describe('plan writes by tier', () => {
         isActive: true,
         purchasableOnline: false,
         directions: [],
+        updatedAt: STORED_AT,
     }
-    const prisma = () => ({
-        plan: {
-            create: jest.fn().mockResolvedValue(planRow),
-            findFirst: jest.fn().mockResolvedValue({ ...planRow, _count: { subscriptions: 0 } }),
-            update: jest.fn().mockResolvedValue(planRow),
-            delete: jest.fn().mockResolvedValue({}),
-        },
-    })
+    const prisma = () =>
+        withTx({
+            plan: {
+                create: jest.fn().mockResolvedValue(planRow),
+                findFirst: jest.fn().mockResolvedValue({ ...planRow, _count: { subscriptions: 0 } }),
+                update: jest.fn().mockResolvedValue(planRow),
+                delete: jest.fn().mockResolvedValue({}),
+            },
+        })
     const create = (role: string, userId = 'u1') =>
         new CreatePlanFeature(
             { name: 'x', price: 100, currency: 'RUB', durationDays: 30 },

@@ -6,6 +6,7 @@ import { PrismaService } from '../../infrastructure/prisma'
 import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { claimUnchanged } from '../../shared/utils/optimistic-concurrency'
 import { normalizePhone } from '../../shared/utils/phone'
 import { serializeClubAbout } from './schemas'
 import {
@@ -48,20 +49,29 @@ export class UpdateClubAboutHandler
             return { label: c.label, phone }
         })
 
-        const updated = await this.prisma.workspace.update({
-            where: { id: workspaceId },
-            data: {
-                aboutContacts: contacts,
-                aboutLinks: payload.links,
-                aboutRules: payload.rules ? payload.rules : null,
-                aboutUpdatedAt: new Date(),
-            },
-            select: {
-                aboutContacts: true,
-                aboutLinks: true,
-                aboutRules: true,
-                aboutUpdatedAt: true,
-            },
+        const updated = await this.prisma.$transaction(async (tx) => {
+            await claimUnchanged(payload.expectedUpdatedAt, (expected) =>
+                tx.workspace.updateMany({
+                    where: { id: workspaceId, aboutUpdatedAt: expected },
+                    data: { aboutUpdatedAt: new Date() },
+                }),
+            )
+            return tx.workspace.update({
+                where: { id: workspaceId },
+                data: {
+                    aboutContacts: contacts,
+                    aboutLinks: payload.links,
+                    aboutRules: payload.rules ? payload.rules : null,
+                    aboutUpdatedAt: new Date(),
+                },
+                select: {
+                    aboutContacts: true,
+                    aboutLinks: true,
+                    aboutRules: true,
+                    aboutUpdatedAt: true,
+                    updatedAt: true,
+                },
+            })
         })
 
         await this.audit.record({
@@ -78,6 +88,9 @@ export class UpdateClubAboutHandler
         })
 
         this.realtime.invalidate(workspaceId, ['about'])
-        return serializeClubAbout(updated)
+        return {
+            ...serializeClubAbout(updated),
+            clubUpdatedAt: updated.updatedAt.toISOString(),
+        }
     }
 }

@@ -20,6 +20,7 @@ const WORKSPACE = {
     publicDescription: 'Лучший зал',
     logoKey: null as string | null,
     isListed: false,
+    updatedAt: new Date('2026-11-14T10:00:00.000Z'),
 }
 
 const build = (workspace: typeof WORKSPACE | null = WORKSPACE) => {
@@ -104,6 +105,7 @@ describe('getClubPublicProfile', () => {
             isListed: false,
             pageUrl: 'https://app.club.example/c/akademiya-bzhzh',
             joinPageUrl: 'https://app.club.example/join/ABCD2345',
+            updatedAt: '2026-11-14T10:00:00.000Z',
         })
         expect(files.getPresignedGetUrl).not.toHaveBeenCalled()
     })

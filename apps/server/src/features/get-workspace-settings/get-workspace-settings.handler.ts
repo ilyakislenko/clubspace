@@ -40,6 +40,7 @@ export class GetWorkspaceSettingsHandler
                 coachesMarkAnyClass: true,
                 timezone: true,
                 joinAutoApprove: true,
+                updatedAt: true,
                 ...featureFlagSelect,
                 ...workspaceBookingSettingsSelect,
                 ...moduleEntitlementSelect('VIDEO'),
@@ -52,10 +53,16 @@ export class GetWorkspaceSettingsHandler
         if (!workspace) {
             throw new NotFoundError({ message: 'Клуб не найден' })
         }
-        const { billing, moduleEntitlements, featureLocks, ...settings } =
-            workspace
+        const {
+            billing,
+            moduleEntitlements,
+            featureLocks,
+            updatedAt,
+            ...settings
+        } = workspace
         return {
             ...settings,
+            updatedAt: updatedAt.toISOString(),
             videoModuleEntitled: isWorkspaceEntitled({ billing, moduleEntitlements }),
             lockedFeatures: activeFeatureLocks(featureLocks, now).map(
                 serializeFeatureLock,

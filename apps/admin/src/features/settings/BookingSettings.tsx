@@ -8,10 +8,13 @@ import type {
   WorkspaceSettings,
   WorkspaceSettingsPatch,
 } from "../../shared/api/workspaces"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { SettingRow, SettingSwitch } from "./SettingSwitch"
+
+const L = FORM_LIMITS.bookingSettings
 
 // Club-wide rules for booking-mode groups («Запись на тренировку/занятие»).
 // Window and deadline can be overridden per group in the group form.
@@ -33,8 +36,8 @@ export function BookingSettings({
     setCancelHours(String(settings.bookingCancelHours))
   }, [settings.bookingWindowDays, settings.bookingCancelHours])
 
-  const parsedWindow = parseIntInput(windowDays, { min: 0, max: 90 })
-  const parsedCancel = parseIntInput(cancelHours, { min: 0, max: 168 })
+  const parsedWindow = parseIntInput(windowDays, L.windowDays)
+  const parsedCancel = parseIntInput(cancelHours, L.cancelHours)
   const dirty =
     parsedWindow !== settings.bookingWindowDays ||
     parsedCancel !== settings.bookingCancelHours
@@ -62,7 +65,9 @@ export function BookingSettings({
             className="h-9"
           />
           {parsedWindow === null && (
-            <p className="text-xs text-destructive">Целое число от 0 до 90</p>
+            <p className="text-xs text-destructive">
+              Целое число от {L.windowDays.min} до {L.windowDays.max}
+            </p>
           )}
         </div>
         <div className="space-y-1">
@@ -75,7 +80,9 @@ export function BookingSettings({
             className="h-9"
           />
           {parsedCancel === null && (
-            <p className="text-xs text-destructive">Целое число от 0 до 168</p>
+            <p className="text-xs text-destructive">
+              Целое число от {L.cancelHours.min} до {L.cancelHours.max}
+            </p>
           )}
         </div>
         <div className="flex items-end">

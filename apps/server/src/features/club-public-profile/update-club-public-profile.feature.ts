@@ -4,6 +4,7 @@ import {
     isValidPublicSlug,
     normalizePublicSlug,
 } from '../../domains/workspace/public-slug'
+import { ExpectedUpdatedAtField } from '../../shared/utils/optimistic-concurrency'
 import { ClubPublicProfileSchema } from './schemas'
 
 // Empty text means "not set": stored as null so the public page simply leaves
@@ -30,6 +31,7 @@ export const UpdateClubPublicProfileFeatureInputSchema = z.object({
     // A key returned by the logo-upload endpoint, or null to remove the logo.
     logoKey: z.string().max(255).nullable(),
     isListed: z.boolean(),
+    ...ExpectedUpdatedAtField,
 })
 
 export const UpdateClubPublicProfileFeatureOutputSchema = ClubPublicProfileSchema

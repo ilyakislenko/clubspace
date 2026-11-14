@@ -20,6 +20,7 @@ const planRow = (directions: Array<typeof BJJ>) => ({
     isActive: true,
     purchasableOnline: true,
     directions: directions.map((direction) => ({ direction })),
+    updatedAt: new Date('2026-11-14T10:00:00.000Z'),
 })
 
 // A real RbacService over a one-club fake: the role, ownership and super-admin

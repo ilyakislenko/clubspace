@@ -5,7 +5,6 @@
 
 export const FREEZE_DAY_PRESETS = [7, 14, 30]
 export const FREEZE_REASON_PRESETS = ["Травма", "Болезнь", "Отпуск"]
-export const MAX_FREEZE_DAYS = 90
 
 const DAY_MS = 86_400_000
 

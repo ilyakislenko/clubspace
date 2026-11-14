@@ -16,9 +16,11 @@ import { fromFirstSession } from "@clubspace/ui-kit/brand"
 
 import {
   createPlan,
+  getPlan,
   updatePlan,
   type Plan,
 } from "../../shared/api/subscriptions"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
@@ -28,8 +30,11 @@ import {
   useDirtyGuard,
 } from "../../shared/lib/use-dirty-guard"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+import { isStaleUpdate, StaleUpdateNotice } from "../../shared/ui/stale-update-notice"
 import { type Direction } from "../../shared/api/directions"
 import { DirectionScopePicker } from "../directions/DirectionScopePicker"
+
+const L = FORM_LIMITS.plan
 
 type Form = {
   name: string
@@ -91,20 +96,30 @@ export function PlanFormSheet({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // The tariff the form shows; «Обновить» after a 409 replaces it.
+  const [current, setCurrent] = useState<Plan | null>(plan)
+  const [stale, setStale] = useState<unknown>(null)
 
-  // Re-initialise every time the panel opens, from the edited tariff or blank.
+  // Initialise each time the panel opens, from the edited tariff or blank. The
+  // tariff (and so the version a save sends) is captured at opening: a newer
+  // `plan` prop while open neither resets the draft nor hides someone else's
+  // save. The page sets `plan` together with `open` (also for `?edit=`).
   useEffect(() => {
     if (!open) return
+    setCurrent(plan)
     setForm(plan ? formOf(plan) : BLANK)
     setFieldErrors({})
     setError(null)
-  }, [open, plan])
+    setStale(null)
+    // `plan` is read only at the opening edge, on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const set = <K extends keyof Form>(key: K, value: Form[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
   // A new tariff's scope alone does not count — the picker may preset it.
-  const saved = plan ? formOf(plan) : { ...BLANK, directionIds: form.directionIds }
+  const saved = current ? formOf(current) : { ...BLANK, directionIds: form.directionIds }
   const dirty =
     open &&
     !sameData(
@@ -121,17 +136,17 @@ export function PlanFormSheet({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const errs: Record<string, string> = {}
-    const parsedPrice = parseIntInput(form.price, { min: 0, max: 100_000_000 })
+    const parsedPrice = parseIntInput(form.price, L.price)
     if (parsedPrice === null)
-      errs.price = "Введите цену целым числом (0 — бесплатно)"
-    const parsedDays = parseIntInput(form.durationDays, { min: 1, max: 3650 })
+      errs.price = `Введите цену целым числом до ${L.price.max.toLocaleString("ru-RU")} (0 — бесплатно)`
+    const parsedDays = parseIntInput(form.durationDays, L.durationDays)
     if (parsedDays === null)
-      errs.durationDays = "Введите число дней от 1 до 3650"
+      errs.durationDays = `Введите число дней от ${L.durationDays.min} до ${L.durationDays.max}`
     const parsedClasses = form.classCount.trim()
-      ? parseIntInput(form.classCount, { min: 1, max: 1000 })
+      ? parseIntInput(form.classCount, L.classCount)
       : null
     if (form.classCount.trim() && parsedClasses === null)
-      errs.classCount = "Введите число занятий от 1 до 1000 или оставьте пустым"
+      errs.classCount = `Введите число занятий от ${L.classCount.min} до ${L.classCount.max} или оставьте пустым`
     const cur = form.currency.trim().toUpperCase()
     if (!/^[A-Z]{3}$/.test(cur)) errs.currency = "Код из 3 букв, например RUB"
     setFieldErrors(errs)
@@ -153,23 +168,45 @@ export function PlanFormSheet({
     }
     setSaving(true)
     setError(null)
+    setStale(null)
     try {
-      if (plan) {
-        await updatePlan({ workspaceId, planId: plan.id, data })
+      if (current) {
+        await updatePlan({
+          workspaceId,
+          planId: current.id,
+          data: { ...data, expectedUpdatedAt: current.updatedAt },
+        })
       } else {
         await createPlan({ workspaceId, data })
       }
       onSaved()
       onOpenChange(false)
     } catch (err) {
-      setError(
-        errorMessage(
-          err,
-          plan ? "Не удалось сохранить тариф" : "Не удалось создать тариф",
-        ),
-      )
+      if (current && isStaleUpdate(err)) setStale(err)
+      else
+        setError(
+          errorMessage(
+            err,
+            current ? "Не удалось сохранить тариф" : "Не удалось создать тариф",
+          ),
+        )
     } finally {
       setSaving(false)
+    }
+  }
+
+  // «Обновить» after a 409: the stored tariff replaces the draft.
+  const reload = async () => {
+    if (!current) return
+    try {
+      const { plan: fresh } = await getPlan({ workspaceId, planId: current.id })
+      setCurrent(fresh)
+      setForm(formOf(fresh))
+      setFieldErrors({})
+      setStale(null)
+      setError(null)
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось загрузить тариф"))
     }
   }
 
@@ -202,7 +239,7 @@ export function PlanFormSheet({
             <input
               className={`${inputCls} w-full`}
               placeholder="Например, «Безлимит месяц»"
-              maxLength={255}
+              maxLength={L.name.max}
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
             />
@@ -222,7 +259,7 @@ export function PlanFormSheet({
             <span className="text-xs text-muted-foreground">Валюта</span>
             <input
               className={`${inputCls} w-full`}
-              maxLength={3}
+              maxLength={L.currency.max}
               value={form.currency}
               onChange={(e) => set("currency", e.target.value)}
             />
@@ -303,6 +340,11 @@ export function PlanFormSheet({
             <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive sm:col-span-2">
               {error}
             </p>
+          )}
+          {stale !== null && (
+            <div className="sm:col-span-2">
+              <StaleUpdateNotice error={stale} onReload={reload} />
+            </div>
           )}
         </form>
 

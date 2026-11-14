@@ -30,6 +30,7 @@ import {
   type GroupScheduleException,
   type GroupSummary,
 } from "../../../shared/api/groups"
+import { FORM_LIMITS } from "../../../shared/lib/contract-limits"
 import { errorMessage } from "../../../shared/lib/error-message"
 import { formatYmd } from "../../../shared/lib/format-ymd"
 import { parseIntInput } from "../../../shared/lib/parse-int-input"
@@ -193,7 +194,7 @@ function ClassDetails({
     ? wallClock(s.rescheduledFrom.startAt, s.timezone)
     : null
   const periodValid = periodFrom <= periodUntil
-  const parsedCapacity = capacityDraft.trim() ? parseIntInput(capacityDraft, { min: 1, max: 1000 }) : null
+  const parsedCapacity = capacityDraft.trim() ? parseIntInput(capacityDraft, FORM_LIMITS.slotCapacity.capacity) : null
   const capacityInvalid = capacityDraft.trim() !== "" && parsedCapacity === null
   const capacityChanged = !!slot && parsedCapacity !== slot.capacity && !capacityInvalid
 

@@ -20,11 +20,14 @@ import {
 } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
 import { DirectionSelect } from "../directions/DirectionSelect"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { formatMemberLabel } from "./helpers"
 import { MemberSearchPicker } from "./MemberSearchPicker"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { agree, cap } from "@clubspace/ui-kit/brand"
+
+const L = FORM_LIMITS.group
 
 export type GroupFormPayload = {
   name: string
@@ -115,9 +118,9 @@ export function GroupForm({
   const [cancelHours, setCancelHours] = useState(
     intToInput(initial?.bookingCancelHours),
   )
-  const parsedCapacity = parseOptionalInt(capacity, { min: 1, max: 1000 })
-  const parsedWindow = parseOptionalInt(windowDays, { min: 0, max: 90 })
-  const parsedCancel = parseOptionalInt(cancelHours, { min: 0, max: 168 })
+  const parsedCapacity = parseOptionalInt(capacity, L.capacity)
+  const parsedWindow = parseOptionalInt(windowDays, L.bookingWindowDays)
+  const parsedCancel = parseOptionalInt(cancelHours, L.bookingCancelHours)
   const bookingInvalid =
     bookingMode === "BOOKING" &&
     (!parsedCapacity.ok || !parsedWindow.ok || !parsedCancel.ok)
@@ -172,6 +175,7 @@ export function GroupForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Утренняя"
+          maxLength={L.name.max}
           required
         />
       </div>
@@ -269,7 +273,7 @@ export function GroupForm({
               />
               {!parsedCapacity.ok && (
                 <p className="text-xs text-destructive">
-                  Целое число от 1 до 1000 или пусто
+                  Целое число от {L.capacity.min} до {L.capacity.max} или пусто
                 </p>
               )}
             </div>
@@ -286,7 +290,7 @@ export function GroupForm({
               />
               {!parsedWindow.ok && (
                 <p className="text-xs text-destructive">
-                  Целое число от 0 до 90 или пусто
+                  Целое число от {L.bookingWindowDays.min} до {L.bookingWindowDays.max} или пусто
                 </p>
               )}
             </div>
@@ -303,7 +307,7 @@ export function GroupForm({
               />
               {!parsedCancel.ok && (
                 <p className="text-xs text-destructive">
-                  Целое число от 0 до 168 или пусто
+                  Целое число от {L.bookingCancelHours.min} до {L.bookingCancelHours.max} или пусто
                 </p>
               )}
             </div>

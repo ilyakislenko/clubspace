@@ -15,6 +15,7 @@ const planRow = (over: Record<string, unknown> = {}) => ({
     startsOnFirstVisit: false,
     isActive: true,
     directions: [] as Array<{ direction: Record<string, unknown> }>,
+    updatedAt: new Date('2026-11-14T10:00:00.000Z'),
     ...over,
 })
 

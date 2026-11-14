@@ -25,17 +25,17 @@ import {
   getWorkspaceSettings,
   updateWorkspaceSettings,
 } from "../../shared/api/workspaces"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { useDirtyGuard } from "../../shared/lib/use-dirty-guard"
+import { isStaleUpdate, StaleUpdateNotice } from "../../shared/ui/stale-update-notice"
 import { putToPresignedUrl } from "../../shared/upload-to-s3"
 import {
   draftToInput as aboutToInput,
-  MAX_ITEMS,
   moveItem,
   type ClubAboutDraft,
 } from "../club-about/club-about-form"
 import {
-  DESCRIPTION_MAX,
   draftToInput as pageToInput,
   LOGO_CONTENT_TYPES,
   logoUploadFor,
@@ -81,6 +81,13 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [justSaved, setJustSaved] = useState(false)
+  // A part refused as stale (409): the draft stays, «Обновить» reloads.
+  const [stale, setStale] = useState<unknown>(null)
+  // What each save sends as `expectedUpdatedAt`: the club row's version
+  // (public page and time zone live on it) and «О клубе»'s own. A ref, not
+  // state: the parts save one after another inside one handler, each passing
+  // its new version on to the next.
+  const versions = useRef<{ club?: string; about?: string }>({})
   const fileInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -88,6 +95,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
     setLoading(true)
     setLoadFailed(false)
     setError(null)
+    setStale(null)
     Promise.all([
       getClubPublicProfile({ workspaceId }),
       getClubAbout({ workspaceId }),
@@ -99,6 +107,12 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
           page: profileToDraft(page),
           about: aboutToDraft(about),
           timezone: settings.timezone,
+        }
+        // Read in parallel: if the club changed between the two reads, keep
+        // the older version — a needless 409 beats a missed one.
+        versions.current = {
+          club: page.updatedAt < settings.updatedAt ? page.updatedAt : settings.updatedAt,
+          about: about.updatedAt ?? undefined,
         }
         setProfile(page)
         setClubName(settings.name)
@@ -167,6 +181,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
     }
     setSaving(true)
     setError(null)
+    setStale(null)
     setJustSaved(false)
     let failed = false
     for (const part of parts) {
@@ -174,30 +189,37 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
         if (part === "page") {
           const data = await updateClubPublicProfile({
             workspaceId,
-            data: pageToInput(draft.page),
+            data: { ...pageToInput(draft.page), expectedUpdatedAt: versions.current.club },
           })
+          versions.current.club = data.updatedAt
           setProfile(data)
           setLogoPreview(data.logoUrl)
           const stored = profileToDraft(data)
           setDraft((d) => (d ? { ...d, page: stored } : d))
           setSaved((s) => (s ? { ...s, page: stored } : s))
         } else if (part === "about") {
+          const data = await updateClubAbout({
+            workspaceId,
+            data: { ...aboutToInput(draft.about), expectedUpdatedAt: versions.current.about },
+          })
+          versions.current = { club: data.clubUpdatedAt, about: data.updatedAt ?? undefined }
           // The server stores phones normalised (+7…); show what was saved.
-          const stored = aboutToDraft(
-            await updateClubAbout({ workspaceId, data: aboutToInput(draft.about) }),
-          )
+          const stored = aboutToDraft(data)
           setDraft((d) => (d ? { ...d, about: stored } : d))
           setSaved((s) => (s ? { ...s, about: stored } : s))
         } else {
-          const { timezone } = await updateWorkspaceSettings({
+          const { timezone, updatedAt } = await updateWorkspaceSettings({
             workspaceId,
             timezone: draft.timezone.trim(),
+            expectedUpdatedAt: versions.current.club,
           })
+          versions.current.club = updatedAt
           setDraft((d) => (d ? { ...d, timezone } : d))
           setSaved((s) => (s ? { ...s, timezone } : s))
         }
       } catch (err) {
-        setError(`${PART_LABEL[part]}: ${errorMessage(err, "не удалось сохранить")}`)
+        if (isStaleUpdate(err)) setStale(err)
+        else setError(`${PART_LABEL[part]}: ${errorMessage(err, "не удалось сохранить")}`)
         failed = true
         break
       }
@@ -260,7 +282,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                   <Input
                     id="public-slug"
                     value={page.slug}
-                    maxLength={64}
+                    maxLength={FORM_LIMITS.clubProfile.slug.max}
                     className="h-9"
                     onChange={(e) => editPage({ slug: e.target.value })}
                   />
@@ -276,7 +298,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                 <Input
                   id="public-city"
                   value={page.city}
-                  maxLength={120}
+                  maxLength={FORM_LIMITS.clubProfile.city.max}
                   placeholder="Например, Томск"
                   className="h-9"
                   onChange={(e) => editPage({ city: e.target.value })}
@@ -289,12 +311,12 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                   id="public-description"
                   value={page.description}
                   rows={5}
-                  maxLength={DESCRIPTION_MAX}
+                  maxLength={FORM_LIMITS.clubProfile.description.max}
                   placeholder="Чем занимаетесь, для кого занятия, чем клуб отличается"
                   onChange={(e) => editPage({ description: e.target.value })}
                 />
                 <p className="text-right text-xs text-muted-foreground">
-                  {page.description.length} / {DESCRIPTION_MAX}
+                  {page.description.length} / {FORM_LIMITS.clubProfile.description.max}
                 </p>
               </div>
 
@@ -333,7 +355,8 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  JPEG, PNG или WebP до 2 МБ, лучше квадратный.
+                  JPEG, PNG или WebP до {FORM_LIMITS.clubProfile.logoBytes.max / 1024 / 1024} МБ,
+                  лучше квадратный.
                 </p>
               </div>
 
@@ -373,7 +396,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                       value={c.label}
                       aria-label="Подпись контакта"
                       placeholder="Например, Администратор"
-                      maxLength={120}
+                      maxLength={FORM_LIMITS.clubAbout.contactLabel.max}
                       className="h-9 min-w-[160px] flex-1"
                       onChange={(e) =>
                         editAbout({
@@ -387,7 +410,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                       value={c.phone}
                       aria-label="Телефон"
                       placeholder="+7 952 884-94-20"
-                      maxLength={32}
+                      maxLength={FORM_LIMITS.clubAbout.contactPhone.max}
                       className="h-9 w-[180px]"
                       onChange={(e) =>
                         editAbout({
@@ -414,7 +437,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                   type="button"
                   size="sm"
                   variant="ghost"
-                  disabled={about.contacts.length >= MAX_ITEMS}
+                  disabled={about.contacts.length >= FORM_LIMITS.clubAbout.contacts.max}
                   onClick={() =>
                     editAbout({ contacts: [...about.contacts, { label: "", phone: "" }] })
                   }
@@ -431,7 +454,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                       value={l.label}
                       aria-label="Подпись ссылки"
                       placeholder="Например, Сайт"
-                      maxLength={60}
+                      maxLength={FORM_LIMITS.clubAbout.linkLabel.max}
                       className="h-9 min-w-[160px] flex-1"
                       onChange={(e) =>
                         editAbout({
@@ -445,7 +468,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                       value={l.url}
                       aria-label="Адрес ссылки"
                       placeholder="https://"
-                      maxLength={500}
+                      maxLength={FORM_LIMITS.clubAbout.linkUrl.max}
                       className="h-9 min-w-[200px] flex-[2]"
                       onChange={(e) =>
                         editAbout({
@@ -470,7 +493,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                   type="button"
                   size="sm"
                   variant="ghost"
-                  disabled={about.links.length >= MAX_ITEMS}
+                  disabled={about.links.length >= FORM_LIMITS.clubAbout.links.max}
                   onClick={() => editAbout({ links: [...about.links, { label: "", url: "" }] })}
                 >
                   <Plus className="mr-1 size-4" /> Добавить ссылку
@@ -483,7 +506,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                   id="club-rules"
                   value={about.rules}
                   rows={6}
-                  maxLength={10000}
+                  maxLength={FORM_LIMITS.clubAbout.rules.max}
                   placeholder="Абзацы разделяйте пустой строкой"
                   onChange={(e) => editAbout({ rules: e.target.value })}
                 />
@@ -509,6 +532,11 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
             </section>
           </fieldset>
 
+          {stale !== null && (
+            <div className="px-5 pb-3">
+              <StaleUpdateNotice error={stale} onReload={() => setReloadKey((k) => k + 1)} />
+            </div>
+          )}
           <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-3 rounded-b-xl border-t border-border bg-card/95 px-5 py-3 backdrop-blur">
             {error ? (
               <p className="mr-auto text-sm text-destructive">{error}</p>

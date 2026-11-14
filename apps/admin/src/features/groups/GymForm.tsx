@@ -4,7 +4,10 @@ import { useState, type FormEvent } from "react"
 
 import { Button, Input, Label } from "@clubspace/ui-kit/ui"
 
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { TimezoneSelect } from "../settings/TimezoneSelect"
+
+const L = FORM_LIMITS.gym
 
 type Props = {
   initial?: { name: string; address: string; timezone: string | null }
@@ -50,6 +53,7 @@ export function GymForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Гладиатор"
+            maxLength={L.name.max}
             required
           />
         </div>
@@ -60,6 +64,7 @@ export function GymForm({
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             placeholder="Москва, Тимура Фрунзе 11"
+            maxLength={L.address.max}
             required
           />
         </div>

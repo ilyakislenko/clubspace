@@ -211,6 +211,8 @@ export const updateGroup = async (
     gymId?: string
     coachId?: string
     directionId?: string | null
+    // The card's `updatedAt`: a stale one answers 409 STALE_UPDATE.
+    expectedUpdatedAt?: string
   } & GroupBookingFields,
 ) => {
   const { workspaceId, groupId, ...patch } = params

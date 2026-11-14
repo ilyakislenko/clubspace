@@ -27,6 +27,7 @@ import {
 } from "../../shared/api/announcements"
 import type { Direction } from "../../shared/api/directions"
 import type { GroupSummary } from "../../shared/api/groups"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import {
   confirmLeave,
@@ -34,6 +35,7 @@ import {
   useDirtyGuard,
 } from "../../shared/lib/use-dirty-guard"
 import { confirmDialog } from "../../shared/ui/confirm-dialog"
+import { isStaleUpdate, StaleUpdateNotice } from "../../shared/ui/stale-update-notice"
 import type { DirectionScope } from "../../shared/workspace/use-direction-scope"
 import { AnnouncementTargetPicker } from "./AnnouncementTargetPicker"
 import {
@@ -107,6 +109,10 @@ export function AnnouncementFormSheet({
             announcement={announcement}
             onCancel={() => void requestClose()}
             onSaved={saved}
+            // There is no single-announcement read: «Обновить» after a 409
+            // closes the panel and reloads the list (the draft is dropped
+            // on purpose; the notice says so).
+            onReload={saved}
             {...form}
           />
         ) : (
@@ -216,6 +222,7 @@ function CreateForm({
             id="announcement-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            maxLength={FORM_LIMITS.announcement.title.max}
           />
         </div>
         <div className="space-y-2">
@@ -225,6 +232,7 @@ function CreateForm({
             rows={6}
             value={body}
             onChange={(e) => setBody(e.target.value)}
+            maxLength={FORM_LIMITS.announcement.body.max}
           />
         </div>
         <AnnouncementTargetPicker
@@ -311,12 +319,14 @@ function EditForm({
   announcement: a,
   onCancel,
   onSaved,
-}: FormProps & { announcement: Announcement }) {
+  onReload,
+}: FormProps & { announcement: Announcement; onReload: () => void }) {
   const [title, setTitle] = useState(a.title)
   const [body, setBody] = useState(a.body)
   const [target, setTarget] = useState<AnnouncementTarget>(() => targetOf(a))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [stale, setStale] = useState<unknown>(null)
 
   useDirtyGuard(
     !sameData(
@@ -329,6 +339,7 @@ function EditForm({
     if (!title.trim() || !body.trim()) return
     setBusy(true)
     setError(null)
+    setStale(null)
     try {
       await updateAnnouncement({
         workspaceId,
@@ -337,11 +348,15 @@ function EditForm({
           title: title.trim(),
           body: body.trim(),
           ...editTargetPayload(target, a),
+          // The version the panel opened with: someone else's save since
+          // then answers 409 instead of being overwritten.
+          expectedUpdatedAt: a.updatedAt,
         },
       })
       onSaved()
     } catch (e) {
-      setError(errorMessage(e, "Не удалось сохранить объявление"))
+      if (isStaleUpdate(e)) setStale(e)
+      else setError(errorMessage(e, "Не удалось сохранить объявление"))
     } finally {
       setBusy(false)
     }
@@ -356,6 +371,7 @@ function EditForm({
             id="announcement-edit-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            maxLength={FORM_LIMITS.announcement.title.max}
           />
         </div>
         <div className="space-y-2">
@@ -365,6 +381,7 @@ function EditForm({
             rows={6}
             value={body}
             onChange={(e) => setBody(e.target.value)}
+            maxLength={FORM_LIMITS.announcement.body.max}
           />
         </div>
         <AnnouncementTargetPicker
@@ -383,6 +400,7 @@ function EditForm({
           </p>
         )}
         {error && <FormError text={error} />}
+        {stale !== null && <StaleUpdateNotice error={stale} onReload={onReload} />}
       </div>
       <SheetFooter>
         <div className="flex w-full items-center justify-end gap-2">

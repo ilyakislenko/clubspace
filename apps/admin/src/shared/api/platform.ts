@@ -1,6 +1,7 @@
 import type { ApiTypes } from "@clubspace/api-client"
 
 import { getApiClient } from "./client"
+import { invalidateReads } from "./read-cache"
 
 // The platform console (`/platform/*`) — the tier above the per-workspace
 // admin. Every route here is refused with 403 unless the signed-in account has
@@ -58,30 +59,41 @@ export type UpdatePlatformWorkspaceBody = ApiTypes.UpdatePlatformWorkspaceInputD
 export type UpdatePlatformWorkspaceResult =
   ApiTypes.UpdatePlatformWorkspaceOutputOutput
 
+// A console write to a club the operator also belongs to changes their own
+// club list (name, app sections): drop the kept copy.
+const clubListChanged = <T>(result: T): T => {
+  invalidateReads("workspaces")
+  return result
+}
+
 export const updatePlatformWorkspace = async (
   workspaceId: string,
   body: UpdatePlatformWorkspaceBody,
 ): Promise<UpdatePlatformWorkspaceResult> =>
-  await getApiClient().request<
-    UpdatePlatformWorkspaceResult,
-    UpdatePlatformWorkspaceBody
-  >({
-    method: "patch",
-    url: `/platform/workspaces/${workspaceId}`,
-    data: body,
-  })
+  clubListChanged(
+    await getApiClient().request<
+      UpdatePlatformWorkspaceResult,
+      UpdatePlatformWorkspaceBody
+    >({
+      method: "patch",
+      url: `/platform/workspaces/${workspaceId}`,
+      data: body,
+    }),
+  )
 
 export const createPlatformWorkspace = async (
   body: CreatePlatformWorkspaceBody,
 ): Promise<CreatePlatformWorkspaceResult> =>
-  await getApiClient().request<
-    CreatePlatformWorkspaceResult,
-    CreatePlatformWorkspaceBody
-  >({
-    method: "post",
-    url: "/platform/workspaces",
-    data: body,
-  })
+  clubListChanged(
+    await getApiClient().request<
+      CreatePlatformWorkspaceResult,
+      CreatePlatformWorkspaceBody
+    >({
+      method: "post",
+      url: "/platform/workspaces",
+      data: body,
+    }),
+  )
 
 export type PlatformWorkspaceBillingCard =
   ApiTypes.PlatformWorkspaceBillingOutputOutput
@@ -124,14 +136,16 @@ export const updatePlatformWorkspaceModule = async (
   workspaceId: string,
   body: UpdatePlatformWorkspaceModuleBody,
 ): Promise<PlatformWorkspaceBillingCard> =>
-  await getApiClient().request<
-    PlatformWorkspaceBillingCard,
-    UpdatePlatformWorkspaceModuleBody
-  >({
-    method: "post",
-    url: `/platform/workspaces/${workspaceId}/modules`,
-    data: body,
-  })
+  clubListChanged(
+    await getApiClient().request<
+      PlatformWorkspaceBillingCard,
+      UpdatePlatformWorkspaceModuleBody
+    >({
+      method: "post",
+      url: `/platform/workspaces/${workspaceId}/modules`,
+      data: body,
+    }),
+  )
 
 // Forces one of the club's app-section switches (enabling «videos» is refused
 // without the VIDEO module).
@@ -139,14 +153,16 @@ export const setPlatformWorkspaceFeature = async (
   workspaceId: string,
   body: SetPlatformWorkspaceFeatureBody,
 ): Promise<PlatformWorkspaceBillingCard> =>
-  await getApiClient().request<
-    PlatformWorkspaceBillingCard,
-    SetPlatformWorkspaceFeatureBody
-  >({
-    method: "post",
-    url: `/platform/workspaces/${workspaceId}/features`,
-    data: body,
-  })
+  clubListChanged(
+    await getApiClient().request<
+      PlatformWorkspaceBillingCard,
+      SetPlatformWorkspaceFeatureBody
+    >({
+      method: "post",
+      url: `/platform/workspaces/${workspaceId}/features`,
+      data: body,
+    }),
+  )
 
 export type LockPlatformWorkspaceFeatureBody =
   ApiTypes.LockPlatformWorkspaceFeatureInputDto
@@ -158,23 +174,27 @@ export const lockPlatformWorkspaceFeature = async (
   workspaceId: string,
   body: LockPlatformWorkspaceFeatureBody,
 ): Promise<PlatformWorkspaceBillingCard> =>
-  await getApiClient().request<
-    PlatformWorkspaceBillingCard,
-    LockPlatformWorkspaceFeatureBody
-  >({
-    method: "post",
-    url: `/platform/workspaces/${workspaceId}/feature-locks`,
-    data: body,
-  })
+  clubListChanged(
+    await getApiClient().request<
+      PlatformWorkspaceBillingCard,
+      LockPlatformWorkspaceFeatureBody
+    >({
+      method: "post",
+      url: `/platform/workspaces/${workspaceId}/feature-locks`,
+      data: body,
+    }),
+  )
 
 export const unlockPlatformWorkspaceFeature = async (
   workspaceId: string,
   feature: PlatformFeatureKey,
 ): Promise<PlatformWorkspaceBillingCard> =>
-  await getApiClient().request<PlatformWorkspaceBillingCard>({
-    method: "delete",
-    url: `/platform/workspaces/${workspaceId}/feature-locks/${feature}`,
-  })
+  clubListChanged(
+    await getApiClient().request<PlatformWorkspaceBillingCard>({
+      method: "delete",
+      url: `/platform/workspaces/${workspaceId}/feature-locks/${feature}`,
+    }),
+  )
 
 export type PlatformWorkspacePromoBody = ApiTypes.PlatformWorkspacePromoInputDto
 export type PlatformWorkspacePromoPreview =

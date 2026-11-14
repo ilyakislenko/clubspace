@@ -13,7 +13,7 @@ import { useWorkspaceSettings } from "../../../../../../features/settings/use-wo
 export default function SettingsAppPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
-  const { settings, loading, loadFailed, saving, error, save, reload } =
+  const { settings, loading, loadFailed, saving, error, stale, save, reload } =
     useWorkspaceSettings(workspaceId)
 
   return (
@@ -26,6 +26,7 @@ export default function SettingsAppPage() {
         loading={loading}
         loadFailed={loadFailed}
         error={error}
+        stale={stale}
         onRetry={reload}
       />
       {settings && (

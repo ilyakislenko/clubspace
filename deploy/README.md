@@ -641,6 +641,20 @@ the one the policy was built from — for example a server whose `ROOT_URL` is
 not `NEXT_PUBLIC_API_URL`, or a CDN in front of storage that is not in
 `S3_ACCELERATE_URL`. Fix the address rather than widening the policy.
 
+**`ROOT_URL` and `NEXT_PUBLIC_API_URL` must name the same origin.** The server
+hands out HLS playlist URLs under its `ROOT_URL` (runtime), the admin and app
+allow media only from the API address baked into their bundle at build. If
+they differ, video preview silently fails in the browser while every container
+looks healthy. Compose derives both from `DOMAIN` / `PUBLIC_PORT_SUFFIX`, so
+never set either one on its own; the way to get them apart is to change
+`DOMAIN` and restart without rebuilding `admin` and `client`. Two checks catch
+it (`check_api_origin` in `deploy/lib/common.sh`: the server container's
+`ROOT_URL` against the `media-src` the running `admin` and `client` send):
+`update.sh` rolls the update back on a mismatch, and `healthcheck.sh` alerts
+(`api-origin`) within five minutes of a manual `up`. The message names both
+addresses and the fix: `docker compose -f docker-compose.prod.yml --env-file
+.env.production up -d --build admin client`.
+
 ## Verify
 
 ```bash
@@ -792,7 +806,8 @@ to S3, runs the one-off data migrations from `apps/server/scripts/` **only when
 the database still has the shape they migrate from** (detected per script —
 e.g. `WorkspaceBilling.planId` still present), runs `prisma db push` with the
 new image, switches containers and smoke-checks: server healthy and `/healthz`
-inside the container, worker and web apps running without restarts. Any
+inside the container, worker and web apps running without restarts, and the
+web apps' policy allowing the server's `ROOT_URL` (see Content-Security-Policy). Any
 failure puts the previous images and checkout back and alerts; success alerts
 too. Downtime is the seconds each container takes to restart (longer when a
 data migration has to stop the apps first).
@@ -1227,7 +1242,8 @@ next code and, while mail is down, answers with an explicit "почта врем
 `clubspace-healthcheck`, installed by `bootstrap.sh`) and alerts to Telegram
 and/or e-mail — no paid service: public `/healthz` (and, when it fails, whether
 the server container itself still answers), `/readyz` (database, Redis, SMTP),
-every compose service running and not unhealthy, disk usage of `/`, Docker's
+every compose service running and not unhealthy, the admin/app policy allowing
+the server's `ROOT_URL` (`api-origin`, video preview), disk usage of `/`, Docker's
 data dir and `BACKUP_DIR` (`ALERT_DISK_PERCENT`, 85), age of the last S3 backup
 (`ALERT_BACKUP_MAX_AGE_HOURS`, 30), the local backup failure markers, and the
 TLS certificates of all five names (`ALERT_CERT_MIN_DAYS`, 14). A failing check

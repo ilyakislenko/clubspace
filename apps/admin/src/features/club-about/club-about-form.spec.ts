@@ -4,6 +4,7 @@ import {
   validateClubAboutDraft,
   type ClubAboutDraft,
 } from "./club-about-form"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 
 const ok: ClubAboutDraft = {
   contacts: [{ label: "Главный тренер", phone: "8-952-884-94-20" }],
@@ -79,11 +80,13 @@ describe("validateClubAboutDraft", () => {
   })
 
   it("enforces the item and length limits", () => {
-    const many = Array.from({ length: 11 }, () => ok.contacts[0])
+    const { contacts, rules } = FORM_LIMITS.clubAbout
+    const many = Array.from({ length: contacts.max + 1 }, () => ok.contacts[0])
     expect(validateClubAboutDraft({ ...ok, contacts: many })).toMatch(/не больше/)
-    expect(validateClubAboutDraft({ ...ok, rules: "a".repeat(10001) })).toMatch(
-      /10000/,
-    )
+    expect(validateClubAboutDraft({ ...ok, rules: "a".repeat(rules.max) })).toBeNull()
+    expect(
+      validateClubAboutDraft({ ...ok, rules: "a".repeat(rules.max + 1) }),
+    ).toMatch(/Правила/)
   })
 })
 

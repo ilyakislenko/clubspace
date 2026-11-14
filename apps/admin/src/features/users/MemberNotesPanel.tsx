@@ -5,6 +5,7 @@ import { useState } from "react"
 import { Button } from "@clubspace/ui-kit/ui"
 
 import { updateMemberNotes } from "../../shared/api/members"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 import { useVocabulary } from "../../shared/lib/vocabulary"
@@ -60,7 +61,7 @@ export function MemberNotesPanel({
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={4}
-        maxLength={5000}
+        maxLength={FORM_LIMITS.memberNotes.notes.max}
         placeholder="Например: восстанавливается после травмы колена; хочет выступать весной."
         className="mt-3 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
       />

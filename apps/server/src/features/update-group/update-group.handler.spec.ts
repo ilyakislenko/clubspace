@@ -2,20 +2,33 @@ import {
     BadRequestError,
     ForbiddenError,
     NotFoundError,
+    StaleUpdateError,
 } from '../../shared/errors/shared.errors'
 import { UpdateGroupFeature } from './update-group.feature'
 import { UpdateGroupHandler } from './update-group.handler'
 
 const OWNER = 'owner-1'
+// The group's current version in the mocked database.
+const STORED_AT = new Date('2026-11-14T10:00:00.000Z')
 
 const build = (membership: unknown, access = 'admin', denyDirection = false) => {
     const tx = {
         group: {
+            // The compare-and-set: matches only the stored version.
+            updateMany: jest.fn(
+                async (args: { where: { updatedAt: Date } }) => ({
+                    count:
+                        args.where.updatedAt.getTime() === STORED_AT.getTime()
+                            ? 1
+                            : 0,
+                }),
+            ),
             update: jest.fn().mockResolvedValue({
                 id: 'g1',
                 name: 'Kids',
                 gymId: 'gym1',
                 coachId: OWNER,
+                updatedAt: new Date('2026-11-14T11:00:00.000Z'),
             }),
         },
         groupCoach: {
@@ -134,5 +147,48 @@ describe('updateGroup direction move', () => {
             new UpdateGroupFeature({ name: 'BJJ утро' }, 'w1', 'g1', 'm1', 'coach', false),
         )
         expect(rbac.assertCanManageDirection).not.toHaveBeenCalled()
+    })
+})
+
+describe('updateGroup optimistic concurrency', () => {
+    const rename = (handler: UpdateGroupHandler, expectedUpdatedAt?: string) =>
+        handler.execute(
+            new UpdateGroupFeature(
+                { name: 'BJJ вечер', expectedUpdatedAt },
+                'w1',
+                'g1',
+                'admin1',
+                'admin',
+                false,
+            ),
+        )
+
+    it('refuses a form that read an older version with 409, writing nothing', async () => {
+        const { handler, tx } = build(null)
+        const err = await rename(handler, '2026-11-14T09:59:59.999Z').catch(
+            (e: unknown) => e,
+        )
+        expect(err).toBeInstanceOf(StaleUpdateError)
+        expect((err as StaleUpdateError).statusCode).toBe(409)
+        expect(tx.group.update).not.toHaveBeenCalled()
+    })
+
+    it('saves a form that read the current version and returns the new one', async () => {
+        const { handler, tx } = build(null)
+        const out = await rename(handler, STORED_AT.toISOString())
+        expect(tx.group.updateMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: 'g1', updatedAt: STORED_AT },
+            }),
+        )
+        expect(tx.group.update).toHaveBeenCalled()
+        expect(out.updatedAt).toBe('2026-11-14T11:00:00.000Z')
+    })
+
+    it('keeps last-write-wins when the version is omitted', async () => {
+        const { handler, tx } = build(null)
+        await rename(handler)
+        expect(tx.group.updateMany).not.toHaveBeenCalled()
+        expect(tx.group.update).toHaveBeenCalled()
     })
 })

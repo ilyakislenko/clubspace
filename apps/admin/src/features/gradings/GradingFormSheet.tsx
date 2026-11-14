@@ -22,12 +22,15 @@ import {
 import { createRankGrading } from "../../shared/api/gradings"
 import type { Gym } from "../../shared/api/groups"
 import type { RankLadder } from "../../shared/api/ranks"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { confirmLeave, sameData, useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 
 // Radix Select has no empty value: this stands for «зал не указан».
 const NO_GYM = "none"
+
+const L = FORM_LIMITS.grading
 
 type Props = {
   workspaceId: string
@@ -89,9 +92,9 @@ export function GradingFormSheet({
     if (!date || !ladderId) return
     let feeAmount: number | undefined
     if (fee.trim()) {
-      const parsed = parseIntInput(fee, { min: 0, max: 10_000_000 })
+      const parsed = parseIntInput(fee, L.feeAmount)
       if (parsed === null) {
-        setError("Взнос — целое число")
+        setError(`Взнос — целое число до ${L.feeAmount.max.toLocaleString("ru-RU")}`)
         return
       }
       feeAmount = parsed
@@ -163,7 +166,7 @@ export function GradingFormSheet({
             <Label htmlFor="grading-title">Название (необязательно)</Label>
             <Input
               id="grading-title"
-              maxLength={255}
+              maxLength={L.title.max}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Например: Весенняя аттестация"
@@ -204,7 +207,7 @@ export function GradingFormSheet({
                 <Label htmlFor="grading-currency">Валюта</Label>
                 <Input
                   id="grading-currency"
-                  maxLength={3}
+                  maxLength={L.feeCurrency.max}
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value.toUpperCase())}
                 />

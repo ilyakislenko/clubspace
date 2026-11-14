@@ -1,32 +1,38 @@
 import type { ApiTypes } from "@clubspace/api-client"
 
 import { getApiClient } from "./client"
+import { cachedRead, invalidateReads } from "./read-cache"
 
 export type CategoryResponse =
   ApiTypes.ListCategoriesOutputOutput["data"][number]
 
 export type CategoryPayload = ApiTypes.CreateCategoryInput
 
-export const listCategories = async (params: {
+// The content page and its video list ask at once: shared while in flight,
+// never kept.
+export const listCategories = (params: {
   workspaceId: string
   parentId?: string | null
-}) => {
-  return await getApiClient().request<{ data: CategoryResponse[] }, undefined>({
-    method: "get",
-    url: `/workspaces/${params.workspaceId}/categories`,
-    params: { parentId: params.parentId ?? undefined },
-  })
-}
+}) =>
+  cachedRead(`categories:${params.workspaceId}:${params.parentId ?? ""}`, () =>
+    getApiClient().request<{ data: CategoryResponse[] }, undefined>({
+      method: "get",
+      url: `/workspaces/${params.workspaceId}/categories`,
+      params: { parentId: params.parentId ?? undefined },
+    }),
+  )
 
 export const createCategory = async (params: {
   workspaceId: string
   data: CategoryPayload
 }) => {
-  return await getApiClient().request<CategoryResponse, CategoryPayload>({
+  const category = await getApiClient().request<CategoryResponse, CategoryPayload>({
     method: "post",
     url: `/workspaces/${params.workspaceId}/categories`,
     data: params.data,
   })
+  invalidateReads(`categories:${params.workspaceId}`)
+  return category
 }
 
 export const updateCategory = async (params: {
@@ -34,19 +40,26 @@ export const updateCategory = async (params: {
   categoryId: string
   data: Partial<CategoryPayload>
 }) => {
-  return await getApiClient().request<CategoryResponse, Partial<CategoryPayload>>({
+  const category = await getApiClient().request<
+    CategoryResponse,
+    Partial<CategoryPayload>
+  >({
     method: "patch",
     url: `/workspaces/${params.workspaceId}/categories/${params.categoryId}`,
     data: params.data,
   })
+  invalidateReads(`categories:${params.workspaceId}`)
+  return category
 }
 
 export const deleteCategory = async (params: {
   workspaceId: string
   categoryId: string
 }) => {
-  return await getApiClient().request<{ status: "deleted" }, undefined>({
+  const result = await getApiClient().request<{ status: "deleted" }, undefined>({
     method: "delete",
     url: `/workspaces/${params.workspaceId}/categories/${params.categoryId}`,
   })
+  invalidateReads(`categories:${params.workspaceId}`)
+  return result
 }

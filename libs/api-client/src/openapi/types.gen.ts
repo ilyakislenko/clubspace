@@ -2809,6 +2809,7 @@ export type GetGroupOutputOutput = {
         untilDate: string;
         reason: string | null;
     }>;
+    updatedAt: string;
     canEdit: boolean;
 };
 
@@ -2874,6 +2875,10 @@ export type UpdateGroupBody = {
     capacity?: number | null;
     bookingWindowDays?: number | null;
     bookingCancelHours?: number | null;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdateGroupOutputOutput = {
@@ -2886,6 +2891,7 @@ export type UpdateGroupOutputOutput = {
     capacity: number | null;
     bookingWindowDays: number | null;
     bookingCancelHours: number | null;
+    updatedAt: string;
 };
 
 export type DeleteGroupOutputOutput = {
@@ -2981,6 +2987,7 @@ export type GetWorkspaceSettingsOutputOutput = {
         enabled: boolean;
         until: string | null;
     }>;
+    updatedAt: string;
 };
 
 export type UpdateWorkspaceSettingsBody = {
@@ -3004,6 +3011,10 @@ export type UpdateWorkspaceSettingsBody = {
     bookingCancelHours?: number;
     bookingLateCancelBurn?: boolean;
     bookingNoShowBurn?: boolean;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdateWorkspaceSettingsOutputOutput = {
@@ -3034,6 +3045,7 @@ export type UpdateWorkspaceSettingsOutputOutput = {
         enabled: boolean;
         until: string | null;
     }>;
+    updatedAt: string;
 };
 
 export type RemoveWorkspaceMemberOutputOutput = {
@@ -4187,6 +4199,10 @@ export type UpdateClubAboutInput = {
         url: string;
     }>;
     rules: string | null;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdateClubAboutOutputDtoOutput = {
@@ -4200,6 +4216,7 @@ export type UpdateClubAboutOutputDtoOutput = {
     }>;
     rules: string | null;
     updatedAt: string | null;
+    clubUpdatedAt: string;
 };
 
 export type ClubPublicProfileOutputDtoOutput = {
@@ -4211,6 +4228,7 @@ export type ClubPublicProfileOutputDtoOutput = {
     isListed: boolean;
     pageUrl: string | null;
     joinPageUrl: string | null;
+    updatedAt: string;
 };
 
 export type UpdateClubPublicProfileInput = {
@@ -4219,6 +4237,10 @@ export type UpdateClubPublicProfileInput = {
     description: string | null;
     logoKey: string | null;
     isListed: boolean;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdateClubPublicProfileOutputDtoOutput = {
@@ -4230,6 +4252,7 @@ export type UpdateClubPublicProfileOutputDtoOutput = {
     isListed: boolean;
     pageUrl: string | null;
     joinPageUrl: string | null;
+    updatedAt: string;
 };
 
 export type CreateClubLogoUploadInput = {
@@ -5542,6 +5565,7 @@ export type PlanOutputDtoOutput = {
         color: string | null;
         icon: string | null;
     }>;
+    updatedAt: string;
 };
 
 export type ListPlansOutputOutput = {
@@ -5564,6 +5588,7 @@ export type ListPlansOutputOutput = {
             color: string | null;
             icon: string | null;
         }>;
+        updatedAt: string;
     }>;
 };
 
@@ -5587,6 +5612,7 @@ export type GetPlanOutputOutput = {
             color: string | null;
             icon: string | null;
         }>;
+        updatedAt: string;
     };
     holders: Array<{
         subscriptionId: string;
@@ -5620,6 +5646,10 @@ export type UpdatePlanInput = {
     isActive?: boolean;
     purchasableOnline?: boolean;
     directionIds?: Array<string>;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdatePlanOutputOutput = {
@@ -5641,6 +5671,7 @@ export type UpdatePlanOutputOutput = {
         color: string | null;
         icon: string | null;
     }>;
+    updatedAt: string;
 };
 
 export type DeletePlanOutputOutput = {
@@ -6936,6 +6967,10 @@ export type UpdateAnnouncementInput = {
     groupIds?: Array<string>;
     publish?: boolean;
     publishAt?: string;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdateAnnouncementOutputOutput = {

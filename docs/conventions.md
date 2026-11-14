@@ -192,7 +192,9 @@ fails the build. Raise the floor in the same commit that adds the tests.
 Run **all** of these and commit their output in the same PR, or CI ("OpenAPI spec in sync" +
 typecheck) fails:
 1. `npx nx run @clubspace/server:open-api:generate` → commit `open-api.json` (headless, no DB).
-2. `npx nx run @clubspace/api-client:types:generate` → commit `libs/api-client/src/openapi/{index.ts,types.gen.ts}`.
+2. `npx nx run @clubspace/api-client:types:generate` → commit `libs/api-client/src/openapi/`
+   (`index.ts`, `types.gen.ts`, and `schemas/schemas.gen.ts` — the request-body JSON schemas,
+   second step of the target, config `libs/api-client/openapi-ts.config.ts`).
 3. Rebuild the dist so the apps typecheck locally: `npx tsc -p libs/api-client/tsconfig.lib.json`.
 - The admin `apps/admin/src/shared/sdk/` axios SDK is **dead/stale — do not regenerate it.**
   Consume the contract via hand-written `shared/api/*.ts` wrappers (§3/§4).
@@ -218,6 +220,21 @@ Reference wrapper: `apps/admin/src/shared/api/events.ts`.
   ```
   Signature: `getApiClient().request<TResponse, TBody>({ method, url, params, data })`.
   Derive types from `ApiTypes.*` (never redefine server shapes by hand).
+- **Reads many components ask for on one page** (account, club list, club settings and
+  billing, content tags/categories, the sidebar membership) go through
+  `cachedRead(key, load, ttlMs)` from `shared/api/read-cache.ts` inside the wrapper: callers
+  asking while it is in flight share one request. `ttlMs` > 0 keeps the answer, only for
+  session-stable data (`/me`, `get-my-workspaces`, `members/me`: 60 s); every write that changes
+  a read calls `invalidateReads("<key>")` right after its request (`updateWorkspaceSettings` →
+  `settings:<id>` + `workspaces`). Data a page reloads after a save or on a realtime signal
+  keeps ttl 0 (shared in flight, never kept). A sign-in/sign-out clears everything.
+- **Form limits** (length, min/max, item counts) come from the contract, never typed by hand:
+  `FORM_LIMITS.<form>.<field>` in `shared/lib/contract-limits.ts` reads them from
+  `@clubspace/api-client/schemas`. Feed the check (`parseIntInput(raw, L.price)`), the error
+  text (`от ${L.days.min} до ${L.days.max}`) and the `maxLength` attribute from it. A new field
+  lists every body it is sent in (create + update); `contract-limits.spec.ts` fails when they
+  disagree. Rules the contract can't carry (zod `refine`, e.g. the slug pattern) stay in the
+  form with a comment naming the server rule.
 - **Pages** are `"use client"`, `useState`/`useEffect` (no react-query), `useParams()` for ids.
   UI from `@clubspace/ui-kit/ui` (`Button`, `Select`, …). Errors via `errorMessage(e, "…")`
   from `shared/lib/error-message`. Tailwind with tokens: `border`, `muted-foreground`, `card`,

@@ -74,6 +74,21 @@ export class ConflictError extends DefaultError {
     }
 }
 
+// Optimistic concurrency (shared/utils/optimistic-concurrency.ts): the row
+// changed after the client read it, so its edit was refused rather than
+// silently overwriting someone else's. The code lets a form keep the draft and
+// offer to reload.
+export class StaleUpdateError extends DefaultError {
+    constructor() {
+        super({
+            message:
+                'Данные изменил другой пользователь. Обновите страницу — ваши правки не сохранены.',
+            code: 'STALE_UPDATE',
+            statusCode: 409,
+        })
+    }
+}
+
 export class UserBlockedError extends DefaultError {
     constructor() {
         super({

@@ -5,6 +5,7 @@ import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { claimUnchanged } from '../../shared/utils/optimistic-concurrency'
 import { announceToWorkspace, isTargeted, showInOpenFeeds } from './notify'
 import { ANNOUNCEMENT_INCLUDE, serializeAnnouncement } from './schemas'
 import {
@@ -81,25 +82,37 @@ export class UpdateAnnouncementHandler
                     ? (existing.publishedAt ?? new Date())
                     : null
 
-        const updated = await this.prisma.announcement.update({
-            where: { id: f.announcementId },
-            data: {
-                ...(p.title !== undefined ? { title: p.title } : {}),
-                ...(p.body !== undefined ? { body: p.body } : {}),
-                ...(p.pinned !== undefined ? { pinned: p.pinned } : {}),
-                ...(p.audience !== undefined ? { audience: p.audience } : {}),
-                ...(retarget
-                    ? {
-                          directionId,
-                          groups: {
-                              deleteMany: {},
-                              create: groupIds.map((groupId) => ({ groupId })),
-                          },
-                      }
-                    : {}),
-                ...(publishedAt !== undefined ? { publishedAt } : {}),
-            },
-            include: ANNOUNCEMENT_INCLUDE,
+        const updated = await this.prisma.$transaction(async (tx) => {
+            await claimUnchanged(p.expectedUpdatedAt, (expected) =>
+                tx.announcement.updateMany({
+                    where: { id: f.announcementId, updatedAt: expected },
+                    data: { updatedAt: new Date() },
+                }),
+            )
+            return tx.announcement.update({
+                where: { id: f.announcementId },
+                data: {
+                    ...(p.title !== undefined ? { title: p.title } : {}),
+                    ...(p.body !== undefined ? { body: p.body } : {}),
+                    ...(p.pinned !== undefined ? { pinned: p.pinned } : {}),
+                    ...(p.audience !== undefined
+                        ? { audience: p.audience }
+                        : {}),
+                    ...(retarget
+                        ? {
+                              directionId,
+                              groups: {
+                                  deleteMany: {},
+                                  create: groupIds.map((groupId) => ({
+                                      groupId,
+                                  })),
+                              },
+                          }
+                        : {}),
+                    ...(publishedAt !== undefined ? { publishedAt } : {}),
+                },
+                include: ANNOUNCEMENT_INCLUDE,
+            })
         })
 
         const serialized = serializeAnnouncement(updated)

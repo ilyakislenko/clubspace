@@ -12,6 +12,7 @@ import {
   type MemberAbonement,
   type MemberSubscriptions,
 } from "../../shared/api/subscriptions"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
 import { pluralRu } from "../../shared/lib/plural-ru"
@@ -235,7 +236,7 @@ export function SubscriptionFreezeBlock({
                 className={`${inputClsFull} min-h-20`}
                 aria-label="Комментарий к отказу (увидит участник)"
                 placeholder="Комментарий (увидит участник)"
-                maxLength={500}
+                maxLength={FORM_LIMITS.freeze.declineComment.max}
                 value={declineComment}
                 onChange={(e) => setDeclineComment(e.target.value)}
               />

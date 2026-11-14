@@ -27,10 +27,13 @@ import {
   type AchievementMetric,
 } from "../../shared/api/achievements"
 import type { Direction } from "../../shared/api/directions"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { DirectionSelect } from "../directions/DirectionSelect"
+
+const L = FORM_LIMITS.achievement
 
 type Props = {
   workspaceId: string
@@ -73,12 +76,14 @@ export function AchievementFormSheet({
     setError("")
   }, [open, achievement])
 
-  const parsedThreshold = parseIntInput(threshold, { min: 1, max: 100000 })
+  const parsedThreshold = parseIntInput(threshold, L.threshold)
 
   const handleSubmit = async () => {
     if (!name.trim()) return
     if (parsedThreshold === null) {
-      setError("Порог — целое число от 1")
+      setError(
+        `Порог — целое число от ${L.threshold.min} до ${L.threshold.max.toLocaleString("ru-RU")}`,
+      )
       return
     }
     setSaving(true)
@@ -125,7 +130,7 @@ export function AchievementFormSheet({
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
                 placeholder="🥋"
-                maxLength={8}
+                maxLength={L.icon.max}
                 className="text-center text-lg"
               />
             </div>
@@ -136,6 +141,7 @@ export function AchievementFormSheet({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Например: Железная дисциплина"
+                maxLength={L.name.max}
               />
             </div>
           </div>
@@ -174,6 +180,7 @@ export function AchievementFormSheet({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Короткая подпись под бейджем"
+              maxLength={L.description.max}
             />
           </div>
 

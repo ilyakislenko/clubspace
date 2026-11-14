@@ -16,6 +16,7 @@ import {
   listWorkspaceMembers,
   type WorkspaceMember,
 } from "../../shared/api/members"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { useWorkspaceRealtime } from "../../shared/realtime/useWorkspaceRealtime"
@@ -182,7 +183,7 @@ export function ClassBookingPanel({
   }
 
   const parsedCapacity = capacityDraft.trim()
-    ? parseIntInput(capacityDraft, { min: 1, max: 1000 })
+    ? parseIntInput(capacityDraft, FORM_LIMITS.classCapacity.capacity)
     : null
   const capacityInvalid = capacityDraft.trim() !== "" && parsedCapacity === null
 

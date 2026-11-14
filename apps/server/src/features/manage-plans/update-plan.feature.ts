@@ -1,12 +1,13 @@
 import { z } from 'zod'
 
+import { ExpectedUpdatedAtField } from '../../shared/utils/optimistic-concurrency'
 import { PlanOutputSchema } from './schemas'
 
 export const UpdatePlanInputSchema = z
     .object({
         name: z.string().trim().min(1).max(255).optional(),
         description: z.string().trim().max(5000).nullable().optional(),
-        price: z.number().int().min(0).optional(),
+        price: z.number().int().min(0).max(100_000_000).optional(),
         currency: z.string().trim().length(3).optional(),
         durationDays: z.number().int().positive().max(3650).optional(),
         classCount: z.number().int().positive().max(1000).nullable().optional(),
@@ -17,10 +18,13 @@ export const UpdatePlanInputSchema = z
         // Replaces the whole scope. Abonements already sold keep the scope
         // they were sold with (snapshot).
         directionIds: z.array(z.string().uuid()).max(50).optional(),
+        ...ExpectedUpdatedAtField,
     })
-    .refine((v) => Object.keys(v).length > 0, {
-        message: 'Нужно заполнить хотя бы одно поле',
-    })
+    .refine(
+        ({ expectedUpdatedAt: _version, ...fields }) =>
+            Object.keys(fields).length > 0,
+        { message: 'Нужно заполнить хотя бы одно поле' },
+    )
 export const UpdatePlanOutputSchema = PlanOutputSchema
 
 export class UpdatePlanFeature {

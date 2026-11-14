@@ -1,10 +1,14 @@
 import {
     BadRequestError,
     ForbiddenError,
+    StaleUpdateError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { UpdateWorkspaceSettingsFeature } from './update-workspace-settings.feature'
 import { UpdateWorkspaceSettingsHandler } from './update-workspace-settings.handler'
+
+// The club row's current version in the mocked database.
+const STORED_AT = new Date('2026-11-14T10:00:00.000Z')
 
 const settingsRow = {
     id: 'w1',
@@ -24,16 +28,24 @@ const settingsRow = {
     videosEnabled: true,
     achievementsEnabled: true,
     journalEnabled: true,
+    updatedAt: new Date('2026-11-14T11:00:00.000Z'),
 }
 
 type LockRow = { feature: string; enabled: boolean; until: Date | null }
 
 const build = (locks: LockRow[] = []) => {
     const update = jest.fn().mockResolvedValue(settingsRow)
+    // The compare-and-set: matches only the stored version.
+    const updateMany = jest.fn(
+        async (args: { where: { updatedAt: Date } }) => ({
+            count: args.where.updatedAt.getTime() === STORED_AT.getTime() ? 1 : 0,
+        }),
+    )
     const record = jest.fn().mockResolvedValue(undefined)
-    const prisma = {
+    const prisma: Record<string, unknown> = {
         workspace: {
             update,
+            updateMany,
             findUnique: jest.fn().mockResolvedValue({
                 ownerId: 'owner',
                 coachSeesAllGroups: false,
@@ -43,12 +55,15 @@ const build = (locks: LockRow[] = []) => {
             findMany: jest.fn().mockResolvedValue(locks),
         },
     }
+    prisma.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) =>
+        fn(prisma),
+    )
     const handler = new UpdateWorkspaceSettingsHandler(
         prisma as never,
         new RbacService(prisma as never),
         { record } as never,
     )
-    return { handler, update, record }
+    return { handler, update, updateMany, record }
 }
 
 const run = (
@@ -221,6 +236,42 @@ describe('updateWorkspaceSettings', () => {
                 { feature: 'events', enabled: true, until: new Date(Date.now() - 1000) },
             ])
             await run(handler, { eventsEnabled: false })
+            expect(update).toHaveBeenCalled()
+        })
+    })
+
+    describe('optimistic concurrency', () => {
+        it('refuses a form that read an older version with 409, writing nothing', async () => {
+            const { handler, update, record } = build()
+            const err = await run(handler, {
+                coachSeesAllGroups: true,
+                expectedUpdatedAt: '2026-11-14T09:00:00.000Z',
+            }).catch((e: unknown) => e)
+            expect(err).toBeInstanceOf(StaleUpdateError)
+            expect((err as StaleUpdateError).statusCode).toBe(409)
+            expect(update).not.toHaveBeenCalled()
+            expect(record).not.toHaveBeenCalled()
+        })
+
+        it('saves a form that read the current version and returns the new one', async () => {
+            const { handler, update, updateMany } = build()
+            const out = await run(handler, {
+                coachSeesAllGroups: true,
+                expectedUpdatedAt: STORED_AT.toISOString(),
+            })
+            expect(updateMany.mock.calls[0][0].where).toEqual({
+                id: 'w1',
+                updatedAt: STORED_AT,
+            })
+            // The version is not a column to write.
+            expect(update.mock.calls[0][0].data).toEqual({ coachSeesAllGroups: true })
+            expect(out.updatedAt).toBe('2026-11-14T11:00:00.000Z')
+        })
+
+        it('keeps last-write-wins when the version is omitted', async () => {
+            const { handler, update, updateMany } = build()
+            await run(handler, { coachSeesAllGroups: true })
+            expect(updateMany).not.toHaveBeenCalled()
             expect(update).toHaveBeenCalled()
         })
     })

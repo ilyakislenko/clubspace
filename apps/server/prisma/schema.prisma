@@ -2162,6 +2162,10 @@ model Plan {
   courseAudiences CourseAudience[]
   payments      Payment[]
 
+  // The edit form's version (optimistic concurrency, admin cleanup F10). The
+  // default backfills existing rows on `db push`.
+  updatedAt DateTime @default(now()) @updatedAt
+
   @@index([workspaceId])
 }
 

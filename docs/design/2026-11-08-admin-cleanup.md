@@ -1,6 +1,7 @@
 # Admin cleanup: roles, single sources of truth, navigation, stability
 
-Status: **proposed** · 2026-11-08 · base: `feat/launch-readiness` @ `6dffabfd`
+Status: **implemented** on `feat/admin-cleanup` (waves 1–6, 2026-11-14; section 9 backlog not part
+of it) · 2026-11-08 · base: `feat/launch-readiness` @ `6dffabfd`
 Evidence: [UX/duplication audit](2026-11-08-admin-audit-ux.md) (RU) and
 [stability/depth audit](2026-11-08-admin-audit-stability.md) (EN). File:line references are as of
 `6dffabfd`; screenshot paths in the audits (`/tmp/admin-audit/…`) are machine-local and may be gone —
@@ -871,6 +872,104 @@ Apply the UI rules to each page. Concrete targets (evidence in the UX audit, sec
   demo club (8 scopes: club, group, direction, head coach, direction manager; coaches club,
   direction, group) byte-identical, on two different snapshots.
 
+**Decisions (wave 6).**
+- F9 source: the hey-api `@hey-api/schemas` plugin (built into `@hey-api/openapi-ts`, locked
+  at 0.92.3) — second step of `nx types:generate` (`libs/api-client/openapi-ts.config.ts`, a separate
+  run because jobs run concurrently and the types job cleans the folder) emits the JSON schemas
+  of the 159 request bodies (`/(Input|InputDto|Body)$/`, 125 KB) to
+  `libs/api-client/src/openapi/schemas/schemas.gen.ts`, inside the existing drift gate. Imported
+  as `@clubspace/api-client/schemas` (tsconfig path + package export), not via the root index,
+  so mobile never sees it. Not the zod plugin: 860 KB of `z.object()` calls do not tree-shake
+  and its English messages would need wrapping anyway; plain `as const` literals do — the admin
+  build keeps 38 schema objects in one chunk, 3.5 KB gzipped.
+- `apps/admin/src/shared/lib/contract-limits.ts`: `FORM_LIMITS.<form>.<field>` = `{ min, max }`
+  read from the bodies the field is sent in (create + update, freeze + approve); the strictest
+  wins. `exclusiveMinimum` is read in both the 3.0 (`true` + `minimum`) and the 3.1 (number,
+  nullable zod fields) form. A field the contract does not bound throws — the spec catches it.
+  Field names are type-checked against the schema literals.
+- Drift test: `contract-limits.spec.ts`, one `it.each` over every `FORM_LIMITS` entry —
+  every body must give the same bound (edited `UpdatePlanInput.durationDays` max to 3000 →
+  `plan.durationDays` fails).
+- Covered forms: tariff, group, gym, event, announcement, direction, ladder, level, grading
+  (sheet + detail page), achievement, club profile (public page + «О клубе», logo size and
+  types from `CreateClubLogoUploadInput`), booking settings, slot / class capacity, freeze
+  (+ decline comment), sale and «Отметить оплату» amounts, member notes, call-list note, AI
+  chat question, AI token name, promote (stripes, note). Error texts are built from the limits;
+  `maxLength` was added to inputs that had none although the server limits them (gym, announcement, event
+  title/link/description, direction and achievement names). Grep (`maxLength={N}`,
+  `{ min: N, max: N }`, `.length > NN`, `MAX_* = N`, `min/max={N}` in `app/` + `features/`):
+  88 → 27; the rest is platform-owner screens, auth, billing help, calendar UI and the phone
+  digit rule.
+- Server change: tariff `price` max 100 000 000 on create and update (the admin already
+  capped it; the contract had no bound). Direction / achievement icon: the admin's 8 → the
+  contract's 16 (fits ZWJ emoji). Public slug minimum and pattern stay in the admin form — a
+  zod `refine` on the server, invisible to the contract.
+- F11: no TanStack Query — `apps/admin/src/shared/api/read-cache.ts` (`cachedRead`,
+  `peekCachedRead`, `invalidateReads`, ~70 lines, no dependency) inside the wrappers, so every
+  caller of `fetchMe`, `fetchWorkspaces`, `getWorkspaceSettings`, `getWorkspaceBilling`,
+  `listTags`, `listCategories` shares one request while it is in flight. Kept for 60 s only
+  where the data is session-stable: `/me`, `get-my-workspaces`, `members/me` (the membership hook,
+  whose own cache moved onto the helper). Settings, billing, tags and categories are never kept —
+  each mount still reads the server, so F10's `updatedAt` is never stale. Writes drop what they
+  change: settings PATCH → that club's settings + the club list (app sections), billing writes →
+  billing (a module also settings + list), `updateMe` → `/me`, tag/category writes → their list,
+  self-serve club creation and the platform console's club/feature/module writes → the club
+  list; sign-in/sign-out clears all and a late answer of the previous account is dropped.
+  Realtime-driven reloads read uncached endpoints; the only cached read on a realtime path is
+  `/me` for the viewer's id. Known delay: an app section switched by another admin reaches this
+  tab's sidebar within 60 s (it was the next navigation).
+- F11 measured (owner, demo club, production build vs API :3153, Playwright, full page load /
+  sidebar navigation): dashboard 16 → 14 calls (duplicates 2 → 0), users 9 → 9, schedule 12 → 11
+  (1 → 0), content 13 → 11 (2 → 0), settings 10 → 9 (1 → 0), retention 11 → 11; zero duplicate
+  requests per load. Sidebar navigation: bootstrap calls per page change 1–3 → 0 (settings page
+  keeps its own fresh settings read); the dashboard re-entry made 10 calls, now 7. A load still
+  makes 7 distinct bootstrap calls (refresh-token, consent, `/me`, club list, membership,
+  settings, billing) — each a different answer, none repeated.
+- F12: prod already derives `ROOT_URL` and the admin/app `NEXT_PUBLIC_API_URL` from `DOMAIN` in
+  `docker-compose.prod.yml`; what can still split them is a web image built for another
+  address (a `DOMAIN` change restarted without `build admin client`) or a hand edit. Check, not a
+  second derivation: `check_api_origin` (`deploy/lib/common.sh`) compares the running server's
+  `ROOT_URL` origin with the `media-src` the running `admin` and `client` send. `update.sh`
+  rolls back on a mismatch (after the smoke check); `healthcheck.sh` alerts as `api-origin`.
+  Documented in `deploy/README.md` (Content-Security-Policy, Updates, Monitoring) and
+  `.env.example` (local: both on the same origin, e.g. the LAN IP).
+- F10 contract: update inputs of group (`PATCH groups/:id`), tariff (`PATCH plans/:id`), club
+  settings (`PATCH settings`), announcement (`PATCH announcements/:id`) and the club profile
+  parts that share the club row — public page (`PUT public-profile`) and «О клубе»
+  (`PUT about`) — take optional `expectedUpdatedAt` (ISO, the `updatedAt` of the last read).
+  Different from the row → 409 `STALE_UPDATE` (`StaleUpdateError` in `shared/errors`, a new code
+  next to the generic `CONFLICT`, so a form can tell it apart): «Данные изменил другой
+  пользователь. Обновите страницу — ваши правки не сохранены.» Omitted = last write wins as
+  before (mobile, MCP, AI tools, row toggles).
+- Atomic compare-and-set, not read-then-write: `claimUnchanged`
+  (`shared/utils/optimistic-concurrency.ts`) runs `updateMany where { id, updatedAt: expected }`
+  bumping the version, count 0 → 409, inside the same `$transaction` as the real update (the row
+  lock holds to commit, so the second writer with the same timestamp matches nothing). Kept as a
+  separate claim so nested writes (tariff directions, announcement groups, group coaches, the
+  public slug) stay as they were. Proven on a real API: two simultaneous saves with the same fresh
+  timestamp → exactly one 200, one 409, for all six endpoints.
+- Versions: group card (`GET groups/:id`) and tariff (list, card, writes) gained `updatedAt`;
+  announcements already had it. Settings GET/PATCH and public page GET/PUT expose the club row's
+  `updatedAt` (one version for settings, public page and time zone — they are one row). «О клубе»
+  is checked against its own `aboutUpdatedAt` (its read's `updatedAt`); its PUT also returns
+  `clubUpdatedAt`, so the profile form's later parts carry the row version forward. «О клубе»
+  never saved (`updatedAt` null) sends no version — that first save is unchecked.
+- Schema: `Plan.updatedAt DateTime @default(now()) @updatedAt` (it had no timestamps). Deploy:
+  plain `db push`, existing tariffs backfill to the push time, no data loss, no `migrations()`
+  step. Side effect: settings, public page and «О клубе» bump the same club row, so a settings
+  toggle saved while another admin edits the public page makes that admin's save 409 (safe,
+  occasionally needless).
+- Admin: the forms send the version they opened with (captured at open, so a realtime reload
+  behind an open panel cannot hide someone else's save): group panel, tariff panel, announcement
+  panel, settings «Права тренеров и запись» / «Приложение учеников» (`useWorkspaceSettings`),
+  club profile (a ref carrying each part's new version to the next). A 409 keeps the draft and
+  shows `StaleUpdateNotice` (`shared/ui/stale-update-notice.tsx`) inline with «Обновить»: group
+  and tariff reload the record in place (form reset to it, next save uses the new version),
+  settings and club profile reload the section; announcements have no single read endpoint, so
+  «Обновить» closes the panel and reloads the list. Not versioned (no form, a deliberate single
+  click): tariff archive/restore and announcement pin/publish in list rows, «Принимать без
+  подтверждения» on the invite page.
+
 ## 7. Phasing and PR plan
 
 | PR | Scope | Depends on | Size |
@@ -925,3 +1024,9 @@ Checked in code (UX audit section 5, stability audit «Depth»). Recommended ord
 3. Which section-9 items go first (recommended: E1 → E6 → E3 → E2)?
 4. Remove the calendar «Год» view?
 5. Should a plain coach use the admin web at all, or only the mobile app?
+
+**Defaults taken while implementing (owner may overrule):** Q1 yes (head coach assigns abonements,
+records cash payments, handles freezes; no prices, refunds or payment keys). Q2 as written (live
+rules for membership, snapshot score and money). Q3: owner said «стартуй разработку» on 2026-11-14 →
+E1 → E6 → E3 → E2, each its own wave with review. Q4 removed (wave 5). Q5 the plain coach keeps the
+admin with four items (Сегодня, Расписание, Ученики, Удержание), scoped to own groups.

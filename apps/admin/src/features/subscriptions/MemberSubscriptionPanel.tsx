@@ -17,6 +17,7 @@ import {
   type Plan,
   type Subscription,
 } from "../../shared/api/subscriptions"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
 import { pluralRu } from "../../shared/lib/plural-ru"
@@ -35,7 +36,7 @@ import {
   openFreezeOf,
   todayYmd,
 } from "./freeze-utils"
-import { MarkPaidForm, MAX_PAYMENT } from "./MarkPaidForm"
+import { MarkPaidForm } from "./MarkPaidForm"
 import {
   lastPaymentMethod,
   rememberPaymentMethod,
@@ -53,6 +54,8 @@ import {
 import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { agree, countForm, fromFirstSession } from "@clubspace/ui-kit/brand"
+
+const SALE_AMOUNT = FORM_LIMITS.payment.saleAmount
 
 const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString("ru-RU") : "—"
@@ -113,7 +116,7 @@ export function MemberSubscriptionPanel({
     void load()
   }, [load])
 
-  const amount = parseIntInput(amountText, { min: 0, max: MAX_PAYMENT })
+  const amount = parseIntInput(amountText, SALE_AMOUNT)
 
   const choosePlan = (id: string) => {
     setPlanId(id)
@@ -444,7 +447,7 @@ export function MemberSubscriptionPanel({
           </Button>
           {planId && amount === null && (
             <p className="basis-full text-xs text-destructive">
-              Введите сумму от 0 до 10 000 000
+              Введите сумму от {SALE_AMOUNT.min} до {SALE_AMOUNT.max.toLocaleString("ru-RU")}
             </p>
           )}
           {selectedPlan?.startsOnFirstVisit && (

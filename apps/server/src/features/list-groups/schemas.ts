@@ -146,6 +146,8 @@ export const GroupDetailsSchema = GroupListRowSchema.extend({
     ...GroupBookingOutputFields,
     slots: z.array(SlotOutputSchema),
     exceptions: z.array(ExceptionOutputSchema),
+    // The version the edit form sends back as `expectedUpdatedAt`.
+    updatedAt: z.iso.datetime(),
 })
 
 const groupDetailsShape = {
@@ -179,6 +181,7 @@ export const serializeGroupDetails = (
     bookingCancelHours: group.bookingCancelHours,
     slots: group.slots.map(serializeSlot),
     exceptions: group.exceptions.map(serializeException),
+    updatedAt: group.updatedAt.toISOString(),
 })
 
 // Today in the club's time zone, as a @db.Date column compares (midnight UTC

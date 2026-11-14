@@ -7,6 +7,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { claimUnchanged } from '../../shared/utils/optimistic-concurrency'
 import {
     assertDirectionsInWorkspace,
     canSellOnline,
@@ -70,46 +71,57 @@ export class UpdatePlanHandler
                   )
                 : undefined
         // A new scope replaces the old set in the same write; abonements
-        // already sold keep their snapshot.
-        const plan = await this.prisma.plan.update({
-            where: { id: f.planId },
-            data: {
-                ...(p.name !== undefined ? { name: p.name } : {}),
-                ...(p.description !== undefined
-                    ? { description: p.description ?? null }
-                    : {}),
-                ...(p.price !== undefined ? { price: p.price } : {}),
-                ...(p.currency !== undefined
-                    ? { currency: p.currency.toUpperCase() }
-                    : {}),
-                ...(p.durationDays !== undefined
-                    ? { durationDays: p.durationDays }
-                    : {}),
-                ...(p.classCount !== undefined
-                    ? { classCount: p.classCount }
-                    : {}),
-                ...(p.isFreeTrial !== undefined
-                    ? { isFreeTrial: p.isFreeTrial }
-                    : {}),
-                ...(p.startsOnFirstVisit !== undefined
-                    ? { startsOnFirstVisit: p.startsOnFirstVisit }
-                    : {}),
-                ...(p.isActive !== undefined ? { isActive: p.isActive } : {}),
-                ...(p.purchasableOnline !== undefined
-                    ? { purchasableOnline: p.purchasableOnline }
-                    : {}),
-                ...(directionIds !== undefined
-                    ? {
-                          directions: {
-                              deleteMany: {},
-                              create: directionIds.map((directionId) => ({
-                                  directionId,
-                              })),
-                          },
-                      }
-                    : {}),
-            },
-            include: planDtoInclude,
+        // already sold keep their snapshot. A stale form is refused first, in
+        // the same transaction.
+        const plan = await this.prisma.$transaction(async (tx) => {
+            await claimUnchanged(p.expectedUpdatedAt, (expected) =>
+                tx.plan.updateMany({
+                    where: { id: f.planId, updatedAt: expected },
+                    data: { updatedAt: new Date() },
+                }),
+            )
+            return tx.plan.update({
+                where: { id: f.planId },
+                data: {
+                    ...(p.name !== undefined ? { name: p.name } : {}),
+                    ...(p.description !== undefined
+                        ? { description: p.description ?? null }
+                        : {}),
+                    ...(p.price !== undefined ? { price: p.price } : {}),
+                    ...(p.currency !== undefined
+                        ? { currency: p.currency.toUpperCase() }
+                        : {}),
+                    ...(p.durationDays !== undefined
+                        ? { durationDays: p.durationDays }
+                        : {}),
+                    ...(p.classCount !== undefined
+                        ? { classCount: p.classCount }
+                        : {}),
+                    ...(p.isFreeTrial !== undefined
+                        ? { isFreeTrial: p.isFreeTrial }
+                        : {}),
+                    ...(p.startsOnFirstVisit !== undefined
+                        ? { startsOnFirstVisit: p.startsOnFirstVisit }
+                        : {}),
+                    ...(p.isActive !== undefined
+                        ? { isActive: p.isActive }
+                        : {}),
+                    ...(p.purchasableOnline !== undefined
+                        ? { purchasableOnline: p.purchasableOnline }
+                        : {}),
+                    ...(directionIds !== undefined
+                        ? {
+                              directions: {
+                                  deleteMany: {},
+                                  create: directionIds.map((directionId) => ({
+                                      directionId,
+                                  })),
+                              },
+                          }
+                        : {}),
+                },
+                include: planDtoInclude,
+            })
         })
         return serializePlan(plan)
     }

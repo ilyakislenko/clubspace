@@ -19,7 +19,7 @@ import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
 export default function SettingsAccessPage() {
   const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
-  const { settings, loading, loadFailed, saving, error, save, reload } =
+  const { settings, loading, loadFailed, saving, error, stale, save, reload } =
     useWorkspaceSettings(params?.workspaceId)
 
   return (
@@ -29,6 +29,7 @@ export default function SettingsAccessPage() {
         loading={loading}
         loadFailed={loadFailed}
         error={error}
+        stale={stale}
         onRetry={reload}
       />
       {settings && (

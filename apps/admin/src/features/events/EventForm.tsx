@@ -24,6 +24,7 @@ import {
   updateEvent,
   type WorkspaceEvent,
 } from "../../shared/api/events"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { pluralRu } from "../../shared/lib/plural-ru"
@@ -37,6 +38,8 @@ import { TimezoneSelect } from "../settings/TimezoneSelect"
 import { shiftEndWithStart } from "./event-time"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { cap } from "@clubspace/ui-kit/brand"
+
+const L = FORM_LIMITS.event
 
 const memberLabel = (m: {
   email: string | null
@@ -210,18 +213,20 @@ export function EventForm({
       setError("Начало должно быть раньше конца")
       return
     }
-    const priceValue = price.trim()
-      ? parseIntInput(price, { min: 1, max: 10_000_000 })
-      : null
+    const priceValue = price.trim() ? parseIntInput(price, L.price) : null
     if (price.trim() && priceValue === null) {
-      setError("Цена — целое число больше нуля (или оставьте пустой — бесплатно)")
+      setError(
+        `Цена — целое число от ${L.price.min} до ${L.price.max.toLocaleString("ru-RU")} (или оставьте пустой — бесплатно)`,
+      )
       return
     }
     const capacityValue = capacity.trim()
-      ? parseIntInput(capacity, { min: 1, max: 10_000 })
+      ? parseIntInput(capacity, L.capacity)
       : null
     if (capacity.trim() && capacityValue === null) {
-      setError("Мест — целое число больше нуля (или оставьте пустым — без лимита)")
+      setError(
+        `Мест — целое число от ${L.capacity.min} до ${L.capacity.max.toLocaleString("ru-RU")} (или оставьте пустым — без лимита)`,
+      )
       return
     }
     const currencyCode = currency.trim().toUpperCase()
@@ -298,6 +303,7 @@ export function EventForm({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder={`Мастер-класс приглашённого ${vocabulary.coach.gen}`}
+          maxLength={L.title.max}
           required
         />
       </div>
@@ -389,7 +395,7 @@ export function EventForm({
           value={hostName}
           onChange={(e) => setHostName(e.target.value)}
           placeholder="Имя и город, например: Анна Петрова, Москва"
-          maxLength={255}
+          maxLength={L.hostName.max}
         />
         <p className="mt-1 text-xs text-muted-foreground">
           Если ведёт не участник клуба — участники увидят это имя вместо{" "}
@@ -423,7 +429,7 @@ export function EventForm({
               id="event-currency"
               value={currency}
               onChange={(e) => setCurrency(e.target.value)}
-              maxLength={3}
+              maxLength={L.currency.max}
             />
           </div>
           <div>
@@ -455,6 +461,7 @@ export function EventForm({
           value={link}
           onChange={(e) => setLink(e.target.value)}
           placeholder="https://..."
+          maxLength={L.link.max}
         />
       </div>
 
@@ -466,6 +473,7 @@ export function EventForm({
           onChange={(e) => setDescription(e.target.value)}
           rows={4}
           placeholder="Кратко: для кого, что взять с собой."
+          maxLength={L.description.max}
         />
       </div>
 

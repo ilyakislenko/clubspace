@@ -12,6 +12,7 @@ import {
   revokeAiToken,
 } from "../../shared/api/ai-tokens"
 import { writeToClipboard } from "../../shared/lib/clipboard"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
 import { confirmDialog } from "../../shared/ui/confirm-dialog"
@@ -203,7 +204,7 @@ export function AiAssistantCard({ workspaceId }: { workspaceId: string }) {
           <h3 className="text-sm font-semibold">Новый токен</h3>
           <label className="block space-y-1 text-sm">
             <span className="text-muted-foreground">Название (чтобы отличать токены)</span>
-            <input className={inputClsFull} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+            <input className={inputClsFull} maxLength={FORM_LIMITS.aiToken.name.max} value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <div className="space-y-1 text-sm">
             <span className="text-muted-foreground">Данные участников</span>

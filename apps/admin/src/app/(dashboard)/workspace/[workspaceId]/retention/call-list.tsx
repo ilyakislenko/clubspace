@@ -25,6 +25,7 @@ import {
   AT_RISK_LEVEL_TEXT,
   AT_RISK_REFRESH_MS,
 } from "../../../../../shared/lib/at-risk"
+import { FORM_LIMITS } from "../../../../../shared/lib/contract-limits"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { groupOptionLabel } from "../../../../../shared/lib/group-label"
 import { formatRelativeDays } from "../../../../../shared/lib/member-activity"
@@ -343,7 +344,7 @@ export function CallList() {
                             value={note}
                             onChange={(e) => setNote(e.target.value)}
                             placeholder="Заметка (необязательно)"
-                            maxLength={500}
+                            maxLength={FORM_LIMITS.callNote.note.max}
                             className="max-w-md"
                             autoFocus
                           />

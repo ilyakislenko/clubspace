@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { Button } from "@clubspace/ui-kit/ui"
 
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { inputCls } from "../../shared/lib/input-class"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import {
@@ -14,7 +15,7 @@ import {
 import { PaymentMethodPicker } from "./PaymentMethodPicker"
 import { currencySymbol } from "./subscription-display"
 
-export const MAX_PAYMENT = 10_000_000
+const L = FORM_LIMITS.payment.paidAmount
 
 // Confirms a payment: the amount really received, prefilled with the agreed
 // price (change it for a discount or a part-payment), and how it was paid —
@@ -35,7 +36,7 @@ export function MarkPaidForm({
   onCancel: () => void
 }) {
   const [amountText, setAmountText] = useState(String(amount))
-  const value = parseIntInput(amountText, { min: 0, max: MAX_PAYMENT })
+  const value = parseIntInput(amountText, L)
   const [method, setMethod] = useState<ClubPaymentMethod>(lastPaymentMethod)
 
   return (
@@ -55,7 +56,7 @@ export function MarkPaidForm({
       </div>
       {value === null && (
         <p className="text-xs text-destructive">
-          Введите сумму целым числом от 0 до {MAX_PAYMENT}
+          Введите сумму целым числом от {L.min} до {L.max.toLocaleString("ru-RU")}
         </p>
       )}
 

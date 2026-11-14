@@ -19,9 +19,12 @@ import {
   updateDirection,
   type Direction,
 } from "../../shared/api/directions"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { confirmLeave, sameData, useDirtyGuard } from "../../shared/lib/use-dirty-guard"
+
+const L = FORM_LIMITS.direction
 
 const PRESET_COLORS = [
   "#2563EB",
@@ -100,9 +103,9 @@ export function DirectionFormSheet({
       setError("Цвет в формате #RRGGBB")
       return
     }
-    const parsedOrder = parseIntInput(order, { min: 0, max: 10000 })
+    const parsedOrder = parseIntInput(order, L.order)
     if (parsedOrder === null) {
-      setError("Порядок — целое число от 0")
+      setError(`Порядок — целое число от ${L.order.min} до ${L.order.max}`)
       return
     }
     setSaving(true)
@@ -153,7 +156,7 @@ export function DirectionFormSheet({
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
                 placeholder="⭐"
-                maxLength={8}
+                maxLength={L.icon.max}
                 className="text-center text-lg"
               />
             </div>
@@ -164,6 +167,7 @@ export function DirectionFormSheet({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Например, хип-хоп"
+                maxLength={L.name.max}
               />
             </div>
           </div>
@@ -222,7 +226,8 @@ export function DirectionFormSheet({
             <Input
               id="direction-order"
               type="number"
-              min={0}
+              min={L.order.min}
+              max={L.order.max}
               value={order}
               onChange={(e) => setOrder(e.target.value)}
               className="w-28"

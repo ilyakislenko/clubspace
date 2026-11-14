@@ -17,6 +17,9 @@ export const ClubPublicProfileSchema = z.object({
     pageUrl: z.string().nullable(),
     // The join preview (/join/<code>), which works whether listed or not.
     joinPageUrl: z.string().nullable(),
+    // The club row's version (shared with the settings): a save sends it
+    // back as `expectedUpdatedAt`.
+    updatedAt: z.iso.datetime(),
 })
 
 export type ClubPublicProfileOutput = z.infer<typeof ClubPublicProfileSchema>
@@ -30,6 +33,7 @@ export const serializeClubPublicProfile = (p: {
         publicDescription: string | null
         logoKey: string | null
         isListed: boolean
+        updatedAt: Date
     }
     logoUrl: string | null
 }): ClubPublicProfileOutput => ({
@@ -41,6 +45,7 @@ export const serializeClubPublicProfile = (p: {
     isListed: p.workspace.isListed,
     pageUrl: p.appUrl ? `${p.appUrl}/c/${p.slug}` : null,
     joinPageUrl: buildJoinUrl(p.appUrl, p.joinCode),
+    updatedAt: p.workspace.updatedAt.toISOString(),
 })
 
 export const PUBLIC_PROFILE_WORKSPACE_SELECT = {
@@ -50,4 +55,5 @@ export const PUBLIC_PROFILE_WORKSPACE_SELECT = {
     publicDescription: true,
     logoKey: true,
     isListed: true,
+    updatedAt: true,
 } as const
