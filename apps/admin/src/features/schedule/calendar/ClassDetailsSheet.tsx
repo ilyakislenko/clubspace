@@ -35,12 +35,13 @@ import { formatYmd } from "../../../shared/lib/format-ymd"
 import { parseIntInput } from "../../../shared/lib/parse-int-input"
 import { pluralRu } from "../../../shared/lib/plural-ru"
 import { useVocabulary } from "../../../shared/lib/vocabulary"
+import { confirmDialog } from "../../../shared/ui/confirm-dialog"
 import { DirectionChip } from "../../directions/DirectionChip"
 import { ClassAttendancePanel } from "../ClassAttendancePanel"
 import { ClassBookingPanel } from "../ClassBookingPanel"
 import { ClassSubstitutionPanel } from "../ClassSubstitutionPanel"
 import { personName, slotLabel } from "./calendar-format"
-import { dayLabel, formatHm, minutesOf, wallClock } from "./calendar-helpers"
+import { dayLabel, dayMonth, formatHm, minutesOf, wallClock } from "./calendar-helpers"
 import { fillLabel, type CalendarItem, type ClassItem } from "./calendar-items"
 import { substitutionLabel } from "./substitution"
 import type { DragTarget } from "./use-grid-drag"
@@ -229,9 +230,11 @@ function ClassDetails({
       if (!cancellation) return
       if (
         !singleDay &&
-        !window.confirm(
-          `Снять отмену ${formatYmd(cancellation.fromDate)} — ${formatYmd(cancellation.untilDate)}? Вернутся все ${session.nomPl} этого периода.`,
-        )
+        !(await confirmDialog({
+          title: "Снять отмену?",
+          description: `С ${dayMonth(cancellation.fromDate)} по ${dayMonth(cancellation.untilDate)} вернутся все ${session.nomPl} этого периода.`,
+          confirmLabel: "Снять отмену",
+        }))
       ) {
         return
       }

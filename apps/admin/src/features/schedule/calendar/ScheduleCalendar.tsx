@@ -57,7 +57,6 @@ import { MoveDialog, type MoveScope } from "./MoveDialog"
 import { TimeGridView } from "./TimeGridView"
 import { UndoToast, type Toast } from "./UndoToast"
 import type { DragTarget } from "./use-grid-drag"
-import { YearView } from "./YearView"
 
 const STORAGE_KEY = "clubspace:schedule-calendar"
 const DEFAULT_HOURS: HourRange = { from: 8, to: 22 }
@@ -79,8 +78,8 @@ const browserTz = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone
 let toastSeq = 0
 
 /**
- * «Занятия»: the club's schedule as a calendar (volt's big calendar ported to
- * ClubSpace) — day / week / month / year / list, drag a class to move it,
+ * «Расписание»: the club's schedule as a calendar (volt's big calendar ported
+ * to ClubSpace) — day / week / month / list, drag a class to move it,
  * pull its bottom edge to change the duration, click an empty cell to add one.
  */
 export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
@@ -475,17 +474,6 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
           <TimeGridView {...gridProps} days={[anchor]} halls={halls} />
         ) : view === "month" ? (
           <MonthView anchor={anchor} items={items} today={today} onOpenItem={openItem} onOpenDay={openDay} onDrop={requestMove} />
-        ) : view === "year" ? (
-          <YearView
-            anchor={anchor}
-            items={items}
-            today={today}
-            onOpenDay={openDay}
-            onOpenMonth={(d) => {
-              setAnchor(d)
-              setView("month")
-            }}
-          />
         ) : (
           <AgendaView
             items={items.filter((it) => it.date >= range.from && it.date <= range.to)}

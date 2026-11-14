@@ -526,7 +526,7 @@ export function VideoUploadSheet({
                 <div className="space-y-4">
                   {Object.entries(tagsByType).map(([type, items]) => (
                     <div key={type} className="space-y-2">
-                      <div className="text-xs font-semibold uppercase text-muted-foreground">
+                      <div className="text-xs font-semibold text-muted-foreground">
                         {type}
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">

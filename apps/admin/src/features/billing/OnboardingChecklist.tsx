@@ -1,15 +1,19 @@
 "use client"
 
-import { CheckCircle2, Circle } from "lucide-react"
+import { Circle, X } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
+
+import { Button } from "@clubspace/ui-kit/ui"
+import type { ClubVocabulary } from "@clubspace/ui-kit/brand"
 
 import {
   getWorkspaceOnboarding,
   type WorkspaceOnboarding,
 } from "../../shared/api/billing"
-import type { ClubVocabulary } from "@clubspace/ui-kit/brand"
+import { fetchMe } from "../../shared/api/me"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+import { checklistState } from "./onboarding-steps"
 
 type StepKey = WorkspaceOnboarding["steps"][number]["key"]
 
@@ -19,8 +23,7 @@ const steps = (
   gym: {
     label: "Добавьте зал",
     hint: `Адрес, где проходят ${v.session.nomPl}`,
-    // Halls are added on the groups page; /gyms has only per-hall pages.
-    path: "groups",
+    path: "groups?tab=gyms",
   },
   group: {
     label: "Создайте группу",
@@ -35,12 +38,12 @@ const steps = (
   plans: {
     label: "Создайте абонемент",
     hint: `Цена и сколько ${v.session.genPl} он даёт`,
-    path: "subscriptions",
+    path: "subscriptions?new=1",
   },
   members: {
     label: "Пригласите участников",
     hint: "По почте, QR-кодом клуба или импортом из Excel",
-    path: "users",
+    path: "users?invite=1",
   },
   payments: {
     label: "Подключите оплату",
@@ -54,16 +57,31 @@ const steps = (
   },
 })
 
-// The launch checklist on the dashboard. Every tick comes from the server's
-// view of real data, so it updates itself; it disappears once all is done.
+// «Скрыть» is remembered per club and per account in this browser.
+const hiddenKey = (workspaceId: string, userId: string) =>
+  `clubspace:onboarding-hidden:${workspaceId}:${userId}`
+
+/**
+ * The launch checklist on «Сегодня». Every tick comes from the server's view
+ * of real data, so it updates itself. Only the steps still to do are listed;
+ * the optional ones (online payment, video) say so and never hold the list
+ * open — it disappears once the required steps are done, or on «Скрыть».
+ */
 export function OnboardingChecklist({ workspaceId }: { workspaceId: string }) {
   const vocabulary = useVocabulary()
   const [data, setData] = useState<WorkspaceOnboarding | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [hidden, setHidden] = useState(true)
 
   useEffect(() => {
     let alive = true
-    getWorkspaceOnboarding({ workspaceId })
-      .then((d) => alive && setData(d))
+    Promise.all([getWorkspaceOnboarding({ workspaceId }), fetchMe()])
+      .then(([d, me]) => {
+        if (!alive) return
+        setData(d)
+        setUserId(me.id)
+        setHidden(window.localStorage.getItem(hiddenKey(workspaceId, me.id)) === "1")
+      })
       .catch(() => {
         // Optional block: the dashboard works without it.
       })
@@ -72,40 +90,42 @@ export function OnboardingChecklist({ workspaceId }: { workspaceId: string }) {
     }
   }, [workspaceId])
 
-  if (!data || data.doneCount === data.total) return null
+  if (!data || !userId || hidden) return null
+  const state = checklistState(data.steps)
+  if (state.complete) return null
+
+  const hide = () => {
+    window.localStorage.setItem(hiddenKey(workspaceId, userId), "1")
+    setHidden(true)
+  }
 
   return (
     <section className="space-y-3 rounded-lg border bg-card p-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-medium">Запуск клуба</h2>
-        <span className="text-xs text-muted-foreground">
-          {data.doneCount} из {data.total}
-        </span>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-medium">
+          Запуск клуба
+          <span className="ml-1.5 font-normal text-muted-foreground">
+            {state.requiredDone} из {state.requiredTotal}
+          </span>
+        </h2>
+        <Button variant="ghost" size="sm" onClick={hide}>
+          <X aria-hidden className="size-4" />
+          Скрыть
+        </Button>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-primary"
-          style={{ width: `${Math.round((data.doneCount / data.total) * 100)}%` }}
-        />
-      </div>
-      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {data.steps.map((step) => {
+      <ul className="grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+        {state.todo.map((step) => {
           const meta = steps(vocabulary)[step.key]
           return (
             <li key={step.key}>
               <Link
                 href={`/workspace/${workspaceId}/${meta.path}`}
-                className="flex items-start gap-2 rounded-md border p-3 text-sm hover:bg-muted"
+                className="flex items-start gap-2 rounded-md p-2 text-sm hover:bg-muted"
               >
-                {step.done ? (
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                ) : (
-                  <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                )}
+                <Circle aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 <span>
-                  <span className={step.done ? "text-muted-foreground line-through" : "font-medium"}>
-                    {meta.label}
-                  </span>
+                  <span className="font-medium">{meta.label}</span>
+                  {step.optional && <span className="text-muted-foreground"> · по желанию</span>}
                   <span className="block text-xs text-muted-foreground">{meta.hint}</span>
                 </span>
               </Link>

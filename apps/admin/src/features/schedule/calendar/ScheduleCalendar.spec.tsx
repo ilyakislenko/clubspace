@@ -205,8 +205,6 @@ describe("ScheduleCalendar", () => {
     await waitFor(() => expect(scheduleMock).toHaveBeenLastCalledWith({ workspaceId: "w1", from: "2026-10-26", to: "2026-12-06" }))
     fireEvent.click(screen.getByRole("tab", { name: /Список/ }))
     await screen.findByText(/среда, 4 ноября/i)
-    fireEvent.click(screen.getByRole("tab", { name: /Год/ }))
-    await waitFor(() => expect(scheduleMock).toHaveBeenCalledWith({ workspaceId: "w1", from: "2026-01-01", to: "2026-03-31" }))
     fireEvent.click(screen.getByRole("tab", { name: /День/ }))
     await waitFor(() => expect(scheduleMock).toHaveBeenLastCalledWith({ workspaceId: "w1", from: "2026-11-04", to: "2026-11-04" }))
   })

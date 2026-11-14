@@ -28,6 +28,7 @@ import { readModuleNotEntitled } from "../billing/billing-view"
 import { writeToClipboard } from "../../shared/lib/clipboard"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import {
   PAYMENT_MODE_LABEL,
   PAYMENT_SUBJECT_LABEL,
@@ -217,9 +218,13 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
 
   const onDisconnect = async () => {
     if (
-      !window.confirm(
-        "Отключить онлайн-оплату? Участники не смогут оплачивать абонементы и билеты на события в приложении, сохранённые ключи будут удалены.",
-      )
+      !(await confirmDialog({
+        title: "Отключить онлайн-оплату?",
+        description:
+          "Участники не смогут оплачивать абонементы и билеты на события в приложении, сохранённые ключи будут удалены.",
+        confirmLabel: "Отключить",
+        destructive: true,
+      }))
     )
       return
     setDisconnecting(true)

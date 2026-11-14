@@ -34,9 +34,10 @@ import { DirectionFormSheet } from "../../../../../../features/directions/Direct
 import {
   DirectionManagersBlock,
   isDirectionManagerCandidate,
+  managerLabel,
 } from "../../../../../../features/directions/DirectionManagersBlock"
 import { SettingsSectionHeader } from "../../../../../../features/settings/SettingsNav"
-import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
+import { confirmDialog } from "../../../../../../shared/ui/confirm-dialog"
 import {
   featureOn,
   useWorkspaceFeatures,
@@ -45,7 +46,6 @@ import {
 // «Настройки → Направления». Club admins only (directions CRUD and their
 // managers are CLUB_ADMINS on the server).
 export default function SettingsDirectionsPage() {
-  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
   // Ranks are named in the copy only where the club has them switched on.
@@ -129,7 +129,13 @@ export default function SettingsDirectionsPage() {
 
   const handleDelete = async (d: Direction) => {
     if (!workspaceId) return
-    if (!window.confirm(`Удалить направление «${d.name}»?`)) return
+    const confirmed = await confirmDialog({
+      title: `Удалить направление «${d.name}»?`,
+      description:
+        "Удалить можно только направление, которое нигде не используется. Если к нему привязаны тарифы, события или объявления, отправьте его в архив.",
+      destructive: true,
+    })
+    if (!confirmed) return
     setBusyId(d.id)
     setError(null)
     try {
@@ -154,10 +160,7 @@ export default function SettingsDirectionsPage() {
             взрослая программы. Группы,
             {ranksOn ? " лестницы рангов," : ""} достижения, тарифы, события и
             объявления можно привязать к направлению. Пока направлений нет, всё
-            работает на весь клуб. Руководитель направления —{" "}
-            {vocabulary.coach.nom}, который сам ведёт группы,
-            {ranksOn ? " ранги, аттестации," : ""} события и объявления своего
-            направления.
+            работает на весь клуб.
           </>
         }
         action={
@@ -188,18 +191,18 @@ export default function SettingsDirectionsPage() {
         </p>
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border bg-card">
-          {directions.map((d) => (
-            <li key={d.id} className="space-y-3 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+          {directions.map((d) => {
+            const names = managers
+              .filter((m) => m.directionId === d.id)
+              .map(managerLabel)
+            return (
+              <li key={d.id} className="flex items-center justify-between gap-3 p-3">
                 <button
                   type="button"
                   className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left hover:opacity-80"
                   onClick={() => openEdit(d)}
                 >
                   <DirectionDot color={d.color} className="size-3" />
-                  <span className="w-7 shrink-0 text-center text-xl">
-                    {d.icon ?? ""}
-                  </span>
                   <span className="min-w-0">
                     <span className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">
@@ -211,9 +214,11 @@ export default function SettingsDirectionsPage() {
                         </span>
                       )}
                     </span>
-                    <span className="block text-xs text-muted-foreground tabular-nums">
+                    <span className="block truncate text-xs text-muted-foreground tabular-nums">
                       {d.groupCount}{" "}
                       {pluralRu(d.groupCount, "группа", "группы", "групп")}
+                      {names.length > 0 &&
+                        ` · ${pluralRu(names.length, "руководитель", "руководители", "руководители")}: ${names.join(", ")}`}
                     </span>
                   </span>
                 </button>
@@ -236,29 +241,21 @@ export default function SettingsDirectionsPage() {
                     <DropdownMenuItem onSelect={() => void toggleArchive(d)}>
                       {d.isActive ? "В архив" : "Вернуть из архива"}
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onSelect={() => void handleDelete(d)}
-                    >
-                      Удалить
-                    </DropdownMenuItem>
+                    {/* A direction with groups can't be deleted (the server
+                        refuses any used one), so it is only offered unused. */}
+                    {d.groupCount === 0 && (
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onSelect={() => void handleDelete(d)}
+                      >
+                        Удалить
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </div>
-              {workspaceId && (
-                <div className="pl-[52px]">
-                  <DirectionManagersBlock
-                    workspaceId={workspaceId}
-                    direction={d}
-                    managers={managers.filter((m) => m.directionId === d.id)}
-                    coaches={coaches}
-                    onChanged={refreshManagers}
-                    onError={setError}
-                  />
-                </div>
-              )}
-            </li>
-          ))}
+              </li>
+            )
+          })}
         </ul>
       )}
 
@@ -270,7 +267,18 @@ export default function SettingsDirectionsPage() {
           direction={editing}
           nextOrder={nextOrder}
           onSaved={() => void refresh()}
-        />
+        >
+          {editing && (
+            <DirectionManagersBlock
+              workspaceId={workspaceId}
+              direction={editing}
+              managers={managers.filter((m) => m.directionId === editing.id)}
+              coaches={coaches}
+              ranksOn={ranksOn}
+              onChanged={refreshManagers}
+            />
+          )}
+        </DirectionFormSheet>
       )}
     </>
   )

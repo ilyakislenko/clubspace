@@ -31,20 +31,19 @@ import {
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 import { errorMessage } from "../../../../../shared/lib/error-message"
+import {
+  GUARDIAN_LINE_PREFIX,
+  guardianName,
+} from "../../../../../shared/lib/guardians"
 import { isClubAdmin, isSportLead } from "../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../shared/lib/member-status"
+import { pluralRu } from "../../../../../shared/lib/plural-ru"
 import { formatRoleName } from "../../../../../shared/lib/role-labels"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
-import { AddDependentForm } from "../../../../../features/invite/AddDependentForm"
-import { InviteMemberForm } from "../../../../../features/invite/InviteMemberForm"
-import { InviteMembersCard } from "../../../../../features/invite/InviteMembersCard"
-import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
-import { MemberProgressBlock } from "../../../../../features/users/MemberProgressBlock"
-import { PendingInvitationsPanel } from "../../../../../features/users/PendingInvitationsPanel"
-
-const MS_1D = 24 * 3600 * 1000
+import { confirmDialog } from "../../../../../shared/ui/confirm-dialog"
+import { InviteSheet } from "../../../../../features/invite/InviteSheet"
 
 // Rows per «Показать ещё».
 const ROSTER_PAGE = 50
@@ -59,22 +58,9 @@ const appendNew = (
   return [...shown, ...next.filter((m) => !seen.has(m.userId))]
 }
 
-// Compact "when did they last train" hint for the roster row. This is about
-// ATTENDANCE, and it sits inches away from the abonement's class balance
-// ("лимит 12: 12/12"). The old wording — "без тренировок" — read as "no classes
-// left on the pass", so a member with a brand-new 12-class abonement looked
-// like they had none. Say "отметок ещё не было" / "посл. визит", which can only mean
-// check-ins.
-const formatLastCheckIn = (iso: string | null): string => {
-  if (!iso) return "отметок ещё не было"
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / MS_1D)
-  if (days <= 0) return "визит сегодня"
-  if (days === 1) return "визит вчера"
-  return `посл. визит ${days} дн назад`
-}
 // Roster segments, the same definitions as the screens that count them
 // (?filter=renew|unpaid|inactive deep-links from the dashboard): «Кончается
-// абонемент» = «Кому позвонить → Продлить», «Должники» = its «Ожидают оплаты».
+// абонемент» = «Удержание → Продлить», «Должники» = its «Ожидают оплаты».
 const ACCESS_FILTER_LABELS: Record<MemberAccessFilter, string> = {
   all: "Все",
   renew: "Кончается абонемент",
@@ -86,31 +72,73 @@ const parseAccessFilter = (value: string | null): MemberAccessFilter =>
   ACCESS_FILTERS.find((f) => f === value) ?? "all"
 
 const SORT_LABELS: Record<MemberSort, string> = {
-  expiry: "Скоро истекает",
+  // Oldest end of the access window first (long-lapsed members lead).
+  expiry: "По дате окончания доступа",
   name: "По имени",
   newest: "Сначала новые",
   oldest: "Сначала старые",
   role: "По роли",
 }
+const SORTS: MemberSort[] = ["name", "expiry", "newest", "oldest", "role"]
 
 const formatName = (member: WorkspaceMember): string => {
   const parts = [member.firstname, member.lastname].filter(Boolean)
   return parts.length ? parts.join(" ") : (member.email ?? "—")
 }
 
-const fmtDay = (iso: string): string =>
-  new Date(iso).toLocaleDateString("ru-RU", {
+const pendingName = (user: PendingUser): string =>
+  [user.firstname, user.lastname].filter(Boolean).join(" ") ||
+  user.email ||
+  "Без имени"
+
+// «12 декабря», with the year only when it is not this year's.
+const fmtDay = (iso: string): string => {
+  const date = new Date(iso)
+  return date.toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
-    year: "numeric",
+    ...(date.getFullYear() !== new Date().getFullYear()
+      ? { year: "numeric" }
+      : {}),
   })
+}
 
-// One visible expiry per row: each abonement's own end; the app-access window
-// only for a member without an abonement (the card shows the rest).
-const accessLabel = (iso: string): string =>
-  new Date(iso) < new Date()
-    ? `Доступ истёк ${fmtDay(iso)}`
-    : `Доступ до ${fmtDay(iso)}`
+// The second line of a roster row: what the member holds — each abonement
+// with its balance and end; the app-access window only for a member without an
+// abonement (one visible expiry per row; the card shows the rest).
+function MemberHolding({ member }: { member: WorkspaceMember }) {
+  if (member.abonements.length > 0) {
+    return (
+      <>
+        {member.abonements.map((a, i) => (
+          <span
+            key={i}
+            className={cn(
+              "whitespace-nowrap",
+              a.classesRemaining !== null &&
+                a.classesRemaining <= 1 &&
+                "font-medium text-amber-600",
+            )}
+          >
+            {a.planName}
+            {a.classesTotal !== null &&
+              `, осталось ${a.classesRemaining ?? 0} из ${a.classesTotal}`}
+            {a.endDate && `, до ${fmtDay(a.endDate)}`}
+          </span>
+        ))}
+      </>
+    )
+  }
+  if (!member.accessUntil) return null
+  const expired = new Date(member.accessUntil) < new Date()
+  return (
+    <span
+      className={cn("whitespace-nowrap", expired && "font-medium text-destructive")}
+    >
+      {expired ? "Доступ истёк" : "Доступ до"} {fmtDay(member.accessUntil)}
+    </span>
+  )
+}
 
 export default function WorkspaceUsersPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -131,16 +159,14 @@ export default function WorkspaceUsersPage() {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [sortBy, setSortBy] = useState<MemberSort>("expiry")
+  const [sortBy, setSortBy] = useState<MemberSort>("name")
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [accessFilter, setAccessFilter] = useState<MemberAccessFilter>("all")
   const [pending, setPending] = useState<PendingUser[]>([])
   const [invitingUserId, setInvitingUserId] = useState<string | null>(null)
   const [rejectingUserId, setRejectingUserId] = useState<string | null>(null)
-  const [workspaceVideoTotal, setWorkspaceVideoTotal] = useState(0)
-  // Bumped after an invite/import so «Ожидают принятия» reloads.
-  const [invitesKey, setInvitesKey] = useState(0)
+  const [inviteOpen, setInviteOpen] = useState(false)
   // A response for an older search/order/segment is dropped.
   const rosterRequest = useRef(0)
 
@@ -179,7 +205,6 @@ export default function WorkspaceUsersPage() {
       setTotal(last.total)
       setPagesShown((chunks * chunk) / ROSTER_PAGE)
       setHasMore(last.data.length === chunk && chunks * chunk < last.total)
-      setWorkspaceVideoTotal(results[0].workspaceVideoTotal)
     } catch (err) {
       if (request !== rosterRequest.current) return
       setError(errorMessage(err, "Не удалось загрузить участников."))
@@ -244,7 +269,7 @@ export default function WorkspaceUsersPage() {
     void refresh(),
   )
 
-  const handleInvitePending = async (user: PendingUser) => {
+  const handleApprovePending = async (user: PendingUser) => {
     if (!workspaceId) return
     setInvitingUserId(user.userId)
     setError(null)
@@ -254,9 +279,7 @@ export default function WorkspaceUsersPage() {
       await addWorkspaceMember({ workspaceId, data: { userId: user.userId } })
       await refresh()
     } catch (err) {
-      setError(
-        errorMessage(err, "Не удалось пригласить."),
-      )
+      setError(errorMessage(err, "Не удалось принять заявку."))
     } finally {
       setInvitingUserId(null)
     }
@@ -264,9 +287,14 @@ export default function WorkspaceUsersPage() {
 
   const handleRejectPending = async (user: PendingUser) => {
     if (!workspaceId) return
-    if (!window.confirm(
-        `Отклонить заявку ${user.email ?? ([user.firstname, user.lastname].filter(Boolean).join(" ") || "пользователя")}?`,
-      )) return
+    const ok = await confirmDialog({
+      title: `Отклонить заявку: ${pendingName(user)}?`,
+      description:
+        "Человек не попадёт в клуб и не сможет подать заявку снова по коду клуба.",
+      confirmLabel: "Отклонить",
+      destructive: true,
+    })
+    if (!ok) return
     setRejectingUserId(user.userId)
     setError(null)
     try {
@@ -279,42 +307,49 @@ export default function WorkspaceUsersPage() {
     }
   }
 
-  // Adopt a ?filter= deep-link from the dashboard retention cards once, on
-  // mount. Read from window (not useSearchParams) to avoid a Suspense boundary.
+  // Adopt deep-links once, on mount: ?filter= from the dashboard retention
+  // cards, ?invite=1 from the launch checklist. Read from window (not
+  // useSearchParams) to avoid a Suspense boundary.
   useEffect(() => {
-    const param = new URLSearchParams(window.location.search).get("filter")
-    const parsed = parseAccessFilter(param)
+    const url = new URL(window.location.href)
+    const parsed = parseAccessFilter(url.searchParams.get("filter"))
     if (parsed !== "all") setAccessFilter(parsed)
+    if (url.searchParams.has("invite")) {
+      url.searchParams.delete("invite")
+      window.history.replaceState(window.history.state, "", url)
+      setInviteOpen(true)
+    }
   }, [])
 
   // A search or segment is narrowing the roster (as opposed to an empty club).
   const filtering = debouncedQuery !== "" || accessFilter !== "all"
 
   return (
-    <div className="max-w-5xl space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Ученики</h1>
-          <p className="text-sm text-muted-foreground">
-            Пригласите участника по e-mail или раздайте ученикам код клуба.
-            Нажмите на имя участника, чтобы задать имя и фамилию.
-          </p>
-        </div>
-        {canAdmin && workspaceId && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Ещё">
-                <MoreHorizontal className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Link href={`/workspace/${workspaceId}/club-import`}>
-                  Импорт из Excel (CSV)
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+    <div className="max-w-5xl space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Ученики</h1>
+        {workspaceId && (
+          <div className="flex items-center gap-1">
+            <Button type="button" onClick={() => setInviteOpen(true)}>
+              Пригласить
+            </Button>
+            {canAdmin && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Ещё">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link href={`/workspace/${workspaceId}/club-import`}>
+                      Импорт из Excel (CSV)
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         )}
       </div>
 
@@ -324,302 +359,215 @@ export default function WorkspaceUsersPage() {
         </p>
       )}
 
-      {workspaceId && (
-        <InviteMembersCard
-          workspaceId={workspaceId}
-          canRotateCode={canManageMembers}
-          canSetAutoApprove={canAdmin}
-        />
-      )}
-
       {canManageMembers && pending.length > 0 && (
-        <div className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
-          <div className="space-y-1">
-            <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-              Ожидают одобрения ({pending.length})
-            </h2>
-            <p className="text-xs text-amber-800/80 dark:text-amber-200/70">
-              Эти пользователи зарегистрировались в мобильном приложении и
-              ждут вашего подтверждения. Нажмите «Принять» — они появятся в
-              списке участников и получат доступ к курсам.
-            </p>
-          </div>
-          <ul className="space-y-2">
+        <section className="rounded-lg border border-amber-500/40 bg-amber-500/5">
+          <h2 className="px-3 pt-2.5 text-sm font-medium">
+            Заявки на вступление · {pending.length}
+          </h2>
+          <ul className="divide-y divide-amber-500/20">
             {pending.map((user) => {
-              const fullName =
-                [user.firstname, user.lastname].filter(Boolean).join(" ") ||
-                "—"
-              const created = new Date(user.createdAt).toLocaleDateString(
-                "ru-RU",
-                {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                },
-              )
+              const busy =
+                invitingUserId === user.userId || rejectingUserId === user.userId
+              const name = pendingName(user)
               return (
                 <li
                   key={user.userId}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2"
+                  className="flex items-center justify-between gap-3 px-3 py-2"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {user.email ?? "—"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {fullName} · регистрация {created}
+                    <p className="truncate text-sm">{name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {user.email && user.email !== name && `${user.email} · `}
+                      заявка от {fmtDay(user.createdAt)}
                     </p>
                   </div>
                   <Button
                     size="sm"
-                    onClick={() => void handleInvitePending(user)}
-                    disabled={
-                      invitingUserId === user.userId ||
-                      rejectingUserId === user.userId
-                    }
+                    variant="outline"
+                    onClick={() => void handleApprovePending(user)}
+                    disabled={busy}
                   >
-                    {invitingUserId === user.userId
-                      ? "Принимаем..."
-                      : "Принять"}
+                    {invitingUserId === user.userId ? "Принимаем…" : "Принять"}
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={() => void handleRejectPending(user)}
-                    disabled={
-                      invitingUserId === user.userId ||
-                      rejectingUserId === user.userId
-                    }
+                    disabled={busy}
                   >
-                    {rejectingUserId === user.userId
-                      ? "Отклоняем..."
-                      : "Отклонить"}
+                    {rejectingUserId === user.userId ? "Отклоняем…" : "Отклонить"}
                   </Button>
                 </li>
               )
             })}
           </ul>
-        </div>
+        </section>
       )}
 
-      {canManageMembers && workspaceId && (
-        <PendingInvitationsPanel
-          workspaceId={workspaceId}
-          refreshKey={invitesKey}
-        />
-      )}
-
-      {canManageMembers && workspaceId && (
-        <InviteMemberForm
-          workspaceId={workspaceId}
-          canInviteStaff={canAdmin}
-          onInvited={() => {
-            setInvitesKey((k) => k + 1)
-            void refresh()
-          }}
-        />
-      )}
-
-      {canManageMembers && workspaceId && (
-        <AddDependentForm
-          workspaceId={workspaceId}
-          onAdded={() => void refresh()}
-        />
-      )}
-
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-medium">
-            Участники {total > 0 && `(${total})`}
-          </h2>
-          {loading && (
-            <span className="text-xs text-muted-foreground">
-              Обновление...
-            </span>
-          )}
-        </div>
-
-        {(total > 0 || filtering || searchQuery !== "") && (
+      {(total > 0 || filtering || searchQuery !== "") && (
+        <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <Input
               type="search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Поиск по имени, e-mail, телефону или родителю"
+              aria-label="Поиск"
               className="h-9 max-w-sm flex-1"
             />
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Сортировка</span>
-              <Select
-                value={sortBy}
-                onValueChange={(value) => setSortBy(value as MemberSort)}
-              >
-                <SelectTrigger className="h-9 w-[200px]">
-                  <SelectValue>{SORT_LABELS[sortBy]}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {(
-                    [
-                      "expiry",
-                      "name",
-                      "newest",
-                      "oldest",
-                      "role",
-                    ] as MemberSort[]
-                  ).map((key) => (
-                    <SelectItem key={key} value={key}>
-                      {SORT_LABELS[key]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex w-full flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">Показать</span>
-              {ACCESS_FILTERS.map((key) => (
-                <Button
-                  key={key}
-                  type="button"
-                  size="sm"
-                  variant={accessFilter === key ? "secondary" : "ghost"}
-                  className="h-8"
-                  onClick={() => setAccessFilter(key)}
-                >
-                  {ACCESS_FILTER_LABELS[key]}
-                </Button>
-              ))}
-            </div>
+            <Select
+              value={sortBy}
+              onValueChange={(value) => setSortBy(value as MemberSort)}
+            >
+              <SelectTrigger className="h-9 w-[240px]" aria-label="Сортировка">
+                <SelectValue>{SORT_LABELS[sortBy]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SORTS.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {SORT_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {loading
+                ? "Обновление…"
+                : `${total} ${pluralRu(total, "человек", "человека", "человек")}`}
+            </span>
           </div>
-        )}
+          <div className="flex flex-wrap items-center gap-1">
+            {ACCESS_FILTERS.map((key) => (
+              <Button
+                key={key}
+                type="button"
+                size="sm"
+                variant={accessFilter === key ? "secondary" : "ghost"}
+                className="h-8"
+                aria-pressed={accessFilter === key}
+                onClick={() => setAccessFilter(key)}
+              >
+                {ACCESS_FILTER_LABELS[key]}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
-        {!loading && total === 0 && !filtering && (
-          <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            Пока никого нет. Добавьте первого участника.
-          </p>
-        )}
+      {!loading && total === 0 && !filtering && (
+        <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          Пока никого нет. Нажмите «Пригласить», чтобы раздать код клуба или
+          пригласить по e-mail.
+        </p>
+      )}
 
-        {!loading && total === 0 && filtering && (
-          <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            {debouncedQuery
-              ? `Никто не подходит под «${debouncedQuery}».`
-              : `Нет участников в сегменте «${ACCESS_FILTER_LABELS[accessFilter]}».`}
-          </p>
-        )}
+      {!loading && total === 0 && filtering && (
+        <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          {debouncedQuery
+            ? `Никто не подходит под «${debouncedQuery}».`
+            : `Нет участников в сегменте «${ACCESS_FILTER_LABELS[accessFilter]}».`}
+        </p>
+      )}
 
-        {members.length > 0 && (
-          <ul className="divide-y divide-border rounded-lg border border-border">
-            {members.map((member) => {
-              return (
-                <li key={member.userId} className="p-3">
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-2">
-                      {workspaceId && !member.isOwner ? (
-                        <Link
-                          href={`/workspace/${workspaceId}/users/${member.userId}`}
-                          className="block truncate text-sm font-medium hover:underline"
-                        >
-                          {formatName(member)}
-                        </Link>
-                      ) : (
-                        <div className="truncate text-sm font-medium">
-                          {formatName(member)}
-                        </div>
-                      )}
-                      {member.isDependent && (
-                        <span className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-inset ring-sky-600/20">
-                          Ребёнок
-                        </span>
-                      )}
-                    </div>
-                    <GuardianContacts guardians={member.guardians} />
-                    {/* Each detail after the first carries its own «·», so a
-                        wrapped line never ends on a dangling dot. */}
-                    <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground [&>*+*]:before:mr-1.5 [&>*+*]:before:font-normal [&>*+*]:before:text-muted-foreground [&>*+*]:before:content-['·']">
-                      {member.email && (
-                        <span className="max-w-full truncate">{member.email}</span>
-                      )}
-                      <span className="whitespace-nowrap">
-                        {memberStatusLabel(member.status)}
+      {members.length > 0 && (
+        <ul className="divide-y divide-border rounded-lg border border-border">
+          {members.map((member) => {
+            // Students are the default: a role shows only for staff.
+            const role = member.isOwner
+              ? "Владелец"
+              : member.roleName !== "user"
+                ? formatRoleName(member.roleName, vocabulary)
+                : null
+            const content = (
+              <>
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm font-medium">
+                      {formatName(member)}
+                    </span>
+                    {member.isDependent && (
+                      <span className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-inset ring-sky-600/20">
+                        Ребёнок
                       </span>
-                      {member.roleName && (
-                        <span className="whitespace-nowrap">
-                          {formatRoleName(member.roleName, vocabulary)}
-                        </span>
-                      )}
-                      {member.isOwner && (
-                        <span className="whitespace-nowrap font-medium text-primary">
-                          Владелец
-                        </span>
-                      )}
-                      {!member.isOwner && (
-                        <span
-                          className={cn(
-                            "whitespace-nowrap",
-                            !member.lastCheckInAt &&
-                              "text-amber-600 dark:text-amber-500",
-                          )}
-                        >
-                          {formatLastCheckIn(member.lastCheckInAt)}
-                        </span>
-                      )}
-                      {!member.isOwner &&
-                        member.abonements.length === 0 &&
-                        member.accessUntil && (
-                          <span
-                            className={cn(
-                              "whitespace-nowrap",
-                              new Date(member.accessUntil) < new Date() &&
-                                "font-medium text-destructive",
-                            )}
-                          >
-                            {accessLabel(member.accessUntil)}
-                          </span>
-                        )}
-                      {!member.isOwner &&
-                        member.abonements.map((a, i) => (
-                          <span
-                            key={i}
-                            className={cn(
-                              "whitespace-nowrap",
-                              a.classesRemaining !== null &&
-                                a.classesRemaining <= 1 &&
-                                "font-medium text-amber-600",
-                            )}
-                          >
-                            {a.planName}
-                            {a.classesTotal !== null &&
-                              `: осталось ${a.classesRemaining ?? 0} из ${a.classesTotal}`}
-                            {a.endDate && ` · до ${fmtDay(a.endDate)}`}
-                          </span>
-                        ))}
-                    </div>
-                    {!member.isOwner && workspaceVideoTotal > 0 && (
-                      <MemberProgressBlock
-                        member={member}
-                        videoTotal={workspaceVideoTotal}
-                      />
                     )}
                   </div>
-                </li>
-              )
-            })}
-          </ul>
-        )}
+                  {member.guardians.length > 0 && (
+                    <p className="truncate text-xs text-muted-foreground">
+                      {member.guardians
+                        .map(
+                          (g) =>
+                            `${GUARDIAN_LINE_PREFIX[g.relation]}: ${guardianName(g) || g.email || "—"}`,
+                        )
+                        .join(" · ")}
+                    </p>
+                  )}
+                  {/* Each detail after the first carries its own «·», so a
+                      wrapped line never ends on a dangling dot. */}
+                  <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground empty:hidden [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·']">
+                    {role && <span className="whitespace-nowrap">{role}</span>}
+                    {member.status !== "ACTIVE" && (
+                      <span className="whitespace-nowrap font-medium text-destructive">
+                        {memberStatusLabel(member.status)}
+                      </span>
+                    )}
+                    {!member.isOwner && <MemberHolding member={member} />}
+                  </div>
+                </div>
+                {member.owesPayment && (
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-destructive">
+                    <span
+                      aria-hidden
+                      className="size-2 rounded-full bg-destructive"
+                    />
+                    Долг
+                  </span>
+                )}
+              </>
+            )
+            return (
+              <li key={member.userId}>
+                {workspaceId && !member.isOwner ? (
+                  <Link
+                    href={`/workspace/${workspaceId}/users/${member.userId}`}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    {content}
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
 
-        {hasMore && (
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loadingMore || loading}
-              onClick={() => void loadMore()}
-            >
-              {loadingMore ? "Загружаем..." : "Показать ещё"}
-            </Button>
-          </div>
-        )}
-      </div>
+      {hasMore && (
+        <div className="flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={loadingMore || loading}
+            onClick={() => void loadMore()}
+          >
+            {loadingMore ? "Загружаем…" : "Показать ещё"}
+          </Button>
+        </div>
+      )}
+
+      {workspaceId && (
+        <InviteSheet
+          workspaceId={workspaceId}
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          canManageMembers={canManageMembers}
+          canAdmin={canAdmin}
+          onChanged={() => void refresh()}
+        />
+      )}
     </div>
   )
 }

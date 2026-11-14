@@ -72,6 +72,26 @@ type Props = {
   fit?: BlockFit
 }
 
+// Everything a class says, for the hover tip of a block or a list row that
+// has no room to show it.
+export const itemTooltip = (
+  item: CalendarItem,
+  startMin = item.startMin,
+  endMin = item.endMin,
+): string => {
+  const session = item.kind === "class" ? item.session : null
+  const fill = session ? fillLabel(session) : null
+  return [
+    item.title,
+    item.cancelled ? "Отменено" : formatRange(startMin, endMin),
+    session && [session.group.gym?.name, coachShortName(session.group.coach)].filter(Boolean).join(" · "),
+    session && substitutionLabel(session),
+    fill && `Записано ${fill}`,
+  ]
+    .filter(Boolean)
+    .join("\n")
+}
+
 export function EventBlock({
   item,
   startMin = item.startMin,
@@ -94,15 +114,7 @@ export function EventBlock({
   const sub = session ? substitutionLabel(session) : null
   const interactive = item.editable && !!onPointerDownMove
   // Narrow week columns truncate everything — the hover tip has it all.
-  const tooltip = [
-    item.title,
-    item.cancelled ? "Отменено" : formatRange(startMin, endMin),
-    session && [session.group.gym?.name, coachShortName(session.group.coach)].filter(Boolean).join(" · "),
-    sub,
-    fill && `Записано ${fill}`,
-  ]
-    .filter(Boolean)
-    .join("\n")
+  const tooltip = itemTooltip(item, startMin, endMin)
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter" || e.key === " ") {

@@ -2,30 +2,41 @@
 
 import { useEffect, useId } from "react"
 
+import { confirmDialog } from "../ui/confirm-dialog"
+
 // Unsaved-changes guard. The App Router has no route-change blocking, so a
 // dirty form is protected on three paths:
 // - leaving the document (reload, close, typed URL, external link): the
-//   browser's own `beforeunload` prompt;
+//   browser's own `beforeunload` prompt (the only native one: a page can't
+//   replace it);
 // - clicking an in-app link (sidebar, breadcrumbs, any <Link>/<a>): a
 //   capture-phase click listener on `window` runs before React's root
-//   listener, so a declined prompt stops Next's <Link> from navigating;
-// - programmatic navigation (`router.push` in a handler): the caller asks
+//   listener and holds the click while the in-app `confirmDialog` asks; «Уйти»
+//   replays the click on the same link (Next's <Link> then navigates as usual);
+// - programmatic navigation (`router.push` in a handler): the caller awaits
 //   `confirmLeave()` first.
 // The browser's Back/Forward buttons are not intercepted.
 //
 // One registry for the whole tab: several dirty forms on one page share one
 // listener and one prompt.
 
-export const LEAVE_PROMPT = "Есть несохранённые изменения. Уйти без сохранения?"
+const askLeave = () =>
+  confirmDialog({
+    title: "Уйти без сохранения?",
+    description: "Есть несохранённые изменения — они пропадут.",
+    confirmLabel: "Уйти",
+    cancelLabel: "Остаться",
+    destructive: true,
+  })
 
 const dirtyGuards = new Set<string>()
 
 export const hasUnsavedChanges = (): boolean => dirtyGuards.size > 0
 
-// True when nothing is dirty or the user agreed to drop the changes. Call it
+// True when nothing is dirty or the user agreed to drop the changes. Await it
 // before a programmatic navigation away from a form.
-export const confirmLeave = (): boolean =>
-  !hasUnsavedChanges() || window.confirm(LEAVE_PROMPT)
+export const confirmLeave = async (): Promise<boolean> =>
+  !hasUnsavedChanges() || askLeave()
 
 // Do two plain form values (strings, numbers, booleans, null, arrays, plain
 // objects) hold the same data? Key order does not matter. Forms compare their
@@ -92,11 +103,14 @@ export const clickLeavesPage = (
   return next.pathname !== current.pathname || next.search !== current.search
 }
 
+// The link whose click is being replayed after «Уйти»; that click passes.
+let replaying: HTMLAnchorElement | null = null
+
 const onClickCapture = (event: MouseEvent) => {
   const target = event.target
   if (!(target instanceof Element)) return
   const anchor = target.closest("a[href]")
-  if (!(anchor instanceof HTMLAnchorElement)) return
+  if (!(anchor instanceof HTMLAnchorElement) || anchor === replaying) return
   const leaves = clickLeavesPage(
     event,
     {
@@ -106,9 +120,24 @@ const onClickCapture = (event: MouseEvent) => {
     },
     new URL(window.location.href),
   )
-  if (!leaves || window.confirm(LEAVE_PROMPT)) return
+  if (!leaves) return
   event.preventDefault()
   event.stopPropagation()
+  void askLeave().then((leave) => {
+    if (!leave) return
+    if (!anchor.isConnected) {
+      // Already agreed: the browser must not ask a second time.
+      window.removeEventListener("beforeunload", onBeforeUnload)
+      window.location.assign(anchor.href)
+      return
+    }
+    replaying = anchor
+    try {
+      anchor.click()
+    } finally {
+      replaying = null
+    }
+  })
 }
 
 const onBeforeUnload = (event: BeforeUnloadEvent) => {

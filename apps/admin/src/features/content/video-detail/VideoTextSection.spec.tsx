@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 jest.mock("../../../shared/api/videos", () => ({
   getVideoTextStatus: jest.fn(),
@@ -11,6 +11,7 @@ import {
   regenerateVideoText,
   type VideoTextStatus,
 } from "../../../shared/api/videos"
+import { ConfirmDialogHost } from "../../../shared/ui/confirm-dialog"
 import { REGENERATION_POLL_MS, VideoTextSection } from "./VideoTextSection"
 
 const statusMock = getVideoTextStatus as jest.Mock
@@ -34,15 +35,22 @@ const setup = () => {
   const onChanged = jest.fn()
   const onError = jest.fn()
   render(
-    <VideoTextSection workspaceId="w1" videoId="v1" onChanged={onChanged} onError={onError} />,
+    <>
+      <VideoTextSection workspaceId="w1" videoId="v1" onChanged={onChanged} onError={onError} />
+      <ConfirmDialogHost />
+    </>,
   )
   return { onChanged, onError }
+}
+
+const answerDialog = async (button: "Пересоздать" | "Отмена") => {
+  const dialog = await screen.findByRole("dialog")
+  fireEvent.click(within(dialog).getByRole("button", { name: button }))
 }
 
 beforeEach(() => {
   statusMock.mockReset()
   regenerateMock.mockReset()
-  window.confirm = jest.fn(() => true)
 })
 
 afterEach(() => jest.useRealTimers())
@@ -66,7 +74,8 @@ describe("VideoTextSection", () => {
     regenerateMock.mockResolvedValue({ status: "queued", chaptersRemoved: 3, subtitlesRemoved: 0 })
     const { onChanged } = setup()
     fireEvent.click(await screen.findByRole("button", { name: "Пересоздать главы" }))
-    expect(window.confirm).toHaveBeenCalled()
+    expect(regenerateMock).not.toHaveBeenCalled()
+    await answerDialog("Пересоздать")
     await waitFor(() =>
       expect(regenerateMock).toHaveBeenCalledWith({
         workspaceId: "w1",
@@ -95,9 +104,10 @@ describe("VideoTextSection", () => {
 
   it("does nothing when the confirmation is declined", async () => {
     statusMock.mockResolvedValue(STATUS)
-    window.confirm = jest.fn(() => false)
     setup()
     fireEvent.click(await screen.findByRole("button", { name: "Пересоздать субтитры" }))
+    await answerDialog("Отмена")
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     expect(regenerateMock).not.toHaveBeenCalled()
   })
 
@@ -110,6 +120,7 @@ describe("VideoTextSection", () => {
     })) as HTMLButtonElement
     expect(chapters.disabled).toBe(true)
     fireEvent.click(screen.getByRole("button", { name: "Пересоздать субтитры" }))
+    await answerDialog("Пересоздать")
     await waitFor(() => expect(onError).toHaveBeenCalled())
     expect(onChanged).not.toHaveBeenCalled()
   })

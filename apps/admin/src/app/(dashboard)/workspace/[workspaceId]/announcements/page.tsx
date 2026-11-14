@@ -1,12 +1,18 @@
 "use client"
 
+import { MoreHorizontal } from "lucide-react"
 import { useParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
-import { Button } from "@clubspace/ui-kit/ui"
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@clubspace/ui-kit/ui"
 
 import {
-  createAnnouncement,
   deleteAnnouncement,
   listAnnouncements,
   updateAnnouncement,
@@ -14,12 +20,8 @@ import {
 } from "../../../../../shared/api/announcements"
 import { listGroups, type GroupSummary } from "../../../../../shared/api/groups"
 import { errorMessage } from "../../../../../shared/lib/error-message"
-import {
-  sameData,
-  useDirtyGuard,
-} from "../../../../../shared/lib/use-dirty-guard"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
-import { inputClsFull } from "../../../../../shared/lib/input-class"
+import { confirmDialog } from "../../../../../shared/ui/confirm-dialog"
 import { DirectionChip } from "../../../../../features/directions/DirectionChip"
 import {
   ALL_DIRECTIONS,
@@ -27,19 +29,12 @@ import {
   directionFilterParam,
 } from "../../../../../features/directions/DirectionFilter"
 import { useDirections } from "../../../../../features/directions/use-directions"
-import { AnnouncementTargetPicker } from "../../../../../features/announcements/AnnouncementTargetPicker"
+import { AnnouncementFormSheet } from "../../../../../features/announcements/AnnouncementFormSheet"
 import {
-  editTargetPayload,
   GROUPS_REMOVED_TEXT,
   groupsLabel,
-  initialTarget,
-  isEditTargetComplete,
-  isTargetComplete,
   matchesTargetFilter,
-  publishConfirmText,
-  targetOf,
-  targetPayload,
-  type AnnouncementTarget,
+  publishPushText,
 } from "../../../../../features/announcements/announcement-target"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 import { SectionTabs } from "../../../../../shared/workspace/section-tabs"
@@ -57,38 +52,13 @@ export default function WorkspaceAnnouncementsPage() {
   const [items, setItems] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [title, setTitle] = useState("")
-  const [body, setBody] = useState("")
-  const [pinned, setPinned] = useState(false)
-  const [audience, setAudience] = useState<"ALL" | "EXPIRING">("ALL")
-  const [scheduleAt, setScheduleAt] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editTitle, setEditTitle] = useState("")
-  const [editBody, setEditBody] = useState("")
-  const [target, setTarget] = useState<AnnouncementTarget>(() =>
-    initialTarget(scope.defaultDirectionId),
-  )
-  const [editTarget, setEditTarget] = useState<AnnouncementTarget>(() =>
-    initialTarget(null),
-  )
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  // The announcement open in the panel; null = a new one.
+  const [editing, setEditing] = useState<Announcement | null>(null)
   const { directions } = useDirections(workspaceId)
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
-  const directionName = (id: string | null) =>
-    directions.find((d) => d.id === id)?.name ?? null
-  // The chosen groups in the shape of an announcement's `groups`.
-  const targetGroups = (t: AnnouncementTarget): Announcement["groups"] =>
-    t.kind === "groups"
-      ? groups
-          .filter((g) => t.groupIds.includes(g.id))
-          .map((g) => ({
-            id: g.id,
-            name: g.name,
-            gymName: g.gym?.name ?? null,
-            directionId: g.direction?.id ?? null,
-          }))
-      : []
 
   useEffect(() => {
     if (!workspaceId) return
@@ -120,96 +90,83 @@ export default function WorkspaceAnnouncementsPage() {
 
   useWorkspaceRealtime(workspaceId, ["announcements"], () => void load())
 
-  // Unsaved: a started new announcement, or an open edit that differs from
-  // the stored one. The new form's target alone does not count (its default
-  // arrives with the membership, after mount); group order does not matter.
-  const comparable = (t: AnnouncementTarget) => ({
-    ...t,
-    groupIds: [...t.groupIds].sort(),
-  })
-  const editing = editingId ? items.find((a) => a.id === editingId) : undefined
-  const newDirty = !sameData(
-    { title, body, pinned, audience, scheduleAt },
-    { title: "", body: "", pinned: false, audience: "ALL", scheduleAt: "" },
-  )
-  const editDirty =
-    editing !== undefined &&
-    !sameData(
-      { title: editTitle, body: editBody, target: comparable(editTarget) },
-      {
-        title: editing.title,
-        body: editing.body,
-        target: comparable(targetOf(editing)),
-      },
-    )
-  useDirtyGuard(newDirty || editDirty)
+  const openSheet = (a: Announcement | null) => {
+    setEditing(a)
+    setSheetOpen(true)
+  }
 
-  const submit = async (opts: { publish?: boolean; publishAt?: string }) => {
-    if (!workspaceId || !title.trim() || !body.trim()) return
-    setBusy(true)
+  const run = async (a: Announcement, action: () => Promise<unknown>) => {
+    setBusyId(a.id)
     try {
-      await createAnnouncement({
-        workspaceId,
-        data: {
-          title: title.trim(),
-          body: body.trim(),
-          pinned,
-          audience,
-          ...targetPayload(target),
-          ...(opts.publish ? { publish: true } : {}),
-          ...(opts.publishAt ? { publishAt: opts.publishAt } : {}),
-        },
-      })
-      setTitle("")
-      setBody("")
-      setPinned(false)
-      setAudience("ALL")
-      setTarget(initialTarget(scope.defaultDirectionId))
-      setScheduleAt("")
+      await action()
       await load()
     } catch (e) {
-      setError(errorMessage(e, "Не удалось сохранить объявление"))
+      setError(errorMessage(e, "Не удалось изменить объявление"))
     } finally {
-      setBusy(false)
+      setBusyId(null)
     }
   }
 
-  const wrap = (fn: () => Promise<unknown>) => async () => {
+  // Publishing sends a push, so it asks first; back to drafts does not.
+  const togglePublish = async (a: Announcement) => {
     if (!workspaceId) return
-    try {
-      await fn()
-      await load()
-    } catch (e) {
-      setError(errorMessage(e, "Ошибка"))
-    }
-  }
-
-  const saveEdit = async (a: Announcement) => {
-    if (!workspaceId || !editTitle.trim() || !editBody.trim()) return
-    setBusy(true)
-    try {
-      await updateAnnouncement({
+    if (
+      !a.publishedAt &&
+      !(await confirmDialog({
+        title: `Опубликовать «${a.title}»?`,
+        description: publishPushText(a.audience, {
+          directionName: a.direction?.name ?? null,
+          groups: a.groups,
+        }),
+        confirmLabel: "Опубликовать",
+      }))
+    )
+      return
+    await run(a, () =>
+      updateAnnouncement({
         workspaceId,
         announcementId: a.id,
-        data: {
-          title: editTitle.trim(),
-          body: editBody.trim(),
-          ...editTargetPayload(editTarget, a),
-        },
-      })
-      setEditingId(null)
-      await load()
-    } catch (e) {
-      setError(errorMessage(e, "Не удалось сохранить объявление"))
-    } finally {
-      setBusy(false)
-    }
+        data: { publish: !a.publishedAt },
+      }),
+    )
+  }
+
+  const togglePin = (a: Announcement) => {
+    if (!workspaceId) return
+    void run(a, () =>
+      updateAnnouncement({
+        workspaceId,
+        announcementId: a.id,
+        data: { pinned: !a.pinned },
+      }),
+    )
+  }
+
+  const remove = async (a: Announcement) => {
+    if (!workspaceId) return
+    const pub = a.publishedAt ? new Date(a.publishedAt) : null
+    if (
+      !(await confirmDialog({
+        title: `Удалить объявление «${a.title}»?`,
+        description:
+          pub === null
+            ? undefined
+            : pub > new Date()
+              ? "Запланированная публикация отменится."
+              : "Участники больше не увидят его в приложении.",
+        destructive: true,
+      }))
+    )
+      return
+    await run(a, () =>
+      deleteAnnouncement({ workspaceId, announcementId: a.id }),
+    )
   }
 
   return (
     <div className="max-w-3xl space-y-6">
       <SectionTabs title="Новости и события" tabs={newsTabs} />
-      <div>
+      <div className="flex items-start justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           Лента клуба. Опубликованные объявления видят все участники; черновики —
           только персонал. Закреплённые всплывают наверх.
@@ -218,6 +175,9 @@ export default function WorkspaceAnnouncementsPage() {
           {groups.length > 0 &&
             ` Объявление для групп — только ученики этих групп (за детей — родители), их ${vocabulary.coach.nomPl} и персонал.`}
         </p>
+        <Button type="button" className="shrink-0" onClick={() => openSheet(null)}>
+          Новое объявление
+        </Button>
       </div>
 
       {error && (
@@ -225,108 +185,6 @@ export default function WorkspaceAnnouncementsPage() {
           {error}
         </div>
       )}
-
-      <div className="space-y-2 rounded-xl border border-border bg-card/40 p-4">
-        <input
-          className={inputClsFull}
-          placeholder="Заголовок"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <textarea
-          className={`${inputClsFull} min-h-24`}
-          placeholder="Текст объявления"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-        />
-        <AnnouncementTargetPicker
-          id="announcement-target"
-          value={target}
-          onChange={setTarget}
-          directions={directions}
-          groups={groups}
-          scope={scope}
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={pinned}
-              onChange={(e) => setPinned(e.target.checked)}
-            />
-            Закрепить
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Кому:</span>
-            <select
-              value={audience}
-              onChange={(e) =>
-                setAudience(e.target.value as "ALL" | "EXPIRING")
-              }
-              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
-            >
-              <option value="ALL">Всем</option>
-              <option value="EXPIRING">Только на продление</option>
-            </select>
-          </label>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <input
-              type="datetime-local"
-              value={scheduleAt}
-              onChange={(e) => setScheduleAt(e.target.value)}
-              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
-              title="Запланировать публикацию"
-            />
-            <Button
-              variant="outline"
-              disabled={
-                busy ||
-                !title.trim() ||
-                !body.trim() ||
-                !scheduleAt ||
-                !isTargetComplete(target)
-              }
-              onClick={() =>
-                void submit({
-                  publishAt: new Date(scheduleAt).toISOString(),
-                })
-              }
-            >
-              Запланировать
-            </Button>
-            <Button
-              variant="outline"
-              disabled={
-                busy || !title.trim() || !body.trim() || !isTargetComplete(target)
-              }
-              onClick={() => void submit({})}
-            >
-              В черновик
-            </Button>
-            <Button
-              disabled={
-                busy || !title.trim() || !body.trim() || !isTargetComplete(target)
-              }
-              onClick={() => {
-                if (
-                  window.confirm(
-                    publishConfirmText(audience, {
-                      directionName:
-                        target.kind === "direction"
-                          ? directionName(target.directionId)
-                          : null,
-                      groups: targetGroups(target),
-                    }),
-                  )
-                )
-                  void submit({ publish: true })
-              }}
-            >
-              Опубликовать
-            </Button>
-          </div>
-        </div>
-      </div>
 
       {directions.length > 0 && (
         <div className="flex justify-end">
@@ -349,63 +207,20 @@ export default function WorkspaceAnnouncementsPage() {
         </p>
       ) : (
         <ul className="space-y-3">
-          {items.map((a) => (
-            <li key={a.id} className="rounded-xl border border-border p-4">
-              {editingId === a.id ? (
-                <div className="space-y-2">
-                  <input
-                    className={inputClsFull}
-                    aria-label="Заголовок"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                  />
-                  <textarea
-                    className={`${inputClsFull} min-h-24`}
-                    aria-label="Текст объявления"
-                    value={editBody}
-                    onChange={(e) => setEditBody(e.target.value)}
-                  />
-                  <AnnouncementTargetPicker
-                    id={`announcement-target-${a.id}`}
-                    value={editTarget}
-                    onChange={setEditTarget}
-                    directions={directions}
-                    groups={groups}
-                    groupsRemoved={a.groupsRemoved}
-                    scope={scope}
-                  />
-                  {a.publishedAt && new Date(a.publishedAt) <= new Date() && (
-                    <p className="text-xs text-muted-foreground">
-                      Объявление уже опубликовано: изменения увидят все, но
-                      push-уведомление повторно не отправляется.
-                    </p>
-                  )}
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      disabled={
-                        busy ||
-                        !editTitle.trim() ||
-                        !editBody.trim() ||
-                        !isEditTargetComplete(editTarget, a)
-                      }
-                      onClick={() => void saveEdit(a)}
-                    >
-                      Сохранить
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setEditingId(null)}
-                    >
-                      Отмена
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+          {items.map((a) => {
+            const pub = a.publishedAt ? new Date(a.publishedAt) : null
+            const scheduled = pub !== null && pub > new Date()
+            return (
+              <li
+                key={a.id}
+                className="flex items-start gap-3 rounded-xl border border-border p-4"
+              >
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 text-left hover:opacity-80"
+                  onClick={() => openSheet(a)}
+                >
+                  <span className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{a.title}</span>
                     <DirectionChip direction={a.direction} />
                     {a.groups.length > 0 && (
@@ -429,110 +244,78 @@ export default function WorkspaceAnnouncementsPage() {
                         Только на продление
                       </span>
                     )}
-                    {(() => {
-                      const pub = a.publishedAt ? new Date(a.publishedAt) : null
-                      const scheduled = pub !== null && pub > new Date()
-                      return (
-                        <span
-                          className={`rounded px-1.5 py-0.5 text-[11px] ${
-                            pub === null
-                              ? "bg-muted text-muted-foreground"
-                              : scheduled
-                                ? "bg-amber-500/10 text-amber-600"
-                                : "bg-emerald-500/10 text-emerald-600"
-                          }`}
-                        >
-                          {pub === null
-                            ? "Черновик"
-                            : scheduled
-                              ? `Запланировано · ${pub.toLocaleString("ru-RU", {
-                                  day: "numeric",
-                                  month: "short",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}`
-                              : "Опубликовано"}
-                        </span>
-                      )
-                    })()}
-                  </div>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[11px] ${
+                        pub === null
+                          ? "bg-muted text-muted-foreground"
+                          : scheduled
+                            ? "bg-amber-500/10 text-amber-600"
+                            : "bg-emerald-500/10 text-emerald-600"
+                      }`}
+                    >
+                      {pub === null
+                        ? "Черновик"
+                        : scheduled
+                          ? `Запланировано · ${pub.toLocaleString("ru-RU", {
+                              day: "numeric",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}`
+                          : "Опубликовано"}
+                    </span>
+                  </span>
+                  <span className="mt-1 block whitespace-pre-wrap text-sm text-muted-foreground">
                     {a.body}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
                     {a.authorName}
-                  </p>
-                </div>
-              </div>
-              )}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setEditingId(a.id)
-                    setEditTitle(a.title)
-                    setEditBody(a.body)
-                    setEditTarget(targetOf(a))
-                  }}
-                >
-                  Изменить
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (
-                      !a.publishedAt &&
-                      !window.confirm(
-                        publishConfirmText(a.audience, {
-                          directionName: a.direction?.name ?? null,
-                          groups: a.groups,
-                        }),
-                      )
-                    )
-                      return
-                    void wrap(() =>
-                      updateAnnouncement({
-                        workspaceId: workspaceId!,
-                        announcementId: a.id,
-                        data: { publish: !a.publishedAt },
-                      }),
-                    )()
-                  }}
-                >
-                  {a.publishedAt ? "В черновик" : "Опубликовать"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={wrap(() =>
-                    updateAnnouncement({
-                      workspaceId: workspaceId!,
-                      announcementId: a.id,
-                      data: { pinned: !a.pinned },
-                    }),
-                  )}
-                >
-                  {a.pinned ? "Открепить" : "Закрепить"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={wrap(async () => {
-                    if (!window.confirm("Удалить объявление?")) return
-                    await deleteAnnouncement({
-                      workspaceId: workspaceId!,
-                      announcementId: a.id,
-                    })
-                  })}
-                >
-                  Удалить
-                </Button>
-              </div>
-            </li>
-          ))}
+                  </span>
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={busyId === a.id}
+                      aria-label={`Действия: ${a.title}`}
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => void togglePublish(a)}>
+                      {a.publishedAt ? "В черновик" : "Опубликовать"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => togglePin(a)}>
+                      {a.pinned ? "Открепить" : "Закрепить"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onSelect={() => void remove(a)}
+                    >
+                      Удалить
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </li>
+            )
+          })}
         </ul>
+      )}
+
+      {workspaceId && (
+        <AnnouncementFormSheet
+          workspaceId={workspaceId}
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
+          announcement={editing}
+          directions={directions}
+          groups={groups}
+          scope={scope}
+          onSaved={() => void load()}
+        />
       )}
     </div>
   )

@@ -83,6 +83,49 @@ describe("TimeGridView", () => {
     expect(props.onCreateAt).toHaveBeenCalledWith({ date: "2026-11-05", startMin: 18 * 60 + 45 })
   })
 
+  it("lists a week evening of three or more parallel classes instead of slivers", () => {
+    const crowded = buildCalendarItems(
+      {
+        sessions: [
+          sessionAt("2026-11-04", "19:30", { groupId: "g2" }),
+          sessionAt("2026-11-04", "19:00", { groupId: "g1", durationMin: 90 }),
+          sessionAt("2026-11-04", "19:00", { groupId: "g3" }),
+          sessionAt("2026-11-04", "21:00", { groupId: "g4" }),
+        ],
+        events: [],
+      },
+      { filters: EMPTY_FILTERS, canEdit: () => true, onlyGroupIds: null },
+    )
+    const props = baseProps()
+    render(<TimeGridView {...props} items={crowded} />)
+    const run = document.querySelector("[data-calendar-run]") as HTMLElement
+    // 19:00–20:30, 1px inside the hour lines.
+    expect(run.style.top).toBe("1057px")
+    expect(run.style.height).toBe(`${90 * 1.6 - 2}px`)
+    expect([...run.querySelectorAll("[data-calendar-block]")].map((r) => r.textContent)).toEqual([
+      "19:00Группа g1",
+      "19:00Группа g3",
+      "19:30Группа g2",
+    ])
+    // The 21:00 class runs alone: a normal block.
+    expect(block("slot-g4:2026-11-04").style.width).toBe("calc(100% - 4px)")
+    fireEvent.click(screen.getByTitle(/^Группа g3/))
+    expect(props.onOpenItem).toHaveBeenCalledWith(expect.objectContaining({ key: "slot-g3:2026-11-04" }))
+  })
+
+  it("keeps a crowded run as blocks in a day column", () => {
+    const crowded = buildCalendarItems(
+      {
+        sessions: ["g1", "g2", "g3"].map((groupId) => sessionAt("2026-11-04", "19:00", { groupId })),
+        events: [],
+      },
+      { filters: EMPTY_FILTERS, canEdit: () => true, onlyGroupIds: null },
+    )
+    render(<TimeGridView {...baseProps()} items={crowded} days={["2026-11-04"]} />)
+    expect(document.querySelector("[data-calendar-run]")).toBeNull()
+    expect(block("slot-g3:2026-11-04").style.width).toMatch(/^calc\(33\.33\d*% - 4px\)$/)
+  })
+
   it("drags a class to another day and time snapped to 15 minutes", async () => {
     const props = baseProps()
     render(<TimeGridView {...props} />)

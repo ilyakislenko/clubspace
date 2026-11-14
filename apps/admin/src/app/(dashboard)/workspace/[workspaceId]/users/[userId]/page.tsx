@@ -63,6 +63,7 @@ import { abonementEnd, accessDiffers } from "../../../../../../features/users/me
 import { ProfileEditForm } from "../../../../../../features/users/ProfileEditForm"
 import { MemberNotesPanel } from "../../../../../../features/users/MemberNotesPanel"
 import { MemberAttendancePanel } from "../../../../../../features/users/MemberAttendancePanel"
+import { confirmDialog } from "../../../../../../shared/ui/confirm-dialog"
 
 const formatName = (m: MemberProgress["member"]): string => {
   const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()
@@ -233,12 +234,12 @@ export default function MemberProgressPage() {
     if (!workspaceId || !userId || !data) return
     if (newRoleId === data.member.roleId) return
     const newRole = roles.find((r) => r.id === newRoleId)
-    if (
-      !window.confirm(
-        `Назначить роль «${formatRoleName(newRole?.name ?? "", vocabulary)}»? Это изменит доступ участника к админке.`,
-      )
-    )
-      return
+    const ok = await confirmDialog({
+      title: `Назначить роль «${formatRoleName(newRole?.name ?? "", vocabulary)}»?`,
+      description: "Это изменит доступ участника к админке.",
+      confirmLabel: "Назначить",
+    })
+    if (!ok) return
     setSavingRole(true)
     setActionError(null)
     try {
@@ -270,7 +271,13 @@ export default function MemberProgressPage() {
 
   const handleRemove = async () => {
     if (!workspaceId || !userId || !data) return
-    if (!window.confirm(`Удалить ${formatName(data.member)} из клуба?`)) return
+    const ok = await confirmDialog({
+      title: `Удалить ${formatName(data.member)} из клуба?`,
+      description: `Записи на ${vocabulary.session.nomPl} отменятся, места в группах и заявки на заморозку пропадут. Абонементы останутся в истории продаж клуба. Вернуться человек сможет по новому приглашению или по коду клуба.`,
+      confirmLabel: "Удалить из клуба",
+      destructive: true,
+    })
+    if (!ok) return
     setRemoving(true)
     setActionError(null)
     try {
@@ -586,7 +593,7 @@ export default function MemberProgressPage() {
 
       {groups.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-4">
-          <div className="mb-2 text-xs uppercase text-muted-foreground">
+          <div className="mb-2 text-xs text-muted-foreground">
             Группы
           </div>
           <div className="flex flex-wrap gap-2">
@@ -631,7 +638,7 @@ export default function MemberProgressPage() {
 
         <div className="mt-4 grid gap-6 sm:grid-cols-3">
           <div>
-            <div className="text-xs uppercase text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               Просмотрено
             </div>
             <div className="text-3xl font-semibold tabular-nums">
@@ -651,7 +658,7 @@ export default function MemberProgressPage() {
             </div>
           </div>
           <div>
-            <div className="text-xs uppercase text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               В процессе
             </div>
             <div className="text-3xl font-semibold tabular-nums">
@@ -662,7 +669,7 @@ export default function MemberProgressPage() {
             </div>
           </div>
           <div>
-            <div className="text-xs uppercase text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               Последний урок
             </div>
             {summary.lastWatchedVideo ? (

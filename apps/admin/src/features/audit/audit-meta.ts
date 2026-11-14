@@ -36,6 +36,9 @@ import {
   vocabularyForWorkspaceType,
 } from "@clubspace/ui-kit/brand"
 
+import { formatRoleName } from "../../shared/lib/role-labels"
+import { pluralRu } from "../../shared/lib/plural-ru"
+import { AI_DATA_MODE_LABEL, AI_TOOL_LABEL } from "../ai-assistant/ai-assistant-config"
 import { PROVIDER_LABEL } from "../payments/payment-labels"
 
 export type ActionMeta = {
@@ -64,6 +67,11 @@ export const actionMetaFor = (
     tone: "indigo",
   },
   "video.delete": { label: "Видео удалено", icon: Trash2, tone: "red" },
+  "video.regenerateText": {
+    label: "Субтитры видео пересозданы",
+    icon: RefreshCw,
+    tone: "indigo",
+  },
   "video.bulkUpdate": {
     label: "Массовое изменение видео",
     icon: ListVideo,
@@ -268,17 +276,17 @@ export const actionMetaFor = (
     tone: "amber",
   },
   "group.slotCreate": {
-    label: "Слот расписания добавлен",
+    label: "Время в расписании добавлено",
     icon: CalendarPlus,
     tone: "green",
   },
   "group.slotUpdate": {
-    label: "Слот расписания изменён",
+    label: "Время в расписании изменено",
     icon: Calendar,
     tone: "indigo",
   },
   "group.slotDelete": {
-    label: "Слот расписания удалён",
+    label: "Время в расписании удалено",
     icon: Trash2,
     tone: "red",
   },
@@ -533,6 +541,11 @@ export const actionMetaFor = (
     icon: Lock,
     tone: "red",
   },
+  "auth.mfaEnrolled": {
+    label: "Включена двухфакторная проверка входа",
+    icon: ShieldCheck,
+    tone: "green",
+  },
   "me.export": {
     label: "Выгрузка своих данных",
     icon: Download,
@@ -617,12 +630,24 @@ export const TARGET_LABEL: Record<string, string> = {
   gym: "Зал",
   group: "Группа",
   event: "Событие",
+  direction: "Направление",
   aiToken: "Токен ИИ-ассистента",
   aiChat: "Чат ИИ-ассистента",
 }
 
+// Unknown types (a newer server) get a neutral word, never the raw slug.
 export const targetTypeLabel = (targetType: string): string =>
-  TARGET_LABEL[targetType] ?? targetType
+  TARGET_LABEL[targetType] ?? "Объект"
+
+// An action this admin build has no label for: named by its area.
+export const unknownActionMeta = (action: string): ActionMeta => {
+  const area = ACTION_CATEGORY_LABELS[action.split(".")[0]]
+  return {
+    label: area ? `Изменение в разделе «${area}»` : "Изменение в клубе",
+    icon: Activity,
+    tone: "zinc",
+  }
+}
 
 // Who performed an action: display name, else email, else a human placeholder
 // (never a raw id).
@@ -658,78 +683,81 @@ export const formatRelative = (iso: string): string | null => {
   return null
 }
 
+// Metadata is written by the server for machines: ids, list positions,
+// request plumbing, camelCase field names, enum values. A person sees only
+// what has a Russian label here: a key without a label, an id, an enum value
+// without a translation is left out rather than shown raw.
+
 export const META_KEY_LABEL: Record<string, string> = {
-  email: "Email",
-  isNew: "Новый юзер",
-  outcome: "Результат",
+  email: "Эл. почта",
+  applicantEmail: "Эл. почта",
+  isNew: "Новый пользователь",
   added: "Добавлено",
+  removed: "Убрано",
   invited: "Приглашено",
   skipped: "Пропущено",
-  addedVideos: "Добавлено видео",
-  movedVideo: "Перемещён",
-  afterId: "После",
-  beforeId: "До",
+  invalid: "С ошибками",
   accessUntil: "Доступ до",
+  accessUntilCleared: "Доступ без ограничения",
   title: "Название",
+  name: "Название",
+  slug: "Адрес страницы",
+  key: "Адрес клуба",
+  address: "Адрес",
   reason: "Причина",
-  slotId: "Слот",
   dayOfWeek: "День недели",
   startTime: "Начало",
   durationMin: "Длительность, мин",
   fromDate: "С",
   untilDate: "По",
+  sessionDate: "Дата",
   days: "Дней",
   returnedDays: "Возвращено дней",
   comment: "Комментарий",
   requestedFromDate: "Запрошено с",
   requestedDays: "Запрошено дней",
   planName: "Тариф",
+  itemName: "Позиция",
   amount: "Сумма",
+  paymentAmount: "Сумма платежа",
+  refundedTotal: "Возвращено",
   listPrice: "Цена по тарифу",
-  currency: "Валюта",
   paid: "Оплачено",
+  periodMonths: "Месяцев",
   startDate: "Начало",
   endDate: "Окончание",
-  exceptionId: "Отмена",
-  gymId: "Зал",
-  groupId: "Группа",
   startAt: "Начало",
   endAt: "Окончание",
   publishedAt: "Публикация",
   timezone: "Часовой пояс",
   changes: "Изменения",
-  fields: "Поля",
-  name: "Название",
+  fields: "Изменено",
   memberCount: "Участников",
+  orphanedGroupCount: "Групп осталось без зала",
   scheduleText: "Расписание",
-  fromRoleId: "Роль до",
-  toRoleId: "Роль после",
   fromRoleName: "Роль до",
   toRoleName: "Роль после",
-  chapterId: "Глава",
-  beforeChapterId: "Глава до",
-  afterChapterId: "Глава после",
-  movedChapter: "Перемещена глава",
-  addedChapter: "Добавлена глава",
-  removedChapter: "Удалена глава",
-  updatedVideo: "Обновлено видео",
+  type: "Тип клуба",
+  isActive: "Клуб активен",
+  ownerEmail: "Владелец",
+  toOwnerEmail: "Новый владелец",
+  ownerCreated: "Создан аккаунт владельца",
+  ownerAccountCreated: "Создан аккаунт владельца",
+  clubName: "Клуб",
+  addedVideos: "Добавлено видео",
+  membersChanged: "Состав изменён",
+  cleared: "Заметки очищены",
+  count: "Количество",
   from: "С",
   to: "По",
-  method: "Метод",
-  route: "Маршрут",
   lockoutMinutes: "Блокировка, мин",
-  paymentId: "Платёж",
   provider: "Платёжная система",
   previousProvider: "Платёжная система до",
   activationError: "Не оформлено автоматически",
-  subscriptionId: "Абонемент",
-  eventRegistrationId: "Запись на событие",
   secretKeyChanged: "Секретный ключ изменён",
   webhookSecretChanged: "Секрет вебхука изменён",
   disconnected: "Отключено",
-  direction: "Направление",
-  userId: "Участник",
-  importId: "Импорт",
+  currency: "Валюта",
   fileName: "Файл",
   rows: "Строк",
   create: "Новых участников",
@@ -746,7 +774,17 @@ export const META_KEY_LABEL: Record<string, string> = {
   createdGroups: "Создано групп",
   createdPlans: "Создано тарифов",
   createdRanks: "Создано поясов",
+  groups: "Групп",
+  members: "Участников",
+  visits: "Посещений",
+  contacts: "Контактов",
+  links: "Ссылок",
+  hasRules: "Правила клуба",
+  hasLogo: "Логотип",
+  isListed: "В каталоге клубов",
+  route: "Раздел",
   tool: "Инструмент",
+  tools: "Инструменты",
   args: "Параметры",
   isError: "Ошибка",
   tokenName: "Токен",
@@ -754,74 +792,271 @@ export const META_KEY_LABEL: Record<string, string> = {
   scopes: "Права",
   expiresAt: "Действует до",
   warningVersion: "Редакция предупреждения",
-  durationMs: "Время, мс",
+  offerVersion: "Редакция оферты",
+  dpaVersion: "Редакция соглашения",
   question: "Вопрос (как ушёл ИИ-сервису)",
-  tools: "Инструменты",
   toolErrors: "Ошибок инструментов",
   model: "Модель",
   inputTokens: "Токенов на входе",
   outputTokens: "Токенов на выходе",
+  role: "Роль в группе",
+  action: "Действие",
+  // Ids the server resolves to names before sending the log
+  // (`AuditService.list` → `humanise`); an unresolved one stays an id and is
+  // left out. `coachId` is named in the club's words in `parseMetadata`.
+  userId: "Участник",
+  memberId: "Участник",
+  studentId: "Участник",
+  targetUserId: "Участник",
+  fromUserId: "Участник",
+  toUserId: "Участник",
+  gymId: "Зал",
+  groupId: "Группа",
+  eventId: "Событие",
+  videoId: "Видео",
+  courseId: "Курс",
+  playlistId: "Курс",
+  slotId: "Время в расписании",
+  exceptionId: "Отмена",
+  fromRoleId: "Роль до",
+  toRoleId: "Роль после",
+  chapterId: "Глава",
+  direction: "Направление",
 }
 
-export const DAY_OF_WEEK_LABEL: Record<string, string> = {
-  "1": "Пн",
-  "2": "Вт",
-  "3": "Ср",
-  "4": "Чт",
-  "5": "Пт",
-  "6": "Сб",
-  "7": "Вс",
+// Entity fields named in `fields` (what an edit touched) and as keys of
+// `changes` (what an edit set).
+const FIELD_LABEL: Record<string, string> = {
+  title: "название",
+  name: "название",
+  slug: "адрес страницы",
+  description: "описание",
+  thumbnailUrl: "обложка",
+  isPublic: "видимость",
+  tagIds: "теги",
+  tags: "теги",
+  categoryIds: "категории",
+  playlistIds: "курсы",
+  playlistId: "курс",
+  status: "статус",
+  accessLevel: "доступ",
+  level: "уровень",
+  lockedProgression: "порядок прохождения",
+  publishedAt: "дата публикации",
+  dayOfWeek: "день недели",
+  startTime: "время начала",
+  durationMin: "длительность",
+  effectiveFrom: "действует с",
+  effectiveUntil: "действует до",
+  capacity: "вместимость",
+  slotId: "время",
+  fromDate: "начало",
+  untilDate: "конец",
+  reason: "причина",
+  link: "ссылка",
+  startAt: "начало",
+  endAt: "окончание",
+  timezone: "часовой пояс",
+  gymId: "зал",
+  address: "адрес",
+  firstname: "имя",
+  lastname: "фамилия",
+  email: "эл. почта",
+  coachSeesAllGroups: "доступ ко всем группам",
+  announcementsEnabled: "раздел «Объявления»",
+  ranksEnabled: "раздел «Пояса»",
+  leaderboardEnabled: "рейтинг",
+  attendanceEnabled: "раздел «Посещаемость»",
+  subscriptionEnabled: "раздел «Абонемент»",
+  scheduleEnabled: "раздел «Расписание»",
+  groupsEnabled: "раздел «Группы»",
+  eventsEnabled: "раздел «События»",
 }
 
-const metaKeyLabel = (key: string, v: ClubVocabulary): string =>
-  key === "coachId" ? cap(v.coach.nom) : (META_KEY_LABEL[key] ?? key)
+// Course edits naming a video or a chapter. The server resolves most of them
+// to the title (shown with `label`); one it can't resolve stays an id, and the
+// event then says only what happened (`label` + `fallback`).
+const COURSE_ITEM_CHANGE: Record<string, { label: string; fallback: string }> = {
+  movedVideo: { label: "Перемещено видео", fallback: "Видео перемещено" },
+  removedVideo: { label: "Убрано из курса видео", fallback: "Видео убрано из курса" },
+  updatedVideo: { label: "Изменено видео", fallback: "Видео изменено в курсе" },
+  addedVideo: { label: "Добавлено видео", fallback: "Видео добавлено" },
+  createdChapter: { label: "Добавлена глава", fallback: "Глава добавлена" },
+  addedChapter: { label: "Добавлена глава", fallback: "Глава добавлена" },
+  deletedChapter: { label: "Удалена глава", fallback: "Глава удалена" },
+  removedChapter: { label: "Удалена глава", fallback: "Глава удалена" },
+  renamedChapter: { label: "Переименована глава", fallback: "Глава переименована" },
+  movedChapter: { label: "Перемещена глава", fallback: "Глава перемещена" },
+}
 
-export const formatMetaValue = (
-  value: unknown,
-  v: ClubVocabulary,
-): string => {
-  if (value === null || value === undefined) return "—"
-  if (typeof value === "boolean") return value ? "да" : "нет"
-  if (Array.isArray(value)) {
-    if (value.length === 0) return "—"
-    return value.map((item) => formatMetaValue(item, v)).join(", ")
+const ENUM_LABEL: Record<string, Record<string, string>> = {
+  action: {
+    setPublic: "открыты всем",
+    setPrivate: "скрыты",
+    addCategory: "добавлена категория",
+    removeCategory: "убрана категория",
+    delete: "удалены",
+  },
+  type: {
+    GRAPPLING: "единоборства",
+    FITNESS: "фитнес",
+    YOGA: "йога",
+    CUSTOM: "другое",
+  },
+  dataMode: AI_DATA_MODE_LABEL,
+  scopes: { read: "чтение", actions: "действия" },
+  currency: { RUB: "₽", USD: "$", EUR: "€" },
+  provider: PROVIDER_LABEL,
+  previousProvider: PROVIDER_LABEL,
+  dayOfWeek: { "1": "Пн", "2": "Вт", "3": "Ср", "4": "Чт", "5": "Пт", "6": "Сб", "7": "Вс" },
+  // The AI assistant's tools (server `features/mcp/tools`).
+  tool: AI_TOOL_LABEL,
+  tools: AI_TOOL_LABEL,
+}
+
+// The club area a platform request opened, by the path segment after the
+// club id (`/workspaces/:workspaceId/<segment>/…`).
+const ROUTE_SECTION: Record<string, string> = {
+  members: "Ученики",
+  groups: "Группы",
+  gyms: "Залы",
+  schedule: "Расписание",
+  sessions: "Расписание",
+  plans: "Абонементы",
+  subscriptions: "Абонементы",
+  payments: "Платежи",
+  settings: "Настройки",
+  analytics: "Отчёты",
+  events: "События",
+  announcements: "Объявления",
+  videos: "Курсы и видео",
+  playlists: "Курсы и видео",
+  audit: "История изменений",
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
+
+const isId = (value: unknown): boolean =>
+  typeof value === "string" && UUID_RE.test(value)
+
+// The coach field is named in the club's words.
+const fieldLabel = (name: string, v: ClubVocabulary): string | undefined =>
+  name === "coachId" ? v.coach.nom : FIELD_LABEL[name]
+
+const fieldList = (names: string[], v: ClubVocabulary): string | null => {
+  const known = [...new Set(names.map((n) => fieldLabel(n, v)).filter(Boolean))]
+  const unknown = names.filter((n) => !fieldLabel(n, v)).length
+  if (known.length === 0) {
+    return unknown > 0 ? `${unknown} ${pluralRu(unknown, "поле", "поля", "полей")}` : null
   }
+  return unknown > 0 ? `${known.join(", ")} и ещё ${unknown}` : known.join(", ")
+}
+
+const changeList = (changes: Record<string, unknown>, v: ClubVocabulary): string | null => {
+  const parts = Object.entries(changes).flatMap(([k, value]) => {
+    const label = fieldLabel(k, v)
+    if (!label) return []
+    if (typeof value === "boolean") return [`${label}: ${value ? "вкл." : "выкл."}`]
+    if (value === null || value === "") return [`${label}: убрано`]
+    if (isId(value) || typeof value !== "string") return [`${label}: изменено`]
+    return [`${label}: ${value}`]
+  })
+  return parts.length > 0 ? parts.join("; ") : null
+}
+
+// One value in words, or null when there is nothing a person can read.
+const formatMetaValue = (key: string, value: unknown, v: ClubVocabulary): string | null => {
+  if (value === null || value === undefined || value === "") return null
+  const enumLabels = ENUM_LABEL[key]
+  if (Array.isArray(value)) {
+    if (value.length === 0) return null
+    if (value.every(isId)) return String(value.length)
+    const items = value
+      .map((item) => formatMetaValue(key, item, v))
+      .filter((item): item is string => item !== null)
+    return items.length > 0 ? items.join(", ") : null
+  }
+  if ((key === "tool" || key === "tools") && value === "coach_stats") return cap(v.coach.nomPl)
+  if (enumLabels) return enumLabels[String(value)] ?? null
+  if (typeof value === "boolean") return value ? "да" : "нет"
+  if (typeof value === "number") return value.toLocaleString("ru-RU")
   if (typeof value === "string") {
-    if (/^[0-9a-f]{8}-/.test(value)) return value.slice(0, 8) + "…"
+    if (isId(value)) return null
+    if (DATE_TIME_RE.test(value)) return formatDate(value)
+    if (DATE_RE.test(value)) return value.split("-").reverse().join(".")
     return value
   }
   if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).filter(
-      ([, v]) => v !== null && v !== undefined && v !== "",
-    )
-    if (entries.length === 0) return "—"
-    return entries
-      .map(
-        ([k, val]) => `${metaKeyLabel(k, v)}: ${formatMetaValue(val, v)}`,
-      )
-      .join("; ")
+    const parts = Object.entries(value as Record<string, unknown>).flatMap(([k, val]) => {
+      const label = META_KEY_LABEL[k]
+      const text = label ? formatMetaValue(k, val, v) : null
+      return label && text ? [`${label}: ${text}`] : []
+    })
+    return parts.length > 0 ? parts.join("; ") : null
   }
-  return JSON.stringify(value)
+  return null
+}
+
+// A group coach added/removed: `{ userId, role }`; a roster sync: user ids.
+const groupPeopleValue = (value: unknown, v: ClubVocabulary): string | null => {
+  if (Array.isArray(value)) {
+    return value.length > 0
+      ? `${value.length} ${pluralRu(value.length, "участник", "участника", "участников")}`
+      : null
+  }
+  if (value && typeof value === "object" && "role" in value) {
+    const role = value.role === "primary" ? v.coach.nom : `помощник ${v.coach.gen}`
+    const who = "userId" in value && typeof value.userId === "string" && !isId(value.userId)
+      ? value.userId
+      : null
+    return who ? `${who} — ${role}` : cap(role)
+  }
+  return null
+}
+
+const routeSection = (route: unknown): string | null => {
+  if (typeof route !== "string") return null
+  const segment = route.match(/^\/workspaces\/[^/]+\/([^/?]+)/)?.[1]
+  return segment ? (ROUTE_SECTION[segment] ?? null) : null
 }
 
 export const parseMetadata = (
   metadata: unknown,
   vocabulary: ClubVocabulary,
 ): Array<{ key: string; label: string; value: string }> => {
-  if (!metadata || typeof metadata !== "object") return []
-  return Object.entries(metadata as Record<string, unknown>)
-    .filter(([, v]) => v !== null && v !== undefined && v !== "")
-    .map(([k, v]) => ({
-      key: k,
-      label: metaKeyLabel(k, vocabulary),
-      value:
-        k === "dayOfWeek"
-          ? (DAY_OF_WEEK_LABEL[String(v)] ?? formatMetaValue(v, vocabulary))
-          : k === "provider" || k === "previousProvider"
-            ? (PROVIDER_LABEL[v as keyof typeof PROVIDER_LABEL] ??
-              formatMetaValue(v, vocabulary))
-            : formatMetaValue(v, vocabulary),
-    }))
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return []
+  return Object.entries(metadata as Record<string, unknown>).flatMap(([key, raw]) => {
+    const courseItem = COURSE_ITEM_CHANGE[key]
+    if (courseItem) {
+      return typeof raw === "string" && !isId(raw)
+        ? [{ key, label: courseItem.label, value: raw }]
+        : [{ key, label: courseItem.fallback, value: "" }]
+    }
+    // The role name already says it; the resolved role id would repeat it.
+    if (key === "toRoleId" && "toRoleName" in metadata) return []
+    const label = key === "coachId" ? cap(vocabulary.coach.nom) : META_KEY_LABEL[key]
+    if (!label) return []
+    let value: string | null
+    if (key === "fields") {
+      value = Array.isArray(raw) ? fieldList(raw.map(String), vocabulary) : null
+    } else if (key === "changes") {
+      value =
+        raw && typeof raw === "object"
+          ? changeList(raw as Record<string, unknown>, vocabulary)
+          : null
+    } else if ((key === "added" || key === "removed") && typeof raw !== "number") {
+      value = groupPeopleValue(raw, vocabulary)
+    } else if (["toRoleName", "fromRoleName", "toRoleId", "fromRoleId"].includes(key)) {
+      value = typeof raw === "string" && !isId(raw) ? formatRoleName(raw, vocabulary) : null
+    } else if (key === "route") {
+      value = routeSection(raw)
+    } else {
+      value = formatMetaValue(key, raw, vocabulary)
+    }
+    return value ? [{ key, label, value }] : []
+  })
 }
 
 // Human labels for the action-family filter. Actions are "<entity>.<verb>",

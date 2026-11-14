@@ -12,6 +12,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SheetFooter,
   Textarea,
   TimePicker,
 } from "@clubspace/ui-kit/ui"
@@ -19,12 +20,15 @@ import {
 import { type Direction } from "../../shared/api/directions"
 import {
   createEvent,
+  deleteEvent,
   updateEvent,
   type WorkspaceEvent,
 } from "../../shared/api/events"
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
+import { pluralRu } from "../../shared/lib/plural-ru"
 import { sameData, useDirtyGuard } from "../../shared/lib/use-dirty-guard"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { type Gym } from "../../shared/api/groups"
 import { type WorkspaceMember } from "../../shared/api/members"
 import { useDirectionScope } from "../../shared/workspace/use-direction-scope"
@@ -75,7 +79,7 @@ const extractWallClock = (
   return { date: new Date(year, month - 1, day), time: `${hour}:${get("minute")}` }
 }
 
-type Props = {
+export type EventFormProps = {
   workspaceId: string
   gyms: Gym[]
   // Club directions; the selector hides itself when empty.
@@ -84,10 +88,24 @@ type Props = {
   defaultTimezone: string
   event?: WorkspaceEvent
   onCancel: () => void
-  onSaved: () => void | Promise<void>
-  onError: (msg: string) => void
+  onSaved: () => void
+  onDeleted: () => void
 }
 
+// What deleting the event takes with it — its unpaid registrations (the
+// server refuses while any ticket is paid).
+const deleteConsequence = (event: WorkspaceEvent): string => {
+  const total = event.registration
+    ? event.registration.booked + event.registration.waitlist
+    : 0
+  if (total === 0) return "Участники больше не увидят его в приложении."
+  const waitlist = event.registration?.waitlist ?? 0
+  return `Вместе с ним удалятся ${total} ${pluralRu(total, "запись", "записи", "записей")}${
+    waitlist > 0 ? `, из них ${waitlist} в листе ожидания` : ""
+  }.`
+}
+
+// The event editor: the body of the side panel (`EventFormSheet`).
 export function EventForm({
   workspaceId,
   gyms,
@@ -97,8 +115,8 @@ export function EventForm({
   event,
   onCancel,
   onSaved,
-  onError,
-}: Props) {
+  onDeleted,
+}: EventFormProps) {
   const vocabulary = useVocabulary()
   const isEdit = Boolean(event)
   const eventTz = event?.timezone ?? defaultTimezone
@@ -156,6 +174,7 @@ export function EventForm({
     event ? (event.direction?.id ?? null) : scope.defaultDirectionId,
   )
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Dirty = differs from what the form opened with (the saved event, or the
   // new-event defaults); saving closes the form.
@@ -179,34 +198,35 @@ export function EventForm({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    setError(null)
     if (!title.trim() || !startDate || !endDate || !startTime || !endTime) {
-      onError("Заполни название, даты и время")
+      setError("Заполните название, даты и время")
       return
     }
     const startAt = composeWallClock(startDate, startTime)
     const endAt = composeWallClock(endDate, endTime)
     // Fixed-width YYYY-MM-DDTHH:MM means lex order matches chronology.
     if (startAt >= endAt) {
-      onError("Начало должно быть раньше конца")
+      setError("Начало должно быть раньше конца")
       return
     }
     const priceValue = price.trim()
       ? parseIntInput(price, { min: 1, max: 10_000_000 })
       : null
     if (price.trim() && priceValue === null) {
-      onError("Цена — целое число больше нуля (или оставьте пустой — бесплатно)")
+      setError("Цена — целое число больше нуля (или оставьте пустой — бесплатно)")
       return
     }
     const capacityValue = capacity.trim()
       ? parseIntInput(capacity, { min: 1, max: 10_000 })
       : null
     if (capacity.trim() && capacityValue === null) {
-      onError("Мест — целое число больше нуля (или оставьте пустым — без лимита)")
+      setError("Мест — целое число больше нуля (или оставьте пустым — без лимита)")
       return
     }
     const currencyCode = currency.trim().toUpperCase()
     if (!/^[A-Z]{3}$/.test(currencyCode)) {
-      onError("Валюта — код из 3 букв, например RUB")
+      setError("Валюта — код из 3 букв, например RUB")
       return
     }
     setSubmitting(true)
@@ -234,12 +254,12 @@ export function EventForm({
       } else {
         await createEvent({ workspaceId, data })
       }
-      await onSaved()
+      onSaved()
     } catch (err) {
-      onError(
+      setError(
         errorMessage(
           err,
-          isEdit ? "Не удалось сохранить" : "Не удалось создать",
+          isEdit ? "Не удалось сохранить событие" : "Не удалось создать событие",
         ),
       )
     } finally {
@@ -247,15 +267,30 @@ export function EventForm({
     }
   }
 
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-3 rounded-lg border border-border bg-card p-4"
-    >
-      <h3 className="text-sm font-medium">
-        {isEdit ? "Редактировать событие" : "Новое событие"}
-      </h3>
+  const handleDelete = async () => {
+    if (!event) return
+    if (
+      !(await confirmDialog({
+        title: `Удалить событие «${event.title}»?`,
+        description: deleteConsequence(event),
+        destructive: true,
+      }))
+    )
+      return
+    setSubmitting(true)
+    setError(null)
+    try {
+      await deleteEvent({ workspaceId, eventId: event.id })
+      onDeleted()
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось удалить событие"))
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
+  return (
+    <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-3 overflow-y-auto">
       <div>
         <Label htmlFor="event-title">Название</Label>
         <Input
@@ -434,19 +469,38 @@ export function EventForm({
         />
       </div>
 
-      <div className="flex justify-end gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={onCancel}
-          disabled={submitting}
-        >
-          Отмена
-        </Button>
-        <Button type="submit" disabled={submitting || !title.trim()}>
-          {submitting ? "Сохраняем…" : isEdit ? "Сохранить" : "Создать"}
-        </Button>
-      </div>
+      {error && (
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
+      <SheetFooter className="sticky bottom-0 bg-background pt-3">
+        <div className="flex w-full items-center justify-end gap-2">
+          {event && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="mr-auto text-destructive"
+              onClick={() => void handleDelete()}
+              disabled={submitting}
+            >
+              Удалить
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCancel}
+            disabled={submitting}
+          >
+            Отмена
+          </Button>
+          <Button type="submit" disabled={submitting || !title.trim()}>
+            {submitting ? "Сохраняем…" : isEdit ? "Сохранить" : "Создать"}
+          </Button>
+        </div>
+      </SheetFooter>
     </form>
   )
 }

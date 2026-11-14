@@ -97,8 +97,8 @@ export const matchesTargetFilter = (
 export const groupsLabel = (groups: Announcement["groups"]): string =>
   groups.map((g) => groupOptionLabel(g)).join(", ")
 
-/** The confirmation before a publish that sends a push. */
-export const publishConfirmText = (
+/** Who gets the push on publishing — the consequence line of its confirmation. */
+export const publishPushText = (
   audience: string,
   target: { directionName: string | null; groups: Announcement["groups"] },
 ): string => {
@@ -110,11 +110,11 @@ export const publishConfirmText = (
     const names = target.groups
       .map((g) => `«${groupOptionLabel(g)}»`)
       .join(", ")
-    return `Опубликовать и отправить уведомление ${who} ${
+    return `Уведомление придёт ${who} ${
       target.groups.length === 1 ? "группы" : "групп"
-    } ${names}?`
+    } ${names}.`
   }
   return target.directionName
-    ? `Опубликовать и отправить уведомление ${who} направления «${target.directionName}»?`
-    : `Опубликовать и отправить уведомление ${who}?`
+    ? `Уведомление придёт ${who} направления «${target.directionName}».`
+    : `Уведомление придёт ${who}.`
 }

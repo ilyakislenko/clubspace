@@ -19,6 +19,7 @@ import {
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { useWorkspaceRealtime } from "../../shared/realtime/useWorkspaceRealtime"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { formatMemberLabel } from "../groups/helpers"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { agree, cap } from "@clubspace/ui-kit/brand"
@@ -157,8 +158,17 @@ export function ClassBookingPanel({
     )
   }
 
-  const handleRemove = (b: ClassOccurrenceBooking) => {
-    if (!window.confirm(`Снять «${b.displayName}» с ${session.gen}?`)) return
+  const handleRemove = async (b: ClassOccurrenceBooking) => {
+    if (
+      !(await confirmDialog({
+        title: `Снять «${b.displayName}» с ${session.gen}?`,
+        description: "Запись отменится, место освободится для других.",
+        confirmLabel: "Снять",
+        destructive: true,
+      }))
+    ) {
+      return
+    }
     void run(
       () =>
         removeClassBooking({
@@ -420,7 +430,7 @@ function RosterSection({
   const session = useVocabulary().session
   return (
     <div>
-      <div className="mb-1.5 text-xs uppercase text-muted-foreground">
+      <div className="mb-1.5 text-xs font-medium text-muted-foreground">
         {title}
       </div>
       {rows.length === 0 ? (

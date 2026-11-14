@@ -260,21 +260,21 @@ over the caller's scope (a coach: own groups; the forecast: its filters). Functi
 | Metric id | Russian label | Definition | Server function | Shown on |
 |---|---|---|---|---|
 | `members_total` | «Участники (N)» | every membership but pending invitations (students, staff, the owner's row, suspended/blocked) | `memberRosterWhere` | members list header |
-| `students_total` | «Ученики» | students | `countStudents` | dashboard, «Прогноз выручки» card subtitle, weekly digest, AI `club_overview` |
-| `students_active` | «Активные ученики» | students with `lastAttendedAt` or `lastSeenAt` (opened the club in the app) within 30 days — what the club pays ClubSpace by | `countActiveStudents`, `countActiveStudentsMany` | dashboard, «Тариф» (bill, tier), platform console, AI |
-| `students_with_abonement` | «Ученики с абонементом» | students holding ≥ 1 current abonement (`currentSubscriptionWhere`; paid or not); people, not abonements | `countStudentsWithAbonement` | dashboard, AI |
-| `students_attended_7d` / `_30d` | «Были на занятиях за неделю / за 30 дней» | students with ≥ 1 check-in in the window | `countStudentsAttended` | dashboard |
-| `students_not_attended_30d` | «Не были на занятиях 30 дней» | students without a check-in in 30 days (never-attended included); = `students_total − students_attended_30d` | `notAttendedWhere`, `countStudentsNotAttended` | dashboard, members filter `inactive` |
-| `new_students_today` | «Новые ученики» | students whose membership started since the club-local midnight | `countNewStudents` | dashboard |
-| `checkins_7d` / `_30d` / `_today` | «Отметок за неделю / сегодня» | students' attendance records in the window | `countStudentCheckins`, `studentCheckinsWhere` | dashboard (cards, weekly trend) |
-| `mrr` | «Регулярный доход в месяц» | current paid time-boxed abonements (anyone's), each `amountPaid × 30 / term days`; open-ended or not-started packs add 0; dominant currency | `computeRevenue` over `loadCurrentSales`, `loadMonthlyRecurringIncome` | dashboard, «Прогноз выручки», weekly digest |
-| `revenue_30d` | «Выручка за 30 дней» | paid in the trailing 30 days by payment date: abonements (former members' too) + event tickets | `computeRevenue` over `loadSales` | dashboard (+ trend, by tariff), AI `club_overview` |
-| `revenue_today` | «Выручка сегодня» | the same sales since the club-local midnight | `sumRevenue` over `loadSales` | dashboard |
-| `expected_revenue_30d` / `_90d` | «Ожидается за 30 / 90 дней» | renewals of current students' abonements inside the horizon × each student's renewal probability (club renewal share scaled by churn score), from the hourly snapshot; «Если все продлят» = the same at probability 1 | `expectedRevenue`, `loadExpectedRevenue` | dashboard (30), «Прогноз выручки» (30, 90), weekly digest |
+| `students_total` | «Ученики» | students | `countStudents` | dashboard «Посещаемость» (the share base), «Прогноз выручки» card subtitle, weekly digest, AI `club_overview` |
+| `students_active` | «Активные ученики» | students with `lastAttendedAt` or `lastSeenAt` (opened the club in the app) within 30 days — what the club pays ClubSpace by | `countActiveStudents`, `countActiveStudentsMany` | «Тариф» (bill, tier), platform console, AI; stats API (not drawn on the dashboard since wave 5) |
+| `students_with_abonement` | «Ученики с абонементом» | students holding ≥ 1 current abonement (`currentSubscriptionWhere`; paid or not); people, not abonements | `countStudentsWithAbonement` | AI; stats API (not drawn on the dashboard since wave 5) |
+| `students_attended_7d` / `_30d` | «Были на занятиях за неделю / за 30 дней» | students with ≥ 1 check-in in the window | `countStudentsAttended` | dashboard «Посещаемость» |
+| `students_not_attended_30d` | «Не были на занятиях 30 дней» | students without a check-in in 30 days (never-attended included); = `students_total − students_attended_30d` | `notAttendedWhere`, `countStudentsNotAttended` | members filter `inactive`; stats API |
+| `new_students_today` | «Новые ученики» | students whose membership started since the club-local midnight | `countNewStudents` | stats API only (not drawn since wave 5) |
+| `checkins_7d` / `_30d` / `_today` | «Отметок за неделю / сегодня» | students' attendance records in the window | `countStudentCheckins`, `studentCheckinsWhere` | dashboard «Отметок сегодня»; 7/30 days: stats API, AI |
+| `mrr` | «Регулярный доход в месяц» | current paid time-boxed abonements (anyone's), each `amountPaid × 30 / term days`; open-ended or not-started packs add 0; dominant currency | `computeRevenue` over `loadCurrentSales`, `loadMonthlyRecurringIncome` | dashboard «Деньги», «Прогноз выручки», weekly digest |
+| `revenue_30d` | «Выручка за 30 дней» | paid in the trailing 30 days by payment date: abonements (former members' too) + event tickets; the dashboard compares it with the 30 days before (`revenuePrev30d`, same rows and currency) | `computeRevenue` over `loadSales` | dashboard «Деньги» (+ change vs the previous 30 days), AI `club_overview` |
+| `revenue_today` | «Выручка сегодня» | the same sales since the club-local midnight | `sumRevenue` over `loadSales` | stats API only (not drawn since wave 5) |
+| `expected_revenue_30d` / `_90d` | «Ожидается за 30 / 90 дней» | renewals of current students' abonements inside the horizon × each student's renewal probability (club renewal share scaled by churn score), from the hourly snapshot; «Если все продлят» = the same at probability 1 | `expectedRevenue`, `loadExpectedRevenue` | «Прогноз выручки» (30, 90), weekly digest; stats API (30) |
 | `money_at_stake` | «на кону» / «На кону у учеников с высоким риском» | sum of the students' average monthly spend over 180 days (`monthlySpend`, snapshot): over the call list / over high-risk students | `domains/analytics/churn-score.ts` `monthlySpend`; `loadCallList`, `loadForecastReport` | «Кому позвонить», «Прогноз выручки» |
-| `awaiting_payment` | «Ожидают оплаты» | abonements sold and not paid (ACTIVE or EXPIRED, held by a member): the people who owe and the agreed amount | `domains/subscriptions/renewal-rules.ts` `awaitingPaymentWhere`, `countAwaitingPaymentMembers`; amount `summarizeAwaiting` | dashboard, «Продлить → Ожидают оплаты» header, members filter `unpaid` |
-| `renewals_due` | «Продлить» | students needing the next abonement (`renewal-rules.ts` header: pack empty/last class, term ends within 7 days, or ended within 30 days, next one not bought) | `renewal-rules.ts` `countRenewalsDue`, `loadRenewalDue` | dashboard (sport leads), «Продлить» list, members filter `renew`, announcement audience |
-| `call_list` | «Кому позвонить» | B1 | `domains/retention/call-list.ts` `loadCallList` | B1 |
+| `awaiting_payment` | «Ожидают оплаты» | abonements sold and not paid (ACTIVE or EXPIRED, held by a member): the people who owe and the agreed amount | `domains/subscriptions/renewal-rules.ts` `awaitingPaymentWhere`, `countAwaitingPaymentMembers`; amount `summarizeAwaiting` | dashboard «Нужно решение» (people from the list endpoint; amount for club admins), «Продлить → Ожидают оплаты» header, members filter `unpaid` |
+| `renewals_due` | «Продлить» | students needing the next abonement (`renewal-rules.ts` header: pack empty/last class, term ends within 7 days, or ended within 30 days, next one not bought) | `renewal-rules.ts` `countRenewalsDue`, `loadRenewalDue` | dashboard «Нужно решение» (sport leads), «Продлить» list, members filter `renew`, announcement audience |
+| `call_list` | «Кому позвонить» | B1 | `domains/retention/call-list.ts` `loadCallList` | B1; dashboard «Нужно решение» |
 
 **Decisions (wave 3).**
 - `domains/metrics/` holds the people and money functions (`students`, `active-students`,
@@ -598,6 +598,153 @@ Apply the UI rules to each page. Concrete targets (evidence in the UX audit, sec
 | История изменений | Human labels instead of slugs/IDs/English field names («slug: kimura», «Добавлено видео: d3071fb0…», «Поля: title») |
 | Copy | «6 группа(ы)» (`ws/groups/page.tsx:171,350`) → plurals; «сможешь» → «сможете»; «Аудитория (adult / kids)» (`ws/ranks/page.tsx:137`) → Russian; emoji in directions/achievements/events/tops → colour dot or nothing; tracked uppercase labels → sentence case |
 | Deletes | Shared `ConfirmDialog` stating consequences (e.g. «В группе 21 ученик…») instead of 49 `window.confirm` calls (F8) |
+
+**Decisions (wave 5).**
+- «Ученики»: title row = «Ученики» · «Пригласить» (the page's one filled button, every staff role) ·
+  «⋯ → Импорт из Excel (CSV)» (club admins). The list follows at once; join requests sit above it as
+  a compact group only while there are any. «Пригласить» opens a side panel
+  (`features/invite/InviteSheet.tsx`): «Код клуба» (code, link, QR, «Распечатать плакат», «Сменить
+  код», auto-approve — `ClubCodeSection`, was `InviteMembersCard`) for all staff; «По e-mail»,
+  «Добавить ребёнка» and «Ожидают принятия» for sport leads. `users?invite=1` opens it (launch
+  checklist step).
+- A join request row keeps two actions, «Принять» (outline) and «Отклонить» (ghost): deciding is the
+  row's whole job, and a «⋯» holding one item is worse than showing it.
+- Roster row = name (+ «Ребёнок» and a plain «Родитель: Имя» line) · role only for staff and the
+  owner · status only when not active · each abonement «план, осталось N из M, до дата» (or the
+  manual access window when there is none) · «Долг» with a red dot. The whole row opens the card;
+  no buttons. E-mail, last visit and video progress left the row (search still finds by e-mail).
+  `GET …/members` gained `owesPayment` (same rule as the «Должники» segment, `owesPaymentWhere`)
+  and lost `lastCheckInAt`, `watchedCount`, `inProgressCount`, `lastWatched*`,
+  `workspaceVideoTotal` and their four queries; `MemberProgressBlock` is gone.
+- The roster opens sorted «По имени». The access-window order (`accessUntil asc`) stays as «По дате
+  окончания доступа»: it leads with people whose access lapsed long ago, so it can't be the
+  default. «Who expires next» needs a nearest-to-today order that Prisma can't express without
+  raw SQL; that list is «Удержание → Продлить» and the «Кончается абонемент» filter.
+- «Абонементы → Тарифы»: tariffs first, archived ones last and dimmed; «Добавить тариф» (filled)
+  and «⋯ → Изменить» open `features/subscriptions/PlanFormSheet.tsx` (the old form, dirty guard
+  kept; closing a changed panel asks the guard's «Уйти без сохранения?» via `confirmLeave()`).
+  Row tap = tariff page; its «Редактировать»
+  (`?edit=`) and the checklist (`?new=1`) open the panel. «⋯» = Изменить · В архив / Вернуть из
+  архива · Удалить. Пробное / с первого занятия / онлайн moved from chips into the details line.
+- Archive and «Вернуть» don't confirm (undoable). «Удалить» reads the tariff page first: with
+  current holders it says «У тарифа N действующих абонементов» and offers «В архив» instead (the
+  server refuses deleting any tariff that was ever sold anyway).
+- Freeze-request decline: the inline form (open → comment → «Отклонить») is the confirmation; the
+  extra `window.confirm` was dropped rather than turned into a second dialog.
+- **F8 `ConfirmDialog`** (`shared/ui/confirm-dialog.tsx`): `confirmDialog({ title, description,
+  confirmLabel, cancelLabel, destructive }) → Promise<boolean>` on the ui-kit `Dialog`;
+  `<ConfirmDialogHost />` is mounted once in `app/(dashboard)/layout.tsx` and asks queued requests
+  one by one. Esc, the cross, a click outside and «Отмена» answer `false`; Enter and the confirm
+  button `true` (it has focus on open). Destructive = solid red button, default label «Удалить»,
+  else «Подтвердить». Without a mounted host it rejects (component specs render the host). Title =
+  the question naming the object; description = consequences from data already on the page
+  («В группе 21 ученик — они останутся в клубе без группы»), never a restated title. Undoable
+  actions (archive, hide, unpublish) don't ask.
+- Dirty guard: in-app link clicks and `confirmLeave()` (now `async`, callers await it) ask through
+  the dialog («Уйти без сохранения?» · «Есть несохранённые изменения — они пропадут.» · Остаться /
+  Уйти). The capture listener holds the click and, after «Уйти», replays it on the same link so
+  Next's `<Link>` navigates as usual (a link gone from the page by then → `location.assign`, with
+  the `beforeunload` listener removed first so the browser doesn't ask again). `beforeunload`
+  stays the browser's own prompt — a page can't replace it. Every create/edit panel closes through
+  `await confirmLeave()` (Esc, outside click, «Отмена»; its form registers `useDirtyGuard`), so
+  closing with changes asks the same question — events, announcements, tariffs, ladders, levels,
+  gradings, directions. `confirmDialog` uses the `new Promise` executor, not
+  `Promise.withResolvers` (missing in Safari < 17.4 / Chrome < 119, not polyfilled by Next).
+- `window.confirm` left in `apps/admin/src`: 0.
+- «Пояса → Лестницы»: «Добавить лестницу» (the one filled button) and a ghost «Добавить уровень» per
+  ladder open side panels (`features/ranks/LadderFormSheet.tsx`, `LevelFormSheet.tsx`); no form is
+  open by default. Ladder header tap → ladder panel (name, «Для кого», direction, «Активна»,
+  «Удалить» in the footer — a 2-item «⋯» would be worse). Level row tap → level panel (name,
+  colour, stripes, «Допуск к аттестации»); «⋯» = Выше · Ниже · В архив · Удалить.
+  `LevelRuleEditor` is gone. «Для кого» stays free text as the server stores it (demo data is
+  Russian; there is no `adult/kids` enum).
+- «Пояса → Аттестации»: «Новая аттестация» (secondary, only while an active ladder exists) opens
+  `features/gradings/GradingFormSheet.tsx`; «Валюта» shows once a fee is typed, «Зал» only if the
+  club has halls. The grading page's four confirmations name who is promoted to what (up to 5
+  names, «и ещё N»), that members get a notification and that it can't be undone.
+- «Настройки → Направления»: row = colour dot · name · «N групп · руководитель: …», one «⋯»
+  (Изменить · В архив · Удалить). Managers moved from every row into the direction panel (they save
+  at once, apart from «Сохранить»). «Удалить» is offered only for a direction without groups (the
+  server refuses any used one and names the usages). Direction emoji are not shown anywhere in the
+  admin (chip, select, filter, scope picker); the field stays in the panel as «Значок» because the
+  member app shows it on the achievements screen.
+- «Приложение учеников → Достижения»: the emoji column left the list (the badge face stays a
+  panel field — it is what members see); deleting says how many members unlocked the badge and
+  points to «Выключить».
+- «Новости и события»: «Новое объявление» opens `features/announcements/AnnouncementFormSheet.tsx`
+  for create and edit (dirty guard per form); card tap = editor, «⋯» = Опубликовать / В черновик ·
+  Закрепить / Открепить · Удалить. A date in «Опубликовать позже» turns «Опубликовать» into
+  «Запланировать» (one filled button). Events: `features/events/EventFormSheet.tsx` wraps
+  `EventForm`; row tap = editor (for those who may edit it), the one trailing control is
+  «Записавшиеся» (only with registration); delete is in the panel footer and counts registrations
+  and waitlist. Hall and coach on an event row are plain text (no links inside a row button).
+  Registration rows: the three payment-method buttons became one «Отметить оплату» menu.
+- «Курсы и видео»: course rows are links without controls; editing and deleting a course live in the
+  course page header «⋯» (Изменить курс · Новый раздел · Удалить курс). Video rows lost the per-row
+  access select (read-only text), «Удалить» and the «Действия» column; «Повторить» shows only for
+  a failed video inside its status cell; one video is deleted on its page («Удалить видео», the
+  confirmation counts its courses); the list keeps the bulk delete. «Slug» → «Адрес в ссылке».
+  Lesson rows already met the rule (drag, tap, one «Убрать»).
+- «История изменений» (`features/audit/audit-meta.ts`): metadata shows only what has a Russian
+  label. The server already swaps known ids for names before sending the log
+  (`AuditService.list` → `humanise`: people «Имя (email)», halls, groups, events, videos, courses,
+  chapters, roles, schedule times «Пн 19:00 (90 мин)», cancellations), so those keys are labelled
+  («Участник», the coach in the club's words, «Зал», «Группа», «Время в расписании», «Отмена»,
+  «Роль до/после» translated, «Глава», «Направление»); a value that is still an id (not
+  resolvable, e.g. a deleted row, a list position `afterId`) is left out, as are keys and enum
+  values without a translation — never the raw value. The list now also resolves the target of
+  hall, group, event and direction entries (`targetLabelOf`; their target ids were never
+  loaded). Course items show the resolved title («Перемещено видео: …») or, for an unresolved
+  one, just what happened («Глава удалена»). Field names in `fields`/`changes` are translated
+  (`title` → «название»); `slug` → «Адрес страницы»; video id lists → a count; dates are
+  formatted; AI tools, data mode, club type and bulk actions are translated; a platform request
+  shows the club area («Раздел: Ученики»). An action or target the build doesn't know reads
+  «Изменение в разделе «…»» / «Объект». «Слот расписания» → «Время в расписании».
+- `moduleActionConfirm` (`billing-view.ts`) now returns the dialog options instead of a confirm
+  text; `publishPushText` (`announcement-target.ts`) returns the consequence line that the caller
+  puts into the dialog's `description`. Refund dialogs say «Деньги вернутся тем же способом,
+  которым платил участник». ClubSpace billing after a failed charge: «Оплатить сейчас» shows only
+  while the card renews the plan; otherwise the «Оплатить картой» above is the one pay button.
+- Course page: the publish-date badge uses a clock icon instead of «🕒».
+- «6 группа(ы)» was already gone after wave 4 (`pluralRu`); no copy change on groups/gyms.
+- «Сегодня» (`ws/page.tsx`, `features/dashboard/*`): «Нужно решение» rows, each only while > 0
+  (`decisions.ts`): Кому позвонить → `retention` · Продлить → `retention?tab=renew` · Ожидают оплаты
+  (people from `GET awaiting-payment` `members`; «на сумму …» for club admins) → `retention?tab=renew`
+  · Заявки на вступление → `users` · Заявки на заморозку (`GET freeze-requests`, now wrapped as
+  `listPendingFreezeRequests`; one request links to the member card, several unfold into one row per
+  member — only the card decides them) · Видео в обработке или с ошибкой → `content`. Beside it
+  today's classes and events from the schedule (club-local day, cancelled struck through, «Идёт»;
+  a row opens the calendar's day). Below: «Деньги» (club admins: «Регулярный доход в месяц» +
+  «Выручка за 30 дней» with the change against the previous 30 days, link «Выручка и прогноз») and
+  «Посещаемость» (leads: были на занятиях за неделю / за 30 дней with % of students, отметок
+  сегодня). Removed: the 25 tiles, video stats, «Топ по посещаемости» (🥇), «Топ видео», the
+  revenue/attendance charts, the tariff breakdown, uppercase labels.
+- Roles: plain coach = call list + freeze requests (own groups) + own classes (groups they coach or
+  substitute in, like the calendar); direction manager and head coach add the sport-lead rows
+  (head coach: renew/awaiting/join; manager: videos) and attendance, no money; club admins all.
+- Stats DTO: `revenue.revenuePrev30d` added (sales paid 31–60 days ago in revenue30d's currency;
+  one 60-day `loadSales` read instead of six months); `topVideos7d`, `activity`, `counts.courses`,
+  `revenue.trend`, `revenue.byPlan`, `attendance.trend` (and `attendance-trend.ts`) removed. The
+  other glossary fields stay on `GET …/stats` (the glossary e2e and demo-kit assert them) even where
+  the dashboard no longer renders them.
+- Launch checklist: payments and video are optional («по желанию»), never hold it open; it lists
+  only the steps still to do, counts required ones, hides once they are done, and «Скрыть» is kept
+  per club and account in `localStorage` (`clubspace:onboarding-hidden:<ws>:<user>`). Step links:
+  `groups?tab=gyms`, `subscriptions?new=1`, `users?invite=1`.
+- Calendar: «Год» removed (a stored or linked `view=year` falls back to the week). In the week view
+  a run of 3+ classes at once (`dayRuns`, `MAX_SIDE_BY_SIDE = 2`) is drawn as one list card over
+  its time span (`RunList`: dot · start · group, full details in the tip, row opens the class);
+  the spec said > 3, but at 1440 px a third lane is ≈47 px with no text. Day view keeps blocks
+  (halls layout already gives each hall a column). Listed classes are moved from their panel or
+  the day view.
+- `GET freeze-requests` gained `total` (same scope, uncapped; `data` stays the oldest 100): the
+  dashboard count reads it, and an unfolded list longer than 100 ends with «И ещё N — в карточках
+  учеников». A failed schedule request shows «Не удалось загрузить расписание на сегодня» in the
+  classes block; the «nothing today» line appears only after a successful empty answer.
+- Sentence case also in the class panel (Посещаемость, Замена, booking lists) and «Отчёты» tables
+  and cards (cohorts, coaches, occupancy, the analytics stat card).
+- Measured at 1440×900 (demo ACADEMY): owner «Сегодня» 2 983 → 700 px, head coach 2 173 → 680,
+  plain coach 1 985 → 303; tracked-uppercase labels 27 → 0; no filled buttons, no per-row actions.
 
 ## 5. Correctness bugs (P0, small) — workstream E
 

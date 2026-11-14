@@ -110,11 +110,12 @@ export function InviteMemberForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-3 rounded-lg border border-border bg-card p-4"
+      className="space-y-3"
     >
+      <h3 className="text-sm font-semibold">По e-mail</h3>
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-2 sm:col-span-3">
-          <Label htmlFor="invite-email">Email*</Label>
+          <Label htmlFor="invite-email">E-mail*</Label>
           <Input
             id="invite-email"
             type="email"

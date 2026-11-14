@@ -6,7 +6,6 @@ import { useCallback, useEffect, useState } from "react"
 import { Button } from "@clubspace/ui-kit/ui"
 
 import {
-  createRankGrading,
   listRankGradings,
   type RankGradingSummary,
 } from "../../shared/api/gradings"
@@ -14,9 +13,8 @@ import { listGyms, type Gym } from "../../shared/api/groups"
 import { listRankLadders, type RankLadder } from "../../shared/api/ranks"
 import { errorMessage } from "../../shared/lib/error-message"
 import { formatYmd } from "../../shared/lib/format-ymd"
-import { inputCls } from "../../shared/lib/input-class"
-import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { pluralRu } from "../../shared/lib/plural-ru"
+import { GradingFormSheet } from "./GradingFormSheet"
 
 // Admins and direction managers (the server lists only their directions'
 // ladders and gradings to a manager): schedule a grading, open existing ones.
@@ -24,13 +22,7 @@ export function GradingsPanel({ workspaceId }: { workspaceId: string }) {
   const [gradings, setGradings] = useState<RankGradingSummary[] | null>(null)
   const [ladders, setLadders] = useState<RankLadder[]>([])
   const [gyms, setGyms] = useState<Gym[]>([])
-  const [date, setDate] = useState("")
-  const [ladderId, setLadderId] = useState("")
-  const [title, setTitle] = useState("")
-  const [gymId, setGymId] = useState("")
-  const [fee, setFee] = useState("")
-  const [currency, setCurrency] = useState("RUB")
-  const [busy, setBusy] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -47,129 +39,29 @@ export function GradingsPanel({ workspaceId }: { workspaceId: string }) {
 
   useEffect(() => {
     void listRankLadders({ workspaceId })
-      .then((res) => {
-        setLadders(res.data)
-        setLadderId(
-          (prev) => prev || (res.data.find((l) => l.isActive)?.id ?? ""),
-        )
-      })
+      .then((res) => setLadders(res.data.filter((l) => l.isActive)))
       .catch(() => setLadders([]))
     void listGyms({ workspaceId })
       .then((res) => setGyms(res.data))
       .catch(() => setGyms([]))
   }, [workspaceId])
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!date || !ladderId) return
-    let feeAmount: number | undefined
-    if (fee.trim()) {
-      const parsed = parseIntInput(fee, { min: 0, max: 10_000_000 })
-      if (parsed === null) {
-        setError("Взнос: целое число")
-        return
-      }
-      feeAmount = parsed
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      await createRankGrading({
-        workspaceId,
-        data: {
-          ladderId,
-          date,
-          title: title.trim() || undefined,
-          gymId: gymId || undefined,
-          feeAmount,
-          feeCurrency:
-            feeAmount !== undefined
-              ? currency.trim().toUpperCase()
-              : undefined,
-        },
-      })
-      setTitle("")
-      setFee("")
-      await load()
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось создать аттестацию"))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Аттестации</h2>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      <form
-        onSubmit={submit}
-        className="space-y-2 rounded-xl border border-border bg-card/40 p-4"
-      >
-        <p className="text-sm font-medium">Новая аттестация</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            className={inputCls}
-            type="date"
-            aria-label="Дата"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-          <select
-            className={inputCls}
-            aria-label="Лестница"
-            value={ladderId}
-            onChange={(e) => setLadderId(e.target.value)}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">Аттестации</h2>
+        {ladders.length > 0 && (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => setSheetOpen(true)}
           >
-            {ladders
-              .filter((l) => l.isActive)
-              .map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-          </select>
-          <input
-            className={inputCls}
-            placeholder="Название (необязательно)"
-            maxLength={255}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <select
-            className={inputCls}
-            aria-label="Зал"
-            value={gymId}
-            onChange={(e) => setGymId(e.target.value)}
-          >
-            <option value="">Зал не указан</option>
-            {gyms.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-          <input
-            className={`${inputCls} w-28`}
-            placeholder="Взнос"
-            aria-label="Взнос"
-            value={fee}
-            onChange={(e) => setFee(e.target.value)}
-          />
-          <input
-            className={`${inputCls} w-20`}
-            placeholder="Валюта"
-            aria-label="Валюта"
-            maxLength={3}
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-          />
-          <Button type="submit" disabled={busy || !date || !ladderId}>
-            Создать
+            Новая аттестация
           </Button>
-        </div>
-      </form>
+        )}
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {gradings === null ? (
         <p className="text-sm text-muted-foreground">Загрузка…</p>
@@ -198,6 +90,15 @@ export function GradingsPanel({ workspaceId }: { workspaceId: string }) {
           ))}
         </ul>
       )}
+
+      <GradingFormSheet
+        workspaceId={workspaceId}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        ladders={ladders}
+        gyms={gyms}
+        onSaved={() => void load()}
+      />
     </div>
   )
 }

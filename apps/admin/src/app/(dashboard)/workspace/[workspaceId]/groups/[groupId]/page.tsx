@@ -39,6 +39,7 @@ import { isClubAdmin } from "../../../../../../shared/lib/permissions"
 import { pluralRu } from "../../../../../../shared/lib/plural-ru"
 import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
 import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
+import { confirmDialog } from "../../../../../../shared/ui/confirm-dialog"
 
 // The group card: hall, coaches, mode, the schedule read-only (the calendar
 // edits it) and the roster, paged.
@@ -123,10 +124,21 @@ export default function WorkspaceGroupPage() {
     .sort((a, b) => (a.role === b.role ? 0 : a.role === "primary" ? -1 : 1))
 
   const handleDelete = async () => {
+    const n = group.memberCount
+    const consequences = [
+      n > 0 &&
+        `В группе ${n} ${pluralRu(n, "ученик", "ученика", "учеников")} — ${n === 1 ? "он останется" : "они останутся"} в клубе без группы.`,
+      group.slots.length > 0 && `${cap(vocabulary.session.nomPl)} группы исчезнут из расписания.`,
+    ]
+      .filter(Boolean)
+      .join(" ")
     if (
-      !window.confirm(
-        `Удалить группу «${group.name}»? Ученики останутся в клубе, но потеряют привязку к этой группе, а её ${vocabulary.session.nomPl} исчезнут из расписания.`,
-      )
+      !(await confirmDialog({
+        title: `Удалить группу «${group.name}»?`,
+        description: consequences || undefined,
+        confirmLabel: "Удалить группу",
+        destructive: true,
+      }))
     ) {
       return
     }

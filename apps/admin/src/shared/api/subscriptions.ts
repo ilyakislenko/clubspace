@@ -182,6 +182,19 @@ export const endSubscriptionFreeze = async (params: {
     url: `${ws(params.workspaceId)}/members/${params.userId}/subscriptions/${params.subscriptionId}/freezes/${params.freezeId}/end`,
   })
 
+// Members' freeze requests waiting for a decision — those the caller may
+// decide (a coach: members of their groups), the oldest 100 and the total.
+export type PendingFreezeRequests = ApiTypes.PendingFreezeRequestsOutputOutput
+export type PendingFreezeRequest = PendingFreezeRequests["data"][number]
+
+export const listPendingFreezeRequests = async (params: {
+  workspaceId: string
+}): Promise<PendingFreezeRequests> =>
+  await getApiClient().request<PendingFreezeRequests>({
+    method: "get",
+    url: `${ws(params.workspaceId)}/freeze-requests`,
+  })
+
 export const approveSubscriptionFreezeRequest = async (params: {
   workspaceId: string
   requestId: string

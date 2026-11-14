@@ -14,6 +14,8 @@ import {
 } from "../../shared/api/subscriptions"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
+import { pluralRu } from "../../shared/lib/plural-ru"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { TONE_CLASS } from "../audit/audit-meta"
 import { FreezeForm } from "./FreezeForm"
 import {
@@ -91,9 +93,20 @@ export function SubscriptionFreezeBlock({
     }
   }
 
-  const confirmEnd = (message: string, freezeId: string) => {
-    if (!window.confirm(message)) return
-    void end(freezeId)
+  // Ending or cancelling a freeze takes its unused days back off the
+  // abonement's term.
+  const confirmEnd = async (
+    title: string,
+    confirmLabel: string,
+    days: number,
+    freezeId: string,
+  ) => {
+    const ok = await confirmDialog({
+      title,
+      description: `Срок абонемента сократится на ${days} ${pluralRu(days, "день", "дня", "дней")}.`,
+      confirmLabel,
+    })
+    if (ok) void end(freezeId)
   }
 
   return (
@@ -116,8 +129,10 @@ export function SubscriptionFreezeBlock({
             size="sm"
             disabled={busy}
             onClick={() =>
-              confirmEnd(
-                `Снять заморозку? Срок абонемента сократится на ${returnDaysIfEndedToday(open, today)} дн. (неиспользованные дни заморозки).`,
+              void confirmEnd(
+                "Снять заморозку досрочно?",
+                "Снять заморозку",
+                returnDaysIfEndedToday(open, today),
                 open.id,
               )
             }
@@ -143,8 +158,10 @@ export function SubscriptionFreezeBlock({
             size="sm"
             disabled={busy}
             onClick={() =>
-              confirmEnd(
-                `Отменить запланированную заморозку? Срок абонемента сократится на ${open.days} дн.`,
+              void confirmEnd(
+                "Отменить запланированную заморозку?",
+                "Отменить заморозку",
+                open.days,
                 open.id,
               )
             }
@@ -228,7 +245,6 @@ export function SubscriptionFreezeBlock({
                   size="sm"
                   disabled={busy}
                   onClick={() => {
-                    if (!window.confirm("Отклонить заявку на заморозку?")) return
                     void decide(
                       () =>
                         declineSubscriptionFreezeRequest({

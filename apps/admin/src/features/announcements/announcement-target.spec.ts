@@ -3,7 +3,7 @@ import {
   isEditTargetComplete,
   isTargetComplete,
   matchesTargetFilter,
-  publishConfirmText,
+  publishPushText,
   targetOf,
   targetPayload,
 } from "./announcement-target"
@@ -90,12 +90,10 @@ describe("announcement target", () => {
 
   it("names the groups with their hall in the publish confirmation", () => {
     expect(
-      publishConfirmText("ALL", { directionName: null, groups: [adults, kids] }),
-    ).toBe(
-      "Опубликовать и отправить уведомление всем участникам групп «Взрослые · Манеж», «Дети»?",
-    )
-    expect(publishConfirmText("ALL", { directionName: "БЖЖ", groups: [] })).toBe(
-      "Опубликовать и отправить уведомление всем участникам направления «БЖЖ»?",
+      publishPushText("ALL", { directionName: null, groups: [adults, kids] }),
+    ).toBe("Уведомление придёт всем участникам групп «Взрослые · Манеж», «Дети».")
+    expect(publishPushText("ALL", { directionName: "БЖЖ", groups: [] })).toBe(
+      "Уведомление придёт всем участникам направления «БЖЖ».",
     )
   })
 })

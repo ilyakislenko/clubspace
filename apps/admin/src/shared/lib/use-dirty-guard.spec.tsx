@@ -1,11 +1,12 @@
 /** @jest-environment jsdom */
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen, within } from "@testing-library/react"
+
+import { ConfirmDialogHost } from "../ui/confirm-dialog"
 
 import {
   clickLeavesPage,
   confirmLeave,
   hasUnsavedChanges,
-  LEAVE_PROMPT,
   sameData,
   useDirtyGuard,
 } from "./use-dirty-guard"
@@ -94,48 +95,80 @@ function Form({ dirty }: { dirty: boolean }) {
   return <a href="/workspace/w1/users">Ученики</a>
 }
 
+const answer = async (label: "Уйти" | "Остаться") => {
+  const dialog = await screen.findByRole("dialog")
+  expect(within(dialog).getByText("Уйти без сохранения?")).toBeTruthy()
+  await act(async () => {
+    fireEvent.click(within(dialog).getByRole("button", { name: label }))
+  })
+}
+
 describe("useDirtyGuard", () => {
-  let confirmSpy: jest.SpyInstance
+  // Link clicks that got past the guard; prevented here so jsdom does not
+  // navigate. Clicks on the dialog's buttons are not counted.
+  let passed: MouseEvent[]
+  const onBubble = (event: MouseEvent) => {
+    if (!(event.target instanceof HTMLAnchorElement)) return
+    passed.push(event)
+    event.preventDefault()
+  }
 
   beforeEach(() => {
-    confirmSpy = jest.spyOn(window, "confirm")
+    passed = []
+    document.addEventListener("click", onBubble)
   })
-  afterEach(() => confirmSpy.mockRestore())
+  afterEach(() => document.removeEventListener("click", onBubble))
 
   const clickLink = () => {
     const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 })
-    screen.getByText("Ученики").dispatchEvent(event)
+    act(() => {
+      screen.getByText("Ученики").dispatchEvent(event)
+    })
     return event
   }
 
-  it("asks before a link click leaves a dirty form and stays on «no»", () => {
-    confirmSpy.mockReturnValue(false)
-    const bubbled = jest.fn()
-    document.addEventListener("click", bubbled)
-    const { unmount } = render(<Form dirty />)
+  it("holds a link click on a dirty form and stays on «Остаться»", async () => {
+    const { unmount } = render(
+      <>
+        <Form dirty />
+        <ConfirmDialogHost />
+      </>,
+    )
 
     const event = clickLink()
-
-    expect(confirmSpy).toHaveBeenCalledWith(LEAVE_PROMPT)
     expect(event.defaultPrevented).toBe(true)
-    expect(bubbled).not.toHaveBeenCalled()
-    document.removeEventListener("click", bubbled)
+
+    await answer("Остаться")
+    expect(passed).toHaveLength(0)
     unmount()
   })
 
-  it("lets the navigation through on «yes»", () => {
-    confirmSpy.mockReturnValue(true)
-    const { unmount } = render(<Form dirty />)
+  it("replays the click on the same link after «Уйти»", async () => {
+    const { unmount } = render(
+      <>
+        <Form dirty />
+        <ConfirmDialogHost />
+      </>,
+    )
 
-    expect(clickLink().defaultPrevented).toBe(false)
+    clickLink()
+    await answer("Уйти")
+    expect(passed).toHaveLength(1)
+    expect(passed[0].target).toBe(screen.getByText("Ученики"))
     unmount()
   })
 
   it("does not ask while the form matches what was saved", () => {
-    const { unmount } = render(<Form dirty={false} />)
+    const { unmount } = render(
+      <>
+        <Form dirty={false} />
+        <ConfirmDialogHost />
+      </>,
+    )
 
-    expect(clickLink().defaultPrevented).toBe(false)
-    expect(confirmSpy).not.toHaveBeenCalled()
+    clickLink()
+    expect(passed).toHaveLength(1)
+    expect(screen.queryByRole("dialog")).toBeNull()
     unmount()
   })
 
@@ -164,29 +197,44 @@ describe("useDirtyGuard", () => {
     unmount()
   })
 
-  it("guards programmatic navigation through confirmLeave", () => {
-    const { rerender, unmount } = render(<Form dirty />)
-    confirmSpy.mockReturnValueOnce(false)
-    expect(confirmLeave()).toBe(false)
+  it("guards programmatic navigation through confirmLeave", async () => {
+    const { rerender, unmount } = render(
+      <>
+        <Form dirty />
+        <ConfirmDialogHost />
+      </>,
+    )
+    let left: Promise<boolean> = Promise.resolve(true)
+    act(() => {
+      left = confirmLeave()
+    })
+    await answer("Остаться")
+    await expect(left).resolves.toBe(false)
 
-    rerender(<Form dirty={false} />)
-    expect(confirmLeave()).toBe(true)
-    expect(confirmSpy).toHaveBeenCalledTimes(1)
+    rerender(
+      <>
+        <Form dirty={false} />
+        <ConfirmDialogHost />
+      </>,
+    )
+    await expect(confirmLeave()).resolves.toBe(true)
+    expect(screen.queryByRole("dialog")).toBeNull()
     unmount()
   })
 
-  it("prompts once even with two dirty forms on the page", () => {
-    confirmSpy.mockReturnValue(false)
+  it("prompts once even with two dirty forms on the page", async () => {
     const { unmount } = render(
       <>
         <Form dirty />
         <FormWithoutLink />
+        <ConfirmDialogHost />
       </>,
     )
 
     fireEvent.click(screen.getByText("Ученики"))
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1)
+    expect(await screen.findAllByRole("dialog")).toHaveLength(1)
+    await answer("Остаться")
     unmount()
   })
 })

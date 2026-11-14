@@ -24,6 +24,7 @@ import { personName } from "../../shared/lib/analytics"
 import { AT_RISK_CHIP, AT_RISK_LABEL } from "../../shared/lib/at-risk"
 import { errorMessage } from "../../shared/lib/error-message"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { classesLabel, periodLabel } from "../subscriptions/subscription-display"
 import { MemberSearchPicker } from "./MemberSearchPicker"
 
@@ -96,7 +97,16 @@ export function GroupRoster({ workspaceId, groupId, canEdit, linkPlans, onChange
   }
 
   const remove = async (m: GroupRosterMember) => {
-    if (!window.confirm(`Убрать ${personName(m)} из группы? В клубе ученик останется.`)) return
+    if (
+      !(await confirmDialog({
+        title: `Убрать ${personName(m)} из группы?`,
+        description: "Ученик останется в клубе — убирается только привязка к этой группе.",
+        confirmLabel: "Убрать",
+        destructive: true,
+      }))
+    ) {
+      return
+    }
     setBusy(true)
     setError(null)
     try {

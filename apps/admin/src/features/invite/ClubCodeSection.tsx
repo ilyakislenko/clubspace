@@ -12,13 +12,15 @@ import {
 import { updateWorkspaceSettings } from "../../shared/api/workspaces"
 import { writeToClipboard } from "../../shared/lib/clipboard"
 import { errorMessage } from "../../shared/lib/error-message"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { openInvitePoster } from "./invite-poster"
 
 type CopyKey = "code" | "link"
 
-// `canRotateCode`: sport leads (roster); `canSetAutoApprove`: club admins
-// (it is a workspace setting).
-export function InviteMembersCard({
+// The club code, its link and QR, the printable poster — the «Код клуба» part
+// of the invite panel. `canRotateCode`: sport leads (roster);
+// `canSetAutoApprove`: club admins (it is a workspace setting).
+export function ClubCodeSection({
   workspaceId,
   canRotateCode,
   canSetAutoApprove,
@@ -60,12 +62,14 @@ export function InviteMembersCard({
   }
 
   const handleRotate = async () => {
-    if (
-      !window.confirm(
-        "Старый код, ссылка и QR-код перестанут работать — напечатанные плакаты придётся заменить. Сменить код?",
-      )
-    )
-      return
+    const ok = await confirmDialog({
+      title: "Сменить код клуба?",
+      description:
+        "Старый код, ссылка и QR-код перестанут работать — напечатанные плакаты придётся заменить.",
+      confirmLabel: "Сменить код",
+      destructive: true,
+    })
+    if (!ok) return
     setBusy(true)
     setError(null)
     try {
@@ -105,9 +109,9 @@ export function InviteMembersCard({
   }
 
   return (
-    <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+    <section className="space-y-3">
       <div className="space-y-1">
-        <h2 className="text-sm font-semibold">Пригласить учеников</h2>
+        <h3 className="text-sm font-semibold">Код клуба</h3>
         <p className="text-sm text-muted-foreground">
           Ученики ставят приложение ClubSpace, входят по e-mail и вводят код
           клуба — или наводят камеру на QR-код.
@@ -169,6 +173,7 @@ export function InviteMembersCard({
               <Button
                 type="button"
                 size="sm"
+                variant="secondary"
                 onClick={handlePrint}
                 disabled={!invite.qrPngDataUrl}
               >
@@ -232,6 +237,6 @@ export function InviteMembersCard({
           )}
         </div>
       )}
-    </div>
+    </section>
   )
 }

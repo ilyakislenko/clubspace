@@ -93,7 +93,7 @@ export function ClassSubstitutionPanel({
 
   return (
     <div className="space-y-2 rounded-md border border-border p-3">
-      <div className="text-xs uppercase text-muted-foreground">Замена</div>
+      <div className="text-xs font-medium text-muted-foreground">Замена</div>
       {error && <p className="text-xs text-destructive">{error}</p>}
       {row ? (
         <p className="text-sm">

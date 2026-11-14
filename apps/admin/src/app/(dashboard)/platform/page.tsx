@@ -31,6 +31,7 @@ import {
   workspaceTypeLabel,
   type WorkspaceTypeValue,
 } from "../../../shared/lib/workspace-type"
+import { confirmDialog } from "../../../shared/ui/confirm-dialog"
 
 const PER_PAGE = 20
 
@@ -120,12 +121,14 @@ export default function PlatformConsolePage() {
     // it is confirmed on its own; the feature switches are left alone.
     if (
       editType !== w.type &&
-      !window.confirm(
-        `Сменить тип клуба «${w.name}»: ${workspaceTypeLabel(w.type)} → ${workspaceTypeLabel(editType)}?\n\n` +
+      !(await confirmDialog({
+        title: `Сменить тип клуба «${w.name}»: ${workspaceTypeLabel(w.type)} → ${workspaceTypeLabel(editType)}?`,
+        description:
           "Поменяются названия в приложении и админке (словарь клуба) и витрина клуба. " +
           "Включённые функции — ранги, видео, достижения и другие — останутся как есть: " +
           "при необходимости переключите их в настройках клуба.",
-      )
+        confirmLabel: "Сменить тип",
+      }))
     ) {
       return
     }

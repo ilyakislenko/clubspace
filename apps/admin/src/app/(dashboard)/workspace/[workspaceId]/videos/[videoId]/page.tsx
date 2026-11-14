@@ -17,6 +17,7 @@ import {
 } from "../../../../../../shared/api/playlists"
 import { listTags, type TagResponse } from "../../../../../../shared/api/tags"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
+import { pluralRu } from "../../../../../../shared/lib/plural-ru"
 import {
   confirmLeave,
   useDirtyGuard,
@@ -27,6 +28,7 @@ import {
 } from "../../../../../../shared/lib/video-status"
 import {
   createVideoThumbnailUpload,
+  deleteVideo,
   getVideo,
   getVideoPlayback,
   updateVideo,
@@ -39,6 +41,7 @@ import {
   isAllowedThumbnailType,
   THUMBNAIL_REJECT_MESSAGE,
 } from "../../../../../../shared/upload-types"
+import { confirmDialog } from "../../../../../../shared/ui/confirm-dialog"
 
 type VideoDetails = {
   id: string
@@ -345,7 +348,12 @@ export default function WorkspaceVideoWatchPage() {
 
   const handleThumbnailRemove = async () => {
     if (!workspaceId || !video || !video.thumbnailUrl) return
-    if (!window.confirm("Удалить превью?")) return
+    const ok = await confirmDialog({
+      title: "Удалить превью?",
+      description: "Видео останется без обложки, её можно загрузить заново.",
+      destructive: true,
+    })
+    if (!ok) return
     setThumbnailSaving(true)
     setActionError(null)
     try {
@@ -359,6 +367,27 @@ export default function WorkspaceVideoWatchPage() {
       setActionError(errorMessage(error))
     } finally {
       setThumbnailSaving(false)
+    }
+  }
+
+  const handleDeleteVideo = async () => {
+    if (!workspaceId || !video) return
+    const courses = selectedPlaylistIds.length
+    const ok = await confirmDialog({
+      title: `Удалить видео «${video.title}»?`,
+      description:
+        courses > 0
+          ? `Видео пропадёт из ${courses} ${pluralRu(courses, "курса", "курсов", "курсов")} и у учеников.`
+          : "Видео пропадёт из библиотеки клуба.",
+      destructive: true,
+    })
+    if (!ok) return
+    setActionError(null)
+    try {
+      await deleteVideo({ workspaceId, videoId: video.id })
+      router.push(`/workspace/${workspaceId}/content`)
+    } catch (error) {
+      setActionError(errorMessage(error, "Не удалось удалить видео."))
     }
   }
 
@@ -426,8 +455,8 @@ export default function WorkspaceVideoWatchPage() {
         </div>
         <Button
           variant="secondary"
-          onClick={() => {
-            if (confirmLeave()) router.push(`/workspace/${workspaceId}/content`)
+          onClick={async () => {
+            if (await confirmLeave()) router.push(`/workspace/${workspaceId}/content`)
           }}
         >
           Назад к библиотеке
@@ -755,7 +784,7 @@ export default function WorkspaceVideoWatchPage() {
                   <div className="text-xs text-muted-foreground">
                     {video.isPublic
                       ? "Видео доступно по прямой ссылке."
-                      : "Видео видят только участники workspace."}
+                      : "Видео видят только участники клуба."}
                   </div>
                 </div>
                 <button
@@ -809,6 +838,15 @@ export default function WorkspaceVideoWatchPage() {
                 </span>
               </div>
             </div>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full text-destructive"
+              onClick={() => void handleDeleteVideo()}
+            >
+              Удалить видео
+            </Button>
           </aside>
         </div>
       )}

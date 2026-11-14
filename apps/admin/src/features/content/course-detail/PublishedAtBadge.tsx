@@ -1,5 +1,7 @@
 "use client"
 
+import { Clock } from "lucide-react"
+
 type Props = {
   publishedAt: string | null
   onOpen: () => void
@@ -14,7 +16,8 @@ export function PublishedAtBadge({ publishedAt, onOpen }: Props) {
         className="inline-flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50"
         title="Запланировать публикацию"
       >
-        🕒 Запланировать
+        <Clock className="size-3.5" aria-hidden />
+        Запланировать
       </button>
     )
   }
@@ -35,7 +38,8 @@ export function PublishedAtBadge({ publishedAt, onOpen }: Props) {
           : "Курс уже прошёл запланированную дату публикации."
       }
     >
-      🕒 {future ? "Откроется" : "Открыт с"}{" "}
+      <Clock className="size-3.5" aria-hidden />
+      {future ? "Откроется" : "Открыт с"}{" "}
       {at.toLocaleDateString("ru-RU", {
         day: "2-digit",
         month: "short",

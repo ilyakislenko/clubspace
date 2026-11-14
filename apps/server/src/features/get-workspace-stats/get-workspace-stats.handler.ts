@@ -6,7 +6,6 @@ import {
     countStudentCheckins,
     countStudentsAttended,
     countStudentsNotAttended,
-    studentCheckinsWhere,
 } from '../../domains/metrics/attendance'
 import { loadExpectedRevenue } from '../../domains/metrics/expected-revenue'
 import {
@@ -14,9 +13,6 @@ import {
     loadCurrentSales,
     loadSales,
     paidOn,
-    revenueByPlan,
-    revenueTrend,
-    revenueTrendStart,
     revenueWindowStart,
     summarizeAwaiting,
     sumRevenue,
@@ -44,7 +40,6 @@ import {
 } from '../attendance/attendance-utils'
 import { GetWorkspaceScheduleFeature } from '../get-workspace-schedule/get-workspace-schedule.feature'
 import { GetWorkspaceScheduleHandler } from '../get-workspace-schedule/get-workspace-schedule.handler'
-import { attendanceTrend } from './attendance-trend'
 
 const DAY_MS = 24 * 3600 * 1000
 
@@ -93,10 +88,9 @@ export class GetWorkspaceStatsHandler
 
         // For coach_own_only: pre-compute the visible userId set (students of
         // their own groups — coached or of a direction they run, ownGroupsWhere
-        // — plus the coach themselves). Activity stats and top videos
-        // get filtered by this set; student counts narrow to it; content
-        // counts (videos, courses) stay workspace-wide because the
-        // content library is shared by design.
+        // — plus the coach themselves). Student counts narrow to it; the video
+        // library counts stay workspace-wide because the library is shared by
+        // design.
         let scopedUserIds: string[] | null = null
         let scopedGroupIds: string[] | null = null
         if (!this.rbac.canSeeAllGroups(ctx)) {
@@ -130,98 +124,14 @@ export class GetWorkspaceStatsHandler
             ...(scopedUserIds !== null ? { where: userScope } : {}),
         }
 
-        const [videos, videosReady, courses] = await this.prisma.$transaction([
+        const [videos, videosReady] = await this.prisma.$transaction([
             this.prisma.video.count({ where: { workspaceId } }),
             this.prisma.video.count({
                 where: { workspaceId, status: 'ready' },
             }),
-            this.prisma.course.count({ where: { workspaceId } }),
         ])
-
-        const [viewers7Rows, viewers30Rows, completions7Total, topVideoRows] =
-            await Promise.all([
-                this.prisma.videoWatched.findMany({
-                    where: {
-                        workspaceId,
-                        watchedAt: { gte: since7 },
-                        ...userScope,
-                    },
-                    distinct: ['userId'],
-                    select: { userId: true },
-                }),
-                this.prisma.videoWatched.findMany({
-                    where: {
-                        workspaceId,
-                        watchedAt: { gte: since30 },
-                        ...userScope,
-                    },
-                    distinct: ['userId'],
-                    select: { userId: true },
-                }),
-                this.prisma.videoWatched.count({
-                    where: {
-                        workspaceId,
-                        completed: true,
-                        watchedAt: { gte: since7 },
-                        ...userScope,
-                    },
-                }),
-                // Top videos by distinct viewers in the last 7 days. We pull a
-                // bit more than 5 to allow tie-breaking by completion count.
-                this.prisma.videoWatched.groupBy({
-                    by: ['videoId'],
-                    where: {
-                        workspaceId,
-                        watchedAt: { gte: since7 },
-                        ...userScope,
-                    },
-                    _count: { userId: true },
-                    orderBy: { _count: { userId: 'desc' } },
-                    take: 8,
-                }),
-            ])
-
-        const topVideoIds = topVideoRows.map((row) => row.videoId)
-        const [topVideoMeta, completionsByVideo] = await Promise.all([
-            topVideoIds.length > 0
-                ? this.prisma.video.findMany({
-                      where: { id: { in: topVideoIds } },
-                      select: { id: true, title: true },
-                  })
-                : [],
-            topVideoIds.length > 0
-                ? this.prisma.videoWatched.groupBy({
-                      by: ['videoId'],
-                      where: {
-                          workspaceId,
-                          videoId: { in: topVideoIds },
-                          completed: true,
-                          watchedAt: { gte: since7 },
-                          ...userScope,
-                      },
-                      _count: { _all: true },
-                  })
-                : [],
-        ])
-
-        const titleByVideo = new Map(
-            topVideoMeta.map((v) => [v.id, v.title]),
-        )
-        const completionsByVideoMap = new Map(
-            completionsByVideo.map((row) => [row.videoId, row._count._all]),
-        )
-
-        const topVideos7d = topVideoRows
-            .map((row) => ({
-                id: row.videoId,
-                title: titleByVideo.get(row.videoId) ?? 'Удалённое видео',
-                viewers: row._count.userId,
-                completions: completionsByVideoMap.get(row.videoId) ?? 0,
-            }))
-            .slice(0, 5)
 
         // ---- Students, attendance, retention (glossary metrics) ----
-        const since8w = new Date(now.getTime() - 8 * 7 * DAY_MS)
         const [
             studentsTotal,
             activeStudents,
@@ -234,7 +144,6 @@ export class GetWorkspaceStatsHandler
             attendedStudents30d,
             notAttended30d,
             renewalsDue,
-            trendRows,
         ] = await Promise.all([
             countStudents(this.prisma, students),
             countActiveStudents(this.prisma, students, now),
@@ -251,17 +160,7 @@ export class GetWorkspaceStatsHandler
             countStudentsAttended(this.prisma, students, since30),
             countStudentsNotAttended(this.prisma, students, now),
             sportLead ? countRenewalsDue(this.prisma, workspaceId, now) : null,
-            // Weekly check-in trend (last 8 weeks), same students as above.
-            this.prisma.attendanceRecord.findMany({
-                where: studentCheckinsWhere(students, since8w),
-                select: { markedAt: true },
-            }),
         ])
-        const attendanceTrendPoints = attendanceTrend(
-            trendRows.map((r) => r.markedAt),
-            now,
-            8,
-        )
 
         // ---- Today (workspace-local calendar day) ----
         const todayDate = localDateInTz(now, tz)
@@ -271,13 +170,13 @@ export class GetWorkspaceStatsHandler
         let revenue: GetWorkspaceStatsFeatureResponse['revenue'] = null
         let todayRevenue: { amount: number; currency: string | null } | null = null
         if (clubAdmin) {
-            const trendStart = revenueTrendStart(now, tz)
+            const windowStart = revenueWindowStart(now)
+            const prevStart = new Date(windowStart.getTime() - 30 * DAY_MS)
             const [current, sales, awaitingRows, owing, horizons] = await Promise.all([
                 loadCurrentSales(this.prisma, workspaceId, now),
-                // Six months of paid sales power the trend chart, today's
-                // revenue and — via the trailing-30-day slice — revenue30d
-                // and the tariff breakdown.
-                loadSales(this.prisma, workspaceId, trendStart),
+                // 60 days of paid sales: revenue30d, the 30 days before it
+                // (the trend) and today's revenue.
+                loadSales(this.prisma, workspaceId, prevStart),
                 // The receivable (same rows as the «Ожидают оплаты» list).
                 this.prisma.subscription.findMany({
                     where: awaitingPaymentWhere(workspaceId),
@@ -286,7 +185,6 @@ export class GetWorkspaceStatsHandler
                 countAwaitingPaymentMembers(this.prisma, workspaceId),
                 loadExpectedRevenue(this.prisma, workspaceId),
             ])
-            const windowStart = revenueWindowStart(now)
             const recent30 = sales.filter((r) => paidOn(r) >= windowStart)
             const summary = computeRevenue(current, recent30)
             revenue = {
@@ -296,8 +194,9 @@ export class GetWorkspaceStatsHandler
                     students: owing,
                     amount: summarizeAwaiting(awaitingRows, summary.currency).amount,
                 },
-                trend: revenueTrend(sales, now, summary.currency, tz),
-                byPlan: revenueByPlan(recent30, summary.currency),
+                revenuePrev30d: sales
+                    .filter((r) => paidOn(r) < windowStart && r.currency === summary.currency)
+                    .reduce((sum, r) => sum + r.amountPaid, 0),
             }
             todayRevenue = sumRevenue(sales.filter((r) => paidOn(r) >= dayStart))
         }
@@ -344,15 +243,9 @@ export class GetWorkspaceStatsHandler
             counts: {
                 videos,
                 videosReady,
-                courses,
                 students: studentsTotal,
                 activeStudents,
                 studentsWithAbonement,
-            },
-            activity: {
-                videoViewers7d: viewers7Rows.length,
-                videoViewers30d: viewers30Rows.length,
-                completions7d: completions7Total,
             },
             attendance: {
                 sessions7d,
@@ -361,11 +254,9 @@ export class GetWorkspaceStatsHandler
                 checkins30d,
                 attendedStudents7d,
                 attendedStudents30d,
-                trend: attendanceTrendPoints,
             },
             retention: { notAttended30d, renewalsDue },
             revenue,
-            topVideos7d,
         }
     }
 }

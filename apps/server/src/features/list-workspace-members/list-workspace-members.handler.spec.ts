@@ -17,7 +17,11 @@ import {
 
 const BJJ = { id: 'd-bjj', name: 'БЖЖ', color: '#f00', icon: null }
 
-const memberRow = (userId: string, subscriptions: unknown[] = []) => ({
+const memberRow = (
+    userId: string,
+    subscriptions: unknown[] = [],
+    unpaid = 0,
+) => ({
     id: `wm-${userId}`,
     status: 'ACTIVE',
     accessUntil: null,
@@ -31,6 +35,7 @@ const memberRow = (userId: string, subscriptions: unknown[] = []) => ({
     },
     role: { name: 'user' },
     subscriptions,
+    _count: { subscriptions: unpaid },
 })
 
 // The demo club: direction БЖЖ run by `bjj` (who coaches none of its groups);
@@ -75,12 +80,6 @@ const make = (members: unknown[], scope = 'admin', total = members.length) => {
             findMany: jest.fn().mockResolvedValue(members),
             count: jest.fn().mockResolvedValue(total),
         },
-        videoWatched: {
-            groupBy: jest.fn().mockResolvedValue([]),
-            findMany: jest.fn().mockResolvedValue([]),
-        },
-        attendanceRecord: { groupBy: jest.fn().mockResolvedValue([]) },
-        video: { count: jest.fn().mockResolvedValue(0) },
     }
     // The real scope rules over the Prisma double; only the role lookup is
     // stubbed.
@@ -121,13 +120,7 @@ describe('ListWorkspaceMembersHandler', () => {
     const scopedIds = async (invoker: string) => {
         const { prisma, run } = make([], 'coach_own_only')
         const out = await run(invoker, 'coach')
-        expect(out).toEqual({
-            data: [],
-            total: 0,
-            curPage: 1,
-            perPage: 50,
-            workspaceVideoTotal: 0,
-        })
+        expect(out).toEqual({ data: [], total: 0, curPage: 1, perPage: 50 })
         // The one own-groups rule (ownGroupsWhere), limited to the club.
         expect(groupMemberFindMany).toHaveBeenCalledWith({
             where: { group: { workspaceId: 'w1', ...ownGroupsWhere(invoker) } },
@@ -234,6 +227,22 @@ describe('ListWorkspaceMembersHandler', () => {
         ])
         expect(out.total).toBe(2)
     })
+
+    it('marks a member holding an unpaid abonement by the «Должники» rule', async () => {
+        const { prisma, run } = make([
+            memberRow('owes', [], 1),
+            memberRow('paid'),
+        ])
+        const out = await run()
+        expect(out.data.map((m) => [m.userId, m.owesPayment])).toEqual([
+            ['owes', true],
+            ['paid', false],
+        ])
+        const { include } = prisma.workspaceMember.findMany.mock.calls[0][0]
+        expect(include._count.select.subscriptions.where).toEqual(
+            owesPaymentWhere.subscriptions.some,
+        )
+    })
 })
 
 describe('ListWorkspaceMembersHandler pagination', () => {
@@ -282,30 +291,6 @@ describe('ListWorkspaceMembersHandler pagination', () => {
         await run('admin1', 'admin', { q: 'иван', access: 'unpaid' })
         const { where } = prisma.workspaceMember.findMany.mock.calls[0][0]
         expect(prisma.workspaceMember.count).toHaveBeenCalledWith({ where })
-    })
-
-    it('computes progress and check-ins for the returned page only', async () => {
-        const { prisma, run } = paged()
-        await run('admin1', 'admin', { curPage: 2, perPage: 3 })
-        const page = ['u3', 'u4', 'u5']
-        for (const call of [
-            ...prisma.videoWatched.groupBy.mock.calls,
-            ...prisma.videoWatched.findMany.mock.calls,
-            ...prisma.attendanceRecord.groupBy.mock.calls,
-        ]) {
-            expect(call[0].where.userId).toEqual({ in: page })
-        }
-        expect(prisma.videoWatched.groupBy).toHaveBeenCalledTimes(2)
-        expect(prisma.videoWatched.findMany).toHaveBeenCalledTimes(1)
-        expect(prisma.attendanceRecord.groupBy).toHaveBeenCalledTimes(1)
-    })
-
-    it('skips the aggregates for an empty page', async () => {
-        const { prisma, run } = make([], 'admin', 7)
-        const out = await run('admin1', 'admin', { curPage: 9 })
-        expect(out).toMatchObject({ data: [], total: 7, curPage: 9 })
-        expect(prisma.videoWatched.groupBy).not.toHaveBeenCalled()
-        expect(prisma.attendanceRecord.groupBy).not.toHaveBeenCalled()
     })
 
     it('ANDs the search into the coach scope instead of widening it', async () => {

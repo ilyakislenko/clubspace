@@ -229,14 +229,14 @@ export function ReadinessPanel({
         <div className="flex gap-1">
           <Button
             size="sm"
-            variant={onlyReady ? "default" : "outline"}
+            variant={onlyReady ? "secondary" : "ghost"}
             onClick={() => setOnlyReady(true)}
           >
             Готовы · {readyCount}
           </Button>
           <Button
             size="sm"
-            variant={onlyReady ? "outline" : "default"}
+            variant={onlyReady ? "ghost" : "secondary"}
             onClick={() => setOnlyReady(false)}
           >
             Все
@@ -281,7 +281,7 @@ export function ReadinessPanel({
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
+            <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 {gradable && <th className="p-3" />}
                 <th className="p-3">Участник</th>

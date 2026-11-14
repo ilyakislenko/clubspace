@@ -39,7 +39,7 @@ describe("PlaylistFormSheet — create", () => {
   it("shows the create title with an editable slug", () => {
     renderCreate()
     expect(screen.getByText("Новый курс")).toBeTruthy()
-    expect((screen.getByLabelText("Slug") as HTMLInputElement).disabled).toBe(
+    expect((screen.getByLabelText("Адрес в ссылке") as HTMLInputElement).disabled).toBe(
       false,
     )
   })
@@ -53,7 +53,7 @@ describe("PlaylistFormSheet — create", () => {
       target: { value: "Closed Guard" },
     })
     expect(submit().disabled).toBe(true)
-    fireEvent.change(screen.getByLabelText("Slug"), {
+    fireEvent.change(screen.getByLabelText("Адрес в ссылке"), {
       target: { value: "closed-guard" },
     })
     expect(submit().disabled).toBe(false)
@@ -66,7 +66,7 @@ describe("PlaylistFormSheet — create", () => {
     fireEvent.change(screen.getByLabelText("Название"), {
       target: { value: "Closed Guard" },
     })
-    fireEvent.change(screen.getByLabelText("Slug"), {
+    fireEvent.change(screen.getByLabelText("Адрес в ссылке"), {
       target: { value: "closed-guard" },
     })
     fireEvent.change(screen.getByLabelText("Теги (через запятую)"), {
@@ -108,7 +108,7 @@ describe("PlaylistFormSheet — edit", () => {
     expect((screen.getByLabelText("Название") as HTMLInputElement).value).toBe(
       "Старое",
     )
-    const slug = screen.getByLabelText("Slug") as HTMLInputElement
+    const slug = screen.getByLabelText("Адрес в ссылке") as HTMLInputElement
     expect(slug.value).toBe("old-slug")
     expect(slug.disabled).toBe(true)
   })

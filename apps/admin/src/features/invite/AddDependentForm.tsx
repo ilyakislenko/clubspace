@@ -144,10 +144,10 @@ export function AddDependentForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-3 rounded-lg border border-border bg-card p-4"
+      className="space-y-3"
     >
       <div className="space-y-1">
-        <h2 className="text-sm font-semibold">Добавить ребёнка</h2>
+        <h3 className="text-sm font-semibold">Добавить ребёнка</h3>
         <p className="text-xs text-muted-foreground">
           У ребёнка нет своего входа: он сразу появится среди участников, а
           родитель подтвердит его в приложении и будет записываться за него.

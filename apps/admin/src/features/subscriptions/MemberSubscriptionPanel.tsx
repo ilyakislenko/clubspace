@@ -21,6 +21,7 @@ import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
 import { pluralRu } from "../../shared/lib/plural-ru"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { DirectionScopeChips } from "../directions/DirectionScopePicker"
 import {
   ABONEMENT_STATE_LABEL,
@@ -155,10 +156,16 @@ export function MemberSubscriptionPanel({
       ? openFreezeOf(subs.freezes, subscriptionId, todayYmd(new Date())) !==
         null
       : false
-    const message = hasOpenFreeze
-      ? "Отменить этот абонемент? Заморозка тоже будет снята."
-      : "Отменить этот абонемент?"
-    if (!window.confirm(message)) return
+    const ok = await confirmDialog({
+      title: "Отменить абонемент?",
+      description: hasOpenFreeze
+        ? "Абонемент перестанет действовать сразу, вернуть его нельзя. Заморозка тоже будет снята."
+        : "Абонемент перестанет действовать сразу, вернуть его нельзя.",
+      confirmLabel: "Отменить абонемент",
+      cancelLabel: "Не отменять",
+      destructive: true,
+    })
+    if (!ok) return
     try {
       await cancelSubscription({ workspaceId, userId, subscriptionId })
       await load()
@@ -190,12 +197,14 @@ export function MemberSubscriptionPanel({
   }
 
   const unmarkPaid = async (subscriptionId: string) => {
-    if (
-      !window.confirm(
-        "Отменить отметку оплаты? Абонемент снова будет «Ожидает оплаты».",
-      )
-    )
-      return
+    const ok = await confirmDialog({
+      title: "Отменить отметку оплаты?",
+      description:
+        "Абонемент снова будет «Ожидает оплаты», а ученик попадёт в должники.",
+      confirmLabel: "Отменить отметку",
+      cancelLabel: "Не отменять",
+    })
+    if (!ok) return
     try {
       await unmarkSubscriptionPaid({ workspaceId, userId, subscriptionId })
       await load()

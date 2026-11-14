@@ -2,7 +2,7 @@ import { blockFit } from "./calendar-helpers"
 
 describe("blockFit", () => {
   it.each([
-    // A week day of «Все залы» split four or five ways: no «Д…» stubs.
+    // Two classes side by side in a narrow week column: no «Д…» stubs.
     [25, "bare"],
     [46, "bare"],
     // Room for «18:30» but not for a title worth reading.

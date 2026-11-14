@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 jest.mock("../../../shared/api/groups", () => ({
   createGroupException: jest.fn(),
@@ -23,6 +23,7 @@ import {
   getGroup,
   updateGroupSlot,
 } from "../../../shared/api/groups"
+import { ConfirmDialogHost } from "../../../shared/ui/confirm-dialog"
 import { sessionAt } from "./calendar-fixtures"
 import { buildCalendarItems, EMPTY_FILTERS, type ClassItem } from "./calendar-items"
 import { ClassDetailsSheet, dayBefore } from "./ClassDetailsSheet"
@@ -83,16 +84,19 @@ const renderSheet = (item: ClassItem, canManage = true) => {
     onScheduleChanged: jest.fn(),
   }
   render(
-    <ClassDetailsSheet
-      workspaceId="w1"
-      item={item}
-      group={undefined}
-      canManage={canManage}
-      onClose={jest.fn()}
-      onMoveRequest={jest.fn()}
-      onChanged={jest.fn()}
-      {...handlers}
-    />,
+    <>
+      <ClassDetailsSheet
+        workspaceId="w1"
+        item={item}
+        group={undefined}
+        canManage={canManage}
+        onClose={jest.fn()}
+        onMoveRequest={jest.fn()}
+        onChanged={jest.fn()}
+        {...handlers}
+      />
+      <ConfirmDialogHost />
+    </>,
   )
   return handlers
 }
@@ -100,7 +104,6 @@ const renderSheet = (item: ClassItem, canManage = true) => {
 beforeEach(() => {
   jest.clearAllMocks()
   ;(getGroup as jest.Mock).mockResolvedValue(details())
-  jest.spyOn(window, "confirm").mockReturnValue(true)
 })
 
 describe("ClassDetailsSheet — the calendar edits the group's time", () => {
@@ -207,6 +210,11 @@ describe("ClassDetailsSheet — the calendar edits the group's time", () => {
     })
     const h = renderSheet(classItem(true))
     fireEvent.click(await screen.findByRole("button", { name: "Снять отмену" }))
+    // A period comes back whole: the dialog says so before anything changes.
+    const dialog = await screen.findByRole("dialog", { name: "Снять отмену?" })
+    expect(dialog.textContent).toContain("С 1 ноября по 10 ноября")
+    expect(deleteGroupException).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Снять отмену" }))
     await waitFor(() =>
       expect(deleteGroupException).toHaveBeenCalledWith({
         workspaceId: "w1",
@@ -214,7 +222,6 @@ describe("ClassDetailsSheet — the calendar edits the group's time", () => {
         exceptionId: "vac",
       }),
     )
-    expect(window.confirm).toHaveBeenCalled()
     expect(h.onRestored).toHaveBeenCalled()
   })
 

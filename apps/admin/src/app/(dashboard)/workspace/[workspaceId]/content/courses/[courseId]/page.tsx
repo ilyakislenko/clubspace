@@ -1,6 +1,12 @@
 "use client"
 
-import { Button } from "@clubspace/ui-kit/ui"
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@clubspace/ui-kit/ui"
 import {
   closestCenter,
   DndContext,
@@ -15,13 +21,14 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { Plus } from "lucide-react"
+import { MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { Fragment, useEffect, useMemo, useState } from "react"
 
 import {
   createPlaylistChapter,
+  deletePlaylist,
   deletePlaylistChapter,
   detachVideoFromPlaylist,
   getPlaylist,
@@ -35,8 +42,11 @@ import {
   type CoursePlaylistVideo,
 } from "../../../../../../../shared/api/playlists"
 import { errorMessage } from "../../../../../../../shared/lib/error-message"
+import { pluralRu } from "../../../../../../../shared/lib/plural-ru"
+import { confirmDialog } from "../../../../../../../shared/ui/confirm-dialog"
 import { useDirectionScope } from "../../../../../../../shared/workspace/use-direction-scope"
 import { AttachVideoSheet } from "../../../../../../../features/content/course-detail/AttachVideoSheet"
+import { PlaylistFormSheet } from "../../../../../../../features/content/PlaylistFormSheet"
 import { ChapterHeaderRow } from "../../../../../../../features/content/course-detail/ChapterHeaderRow"
 import { CourseAccessCard } from "../../../../../../../features/content/course-detail/CourseAccessCard"
 import { PublishedAtBadge } from "../../../../../../../features/content/course-detail/PublishedAtBadge"
@@ -66,6 +76,7 @@ export default function CourseDetailPage() {
   const [creatingChapter, setCreatingChapter] = useState(false)
   const [publishSaving, setPublishSaving] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -194,7 +205,14 @@ export default function CourseDetailPage() {
 
   const handleRemove = async (video: CoursePlaylistVideo) => {
     if (!workspaceId || !courseId) return
-    if (!window.confirm(`Убрать «${video.title}» из курса?`)) return
+    const ok = await confirmDialog({
+      title: `Убрать «${video.title}» из курса?`,
+      description:
+        "Видео останется в библиотеке, но у учеников пропадёт из этого курса.",
+      confirmLabel: "Убрать",
+      destructive: true,
+    })
+    if (!ok) return
     setRemovingId(video.id)
     setError(null)
     try {
@@ -212,6 +230,27 @@ export default function CourseDetailPage() {
       setError(errorMessage(err, "Не удалось убрать видео."))
     } finally {
       setRemovingId(null)
+    }
+  }
+
+  const handleDeleteCourse = async () => {
+    if (!workspaceId || !courseId || !course) return
+    const lessons = course.videos.length
+    const ok = await confirmDialog({
+      title: `Удалить курс «${course.title}»?`,
+      description:
+        lessons > 0
+          ? `В курсе ${lessons} ${pluralRu(lessons, "урок", "урока", "уроков")} — видео останутся в библиотеке, у учеников курс пропадёт.`
+          : "У учеников курс пропадёт.",
+      destructive: true,
+    })
+    if (!ok) return
+    setError(null)
+    try {
+      await deletePlaylist({ workspaceId, playlistId: courseId })
+      router.push(`/workspace/${workspaceId}/content`)
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось удалить курс."))
     }
   }
 
@@ -268,9 +307,17 @@ export default function CourseDetailPage() {
 
   const handleDeleteChapter = async (chapter: CoursePlaylistChapter) => {
     if (!workspaceId || !courseId) return
-    const ok = window.confirm(
-      `Удалить раздел «${chapter.title}»? Уроки внутри останутся в курсе и попадут в «Без раздела».`,
-    )
+    const lessons = (course?.videos ?? []).filter(
+      (v) => v.chapterId === chapter.id,
+    ).length
+    const ok = await confirmDialog({
+      title: `Удалить раздел «${chapter.title}»?`,
+      description:
+        lessons > 0
+          ? `В разделе ${lessons} ${pluralRu(lessons, "урок", "урока", "уроков")} — они останутся в курсе без раздела.`
+          : undefined,
+      destructive: true,
+    })
     if (!ok) return
     setError(null)
     try {
@@ -500,7 +547,7 @@ export default function CourseDetailPage() {
             href={`/workspace/${workspaceId}/content`}
             className="text-xs text-muted-foreground hover:underline"
           >
-            ← Контент
+            ← Курсы и видео
           </Link>
           <h1 className="mt-1 text-2xl font-semibold">{course.title}</h1>
           {course.description && (
@@ -508,11 +555,16 @@ export default function CourseDetailPage() {
               {course.description}
             </p>
           )}
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>slug: {course.slug}</span>
-            {course.level && <span>· уровень: {course.level}</span>}
-            {course.tags.length > 0 && <span>· {course.tags.join(", ")}</span>}
-          </div>
+          {(course.level || course.tags.length > 0) && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              {[
+                course.level ? `Уровень: ${course.level}` : null,
+                course.tags.length > 0 ? course.tags.join(", ") : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -540,16 +592,36 @@ export default function CourseDetailPage() {
             publishedAt={course.publishedAt}
             onOpen={() => setScheduleOpen(true)}
           />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void handleCreateChapter()}
-            disabled={creatingChapter}
-          >
-            <Plus className="mr-1 size-4" />
-            {creatingChapter ? "Создаём..." : "Новый раздел"}
-          </Button>
           <Button onClick={() => setAttachOpen(true)}>Добавить видео</Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                aria-label={`Действия: ${course.title}`}
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setEditOpen(true)}>
+                Изменить курс
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={creatingChapter}
+                onSelect={() => void handleCreateChapter()}
+              >
+                Новый раздел
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive"
+                onSelect={() => void handleDeleteCourse()}
+              >
+                Удалить курс
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -578,8 +650,7 @@ export default function CourseDetailPage() {
 
         {course.videos.length === 0 && course.chapters.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            В курсе пока нет ни видео, ни разделов. «Добавить видео» / «Новый
-            раздел» — создаёт их.
+            В курсе пока нет уроков.
           </p>
         ) : (
           <DndContext
@@ -637,6 +708,19 @@ export default function CourseDetailPage() {
           inCourseIds={inCourseIds}
           onAttached={loadCourse}
           onError={setError}
+        />
+      )}
+
+      {workspaceId && (
+        <PlaylistFormSheet
+          mode="edit"
+          workspaceId={workspaceId}
+          open={editOpen}
+          playlist={course}
+          onOpenChange={setEditOpen}
+          onSaved={(updated) =>
+            setCourse((prev) => (prev ? { ...prev, ...updated } : prev))
+          }
         />
       )}
 

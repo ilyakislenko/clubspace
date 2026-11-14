@@ -402,20 +402,25 @@ describe("billing view", () => {
     const ctx = { currency: "RUB", cardLast4: "4242", currentPeriodEnd: null }
     const video = { name: "Видео", connectPrice: 1500 }
     const paid = moduleActionConfirm("connect", video, ctx)
-    expect(paid).toContain("за остаток оплаченного периода")
-    expect(paid).toContain("•••• 4242")
-    expect(moduleActionConfirm("connect", video, { ...ctx, cardLast4: null })).toContain(
+    expect(paid?.title).toBe("Подключить модуль «Видео»?")
+    expect(paid?.destructive).toBeFalsy()
+    expect(paid?.description).toContain("за остаток оплаченного периода")
+    expect(paid?.description).toContain("•••• 4242")
+    expect(moduleActionConfirm("connect", video, { ...ctx, cardLast4: null })?.description).toContain(
       "откроется страница оплаты",
     )
     expect(moduleActionConfirm("connect", { ...video, connectPrice: null }, ctx)).toBeNull()
     expect(moduleActionConfirm("connect", { ...video, connectPrice: 0 }, ctx)).toBeNull()
     expect(moduleActionConfirm("restore", video, ctx)).toBeNull()
-    expect(moduleActionConfirm("disconnect", video, ctx)).toContain("отключится сразу")
+    const off = moduleActionConfirm("disconnect", video, ctx)
+    expect(off?.destructive).toBe(true)
+    expect(off?.confirmLabel).toBe("Отключить")
+    expect(off?.description).toContain("отключится сразу")
     expect(
       moduleActionConfirm("disconnect", video, {
         ...ctx,
         currentPeriodEnd: "2026-12-05T12:00:00.000Z",
-      }),
+      })?.description,
     ).toContain("Модуль отключится")
   })
 

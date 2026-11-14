@@ -29,6 +29,7 @@ const build = (admin: boolean) => {
     const prisma = {
         subscriptionFreezeRequest: {
             findMany: jest.fn().mockResolvedValue([row()]),
+            count: jest.fn().mockResolvedValue(1),
         },
     }
     const handler = new ListPendingFreezeRequestsHandler(
@@ -79,6 +80,16 @@ describe('ListPendingFreezeRequestsHandler', () => {
                 untilDate: '2026-11-03',
             }),
         ])
+    })
+
+    it('counts every pending request in scope, past the 100 it lists', async () => {
+        const { handler, prisma } = build(false)
+        prisma.subscriptionFreezeRequest.count.mockResolvedValue(130)
+        const out = await handler.execute(feature('coach'))
+        expect(out.total).toBe(130)
+        expect(prisma.subscriptionFreezeRequest.count).toHaveBeenCalledWith({
+            where: whereOf(prisma).where,
+        })
     })
 
     it('narrows a coach to members of their groups (coached or of a managed direction), never themselves', async () => {

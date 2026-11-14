@@ -170,10 +170,10 @@ describe('demo kit', () => {
         expect(share(stats.body.retention.notAttended30d)).toBeLessThan(0.1)
         expect(stats.body.revenue.awaitingPayment.students).toBeGreaterThanOrEqual(2)
         expect(stats.body.revenue.awaitingPayment.students).toBeLessThanOrEqual(5)
-        const trend = stats.body.revenue.trend as { revenue: number }[]
-        expect(trend).toHaveLength(6)
-        // The current month may have just begun; the five before it are full.
-        expect(trend.slice(0, 5).every((m) => m.revenue > 0)).toBe(true)
+        // Sales run through the whole history: both the last 30 days and the
+        // 30 before them (the dashboard's trend) have revenue.
+        expect(stats.body.revenue.revenue30d).toBeGreaterThan(0)
+        expect(stats.body.revenue.revenuePrev30d).toBeGreaterThan(0)
         const board = await ctx.http().get(`/workspaces/${workspaceId}/leaderboard`).set(...auth).expect(200)
         expect(board.body.entries.length).toBeGreaterThan(10)
         const readiness = await ctx.http().get(`/workspaces/${workspaceId}/rank-readiness`).set(...auth).expect(200)

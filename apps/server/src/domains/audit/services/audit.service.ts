@@ -260,6 +260,7 @@ export class AuditService {
         const slotIds = new Set<string>()
         const exceptionIds = new Set<string>()
         const eventIds = new Set<string>()
+        const directionIds = new Set<string>()
 
         const UUID_RE =
             /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -353,6 +354,13 @@ export class AuditService {
                     courseIds.add(event.targetId)
                 else if (event.targetType === 'member')
                     userIds.add(event.targetId)
+                else if (event.targetType === 'gym') gymIds.add(event.targetId)
+                else if (event.targetType === 'group')
+                    groupIds.add(event.targetId)
+                else if (event.targetType === 'event')
+                    eventIds.add(event.targetId)
+                else if (event.targetType === 'direction')
+                    directionIds.add(event.targetId)
             }
             if (event.metadata) collectIds(event.metadata)
         }
@@ -368,6 +376,7 @@ export class AuditService {
             events,
             roles,
             chapters,
+            directions,
         ] = await Promise.all([
             userIds.size > 0
                 ? this.prisma.user.findMany({
@@ -444,6 +453,12 @@ export class AuditService {
                       select: { id: true, title: true },
                   })
                 : [],
+            directionIds.size > 0
+                ? this.prisma.direction.findMany({
+                      where: { id: { in: Array.from(directionIds) } },
+                      select: { id: true, name: true },
+                  })
+                : [],
         ])
 
         const userLabel = (id: string): string | null => {
@@ -466,6 +481,8 @@ export class AuditService {
             roles.find((x) => x.id === id)?.name ?? null
         const chapterLabel = (id: string): string | null =>
             chapters.find((x) => x.id === id)?.title ?? null
+        const directionLabel = (id: string): string | null =>
+            directions.find((x) => x.id === id)?.name ?? null
         const DOW = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
         const slotLabel = (id: string): string | null => {
             const s = slots.find((x) => x.id === id)
@@ -530,6 +547,8 @@ export class AuditService {
             if (event.targetType === 'gym') return gymLabel(event.targetId)
             if (event.targetType === 'group') return groupLabel(event.targetId)
             if (event.targetType === 'event') return eventLabel(event.targetId)
+            if (event.targetType === 'direction')
+                return directionLabel(event.targetId)
             return null
         }
 

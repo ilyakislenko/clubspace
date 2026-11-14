@@ -22,6 +22,7 @@ import {
 import { errorMessage } from "../../shared/lib/error-message"
 import { pluralRu } from "../../shared/lib/plural-ru"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { DirectionChip } from "../directions/DirectionChip"
 import {
   ALL_DIRECTIONS,
@@ -126,8 +127,16 @@ export function AchievementsSettings({ workspaceId }: { workspaceId: string }) {
       await load()
     }, "Не удалось изменить статус")
 
-  const remove = (a: Achievement) => {
-    if (!window.confirm(`Удалить достижение «${a.name}»?`)) return
+  const remove = async (a: Achievement) => {
+    const confirmed = await confirmDialog({
+      title: `Удалить достижение «${a.name}»?`,
+      description:
+        a.unlockedBy > 0
+          ? `Его уже ${pluralRu(a.unlockedBy, "открыл", "открыли", "открыли")} ${a.unlockedBy} ${pluralRu(a.unlockedBy, "ученик", "ученика", "учеников")} — оно пропадёт у них в приложении. Чтобы только перестать выдавать его, выключите достижение.`
+          : "Ученики больше не увидят его в приложении.",
+      destructive: true,
+    })
+    if (!confirmed) return
     void run(async () => {
       await deleteAchievement({ workspaceId, achievementId: a.id })
       await load()
@@ -190,7 +199,6 @@ export function AchievementsSettings({ workspaceId }: { workspaceId: string }) {
                     className="flex min-w-0 flex-1 items-center gap-3 text-left hover:opacity-80"
                     onClick={() => openSheet(a)}
                   >
-                    <span className="w-8 shrink-0 text-center text-xl">{a.icon ?? "🏅"}</span>
                     <span className="min-w-0">
                       <span className="flex items-center gap-2 text-sm font-medium">
                         <span className="truncate">{a.name}</span>
@@ -237,7 +245,7 @@ export function AchievementsSettings({ workspaceId }: { workspaceId: string }) {
                       <DropdownMenuItem onSelect={() => void toggleActive(a)}>
                         {a.isActive ? "Выключить" : "Включить"}
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onSelect={() => remove(a)}>
+                      <DropdownMenuItem className="text-destructive" onSelect={() => void remove(a)}>
                         Удалить
                       </DropdownMenuItem>
                     </DropdownMenuContent>

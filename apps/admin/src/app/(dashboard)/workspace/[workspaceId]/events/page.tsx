@@ -1,16 +1,11 @@
 "use client"
 
-import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { Button } from "@clubspace/ui-kit/ui"
 
-import {
-  deleteEvent,
-  listEvents,
-  type WorkspaceEvent,
-} from "../../../../../shared/api/events"
+import { listEvents, type WorkspaceEvent } from "../../../../../shared/api/events"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { listGyms, type Gym } from "../../../../../shared/api/groups"
 import {
@@ -20,7 +15,7 @@ import {
 import { getWorkspaceSettings } from "../../../../../shared/api/workspaces"
 import { safeExternalUrl } from "../../../../../shared/lib/safe-url"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
-import { EventForm } from "../../../../../features/events/EventForm"
+import { EventFormSheet } from "../../../../../features/events/EventFormSheet"
 import { EventRegistrationsPanel } from "../../../../../features/events/EventRegistrationsPanel"
 import { ClassAttendancePanel } from "../../../../../features/schedule/ClassAttendancePanel"
 import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
@@ -87,10 +82,10 @@ export default function EventsPage() {
   const [gyms, setGyms] = useState<Gym[]>([])
   const [coaches, setCoaches] = useState<WorkspaceMember[]>([])
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  // The event open in the panel; null = a new one.
   const [editingEvent, setEditingEvent] = useState<WorkspaceEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [busyId, setBusyId] = useState<string | null>(null)
   // The event whose registrations are unfolded.
   const [openRegistrations, setOpenRegistrations] = useState<string | null>(null)
   // Workspace timezone is the default for the new-event form. Loaded
@@ -135,64 +130,28 @@ export default function EventsPage() {
 
   useWorkspaceRealtime(workspaceId, ["events", "gyms"], () => void refresh())
 
-  const handleDelete = async (event: WorkspaceEvent) => {
-    if (!workspaceId) return
-    if (!window.confirm(`Удалить событие «${event.title}»?`)) return
-    setBusyId(event.id)
-    setError(null)
-    try {
-      await deleteEvent({ workspaceId, eventId: event.id })
-      await refresh()
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось удалить"))
-    } finally {
-      setBusyId(null)
-    }
+  const openSheet = (event: WorkspaceEvent | null) => {
+    setEditingEvent(event)
+    setSheetOpen(true)
   }
 
   return (
     <div className="space-y-6">
       <SectionTabs title="Новости и события" tabs={newsTabs} />
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            Семинары, мастер-классы, турниры и отчётные концерты. Видны всем
-            ученикам клуба — могут заглянуть в другой зал.
-          </p>
-        </div>
-        {!showForm && !editingEvent && (
-          <Button type="button" onClick={() => setShowForm(true)}>
-            + Новое событие
-          </Button>
-        )}
+        <p className="text-sm text-muted-foreground">
+          Семинары, мастер-классы, турниры и отчётные концерты. Видны всем
+          ученикам клуба — могут заглянуть в другой зал.
+        </p>
+        <Button type="button" className="shrink-0" onClick={() => openSheet(null)}>
+          Новое событие
+        </Button>
       </div>
 
       {error && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
-      )}
-
-      {(showForm || editingEvent) && workspaceId && (
-        <EventForm
-          key={editingEvent?.id ?? "new"}
-          workspaceId={workspaceId}
-          gyms={gyms}
-          directions={directions}
-          coaches={coaches}
-          defaultTimezone={workspaceTz}
-          event={editingEvent ?? undefined}
-          onCancel={() => {
-            setShowForm(false)
-            setEditingEvent(null)
-          }}
-          onSaved={async () => {
-            setShowForm(false)
-            setEditingEvent(null)
-            await refresh()
-          }}
-          onError={setError}
-        />
       )}
 
       <section className="space-y-3">
@@ -224,160 +183,161 @@ export default function EventsPage() {
           </p>
         ) : (
           <ul className="space-y-3">
-            {visibleEvents.map((event) => (
-              <li
-                key={event.id}
-                className="rounded-lg border border-border bg-card p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold">{event.title}</span>
-                      <DirectionChip direction={event.direction} />
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground tabular-nums">
-                      {formatRangeInTz(
-                        event.startAt,
-                        event.endAt,
-                        event.timezone,
-                      )}
-                      {/* Times are in the event's own zone; name it only when
-                          it isn't the club's, as "Томск (UTC+7)". */}
-                      {event.timezone !== workspaceTz &&
-                        ` · ${timezoneLabel(event.timezone)}`}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {visibleEvents.map((event) => {
+              // The row opens the editor for those who may edit the event.
+              const canEdit = scope.canEditSharedRow(event.direction?.id)
+              const registrationsOpen = openRegistrations === event.id
+              const coachName = event.coach
+                ? [event.coach.firstname, event.coach.lastname]
+                    .filter(Boolean)
+                    .join(" ") || event.coach.email
+                : null
+              const summary = (
+                <>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{event.title}</span>
+                    <DirectionChip direction={event.direction} />
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground tabular-nums">
+                    {formatRangeInTz(event.startAt, event.endAt, event.timezone)}
+                    {/* Times are in the event's own zone; name it only when
+                        it isn't the club's, as "Томск (UTC+7)". */}
+                    {event.timezone !== workspaceTz &&
+                      ` · ${timezoneLabel(event.timezone)}`}
+                  </span>
+                  {(event.gym || coachName || event.hostName) && (
+                    <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       {event.gym && (
-                        <Link
-                          href={`/workspace/${workspaceId}/gyms/${event.gym.id}`}
-                          className="hover:underline"
-                        >
+                        <span>
                           {event.gym.name} · {event.gym.address}
-                        </Link>
+                        </span>
                       )}
-                      {event.coach && (
-                        <Link
-                          href={`/workspace/${workspaceId}/users/${event.coach.id}`}
-                          className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 hover:bg-emerald-100"
-                        >
-                          {[event.coach.firstname, event.coach.lastname]
-                            .filter(Boolean)
-                            .join(" ") || event.coach.email}
-                        </Link>
+                      {coachName && (
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                          {coachName}
+                        </span>
                       )}
                       {event.hostName && (
                         <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
                           Ведёт: {event.hostName}
                         </span>
                       )}
+                    </span>
+                  )}
+                  {event.registration && (
+                    <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                      <span className="font-medium">
+                        {event.price !== null
+                          ? formatAmount(event.price, event.currency)
+                          : "Бесплатно"}
+                      </span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {event.capacity !== null
+                          ? `Записано ${event.registration.booked} из ${event.capacity}`
+                          : `Записано ${event.registration.booked}`}
+                        {event.registration.waitlist > 0
+                          ? ` · в листе ожидания ${event.registration.waitlist}`
+                          : ""}
+                      </span>
+                    </span>
+                  )}
+                  {event.description && (
+                    <span className="mt-2 block whitespace-pre-wrap text-sm">
+                      {event.description}
+                    </span>
+                  )}
+                </>
+              )
+              return (
+                <li
+                  key={event.id}
+                  className="rounded-lg border border-border bg-card"
+                >
+                  <div className="flex items-start gap-3 p-4">
+                    <div className="min-w-0 flex-1">
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          className="block w-full text-left hover:opacity-80"
+                          onClick={() => openSheet(event)}
+                        >
+                          {summary}
+                        </button>
+                      ) : (
+                        <div>{summary}</div>
+                      )}
+                      {event.link &&
+                        (() => {
+                          // Defense in depth: server now rejects non-http(s)
+                          // URLs at the schema layer, but rows written before
+                          // that guard may still hold javascript:/data: URIs.
+                          // Render as plain text in that case so the admin
+                          // can see what's there without it being clickable.
+                          const safe = safeExternalUrl(event.link)
+                          return safe ? (
+                            <a
+                              href={safe}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-1 inline-block text-xs text-primary hover:underline"
+                            >
+                              {event.link}
+                            </a>
+                          ) : (
+                            <span className="mt-1 inline-block break-all text-xs text-muted-foreground">
+                              {event.link}
+                            </span>
+                          )
+                        })()}
                     </div>
                     {event.registration && (
-                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                        <span className="font-medium">
-                          {event.price !== null
-                            ? formatAmount(event.price, event.currency)
-                            : "Бесплатно"}
-                        </span>
-                        <span className="tabular-nums text-muted-foreground">
-                          {event.capacity !== null
-                            ? `Записано ${event.registration.booked} из ${event.capacity}`
-                            : `Записано ${event.registration.booked}`}
-                          {event.registration.waitlist > 0
-                            ? ` · в листе ожидания ${event.registration.waitlist}`
-                            : ""}
-                        </span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          onClick={() =>
-                            setOpenRegistrations((id) =>
-                              id === event.id ? null : event.id,
-                            )
-                          }
-                        >
-                          {openRegistrations === event.id
-                            ? "Скрыть список"
-                            : "Записавшиеся"}
-                        </Button>
-                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="shrink-0"
+                        aria-expanded={registrationsOpen}
+                        onClick={() =>
+                          setOpenRegistrations(registrationsOpen ? null : event.id)
+                        }
+                      >
+                        {registrationsOpen ? "Скрыть список" : "Записавшиеся"}
+                      </Button>
                     )}
-                    {event.registration &&
-                      openRegistrations === event.id &&
-                      workspaceId && (
-                        <div className="mt-3 space-y-3">
-                          <EventRegistrationsPanel
-                            workspaceId={workspaceId}
-                            eventId={event.id}
-                            canUnmark={isAdmin}
-                          />
-                          <ClassAttendancePanel
-                            workspaceId={workspaceId}
-                            session={{ kind: "event", workspaceEventId: event.id }}
-                          />
-                        </div>
-                      )}
-                    {event.description && (
-                      <p className="mt-2 whitespace-pre-wrap text-sm">
-                        {event.description}
-                      </p>
-                    )}
-                    {event.link &&
-                      (() => {
-                        // Defense in depth: server now rejects non-http(s)
-                        // URLs at the schema layer, but rows written before
-                        // that guard may still hold javascript:/data: URIs.
-                        // Render as plain text in that case so the admin
-                        // can see what's there without it being clickable.
-                        const safe = safeExternalUrl(event.link)
-                        return safe ? (
-                          <a
-                            href={safe}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-1 inline-block text-xs text-primary hover:underline"
-                          >
-                            {event.link}
-                          </a>
-                        ) : (
-                          <span className="mt-1 inline-block break-all text-xs text-muted-foreground">
-                            {event.link}
-                          </span>
-                        )
-                      })()}
                   </div>
-                  {scope.canEditSharedRow(event.direction?.id) && (
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          setShowForm(false)
-                          setError(null)
-                          setEditingEvent(event)
-                        }}
-                        disabled={busyId === event.id}
-                      >
-                        Изменить
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => void handleDelete(event)}
-                        disabled={busyId === event.id}
-                      >
-                        {busyId === event.id ? "..." : "Удалить"}
-                      </Button>
+                  {event.registration && registrationsOpen && workspaceId && (
+                    <div className="space-y-3 border-t border-border p-4">
+                      <EventRegistrationsPanel
+                        workspaceId={workspaceId}
+                        eventId={event.id}
+                        canUnmark={isAdmin}
+                      />
+                      <ClassAttendancePanel
+                        workspaceId={workspaceId}
+                        session={{ kind: "event", workspaceEventId: event.id }}
+                      />
                     </div>
                   )}
-                </div>
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
+
+      {workspaceId && (
+        <EventFormSheet
+          workspaceId={workspaceId}
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
+          event={editingEvent}
+          gyms={gyms}
+          directions={directions}
+          coaches={coaches}
+          defaultTimezone={workspaceTz}
+          onChanged={() => void refresh()}
+        />
+      )}
     </div>
   )
 }

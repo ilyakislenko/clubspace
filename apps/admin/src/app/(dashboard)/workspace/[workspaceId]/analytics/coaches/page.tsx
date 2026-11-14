@@ -90,7 +90,7 @@ export default function CoachesAnalyticsPage() {
         <>
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
-              <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
+              <thead className="bg-muted text-left text-xs font-medium text-muted-foreground">
                 <tr>
                   <th className="p-3">{cap(vocabulary.coach.nom)}</th>
                   <th className="p-3 text-right">Были на {vocabulary.session.prepPl} за 30 дней</th>

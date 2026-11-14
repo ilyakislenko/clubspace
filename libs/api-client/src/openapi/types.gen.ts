@@ -2469,20 +2469,12 @@ export type ListWorkspaceMembersOutputOutput = {
                 icon: string | null;
             }>;
         }>;
+        owesPayment: boolean;
         createdAt: string;
-        lastCheckInAt: string | null;
-        watchedCount: number;
-        inProgressCount: number;
-        lastWatchedAt: string | null;
-        lastWatchedVideo: {
-            id: string;
-            title: string;
-        } | null;
     }>;
     total: number;
     curPage: number;
     perPage: number;
-    workspaceVideoTotal: number;
 };
 
 export type ListPendingUsersOutputOutput = {
@@ -5488,15 +5480,9 @@ export type GetWorkspaceStatsOutputOutput = {
     counts: {
         videos: number;
         videosReady: number;
-        courses: number;
         students: number;
         activeStudents: number;
         studentsWithAbonement: number;
-    };
-    activity: {
-        videoViewers7d: number;
-        videoViewers30d: number;
-        completions7d: number;
     };
     attendance: {
         sessions7d: number;
@@ -5505,10 +5491,6 @@ export type GetWorkspaceStatsOutputOutput = {
         checkins30d: number;
         attendedStudents7d: number;
         attendedStudents30d: number;
-        trend: Array<{
-            week: string;
-            checkins: number;
-        }>;
     };
     retention: {
         notAttended30d: number;
@@ -5523,23 +5505,8 @@ export type GetWorkspaceStatsOutputOutput = {
             students: number;
             amount: number;
         };
-        trend: Array<{
-            month: string;
-            revenue: number;
-        }>;
-        byPlan: Array<{
-            planId: string;
-            planName: string;
-            count: number;
-            revenue: number;
-        }>;
+        revenuePrev30d: number;
     } | null;
-    topVideos7d: Array<{
-        id: string;
-        title: string;
-        viewers: number;
-        completions: number;
-    }>;
 };
 
 export type CreatePlanInput = {
@@ -7472,6 +7439,7 @@ export type PendingFreezeRequestsOutputOutput = {
         memberName: string;
         planName: string;
     }>;
+    total: number;
 };
 
 export type ApproveSubscriptionFreezeRequestInput = {

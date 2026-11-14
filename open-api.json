@@ -26465,51 +26465,13 @@
                     "additionalProperties": false
                   }
                 },
+                "owesPayment": {
+                  "type": "boolean"
+                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                },
-                "lastCheckInAt": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
-                  "nullable": true
-                },
-                "watchedCount": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "inProgressCount": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "lastWatchedAt": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
-                  "nullable": true
-                },
-                "lastWatchedVideo": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "format": "uuid",
-                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                    },
-                    "title": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "title"
-                  ],
-                  "additionalProperties": false,
-                  "nullable": true
                 }
               },
               "required": [
@@ -26523,12 +26485,8 @@
                 "isOwner",
                 "accessUntil",
                 "abonements",
-                "createdAt",
-                "lastCheckInAt",
-                "watchedCount",
-                "inProgressCount",
-                "lastWatchedAt",
-                "lastWatchedVideo"
+                "owesPayment",
+                "createdAt"
               ],
               "additionalProperties": false
             }
@@ -26547,19 +26505,13 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
-          },
-          "workspaceVideoTotal": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
           }
         },
         "required": [
           "data",
           "total",
           "curPage",
-          "perPage",
-          "workspaceVideoTotal"
+          "perPage"
         ],
         "additionalProperties": false
       },
@@ -41446,11 +41398,6 @@
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
               },
-              "courses": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
               "students": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -41470,36 +41417,9 @@
             "required": [
               "videos",
               "videosReady",
-              "courses",
               "students",
               "activeStudents",
               "studentsWithAbonement"
-            ],
-            "additionalProperties": false
-          },
-          "activity": {
-            "type": "object",
-            "properties": {
-              "videoViewers7d": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              "videoViewers30d": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              "completions7d": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              }
-            },
-            "required": [
-              "videoViewers7d",
-              "videoViewers30d",
-              "completions7d"
             ],
             "additionalProperties": false
           },
@@ -41535,27 +41455,6 @@
                 "type": "integer",
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
-              },
-              "trend": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "week": {
-                      "type": "string"
-                    },
-                    "checkins": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": [
-                    "week",
-                    "checkins"
-                  ],
-                  "additionalProperties": false
-                }
               }
             },
             "required": [
@@ -41564,8 +41463,7 @@
               "checkins7d",
               "checkins30d",
               "attendedStudents7d",
-              "attendedStudents30d",
-              "trend"
+              "attendedStudents30d"
             ],
             "additionalProperties": false
           },
@@ -41632,59 +41530,10 @@
                 ],
                 "additionalProperties": false
               },
-              "trend": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "month": {
-                      "type": "string"
-                    },
-                    "revenue": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": [
-                    "month",
-                    "revenue"
-                  ],
-                  "additionalProperties": false
-                }
-              },
-              "byPlan": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "planId": {
-                      "type": "string",
-                      "format": "uuid",
-                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                    },
-                    "planName": {
-                      "type": "string"
-                    },
-                    "count": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "revenue": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": [
-                    "planId",
-                    "planName",
-                    "count",
-                    "revenue"
-                  ],
-                  "additionalProperties": false
-                }
+              "revenuePrev30d": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               }
             },
             "required": [
@@ -41693,54 +41542,18 @@
               "expected30d",
               "currency",
               "awaitingPayment",
-              "trend",
-              "byPlan"
+              "revenuePrev30d"
             ],
             "additionalProperties": false,
             "nullable": true
-          },
-          "topVideos7d": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "viewers": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "completions": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "id",
-                "title",
-                "viewers",
-                "completions"
-              ],
-              "additionalProperties": false
-            }
           }
         },
         "required": [
           "today",
           "counts",
-          "activity",
           "attendance",
           "retention",
-          "revenue",
-          "topVideos7d"
+          "revenue"
         ],
         "additionalProperties": false
       },
@@ -51654,10 +51467,16 @@
               ],
               "additionalProperties": false
             }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
-          "data"
+          "data",
+          "total"
         ],
         "additionalProperties": false
       },

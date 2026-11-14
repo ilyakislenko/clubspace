@@ -70,7 +70,6 @@ describe('abonements of a removed member', () => {
             awaitingPayment: { students: 0, amount: 0 },
         })
         expect(after.body.counts.studentsWithAbonement).toBe(0)
-        expect(after.body.revenue.trend.at(-1).revenue).toBe(4500)
 
         const awaiting = await ctx
             .http()

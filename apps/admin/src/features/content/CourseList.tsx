@@ -2,25 +2,16 @@
 
 import Link from "next/link"
 
-import { Button } from "@clubspace/ui-kit/ui"
-
 import { type PlaylistResponse } from "../../shared/api/playlists"
 
 type Props = {
   workspaceId: string
   playlists: PlaylistResponse[]
   loading: boolean
-  onEdit: (playlist: PlaylistResponse) => void
-  onDelete: (playlist: PlaylistResponse) => void
 }
 
-export function CourseList({
-  workspaceId,
-  playlists,
-  loading,
-  onEdit,
-  onDelete,
-}: Props) {
+// Course rows open the course page, which holds its editing and deletion.
+export function CourseList({ workspaceId, playlists, loading }: Props) {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-end">
@@ -31,57 +22,39 @@ export function CourseList({
 
       <div className="divide-y rounded-lg border border-border">
         {playlists.map((playlist) => (
-          <div
+          <Link
             key={playlist.id}
-            className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-muted/40"
+            href={`/workspace/${workspaceId}/content/courses/${playlist.id}`}
+            className="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
           >
-            <Link
-              href={`/workspace/${workspaceId}/content/courses/${playlist.id}`}
-              className="flex min-w-0 flex-1 items-center gap-3 text-left hover:opacity-80"
-            >
-              {playlist.thumbnailUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={playlist.thumbnailUrl}
-                  alt={playlist.title}
-                  className="h-12 w-20 rounded-md border border-border object-cover"
-                />
-              ) : (
-                <div className="flex h-12 w-20 items-center justify-center rounded-md border border-dashed border-border text-[10px] text-muted-foreground">
-                  Нет превью
+            {playlist.thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={playlist.thumbnailUrl}
+                alt={playlist.title}
+                className="h-12 w-20 rounded-md border border-border object-cover"
+              />
+            ) : (
+              <div className="flex h-12 w-20 items-center justify-center rounded-md border border-dashed border-border text-[10px] text-muted-foreground">
+                Нет превью
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="truncate font-medium">{playlist.title}</span>
+                {!playlist.isPublic && (
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                    Черновик
+                  </span>
+                )}
+              </div>
+              {playlist.description && (
+                <div className="truncate text-xs text-muted-foreground">
+                  {playlist.description}
                 </div>
               )}
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-medium">{playlist.title}</span>
-                  {!playlist.isPublic && (
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                      Черновик
-                    </span>
-                  )}
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {playlist.slug}
-                </div>
-              </div>
-            </Link>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                type="button"
-                onClick={() => onEdit(playlist)}
-              >
-                Редактировать
-              </Button>
-              <Button
-                variant="destructive"
-                type="button"
-                onClick={() => onDelete(playlist)}
-              >
-                Удалить
-              </Button>
             </div>
-          </div>
+          </Link>
         ))}
         {playlists.length === 0 && !loading && (
           <p className="py-4 text-center text-sm text-muted-foreground">

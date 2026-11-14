@@ -15,7 +15,7 @@ import {
   ACTION_CATEGORIES,
   ACTION_CATEGORY_LABELS,
   actionMetaFor,
-  type ActionMeta,
+  unknownActionMeta,
   formatActor,
   formatDate,
   formatRelative,
@@ -138,7 +138,7 @@ export default function SettingsAuditPage() {
           <Activity className="mx-auto mb-3 size-8 text-muted-foreground" />
           <p className="text-sm font-medium">Событий пока нет</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Здесь появятся записи когда {vocabulary.coach.nom} начнёт что-то делать в клубе.
+            Здесь появятся записи, когда {vocabulary.coach.nom} или администратор что-то изменит в клубе.
           </p>
         </div>
       )}
@@ -152,13 +152,7 @@ export default function SettingsAuditPage() {
               </h3>
               <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
                 {dayEvents.map((event) => {
-                  const meta =
-                    actionMeta[event.action] ??
-                    ({
-                      label: event.action,
-                      icon: Activity,
-                      tone: "zinc",
-                    } as ActionMeta)
+                  const meta = actionMeta[event.action] ?? unknownActionMeta(event.action)
                   const Icon = meta.icon
                   const fields = parseMetadata(event.metadata, vocabulary)
                   const targetLabel = targetTypeLabel(event.targetType)
@@ -199,19 +193,21 @@ export default function SettingsAuditPage() {
                         </div>
                         {fields.length > 0 && (
                           <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs">
-                            {fields.map(({ key, label, value }) => (
-                              <span
-                                key={key}
-                                className="text-muted-foreground"
-                              >
-                                <span className="text-foreground/60">
-                                  {label}:
-                                </span>{" "}
-                                <span className="font-medium text-foreground/90">
-                                  {value}
+                            {fields.map(({ key, label, value }) =>
+                              value ? (
+                                <span key={key} className="text-muted-foreground">
+                                  <span className="text-foreground/60">{label}:</span>{" "}
+                                  <span className="font-medium text-foreground/90">
+                                    {value}
+                                  </span>
                                 </span>
-                              </span>
-                            ))}
+                              ) : (
+                                // A fact without a value («Видео перемещено»).
+                                <span key={key} className="text-foreground/60">
+                                  {label}
+                                </span>
+                              ),
+                            )}
                           </div>
                         )}
                       </div>

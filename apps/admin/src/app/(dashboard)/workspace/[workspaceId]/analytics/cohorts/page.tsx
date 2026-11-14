@@ -88,7 +88,7 @@ export default function CohortsPage() {
       ) : (
         <>
           <section className="space-y-3 rounded-lg border border-border bg-card p-4">
-            <div className="text-xs uppercase text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
               Средняя кривая удержания
             </div>
             <div className="flex h-32 gap-4">
@@ -127,7 +127,7 @@ export default function CohortsPage() {
 
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
-              <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
+              <thead className="bg-muted text-left text-xs font-medium text-muted-foreground">
                 <tr>
                   <th className="p-3">Месяц прихода</th>
                   <th className="p-3 text-right">Пришло</th>

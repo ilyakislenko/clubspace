@@ -191,134 +191,47 @@ export class ListWorkspaceMembersHandler
                             ...subscriptionScopeSelect,
                         },
                     },
+                    // Unpaid abonements, by the «Должники» rule.
+                    _count: {
+                        select: {
+                            subscriptions: {
+                                where: owesPaymentWhere.subscriptions.some,
+                            },
+                        },
+                    },
                 },
             }),
             this.prisma.workspaceMember.count({ where }),
         ])
 
-        // Aggregated progress for this page's members only, scoped to this
-        // workspace's videos.
-        const userIds = members.map((m) => m.user.id)
-        const [
-            completedRows,
-            inProgressRows,
-            lastTouches,
-            lastCheckInRows,
-            workspaceVideoTotal,
-        ] = await Promise.all([
-            userIds.length > 0
-                ? this.prisma.videoWatched.groupBy({
-                      by: ['userId'],
-                      where: {
-                          workspaceId,
-                          userId: { in: userIds },
-                          completed: true,
-                      },
-                      _count: { _all: true },
-                  })
-                : [],
-            userIds.length > 0
-                ? this.prisma.videoWatched.groupBy({
-                      by: ['userId'],
-                      where: {
-                          workspaceId,
-                          userId: { in: userIds },
-                          completed: false,
-                          position: { gt: 0 },
-                      },
-                      _count: { _all: true },
-                  })
-                : [],
-            // Latest VideoWatched row per user, with the video title — gives us
-            // both the "last activity" timestamp and a concrete signal of what
-            // the student is studying right now.
-            userIds.length > 0
-                ? this.prisma.videoWatched.findMany({
-                      where: {
-                          workspaceId,
-                          userId: { in: userIds },
-                      },
-                      orderBy: [{ userId: 'asc' }, { watchedAt: 'desc' }],
-                      distinct: ['userId'],
-                      select: {
-                          userId: true,
-                          watchedAt: true,
-                          video: { select: { id: true, title: true } },
-                      },
-                  })
-                : [],
-            // Most recent attendance check-in per member — the churn signal the
-            // dashboard's "inactive 30d" card counts. null = never attended.
-            userIds.length > 0
-                ? this.prisma.attendanceRecord.groupBy({
-                      by: ['userId'],
-                      where: { workspaceId, userId: { in: userIds } },
-                      _max: { markedAt: true },
-                  })
-                : [],
-            this.prisma.video.count({
-                where: { workspaceId, status: 'ready' },
-            }),
-        ])
-
-        const completedByUser = new Map(
-            completedRows.map((row) => [row.userId, row._count._all]),
-        )
-        const inProgressByUser = new Map(
-            inProgressRows.map((row) => [row.userId, row._count._all]),
-        )
-        const lastByUser = new Map(
-            lastTouches.map((row) => [row.userId, row]),
-        )
-        const lastCheckInByUser = new Map(
-            lastCheckInRows.map((row) => [row.userId, row._max.markedAt]),
-        )
-
         return {
-            data: members.map((member) => {
-                const last = lastByUser.get(member.user.id)
-                return {
-                    id: member.id,
-                    userId: member.user.id,
-                    email: member.user.email,
-                    firstname: member.user.firstname,
-                    lastname: member.user.lastname,
-                    isDependent: member.user.email === null,
-                    guardians: serializeMemberGuardians(member.user.dependentOf),
-                    status: member.status,
-                    roleName: member.role.name,
-                    isOwner: member.user.id === ctx.workspaceOwnerId,
-                    accessUntil: member.accessUntil
-                        ? member.accessUntil.toISOString()
-                        : null,
-                    abonements: member.subscriptions.map((s) => ({
-                        planName: s.plan.name,
-                        classesRemaining: s.classesRemaining,
-                        classesTotal: s.classesTotal,
-                        endDate: s.endDate ? s.endDate.toISOString() : null,
-                        directions: s.directions.map((d) => d.direction),
-                    })),
-                    createdAt: member.createdAt.toISOString(),
-                    lastCheckInAt:
-                        lastCheckInByUser.get(member.user.id)?.toISOString() ??
-                        null,
-                    watchedCount: completedByUser.get(member.user.id) ?? 0,
-                    inProgressCount: inProgressByUser.get(member.user.id) ?? 0,
-                    lastWatchedAt: last?.watchedAt
-                        ? last.watchedAt.toISOString()
-                        : null,
-                    lastWatchedVideo: last?.video
-                        ? {
-                              id: last.video.id,
-                              title: last.video.title,
-                          }
-                        : null,
-                }
-            }),
+            data: members.map((member) => ({
+                id: member.id,
+                userId: member.user.id,
+                email: member.user.email,
+                firstname: member.user.firstname,
+                lastname: member.user.lastname,
+                isDependent: member.user.email === null,
+                guardians: serializeMemberGuardians(member.user.dependentOf),
+                status: member.status,
+                roleName: member.role.name,
+                isOwner: member.user.id === ctx.workspaceOwnerId,
+                accessUntil: member.accessUntil
+                    ? member.accessUntil.toISOString()
+                    : null,
+                abonements: member.subscriptions.map((s) => ({
+                    planName: s.plan.name,
+                    classesRemaining: s.classesRemaining,
+                    classesTotal: s.classesTotal,
+                    endDate: s.endDate ? s.endDate.toISOString() : null,
+                    directions: s.directions.map((d) => d.direction),
+                })),
+                owesPayment: member._count.subscriptions > 0,
+                createdAt: member.createdAt.toISOString(),
+            })),
             total,
             curPage,
             perPage,
-            workspaceVideoTotal,
         }
     }
 }

@@ -156,7 +156,7 @@ export default function WorkspacePlanPage() {
         ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
-              <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
+              <thead className="bg-muted text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="p-3">Ученик</th>
                   <th className="p-3">Срок</th>

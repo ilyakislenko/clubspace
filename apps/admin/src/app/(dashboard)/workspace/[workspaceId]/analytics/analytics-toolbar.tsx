@@ -279,7 +279,7 @@ export function AnalyticsCard({
 }) {
   return (
     <div className="space-y-1 rounded-lg border border-border bg-card p-4">
-      <div className="text-xs uppercase text-muted-foreground">{label}</div>
+      <div className="text-sm text-muted-foreground">{label}</div>
       <div
         className={`whitespace-nowrap text-3xl font-semibold tabular-nums ${TONE_TEXT[tone]}`}
       >

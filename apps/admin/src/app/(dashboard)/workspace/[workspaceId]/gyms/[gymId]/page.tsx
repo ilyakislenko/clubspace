@@ -24,6 +24,7 @@ import {
 } from "../../../../../../shared/api/groups"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
 import { pluralRu } from "../../../../../../shared/lib/plural-ru"
+import { confirmDialog } from "../../../../../../shared/ui/confirm-dialog"
 import { useDirectionScope } from "../../../../../../shared/workspace/use-direction-scope"
 
 // The gym card: address and settings, and its groups read-only (each opens
@@ -89,11 +90,19 @@ export default function WorkspaceGymPage() {
   const students = groups.reduce((acc, g) => acc + g.memberCount, 0)
 
   const handleDelete = async () => {
-    const warn =
-      groups.length > 0
-        ? `Удалить зал «${gym.name}»? ${groups.length} ${pluralRu(groups.length, "группа останется", "группы останутся", "групп останутся")} без зала — их можно будет перенести в другой.`
-        : `Удалить зал «${gym.name}»?`
-    if (!window.confirm(warn)) return
+    if (
+      !(await confirmDialog({
+        title: `Удалить зал «${gym.name}»?`,
+        description:
+          groups.length > 0
+            ? `${groups.length} ${pluralRu(groups.length, "группа останется", "группы останутся", "групп останутся")} без зала — их можно будет перенести в другой.`
+            : undefined,
+        confirmLabel: "Удалить зал",
+        destructive: true,
+      }))
+    ) {
+      return
+    }
     setDeleting(true)
     try {
       await deleteGym({ workspaceId, gymId: gym.id })

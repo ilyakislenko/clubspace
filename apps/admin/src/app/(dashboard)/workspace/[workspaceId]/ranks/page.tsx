@@ -1,36 +1,43 @@
 "use client"
 
+import { MoreHorizontal } from "lucide-react"
 import { useParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
-import { Button } from "@clubspace/ui-kit/ui"
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@clubspace/ui-kit/ui"
 
 import {
-  createRankLadder,
-  createRankLevel,
-  deleteRankLadder,
   deleteRankLevel,
   listRankLadders,
-  updateRankLadder,
   updateRankLevel,
   type RankLadder,
+  type RankLevel,
 } from "../../../../../shared/api/ranks"
-import type { Direction } from "../../../../../shared/api/directions"
 import { DirectionChip } from "../../../../../features/directions/DirectionChip"
 import {
   ALL_DIRECTIONS,
   DirectionFilter,
   matchesDirectionFilter,
 } from "../../../../../features/directions/DirectionFilter"
-import { DirectionSelect } from "../../../../../features/directions/DirectionSelect"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 import { useDirections } from "../../../../../features/directions/use-directions"
 import { SectionTabs } from "../../../../../shared/workspace/section-tabs"
 import { beltTabs } from "../sections"
-import { LevelRuleEditor } from "../../../../../features/ranks/LevelRuleEditor"
+import { LadderFormSheet } from "../../../../../features/ranks/LadderFormSheet"
+import {
+  describeLevelRule,
+  LevelFormSheet,
+} from "../../../../../features/ranks/LevelFormSheet"
 import { errorMessage } from "../../../../../shared/lib/error-message"
-import { inputCls } from "../../../../../shared/lib/input-class"
-import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
+import { pluralRu } from "../../../../../shared/lib/plural-ru"
+import { useVocabulary } from "../../../../../shared/lib/vocabulary"
+import { confirmDialog } from "../../../../../shared/ui/confirm-dialog"
 import {
   nextLevelOrder,
   swapSteps,
@@ -46,13 +53,10 @@ export default function WorkspaceRanksPage() {
   const [ladders, setLadders] = useState<RankLadder[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [ladderName, setLadderName] = useState("")
-  const [audience, setAudience] = useState("")
-  const [directionId, setDirectionId] = useState<string | null>(
-    scope.defaultDirectionId,
-  )
   const { directions } = useDirections(workspaceId)
   const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
+  const [ladderSheetOpen, setLadderSheetOpen] = useState(false)
+  const [editingLadder, setEditingLadder] = useState<RankLadder | null>(null)
   const visibleLadders = ladders.filter((l) =>
     matchesDirectionFilter(directionFilter, l.direction?.id),
   )
@@ -74,80 +78,32 @@ export default function WorkspaceRanksPage() {
     void load()
   }, [load])
 
-  const addLadder = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!workspaceId || !ladderName.trim()) return
-    try {
-      await createRankLadder({
-        workspaceId,
-        data: {
-          name: ladderName.trim(),
-          audience: audience.trim() || undefined,
-          directionId,
-        },
-      })
-      setLadderName("")
-      setAudience("")
-      setDirectionId(scope.defaultDirectionId)
-      await load()
-    } catch (e) {
-      setError(errorMessage(e, "Не удалось создать лестницу"))
-    }
+  const openLadderSheet = (ladder: RankLadder | null) => {
+    setError(null)
+    setEditingLadder(ladder)
+    setLadderSheetOpen(true)
   }
 
-  const wrap = (fn: () => Promise<unknown>) => async () => {
-    if (!workspaceId) return
-    try {
-      await fn()
-      await load()
-    } catch (e) {
-      setError(errorMessage(e, "Ошибка"))
-    }
-  }
+  if (!workspaceId) return null
 
   return (
     <div className="max-w-3xl space-y-6">
       <SectionTabs title="Пояса" tabs={beltTabs} />
-      <p className="text-sm text-muted-foreground">
-        Лестницы рангов клуба (напр. «Взрослые» и «Дети»). Ранг выдают по
-        итогам аттестации («Аттестации») или одному ученику в его карточке.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+          Лестницы рангов клуба (например, «Взрослые» и «Дети»). Ранг выдают по
+          итогам аттестации или одному ученику в его карточке.
+        </p>
+        <Button type="button" onClick={() => openLadderSheet(null)}>
+          Добавить лестницу
+        </Button>
+      </div>
 
       {error && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </div>
       )}
-
-      <form
-        onSubmit={addLadder}
-        className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card/40 p-4"
-      >
-        <input
-          className={inputCls}
-          placeholder="Название лестницы (напр. «Взрослые»)"
-          value={ladderName}
-          onChange={(e) => setLadderName(e.target.value)}
-        />
-        <input
-          className={inputCls}
-          placeholder="Аудитория (adult / kids)"
-          value={audience}
-          onChange={(e) => setAudience(e.target.value)}
-        />
-        <DirectionSelect
-          id="ladder-direction"
-          label=""
-          directions={directions}
-          value={directionId}
-          onChange={setDirectionId}
-          allowedIds={scope.allowedDirectionIds}
-          triggerClassName="w-48"
-        />
-        <Button type="submit" disabled={!ladderName.trim()}>
-          Добавить лестницу
-        </Button>
-      </form>
 
       {ladders.length > 0 && directions.length > 0 && (
         <div className="flex justify-end">
@@ -173,27 +129,26 @@ export default function WorkspaceRanksPage() {
           {visibleLadders.map((ladder) => (
             <LadderCard
               key={ladder.id}
-              workspaceId={workspaceId!}
+              workspaceId={workspaceId}
               ladder={ladder}
-              directions={directions}
-              allowedDirectionIds={scope.allowedDirectionIds}
-              onArchive={wrap(() =>
-                updateRankLadder({
-                  workspaceId: workspaceId!,
-                  ladderId: ladder.id,
-                  data: { isActive: !ladder.isActive },
-                }),
-              )}
-              onDelete={wrap(async () => {
-                if (!window.confirm(`Удалить лестницу «${ladder.name}»?`)) return
-                await deleteRankLadder({ workspaceId: workspaceId!, ladderId: ladder.id })
-              })}
+              onEdit={() => openLadderSheet(ladder)}
               onReload={load}
               onError={setError}
             />
           ))}
         </div>
       )}
+
+      <LadderFormSheet
+        workspaceId={workspaceId}
+        open={ladderSheetOpen}
+        onOpenChange={setLadderSheetOpen}
+        ladder={editingLadder}
+        directions={directions}
+        allowedDirectionIds={scope.allowedDirectionIds}
+        defaultDirectionId={scope.defaultDirectionId}
+        onSaved={() => void load()}
+      />
     </div>
   )
 }
@@ -201,114 +156,69 @@ export default function WorkspaceRanksPage() {
 function LadderCard({
   workspaceId,
   ladder,
-  directions,
-  allowedDirectionIds,
-  onArchive,
-  onDelete,
+  onEdit,
   onReload,
   onError,
 }: {
   workspaceId: string
   ladder: RankLadder
-  directions: Direction[]
-  allowedDirectionIds: readonly string[] | undefined
-  onArchive: () => void
-  onDelete: () => void
+  onEdit: () => void
   onReload: () => Promise<void>
   onError: (m: string) => void
 }) {
-  const changeDirection = async (directionId: string | null) => {
-    try {
-      await updateRankLadder({
-        workspaceId,
-        ladderId: ladder.id,
-        data: { directionId },
-      })
-      await onReload()
-    } catch (e) {
-      onError(errorMessage(e, "Не удалось изменить направление лестницы"))
-    }
-  }
-  const [name, setName] = useState("")
-  const [color, setColor] = useState("")
-  const [maxStripes, setMaxStripes] = useState("0")
-  const [stripesError, setStripesError] = useState<string | null>(null)
-  const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState("")
+  const vocabulary = useVocabulary()
+  const [busy, setBusy] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [editing, setEditing] = useState<RankLevel | null>(null)
 
-  const addLevel = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name.trim()) return
-    const stripes = parseIntInput(maxStripes, { min: 0, max: 20 })
-    if (stripes === null) {
-      setStripesError("Полоски: целое число от 0 до 20")
+  const openSheet = (level: RankLevel | null) => {
+    setEditing(level)
+    setSheetOpen(true)
+  }
+
+  const run = async (action: () => Promise<unknown>, failText: string) => {
+    setBusy(true)
+    try {
+      await action()
+    } catch (e) {
+      onError(errorMessage(e, failText))
+    }
+    await onReload()
+    setBusy(false)
+  }
+
+  const removeLevel = async (lv: RankLevel) => {
+    if (
+      !(await confirmDialog({
+        title: `Удалить уровень «${lv.name}»?`,
+        description:
+          "Уровень, который уже кому-то присваивали или который стоит в аттестации, удалить нельзя — отправьте его в архив.",
+        destructive: true,
+      }))
+    )
       return
-    }
-    setStripesError(null)
-    try {
-      await createRankLevel({
-        workspaceId,
-        ladderId: ladder.id,
-        data: {
-          name: name.trim(),
-          order: nextLevelOrder(ladder.levels),
-          color: color.trim() || undefined,
-          maxStripes: stripes,
-        },
-      })
-      setName("")
-      setColor("")
-      setMaxStripes("0")
-      await onReload()
-    } catch (e) {
-      onError(errorMessage(e, "Не удалось добавить уровень"))
-    }
+    await run(
+      () => deleteRankLevel({ workspaceId, ladderId: ladder.id, levelId: lv.id }),
+      "Не удалось удалить уровень",
+    )
   }
 
-  const removeLevel = async (levelId: string) => {
-    try {
-      await deleteRankLevel({ workspaceId, ladderId: ladder.id, levelId })
-      await onReload()
-    } catch (e) {
-      onError(errorMessage(e, "Не удалось удалить уровень"))
-    }
-  }
+  const toggleLevelActive = (lv: RankLevel) =>
+    run(
+      () =>
+        updateRankLevel({
+          workspaceId,
+          ladderId: ladder.id,
+          levelId: lv.id,
+          data: { isActive: !lv.isActive },
+        }),
+      "Не удалось изменить уровень",
+    )
 
-  const saveRename = async (levelId: string) => {
-    const next = renameValue.trim()
-    if (!next) return
-    try {
-      await updateRankLevel({
-        workspaceId,
-        ladderId: ladder.id,
-        levelId,
-        data: { name: next },
-      })
-      setRenamingId(null)
-      await onReload()
-    } catch (e) {
-      onError(errorMessage(e, "Не удалось переименовать уровень"))
-    }
-  }
-
-  const toggleLevelActive = async (levelId: string, isActive: boolean) => {
-    try {
-      await updateRankLevel({
-        workspaceId,
-        ladderId: ladder.id,
-        levelId,
-        data: { isActive: !isActive },
-      })
-      await onReload()
-    } catch (e) {
-      onError(errorMessage(e, "Не удалось изменить уровень"))
-    }
-  }
-
-  const moveLevel = async (index: number, direction: -1 | 1) => {
+  const moveLevel = (index: number, direction: -1 | 1) => {
     const steps = swapSteps(ladder.levels, index, direction)
     if (!steps) return
-    try {
+    void run(async () => {
       for (const step of steps) {
         await updateRankLevel({
           workspaceId,
@@ -317,184 +227,139 @@ function LadderCard({
           data: { order: step.order },
         })
       }
-    } catch (e) {
-      onError(errorMessage(e, "Не удалось изменить порядок уровней"))
-    }
-    await onReload()
+    }, "Не удалось изменить порядок уровней")
   }
+
+  // Index the edited level has (or a new one will have): the «допуск» is the
+  // step up to a level, so the first level carries none.
+  const editingIndex = editing
+    ? ladder.levels.findIndex((l) => l.id === editing.id)
+    : ladder.levels.length
 
   return (
     <div className="rounded-xl border border-border p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{ladder.name}</span>
-          <DirectionChip direction={ladder.direction} />
-          {ladder.audience && (
-            <span className="text-xs text-muted-foreground">
-              {ladder.audience}
-            </span>
-          )}
-          {!ladder.isActive && (
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-              В архиве
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={onArchive}>
-            {ladder.isActive ? "В архив" : "Вернуть"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={onDelete}>
-            Удалить
-          </Button>
-        </div>
-      </div>
+      <button
+        type="button"
+        className="flex w-full flex-wrap items-center gap-2 text-left hover:opacity-80"
+        onClick={onEdit}
+      >
+        <span className="font-medium">{ladder.name}</span>
+        <DirectionChip direction={ladder.direction} />
+        {ladder.audience && (
+          <span className="text-xs text-muted-foreground">
+            Для кого: {ladder.audience}
+          </span>
+        )}
+        {!ladder.isActive && (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+            В архиве
+          </span>
+        )}
+      </button>
 
-      {directions.length > 0 && (
-        <div className="mt-2 max-w-xs">
-          <DirectionSelect
-            id={`ladder-direction-${ladder.id}`}
-            directions={directions}
-            value={ladder.direction?.id ?? null}
-            onChange={(next) => void changeDirection(next)}
-            allowedIds={allowedDirectionIds}
-            triggerClassName="h-8"
-          />
-        </div>
-      )}
-
-      <ol className="mt-3 space-y-1">
-        {ladder.levels.map((lv, i) => (
-          <li
-            key={lv.id}
-            className="flex flex-wrap items-center justify-between gap-2 text-sm"
-          >
-            {renamingId === lv.id ? (
-              <form
-                className="flex flex-wrap items-center gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  void saveRename(lv.id)
-                }}
+      {ladder.levels.length > 0 && (
+        <ol className="mt-3 divide-y divide-border rounded-lg border border-border">
+          {ladder.levels.map((lv, i) => {
+            const meta = [
+              lv.maxStripes > 0
+                ? `до ${lv.maxStripes} ${pluralRu(lv.maxStripes, "полоски", "полосок", "полосок")}`
+                : null,
+              i >= 1 ? describeLevelRule(lv, vocabulary) : null,
+            ].filter(Boolean)
+            return (
+              <li
+                key={lv.id}
+                className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
               >
-                <input
-                  className={inputCls}
-                  aria-label="Название уровня"
-                  value={renameValue}
-                  maxLength={255}
-                  autoFocus
-                  onChange={(e) => setRenameValue(e.target.value)}
-                />
-                <Button type="submit" size="sm" disabled={!renameValue.trim()}>
-                  Сохранить
-                </Button>
-                <Button
+                <button
                   type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setRenamingId(null)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left hover:opacity-80"
+                  onClick={() => openSheet(lv)}
                 >
-                  Отмена
-                </Button>
-              </form>
-            ) : (
-              <>
-                <span className="flex items-center gap-2">
                   <span
-                    className="inline-block h-3 w-3 rounded-full border border-border"
+                    className="inline-block h-3 w-3 shrink-0 rounded-full border border-border"
                     style={{ backgroundColor: lv.color ?? "transparent" }}
                   />
-                  {i + 1}. {lv.name}
-                  {lv.maxStripes > 0 ? ` (до ${lv.maxStripes}★)` : ""}
-                  {!lv.isActive ? " · архив" : ""}
-                </span>
-                <span className="flex flex-wrap items-center gap-3">
-                  <button
-                    className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30"
-                    disabled={i === 0}
-                    aria-label="Выше"
-                    title="Выше"
-                    onClick={() => void moveLevel(i, -1)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30"
-                    disabled={i === ladder.levels.length - 1}
-                    aria-label="Ниже"
-                    title="Ниже"
-                    onClick={() => void moveLevel(i, 1)}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                      setRenamingId(lv.id)
-                      setRenameValue(lv.name)
-                    }}
-                  >
-                    Переименовать
-                  </button>
-                  <button
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => void toggleLevelActive(lv.id, lv.isActive)}
-                  >
-                    {lv.isActive ? "В архив" : "Вернуть"}
-                  </button>
-                  <button
-                    className="text-xs text-muted-foreground hover:text-destructive"
-                    onClick={() => void removeLevel(lv.id)}
-                  >
-                    Удалить
-                  </button>
-                </span>
-              </>
-            )}
-            {i >= 1 && renamingId !== lv.id && (
-              <LevelRuleEditor
-                workspaceId={workspaceId}
-                ladderId={ladder.id}
-                level={lv}
-                onSaved={onReload}
-              />
-            )}
-          </li>
-        ))}
-        {ladder.levels.length === 0 && (
-          <li className="text-sm text-muted-foreground">Уровней пока нет.</li>
-        )}
-      </ol>
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2">
+                      <span className="truncate">
+                        {i + 1}. {lv.name}
+                      </span>
+                      {!lv.isActive && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                          В архиве
+                        </span>
+                      )}
+                    </span>
+                    {meta.length > 0 && (
+                      <span className="block text-xs text-muted-foreground">
+                        {meta.join(" · ")}
+                      </span>
+                    )}
+                  </span>
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      aria-label={`Действия: ${lv.name}`}
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      disabled={i === 0}
+                      onSelect={() => moveLevel(i, -1)}
+                    >
+                      Выше
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={i === ladder.levels.length - 1}
+                      onSelect={() => moveLevel(i, 1)}
+                    >
+                      Ниже
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void toggleLevelActive(lv)}>
+                      {lv.isActive ? "В архив" : "Вернуть из архива"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onSelect={() => void removeLevel(lv)}
+                    >
+                      Удалить
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </li>
+            )
+          })}
+        </ol>
+      )}
 
-      <form onSubmit={addLevel} className="mt-3 flex flex-wrap items-center gap-2">
-        <input
-          className={inputCls}
-          placeholder="Уровень (напр. «Синий пояс» или «Продолжающие»)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          className={`${inputCls} w-28`}
-          placeholder="Цвет"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-        />
-        <input
-          className={`${inputCls} w-24`}
-          type="number"
-          min={0}
-          value={maxStripes}
-          onChange={(e) => setMaxStripes(e.target.value)}
-          title="Макс. полосок"
-          aria-label="Макс. полосок"
-        />
-        {stripesError && (
-          <span className="w-full text-xs text-destructive">{stripesError}</span>
-        )}
-        <Button type="submit" size="sm" disabled={!name.trim()}>
-          + уровень
-        </Button>
-      </form>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="mt-2"
+        onClick={() => openSheet(null)}
+      >
+        Добавить уровень
+      </Button>
+
+      <LevelFormSheet
+        workspaceId={workspaceId}
+        ladderId={ladder.id}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        level={editing}
+        nextOrder={nextLevelOrder(ladder.levels)}
+        withRule={editingIndex >= 1}
+        onSaved={() => void onReload()}
+      />
     </div>
   )
 }

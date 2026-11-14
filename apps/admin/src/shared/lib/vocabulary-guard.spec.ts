@@ -25,8 +25,8 @@ const ALLOWED: Record<string, true | readonly string[]> = {
   "app/(dashboard)/workspace/[workspaceId]/subscriptions/page.tsx": true,
   "app/(dashboard)/workspace/[workspaceId]/subscriptions/plans/[planId]/page.tsx": true,
   "features/subscriptions/MemberSubscriptionPanel.tsx": true,
+  "features/subscriptions/PlanFormSheet.tsx": true,
   "features/subscriptions/subscription-display.ts": true,
-  "app/(dashboard)/workspace/[workspaceId]/page.tsx": ["заканчиваются занятия / доступ"],
   "features/settings/app-sections.ts": [
     "Остаток занятий и статус абонемента.",
     "другой группы. Занятие списывается с абонемента, только когда гостя отметят на",

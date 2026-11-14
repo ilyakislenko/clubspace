@@ -21,7 +21,6 @@ import {
   type CategoryResponse,
 } from "../../../../../shared/api/categories"
 import {
-  deletePlaylist,
   listPlaylists,
   type PlaylistResponse,
 } from "../../../../../shared/api/playlists"
@@ -45,7 +44,6 @@ export default function WorkspaceContentPage() {
 
   const [uploadOpen, setUploadOpen] = useState(false)
   const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false)
-  const [editPlaylist, setEditPlaylist] = useState<PlaylistResponse | null>(null)
 
   const loadPlaylists = async () => {
     if (!workspaceId) return
@@ -87,29 +85,10 @@ export default function WorkspaceContentPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
 
-  const handleDeletePlaylist = async (playlist: PlaylistResponse) => {
-    if (!workspaceId) return
-    const confirmed = window.confirm("Удалить плейлист?")
-    if (!confirmed) return
-
-    try {
-      await deletePlaylist({ workspaceId, playlistId: playlist.id })
-      setPlaylists((prev) => prev.filter((item) => item.id !== playlist.id))
-    } catch {
-      // Surface the failure instead of swallowing it (the row stays in the DB).
-      window.alert("Не удалось удалить плейлист. Попробуйте ещё раз.")
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Курсы и видео</h1>
-          <p className="text-sm text-muted-foreground">
-            Видео и курсы клуба.
-          </p>
-        </div>
+        <h1 className="text-2xl font-semibold">Курсы и видео</h1>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" className="gap-2">
@@ -163,8 +142,6 @@ export default function WorkspaceContentPage() {
           workspaceId={workspaceId}
           playlists={playlists}
           loading={playlistsLoading}
-          onEdit={setEditPlaylist}
-          onDelete={handleDeletePlaylist}
         />
       )}
 
@@ -191,21 +168,6 @@ export default function WorkspaceContentPage() {
             open={createPlaylistOpen}
             onOpenChange={setCreatePlaylistOpen}
             onSaved={(playlist) => setPlaylists((prev) => [playlist, ...prev])}
-          />
-
-          <PlaylistFormSheet
-            mode="edit"
-            workspaceId={workspaceId}
-            open={Boolean(editPlaylist)}
-            playlist={editPlaylist}
-            onOpenChange={(open) => {
-              if (!open) setEditPlaylist(null)
-            }}
-            onSaved={(playlist) =>
-              setPlaylists((prev) =>
-                prev.map((item) => (item.id === playlist.id ? playlist : item)),
-              )
-            }
           />
         </>
       )}

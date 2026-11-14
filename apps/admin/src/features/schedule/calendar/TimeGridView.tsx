@@ -10,22 +10,26 @@ import { pluralRu } from "../../../shared/lib/plural-ru"
 import { useVocabulary } from "../../../shared/lib/vocabulary"
 import {
   blockFit,
+  dayRuns,
   DOW_SHORT,
   formatHm,
   formatRange,
   HOUR_HEIGHT,
   isoDow,
   layoutDay,
+  MAX_SIDE_BY_SIDE,
   minuteToY,
   PX_PER_MINUTE,
   visibleHours,
   type BlockPlace,
+  type DayRun,
   type HourRange,
 } from "./calendar-helpers"
 import type { CalendarItem, ClassItem, HallColumn } from "./calendar-items"
 import type { CreateSlotRequest } from "./CreateSlotDialog"
 import { EventBlock } from "./EventBlock"
 import { useGridDrag, type DragTarget } from "./use-grid-drag"
+import { RunList } from "./RunList"
 
 const QUARTERS = [0, 15, 30, 45] as const
 
@@ -126,6 +130,21 @@ export function TimeGridView({
     for (const [key, list] of columnItems) out.set(key, layoutDay(list))
     return out
   }, [columnItems])
+
+  // The week view draws a run of more parallel classes than fit side by side
+  // as one list (RunList); a day column has the room for blocks.
+  const lists = useMemo(() => {
+    const out = new Map<string, DayRun<CalendarItem>[]>()
+    if (detailed) return out
+    for (const [key, list] of columnItems) {
+      out.set(key, dayRuns(list).filter((run) => run.lanes.length > MAX_SIDE_BY_SIDE))
+    }
+    return out
+  }, [detailed, columnItems])
+  const listed = useMemo(
+    () => new Set([...lists.values()].flat().flatMap((run) => run.lanes.flat().map((it) => it.key))),
+    [lists],
+  )
 
   // The grid's width, for how much a narrow block can show (blockFit).
   const [gridWidth, setGridWidth] = useState(0)
@@ -344,7 +363,7 @@ export function TimeGridView({
                     </div>
                   ))}
 
-                  {(columnItems.get(col.key) ?? []).map((it) => {
+                  {(columnItems.get(col.key) ?? []).filter((it) => !listed.has(it.key)).map((it) => {
                     const place = layout?.get(it.key) ?? { left: 0, width: 1 }
                     // Hall columns keep a minimum lane width, so only a shared
                     // day column gets slivers; unmeasured (0) shows everything.
@@ -392,6 +411,21 @@ export function TimeGridView({
                       </div>
                     )
                   })}
+
+                  {(lists.get(col.key) ?? []).map((run) => (
+                    <RunList
+                      key={`run:${run.startMin}`}
+                      run={run}
+                      style={{
+                        top: minuteToY(run.startMin, range) + 1,
+                        height: (run.endMin - run.startMin) * PX_PER_MINUTE - 2,
+                      }}
+                      onOpenItem={(it) => {
+                        if (consumeClick()) return
+                        onOpenItem(it)
+                      }}
+                    />
+                  ))}
 
                   {drag &&
                     drag.target.date === col.date &&

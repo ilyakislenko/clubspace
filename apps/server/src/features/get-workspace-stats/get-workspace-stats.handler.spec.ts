@@ -139,11 +139,11 @@ describe('GetWorkspaceStatsHandler paid-only revenue', () => {
         return subscriptionFindMany.mock.calls.map(([a]) => a.where)
     }
 
-    it('reads revenue, the trend and today from paid rows only', async () => {
+    it('reads revenue, the previous 30 days and today from paid rows only', async () => {
         const paidWheres = (await wheres()).filter(
             (w) => w.isPaid === true && w.OR,
         )
-        // One 6-month read: the trend, the 30-day slice and today's glance.
+        // One 60-day read: the 30-day slice, the 30 days before it, today.
         expect(paidWheres).toHaveLength(1)
     })
 
@@ -164,7 +164,7 @@ describe('GetWorkspaceStatsHandler paid-only revenue', () => {
         expect(out.revenue?.awaitingPayment).toEqual({ students: 1, amount: 5000 })
     })
 
-    it('counts paid event tickets (a master class) as sales, one breakdown row per event', async () => {
+    it('counts paid event tickets (a master class) as sales', async () => {
         const tickets = jest.fn().mockResolvedValue([
             {
                 amountPaid: 1500,
@@ -179,16 +179,28 @@ describe('GetWorkspaceStatsHandler paid-only revenue', () => {
         const out = await run(handler, 'admin')
         expect(out.revenue?.revenue30d).toBe(6500)
         expect(out.today.revenue).toBe(6500)
-        expect(out.revenue?.byPlan).toContainEqual({
-            planId: 'e1',
-            planName: 'Мастер-класс',
-            count: 1,
-            revenue: 1500,
-        })
         for (const [args] of tickets.mock.calls) {
             expect(args.where).toMatchObject({ workspaceId: 'w1', isPaid: true })
             expect(args.where.paidAt.gte).toBeInstanceOf(Date)
         }
+    })
+
+    it('puts a sale paid 31–60 days ago into the previous period, not into revenue30d', async () => {
+        const paidAt = new Date(Date.now() - 45 * 24 * 3600 * 1000)
+        const tickets = jest.fn().mockResolvedValue([
+            {
+                amountPaid: 1500,
+                currency: 'RUB',
+                paidAt,
+                createdAt: paidAt,
+                eventId: 'e1',
+                event: { title: 'Мастер-класс', currency: 'RUB' },
+            },
+        ])
+        const { handler } = build(false, { 'eventRegistration.findMany': tickets })
+        const out = await run(handler, 'admin')
+        expect(out.revenue?.revenue30d).toBe(5000)
+        expect(out.revenue?.revenuePrev30d).toBe(1500)
     })
 })
 

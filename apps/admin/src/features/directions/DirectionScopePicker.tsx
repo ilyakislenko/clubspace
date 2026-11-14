@@ -59,7 +59,6 @@ export function DirectionScopePicker({
               className={chipClass(active)}
             >
               <DirectionDot color={d.color} className="size-2" />
-              {d.icon && <span aria-hidden>{d.icon}</span>}
               {d.name}
               {!d.isActive && <span className="font-normal">(в архиве)</span>}
             </button>

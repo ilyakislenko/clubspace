@@ -14,6 +14,7 @@ import {
 import { writeToClipboard } from "../../shared/lib/clipboard"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import {
   AI_DATA_MODE_LABEL,
   AI_TOKEN_STATE_LABEL,
@@ -100,7 +101,16 @@ export function AiAssistantCard({ workspaceId }: { workspaceId: string }) {
   }
 
   const revoke = async (tokenId: string, tokenName: string) => {
-    if (!window.confirm(`Отозвать токен «${tokenName}»? Ассистент сразу потеряет доступ.`)) return
+    if (
+      !(await confirmDialog({
+        title: `Отозвать токен «${tokenName}»?`,
+        description: "Ассистент, подключённый с этим токеном, сразу потеряет доступ к данным клуба.",
+        confirmLabel: "Отозвать",
+        destructive: true,
+      }))
+    ) {
+      return
+    }
     setBusy(true)
     setError(null)
     try {

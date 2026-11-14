@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { fireEvent, render, screen } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 
 import { type PlaylistResponse } from "../../shared/api/playlists"
 import { CourseList } from "./CourseList"
@@ -14,80 +14,30 @@ const playlist = (over: Partial<PlaylistResponse> = {}): PlaylistResponse =>
     ...over,
   }) as PlaylistResponse
 
-const noop = () => undefined
-
 describe("CourseList", () => {
-  it("renders each course's title and slug", () => {
-    render(
-      <CourseList
-        workspaceId="w1"
-        playlists={[playlist()]}
-        loading={false}
-        onEdit={noop}
-        onDelete={noop}
-      />,
-    )
-    expect(screen.getByText("Closed Guard")).toBeTruthy()
-    expect(screen.getByText("closed-guard")).toBeTruthy()
-  })
-
   it("marks a non-public course as a draft", () => {
     render(
       <CourseList
         workspaceId="w1"
         playlists={[playlist({ isPublic: false })]}
         loading={false}
-        onEdit={noop}
-        onDelete={noop}
       />,
     )
     expect(screen.getByText("Черновик")).toBeTruthy()
   })
 
-  it("fires onEdit / onDelete with the course", () => {
-    const onEdit = jest.fn()
-    const onDelete = jest.fn()
-    const p = playlist()
+  it("makes the whole row a link to the course page, with no row buttons", () => {
     render(
-      <CourseList
-        workspaceId="w1"
-        playlists={[p]}
-        loading={false}
-        onEdit={onEdit}
-        onDelete={onDelete}
-      />,
-    )
-    fireEvent.click(screen.getByText("Редактировать"))
-    fireEvent.click(screen.getByText("Удалить"))
-    expect(onEdit).toHaveBeenCalledWith(p)
-    expect(onDelete).toHaveBeenCalledWith(p)
-  })
-
-  it("makes the row a real link to the course detail", () => {
-    render(
-      <CourseList
-        workspaceId="w1"
-        playlists={[playlist()]}
-        loading={false}
-        onEdit={noop}
-        onDelete={noop}
-      />,
+      <CourseList workspaceId="w1" playlists={[playlist()]} loading={false} />,
     )
     expect(
       screen.getByText("Closed Guard").closest("a")?.getAttribute("href"),
     ).toBe("/workspace/w1/content/courses/p1")
+    expect(screen.queryAllByRole("button")).toHaveLength(0)
   })
 
   it("shows the empty state when there are no courses", () => {
-    render(
-      <CourseList
-        workspaceId="w1"
-        playlists={[]}
-        loading={false}
-        onEdit={noop}
-        onDelete={noop}
-      />,
-    )
+    render(<CourseList workspaceId="w1" playlists={[]} loading={false} />)
     expect(screen.getByText("Курсов пока нет.")).toBeTruthy()
   })
 })

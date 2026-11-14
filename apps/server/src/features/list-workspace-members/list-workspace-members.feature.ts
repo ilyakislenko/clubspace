@@ -61,26 +61,15 @@ export const ListWorkspaceMembersFeatureOutputSchema = z.object({
                     directions: z.array(DirectionRefSchema),
                 }),
             ),
+            // Holds an unpaid abonement — the «Должники» segment's rule.
+            owesPayment: z.boolean(),
             createdAt: z.iso.datetime(),
-            // Most recent attendance check-in (null = never attended) — powers
-            // the "inactive 30d" churn filter.
-            lastCheckInAt: z.iso.datetime().nullable(),
-            watchedCount: z.number().int(),
-            inProgressCount: z.number().int(),
-            lastWatchedAt: z.iso.datetime().nullable(),
-            lastWatchedVideo: z
-                .object({
-                    id: z.string().uuid(),
-                    title: z.string(),
-                })
-                .nullable(),
         }),
     ),
     // Members matching the filters, across all pages.
     total: z.number().int(),
     curPage: z.number().int(),
     perPage: z.number().int(),
-    workspaceVideoTotal: z.number().int(),
 })
 
 export class ListWorkspaceMembersFeature {

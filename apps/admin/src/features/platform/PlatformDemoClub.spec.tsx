@@ -1,11 +1,12 @@
 /** @jest-environment jsdom */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 import {
   fetchPlatformDemoClub,
   resetPlatformDemoClub,
   type PlatformDemoClub as DemoClub,
 } from "../../shared/api/platform"
+import { ConfirmDialogHost } from "../../shared/ui/confirm-dialog"
 import { PlatformDemoClub } from "./PlatformDemoClub"
 
 jest.mock("../../shared/api/platform", () => ({
@@ -70,11 +71,18 @@ describe("PlatformDemoClub", () => {
       counts: { members: 76, groups: 6, sessions: 225, visits: 1500, subscriptions: 288 },
     })
     const onChanged = jest.fn()
-    jest.spyOn(window, "confirm").mockReturnValue(true)
-    render(<PlatformDemoClub club="ritm" onChanged={onChanged} />)
+    render(
+      <>
+        <PlatformDemoClub club="ritm" onChanged={onChanged} />
+        <ConfirmDialogHost />
+      </>,
+    )
     await screen.findByText("owner@ritm.demo")
     expect(screen.getByText(/танцевальная студия/)).toBeTruthy()
     fireEvent.click(screen.getByText("Сбросить демо"))
+    const dialog = await screen.findByRole("dialog")
+    expect(resetMock).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Сбросить демо" }))
     await waitFor(() => expect(onChanged).toHaveBeenCalled())
     expect(onChanged.mock.calls[0][0]).toContain("за 2.4 с")
     expect(onChanged.mock.calls[0][0]).toContain("«Ритм»")
@@ -84,10 +92,16 @@ describe("PlatformDemoClub", () => {
 
   it("does nothing when the confirmation is declined", async () => {
     fetchMock.mockResolvedValue(demo())
-    jest.spyOn(window, "confirm").mockReturnValue(false)
-    render(<PlatformDemoClub club="academy" onChanged={jest.fn()} />)
+    render(
+      <>
+        <PlatformDemoClub club="academy" onChanged={jest.fn()} />
+        <ConfirmDialogHost />
+      </>,
+    )
     await screen.findByText("owner@academy.demo")
     fireEvent.click(screen.getByText("Сбросить демо"))
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Отмена" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     expect(resetMock).not.toHaveBeenCalled()
   })
 

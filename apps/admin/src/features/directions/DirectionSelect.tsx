@@ -73,7 +73,6 @@ export function DirectionSelect({
             <SelectItem key={d.id} value={d.id}>
               <span className="inline-flex items-center gap-2">
                 <DirectionDot color={d.color} />
-                {d.icon && <span aria-hidden>{d.icon}</span>}
                 {d.name}
                 {!d.isActive && (
                   <span className="text-xs text-muted-foreground">

@@ -19,6 +19,7 @@ import {
   type PaymentStatus,
 } from "../../shared/api/payments"
 import { errorMessage } from "../../shared/lib/error-message"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { formatAmount } from "../subscriptions/subscription-display"
 import {
   PAYMENT_STATUS_CLASS,
@@ -71,9 +72,12 @@ export function PaymentsList({ workspaceId }: { workspaceId: string }) {
 
   const onRefund = async (p: PaymentRow) => {
     if (
-      !window.confirm(
-        `Вернуть ${formatAmount(p.amount, p.currency)} участнику ${p.member.name}?\n\n${refundHint(p)}`,
-      )
+      !(await confirmDialog({
+        title: `Вернуть ${formatAmount(p.amount, p.currency)} участнику ${p.member.name}?`,
+        description: `Деньги вернутся тем же способом, которым платил участник. ${refundHint(p)}`,
+        confirmLabel: "Вернуть деньги",
+        destructive: true,
+      }))
     )
       return
     setRefundingId(p.id)

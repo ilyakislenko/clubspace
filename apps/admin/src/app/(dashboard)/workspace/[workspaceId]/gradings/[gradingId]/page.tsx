@@ -23,9 +23,20 @@ import { formatAmount } from "../../../../../../features/subscriptions/subscript
 import { formatYmd } from "../../../../../../shared/lib/format-ymd"
 import { inputCls } from "../../../../../../shared/lib/input-class"
 import { parseIntInput } from "../../../../../../shared/lib/parse-int-input"
+import { pluralRu } from "../../../../../../shared/lib/plural-ru"
+import { confirmDialog } from "../../../../../../shared/ui/confirm-dialog"
 
 const candidateName = (c: RankGradingCandidate) =>
   [c.firstname, c.lastname].filter(Boolean).join(" ") || c.email
+
+const todayYmd = (): string => {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// How many names the bulk-promotion confirmation lists before «и ещё N».
+const CONFIRM_NAMES = 5
 
 const RESULT_OPTIONS: { value: RankGradingResult; label: string }[] = [
   { value: "PENDING", label: "—" },
@@ -118,7 +129,23 @@ export default function GradingDetailPage() {
   }
 
   const remove = async () => {
-    if (!window.confirm("Удалить аттестацию?")) return
+    const total = grading.candidates.length
+    const consequences = [
+      total > 0
+        ? `Список из ${total} ${pluralRu(total, "кандидата", "кандидатов", "кандидатов")} удалится вместе с ней.`
+        : null,
+      pending.length > 0 && grading.date >= todayYmd()
+        ? `${pending.length} ${pluralRu(pending.length, "кандидат получит", "кандидата получат", "кандидатов получат")} уведомление об отмене.`
+        : null,
+    ].filter(Boolean)
+    if (
+      !(await confirmDialog({
+        title: `Удалить аттестацию «${grading.title}»?`,
+        description: consequences.length > 0 ? consequences.join(" ") : undefined,
+        destructive: true,
+      }))
+    )
+      return
     setBusy(true)
     setError(null)
     try {
@@ -130,13 +157,18 @@ export default function GradingDetailPage() {
     }
   }
 
-  const setResult = (c: RankGradingCandidate, result: RankGradingResult) => {
+  const setResult = async (
+    c: RankGradingCandidate,
+    result: RankGradingResult,
+  ) => {
     if (result === c.result) return
     if (
       result === "PASSED" &&
-      !window.confirm(
-        `Присвоить ранг «${c.levelName}»: ${candidateName(c)}? Отменить будет нельзя.`,
-      )
+      !(await confirmDialog({
+        title: `Присвоить ранг «${c.levelName}»: ${candidateName(c)}?`,
+        description: `${candidateName(c)} получит уведомление о новом ранге. Отменить присвоение будет нельзя.`,
+        confirmLabel: "Присвоить",
+      }))
     )
       return
     void run(async () => {
@@ -149,11 +181,29 @@ export default function GradingDetailPage() {
     }, "Не удалось записать результат")
   }
 
-  const passAll = () => {
+  const passAll = async () => {
+    const shown = pending.slice(0, CONFIRM_NAMES)
+    const rest = pending.length - shown.length
     if (
-      !window.confirm(
-        `Присвоить ранг ${pending.length} кандидатам? Отменить будет нельзя.`,
-      )
+      !(await confirmDialog({
+        title: `Присвоить ранги ${pending.length} ${pluralRu(pending.length, "кандидату", "кандидатам", "кандидатам")}?`,
+        // Rendered inside the dialog's <p>: block spans, not lists/paragraphs.
+        description: (
+          <>
+            {shown.map((c) => (
+              <span key={c.id} className="block">
+                {candidateName(c)} → {c.levelName}
+              </span>
+            ))}
+            {rest > 0 && <span className="block">и ещё {rest}</span>}
+            <span className="mt-2 block">
+              Каждый получит уведомление о новом ранге. Отменить присвоение
+              будет нельзя.
+            </span>
+          </>
+        ),
+        confirmLabel: "Присвоить",
+      }))
     )
       return
     void run(async () => {
@@ -250,7 +300,7 @@ export default function GradingDetailPage() {
       )}
 
       {pending.length > 0 && (
-        <Button disabled={busy} onClick={passAll}>
+        <Button disabled={busy} onClick={() => void passAll()}>
           Все оставшиеся сдали ({pending.length})
         </Button>
       )}
@@ -263,7 +313,7 @@ export default function GradingDetailPage() {
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
+            <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="p-3">Участник</th>
                 <th className="p-3">Было → Станет</th>
@@ -310,7 +360,7 @@ export default function GradingDetailPage() {
                           key={o.value}
                           type="button"
                           disabled={busy || (c.result === "PASSED" && o.value !== "PASSED")}
-                          onClick={() => setResult(c, o.value)}
+                          onClick={() => void setResult(c, o.value)}
                           className={`px-3 py-1 text-xs disabled:opacity-40 ${
                             c.result === o.value
                               ? "bg-primary text-primary-foreground"
@@ -349,11 +399,14 @@ export default function GradingDetailPage() {
                       <button
                         className="text-xs text-muted-foreground hover:text-destructive"
                         disabled={busy}
-                        onClick={() => {
+                        onClick={async () => {
                           if (
-                            !window.confirm(
-                              `Убрать ${candidateName(c)} из аттестации?`,
-                            )
+                            !(await confirmDialog({
+                              title: `Убрать ${candidateName(c)} из аттестации?`,
+                              description: `Повышение до «${c.levelName}» не состоится. Вернуть кандидата можно из списка «Готовы» на вкладке «Аттестации».`,
+                              confirmLabel: "Убрать",
+                              destructive: true,
+                            }))
                           )
                             return
                           void run(

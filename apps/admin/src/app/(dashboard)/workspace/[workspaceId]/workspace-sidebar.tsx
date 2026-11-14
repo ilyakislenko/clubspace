@@ -196,7 +196,7 @@ export function WorkspaceSidebar() {
   const features = useWorkspaceFeatures(workspaceId, pathname)
 
   const handleSignOut = async () => {
-    if (!confirmLeave()) return
+    if (!(await confirmLeave())) return
     clearActiveWorkspaceId()
     await signOut()
     router.replace("/sign-in")
