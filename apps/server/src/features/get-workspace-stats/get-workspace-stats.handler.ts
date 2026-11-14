@@ -1,9 +1,38 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
-import { MemberStatus, PrismaService } from '../../infrastructure/prisma'
+import { countStudentsWithAbonement } from '../../domains/metrics/abonements'
+import { countActiveStudents } from '../../domains/metrics/active-students'
+import {
+    countStudentCheckins,
+    countStudentsAttended,
+    countStudentsNotAttended,
+    studentCheckinsWhere,
+} from '../../domains/metrics/attendance'
+import { loadExpectedRevenue } from '../../domains/metrics/expected-revenue'
+import {
+    computeRevenue,
+    loadCurrentSales,
+    loadSales,
+    paidOn,
+    revenueByPlan,
+    revenueTrend,
+    revenueTrendStart,
+    revenueWindowStart,
+    summarizeAwaiting,
+    sumRevenue,
+} from '../../domains/metrics/revenue'
+import {
+    countNewStudents,
+    countStudents,
+    type StudentScope,
+} from '../../domains/metrics/students'
+import {
+    awaitingPaymentWhere,
+    countAwaitingPaymentMembers,
+    countRenewalsDue,
+} from '../../domains/subscriptions/renewal-rules'
+import { PrismaService } from '../../infrastructure/prisma'
 import { isClubAdmin } from '../../shared/access/assert-admin-scope'
-import { STAFF_ROLES } from '../../shared/decorators/roles.decorator'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     GetWorkspaceStatsFeature,
@@ -13,25 +42,15 @@ import {
     localDateInTz,
     wallClockToUtc,
 } from '../attendance/attendance-utils'
-import { notAwaitingFirstVisitWhere } from '../manage-announcements/renewal-segment'
 import { GetWorkspaceScheduleFeature } from '../get-workspace-schedule/get-workspace-schedule.feature'
 import { GetWorkspaceScheduleHandler } from '../get-workspace-schedule/get-workspace-schedule.handler'
 import { attendanceTrend } from './attendance-trend'
-import {
-    awaitingPaymentWhere,
-    computeRevenue,
-    paidInRangeWhere,
-    paidOn,
-    revenueByPlan,
-    revenueTrend,
-    revenueTrendStart,
-    summarizeAwaiting,
-    sumRevenue,
-    ticketRevenueRow,
-    ticketRevenueSelect,
-    ticketsPaidInRangeWhere,
-} from './revenue'
 
+const DAY_MS = 24 * 3600 * 1000
+
+// The dashboard: every number is a glossary metric from domains/metrics
+// (docs/design/2026-11-08-admin-cleanup.md B2), so it equals the same metric
+// on the forecast, the bill and the members list.
 @Feature(GetWorkspaceStatsFeature)
 export class GetWorkspaceStatsHandler
     implements
@@ -53,9 +72,8 @@ export class GetWorkspaceStatsHandler
         isSuperAdmin,
     }: GetWorkspaceStatsFeature) {
         const now = new Date()
-        const since7 = new Date(now.getTime() - 7 * 24 * 3600 * 1000)
-        const since30 = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
-        const in14 = new Date(now.getTime() + 14 * 24 * 3600 * 1000)
+        const since7 = new Date(now.getTime() - 7 * DAY_MS)
+        const since30 = new Date(now.getTime() - 30 * DAY_MS)
 
         const ctx = await this.rbac.resolveCoachScope({
             userId: invokerUserId,
@@ -70,11 +88,13 @@ export class GetWorkspaceStatsHandler
             roleName: invokerRoleName,
             isSuperAdmin,
         })
+        // «Продлить» is the sport leads' list; a coach gets no count.
+        const sportLead = this.rbac.canWriteAllGroups(ctx)
 
         // For coach_own_only: pre-compute the visible userId set (students of
         // their own groups — coached or of a direction they run, ownGroupsWhere
         // — plus the coach themselves). Activity stats and top videos
-        // get filtered by this set; member count narrows to it; content
+        // get filtered by this set; student counts narrow to it; content
         // counts (videos, courses) stay workspace-wide because the
         // content library is shared by design.
         let scopedUserIds: string[] | null = null
@@ -92,10 +112,6 @@ export class GetWorkspaceStatsHandler
             scopedUserIds !== null
                 ? { userId: { in: scopedUserIds } }
                 : {}
-        const memberWhere =
-            scopedUserIds !== null
-                ? { workspaceId, userId: { in: scopedUserIds } }
-                : { workspaceId }
         // Sessions carry a groupId; a scoped coach sees only their groups'
         // sessions (event/ad-hoc sessions with no group fall away for them).
         const sessionWhere =
@@ -103,30 +119,24 @@ export class GetWorkspaceStatsHandler
                 ? { workspaceId, groupId: { in: scopedGroupIds } }
                 : { workspaceId }
 
-        // The club's own people are not "students": the owner and anyone with a
-        // coaching/admin role stay out of every student counter (members,
-        // active, inactive, access) so a coach never reads as a churned member.
-        const clubOwner = await this.prisma.workspace.findUnique({
+        const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
-            select: { ownerId: true, timezone: true },
+            select: { timezone: true },
         })
-        const tz = clubOwner?.timezone ?? 'Europe/Moscow'
-        const studentWhere = {
-            ...memberWhere,
-            NOT: [
-                { role: { name: { in: [...STAFF_ROLES] } } },
-                ...(clubOwner?.ownerId ? [{ userId: clubOwner.ownerId }] : []),
-            ],
+        const tz = workspace?.timezone ?? 'Europe/Moscow'
+        const students: StudentScope = {
+            workspaceId,
+            ownerId: ctx.workspaceOwnerId,
+            ...(scopedUserIds !== null ? { where: userScope } : {}),
         }
 
-        const [videos, videosReady, courses, members, recentEventsRaw] =
+        const [videos, videosReady, courses, recentEventsRaw] =
             await this.prisma.$transaction([
                 this.prisma.video.count({ where: { workspaceId } }),
                 this.prisma.video.count({
                     where: { workspaceId, status: 'ready' },
                 }),
                 this.prisma.course.count({ where: { workspaceId } }),
-                this.prisma.workspaceMember.count({ where: studentWhere }),
                 // «История изменений» rows: club admins only (empty otherwise).
                 this.prisma.auditEvent.findMany({
                     where: { workspaceId },
@@ -217,173 +227,91 @@ export class GetWorkspaceStatsHandler
             }))
             .slice(0, 5)
 
-        // ---- Attendance + retention (gym health) ----
+        // ---- Students, attendance, retention (glossary metrics) ----
+        const since8w = new Date(now.getTime() - 8 * 7 * DAY_MS)
         const [
+            studentsTotal,
+            activeStudents,
+            studentsWithAbonement,
             sessions7d,
             sessions30d,
             checkins7d,
             checkins30d,
-            attendees7dRows,
-            attendees30dRows,
-            activeMemberRows,
-            expiredAccess,
-            expiringSoon,
-            studentRows,
+            attendedStudents7d,
+            attendedStudents30d,
+            notAttended30d,
+            renewalsDue,
+            trendRows,
         ] = await Promise.all([
+            countStudents(this.prisma, students),
+            countActiveStudents(this.prisma, students, now),
+            countStudentsWithAbonement(this.prisma, students, now),
             this.prisma.attendanceSession.count({
                 where: { ...sessionWhere, startAt: { gte: since7, lte: now } },
             }),
             this.prisma.attendanceSession.count({
                 where: { ...sessionWhere, startAt: { gte: since30, lte: now } },
             }),
-            this.prisma.attendanceRecord.count({
-                where: { workspaceId, markedAt: { gte: since7 }, ...userScope },
-            }),
-            this.prisma.attendanceRecord.count({
-                where: { workspaceId, markedAt: { gte: since30 }, ...userScope },
-            }),
+            countStudentCheckins(this.prisma, students, since7),
+            countStudentCheckins(this.prisma, students, since30),
+            countStudentsAttended(this.prisma, students, since7),
+            countStudentsAttended(this.prisma, students, since30),
+            countStudentsNotAttended(this.prisma, students, now),
+            sportLead ? countRenewalsDue(this.prisma, workspaceId, now) : null,
+            // Weekly check-in trend (last 8 weeks), same students as above.
             this.prisma.attendanceRecord.findMany({
-                where: { workspaceId, markedAt: { gte: since7 }, ...userScope },
-                distinct: ['userId'],
-                select: { userId: true },
-            }),
-            this.prisma.attendanceRecord.findMany({
-                where: { workspaceId, markedAt: { gte: since30 }, ...userScope },
-                distinct: ['userId'],
-                select: { userId: true },
-            }),
-            this.prisma.workspaceMember.findMany({
-                where: { ...studentWhere, status: MemberStatus.ACTIVE },
-                select: { userId: true },
-            }),
-            this.prisma.workspaceMember.count({
-                where: {
-                    ...studentWhere,
-                    status: MemberStatus.ACTIVE,
-                    accessUntil: { lt: now },
-                },
-            }),
-            this.prisma.workspaceMember.count({
-                where: {
-                    ...studentWhere,
-                    status: MemberStatus.ACTIVE,
-                    accessUntil: { gte: now, lt: in14 },
-                    // A pending abonement's window is provisional, not expiring.
-                    ...notAwaitingFirstVisitWhere,
-                },
-            }),
-            // Every student whatever the status — the attendance cards count
-            // students only, like the member counters above.
-            this.prisma.workspaceMember.findMany({
-                where: studentWhere,
-                select: { userId: true },
+                where: studentCheckinsWhere(students, since8w),
+                select: { markedAt: true },
             }),
         ])
-        const allStudentIds = new Set(studentRows.map((m) => m.userId))
-
-        // Weekly check-in trend (last 8 weeks), same scope as the counts above.
-        const since8w = new Date(now.getTime() - 8 * 7 * 24 * 3600 * 1000)
-        const trendRows = await this.prisma.attendanceRecord.findMany({
-            where: { workspaceId, markedAt: { gte: since8w }, ...userScope },
-            select: { markedAt: true },
-        })
         const attendanceTrendPoints = attendanceTrend(
             trendRows.map((r) => r.markedAt),
             now,
             8,
         )
 
-        const attendedSet = new Set(attendees30dRows.map((r) => r.userId))
-        const inactiveMembers30d = activeMemberRows.filter(
-            (m) => !attendedSet.has(m.userId),
-        ).length
-        // Active = a student with at least one check-in in the window (not a
-        // video view — those are reported separately as viewers).
-        const studentIds = new Set(activeMemberRows.map((m) => m.userId))
-        const activeMembers7d = attendees7dRows.filter((r) =>
-            studentIds.has(r.userId),
-        ).length
-        const activeMembers30d = attendees30dRows.filter((r) =>
-            studentIds.has(r.userId),
-        ).length
+        // ---- Today (workspace-local calendar day) ----
+        const todayDate = localDateInTz(now, tz)
+        const dayStart = wallClockToUtc(`${todayDate}T00:00:00`, tz)
 
         // ---- Revenue (club admins only; a head coach or coach never sees it) ----
         let revenue: GetWorkspaceStatsFeatureResponse['revenue'] = null
+        let todayRevenue: { amount: number; currency: string | null } | null = null
         if (clubAdmin) {
             const trendStart = revenueTrendStart(now, tz)
-            const [activeSubRows, recent6moRows, recentTicketRows, awaitingRows] = await Promise.all([
-                this.prisma.subscription.findMany({
-                    // Every current abonement — a member may hold several.
-                    where: { workspaceId, ...currentSubscriptionWhere(now) },
-                    select: {
-                        amountPaid: true,
-                        currency: true,
-                        isPaid: true,
-                        startDate: true,
-                        endDate: true,
-                    },
-                }),
-                // Six months of PAID sales (dated by the payment, bucketed by
-                // the club's calendar month) powers both the trend chart and —
-                // via the trailing-30-day slice below — revenue30d + the
-                // tariff breakdown.
-                this.prisma.subscription.findMany({
-                    where: {
-                        workspaceId,
-                        ...paidInRangeWhere({ gte: trendStart }),
-                    },
-                    select: {
-                        amountPaid: true,
-                        currency: true,
-                        paidAt: true,
-                        createdAt: true,
-                        planId: true,
-                        plan: { select: { name: true } },
-                    },
-                }),
-                // Event tickets paid in the same window (a master class): a
-                // sale like an abonement, one breakdown row per event.
-                this.prisma.eventRegistration.findMany({
-                    where: { workspaceId, ...ticketsPaidInRangeWhere({ gte: trendStart }) },
-                    select: ticketRevenueSelect,
-                }),
+            const [current, sales, awaitingRows, owing, horizons] = await Promise.all([
+                loadCurrentSales(this.prisma, workspaceId, now),
+                // Six months of paid sales power the trend chart, today's
+                // revenue and — via the trailing-30-day slice — revenue30d
+                // and the tariff breakdown.
+                loadSales(this.prisma, workspaceId, trendStart),
                 // The receivable (same rows as the «Ожидают оплаты» list).
                 this.prisma.subscription.findMany({
                     where: awaitingPaymentWhere(workspaceId),
                     select: { amountPaid: true, currency: true },
                 }),
+                countAwaitingPaymentMembers(this.prisma, workspaceId),
+                loadExpectedRevenue(this.prisma, workspaceId),
             ])
-            const recent6mo = [
-                ...recent6moRows.map((r) => ({
-                    amountPaid: r.amountPaid,
-                    currency: r.currency,
-                    paidAt: r.paidAt,
-                    createdAt: r.createdAt,
-                    planId: r.planId,
-                    planName: r.plan.name,
-                })),
-                ...recentTicketRows.map(ticketRevenueRow),
-            ]
-            const recent30 = recent6mo.filter((r) => paidOn(r) >= since30)
-            const summary = computeRevenue(activeSubRows, recent30)
+            const windowStart = revenueWindowStart(now)
+            const recent30 = sales.filter((r) => paidOn(r) >= windowStart)
+            const summary = computeRevenue(current, recent30)
             revenue = {
                 ...summary,
-                awaitingPayment: summarizeAwaiting(awaitingRows, summary.currency),
-                trend: revenueTrend(recent6mo, now, summary.currency, tz),
+                expected30d: horizons[0].expected,
+                awaitingPayment: {
+                    students: owing,
+                    amount: summarizeAwaiting(awaitingRows, summary.currency).amount,
+                },
+                trend: revenueTrend(sales, now, summary.currency, tz),
                 byPlan: revenueByPlan(recent30, summary.currency),
             }
+            todayRevenue = sumRevenue(sales.filter((r) => paidOn(r) >= dayStart))
         }
-
-        // ---- Today (workspace-local calendar day) ----
-        const dayStart = wallClockToUtc(
-            `${localDateInTz(now, tz)}T00:00:00`,
-            tz,
-        )
 
         // Classes on today's timetable (not only the ones a coach already
         // opened), through the same projection the schedule screens use, so a
         // cancelled class doesn't count and a morning shows the day ahead.
-        const todayDate = localDateInTz(now, tz)
         const todaySchedule = await this.schedule.execute(
             new GetWorkspaceScheduleFeature(
                 { from: todayDate, to: todayDate },
@@ -396,12 +324,7 @@ export class GetWorkspaceStatsHandler
                 (scopedGroupIds === null || scopedGroupIds.includes(s.groupId)),
         ).length
 
-        const [
-            personalToday,
-            checkinsToday,
-            newMembersToday,
-            todayRevRows,
-        ] =
+        const [personalToday, checkinsToday, newStudentsToday] =
             await Promise.all([
                 // Personal sessions are not on the timetable: they count only
                 // once held (started), like the sessions7d/30d counters above.
@@ -412,41 +335,13 @@ export class GetWorkspaceStatsHandler
                         startAt: { gte: dayStart, lte: now },
                     },
                 }),
-                this.prisma.attendanceRecord.count({
-                    where: {
-                        workspaceId,
-                        markedAt: { gte: dayStart },
-                        userId: { in: [...allStudentIds] },
-                    },
-                }),
-                this.prisma.workspaceMember.count({
-                    where: { ...studentWhere, createdAt: { gte: dayStart } },
-                }),
-                // Revenue is club-admin only, mirroring the revenue card.
-                clubAdmin
-                    ? Promise.all([
-                          this.prisma.subscription.findMany({
-                              where: { workspaceId, ...paidInRangeWhere({ gte: dayStart }) },
-                              select: { amountPaid: true, currency: true },
-                          }),
-                          this.prisma.eventRegistration.findMany({
-                              where: {
-                                  workspaceId,
-                                  ...ticketsPaidInRangeWhere({ gte: dayStart }),
-                              },
-                              select: ticketRevenueSelect,
-                          }),
-                      ]).then(([subs, tickets]) => [
-                          ...subs,
-                          ...tickets.map(ticketRevenueRow),
-                      ])
-                    : [],
+                countStudentCheckins(this.prisma, students, dayStart),
+                countNewStudents(this.prisma, students, dayStart),
             ])
-        const todayRevenue = clubAdmin ? sumRevenue(todayRevRows) : null
         const today = {
             sessions: scheduledToday + personalToday,
             checkins: checkinsToday,
-            newMembers: newMembersToday,
+            newStudents: newStudentsToday,
             revenue: todayRevenue?.amount ?? null,
             currency: todayRevenue?.currency ?? null,
         }
@@ -470,10 +365,15 @@ export class GetWorkspaceStatsHandler
 
         return {
             today,
-            counts: { videos, videosReady, courses, members },
+            counts: {
+                videos,
+                videosReady,
+                courses,
+                students: studentsTotal,
+                activeStudents,
+                studentsWithAbonement,
+            },
             activity: {
-                activeMembers7d,
-                activeMembers30d,
                 videoViewers7d: viewers7Rows.length,
                 videoViewers30d: viewers30Rows.length,
                 completions7d: completions7Total,
@@ -483,16 +383,11 @@ export class GetWorkspaceStatsHandler
                 sessions30d,
                 checkins7d,
                 checkins30d,
-                distinctAttendees30d: attendees30dRows.filter((r) =>
-                    allStudentIds.has(r.userId),
-                ).length,
+                attendedStudents7d,
+                attendedStudents30d,
                 trend: attendanceTrendPoints,
             },
-            retention: {
-                inactiveMembers30d,
-                expiredAccess,
-                expiringSoon,
-            },
+            retention: { notAttended30d, renewalsDue },
             revenue,
             topVideos7d,
             recentEvents: recentEventsRaw.map((event) => ({

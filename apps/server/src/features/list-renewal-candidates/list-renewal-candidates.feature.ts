@@ -1,19 +1,43 @@
 import { z } from 'zod'
 
 import { DirectionRefSchema } from '../../domains/directions/direction-ref'
+import { RENEWAL_REASONS } from '../../domains/subscriptions/renewal-rules'
+import { AnalyticsFilterSchema } from '../club-analytics/schemas'
+import { MemberGuardianSchema } from '../dependents/schemas'
 
-// A member the club should follow up with about buying a new abonement: a
-// class-pack of theirs is (nearly) empty, or an abonement's term / their
-// access window is about to lapse (or has) — and they haven't already bought
-// the next one of the same scope. One row per member: the most urgent need.
+export const RENEWALS_DEFAULT_PER_PAGE = 50
+export const RENEWALS_MAX_PER_PAGE = 200
+
+// «Продлить». Gym / direction / group / coach narrow the list to the members
+// of the matching groups (an id from another club is a 404).
+export const ListRenewalCandidatesInputSchema = AnalyticsFilterSchema.extend({
+    curPage: z.coerce.number().int().positive().optional(),
+    perPage: z.coerce
+        .number()
+        .int()
+        .positive()
+        .max(RENEWALS_MAX_PER_PAGE)
+        .optional(),
+})
+
+export type ListRenewalCandidatesInput = z.infer<
+    typeof ListRenewalCandidatesInputSchema
+>
+
+// A member the club should follow up with about buying a new abonement
+// (domains/subscriptions/renewal-rules: renewalNeed). One row per member: the
+// most urgent need.
 export const RenewalCandidateSchema = z.object({
     userId: z.string(),
     firstname: z.string().nullable(),
     lastname: z.string().nullable(),
     email: z.string().nullable(),
+    phone: z.string().nullable(),
+    // A child profile's contacts.
+    guardians: z.array(MemberGuardianSchema),
     // out_of_classes: class-pack at 0. low_classes: 1 class left.
-    // access_expiring: access window ends soon (or already has).
-    reason: z.enum(['out_of_classes', 'low_classes', 'access_expiring']),
+    // access_expiring: the term / access window ends soon (or just ended).
+    reason: z.enum(RENEWAL_REASONS),
     classesRemaining: z.number().int().nullable(),
     classesTotal: z.number().int().nullable(),
     // The member's access window (one per member).
@@ -29,10 +53,15 @@ export const RenewalCandidateSchema = z.object({
 
 export const ListRenewalCandidatesOutputSchema = z.object({
     data: z.array(RenewalCandidateSchema),
+    // Members matching the filters, across all pages.
+    total: z.number().int(),
+    curPage: z.number().int(),
+    perPage: z.number().int(),
 })
 
 export class ListRenewalCandidatesFeature {
     constructor(
+        readonly payload: ListRenewalCandidatesInput,
         readonly workspaceId: string,
         readonly invokerUserId: string,
         readonly roleName: string | null,

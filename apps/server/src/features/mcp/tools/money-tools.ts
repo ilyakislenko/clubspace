@@ -12,15 +12,14 @@ import {
     ticketRevenueRow,
     ticketRevenueSelect,
     ticketsPaidInRangeWhere,
-} from '../../get-workspace-stats/revenue'
+} from '../../../domains/metrics/revenue'
+import { loadRenewalDue, RENEWAL_REASONS } from '../../../domains/subscriptions/renewal-rules'
 import {
+    AWAITING_MAX_PER_PAGE,
     ListAwaitingPaymentFeature,
     type ListAwaitingPaymentFeatureResponse,
 } from '../../list-awaiting-payment/list-awaiting-payment.feature'
-import {
-    ListRenewalCandidatesFeature,
-    type ListRenewalCandidatesFeatureResponse,
-} from '../../list-renewal-candidates/list-renewal-candidates.feature'
+import { serializeRenewalCandidate } from '../../list-renewal-candidates/schemas'
 import {
     ABONEMENT_STATE_LABELS,
     ABONEMENT_STATES,
@@ -28,7 +27,7 @@ import {
     type AbonementState,
     groupRevenue,
 } from '../mcp-aggregates'
-import { capResult, defineTool, McpToolContext, McpToolError, pageInput, paginate } from '../mcp-tool'
+import { capResult, defineTool, McpToolError, pageInput, paginate } from '../mcp-tool'
 import { assertDirectionArg, clubDate, planRef, uuidArg } from './tool-helpers'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -36,19 +35,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const RENEWAL_REASON_LABELS = {
     out_of_classes: 'Закончились занятия',
     low_classes: 'Осталось одно занятие',
-    access_expiring: 'Срок абонемента / доступа заканчивается в ближайшие 7 дней или уже закончился',
+    access_expiring: 'Срок абонемента / доступа заканчивается в ближайшие 7 дней или закончился недавно',
 } as const
-
-// Phones for a page of members, only with a PERSONAL token (the reused admin
-// lists carry names, not always contacts).
-const phonesFor = async (ctx: McpToolContext, userIds: string[]) => {
-    if (!ctx.people.personal || userIds.length === 0) return new Map<string, string | null>()
-    const users = await ctx.prisma.user.findMany({
-        where: { id: { in: userIds } },
-        select: { id: true, phone: true },
-    })
-    return new Map(users.map((u) => [u.id, u.phone]))
-}
 
 export const revenueReportTool = defineTool({
     name: 'revenue_report',
@@ -180,13 +168,13 @@ export const renewalsDueTool = defineTool({
     name: 'renewals_due',
     title: 'Кому продлевать',
     description:
-        'Ученики, которым пора продлить абонемент (как список «На продление» в админке): ' +
-        'out_of_classes — занятия закончились, low_classes — осталось одно, access_expiring — срок кончается в ближайшие 7 дней или уже закончился и не продлён. ' +
+        'Ученики, которым пора продлить абонемент (как список «Продлить» в админке): ' +
+        'out_of_classes — занятия закончились, low_classes — осталось одно, access_expiring — срок кончается в ближайшие 7 дней или закончился не больше 30 дней назад и не продлён. ' +
         'ends — дата конца срока, daysLeft — сколько дней до неё (отрицательное — срок закончился столько дней назад). ' +
         'Самые срочные первыми. Только для токена администратора.',
     adminOnly: true,
     input: z.object({
-        reason: z.enum(['out_of_classes', 'low_classes', 'access_expiring']).optional(),
+        reason: z.enum(RENEWAL_REASONS).optional(),
         ...pageInput,
     }),
     run: async (ctx, args) => {
@@ -197,27 +185,19 @@ export const renewalsDueTool = defineTool({
             const ends = clubDate(ctx, end)
             return { ends, daysLeft: ends === null ? null : Math.round((Date.parse(ends) - today) / DAY_MS) }
         }
-        const res = await ctx.bus.execute<
-            ListRenewalCandidatesFeature,
-            ListRenewalCandidatesFeatureResponse
-        >(
-            new ListRenewalCandidatesFeature(
-                access.workspaceId,
-                access.userId,
-                access.roleName,
-                false,
-            ),
-        )
-        const listed = res.data.filter((c) => !args.reason || c.reason === args.reason)
+        const due = await loadRenewalDue(ctx.prisma, access.workspaceId, now)
+        const listed = due
+            .map(serializeRenewalCandidate)
+            .filter((c) => !args.reason || c.reason === args.reason)
         const page = paginate(listed, args.offset, args.limit)
-        const phones = await phonesFor(ctx, page.items.map((c) => c.userId))
         const items = page.items.map((c) => ({
             member: people.member({
                 id: c.userId,
                 firstname: c.firstname,
                 lastname: c.lastname,
                 email: c.email,
-                phone: phones.get(c.userId) ?? null,
+                // Contacts only with a PERSONAL token.
+                phone: people.personal ? c.phone : null,
             }),
             reason: c.reason,
             reasonLabel: RENEWAL_REASON_LABELS[c.reason],
@@ -250,7 +230,15 @@ export const unpaidAbonementsTool = defineTool({
         const res = await ctx.bus.execute<
             ListAwaitingPaymentFeature,
             ListAwaitingPaymentFeatureResponse
-        >(new ListAwaitingPaymentFeature(access.workspaceId, access.userId, access.roleName, false))
+        >(
+            new ListAwaitingPaymentFeature(
+                { perPage: AWAITING_MAX_PER_PAGE },
+                access.workspaceId,
+                access.userId,
+                access.roleName,
+                false,
+            ),
+        )
         const totals = summarizeAwaiting(
             res.data.map((r) => ({ amountPaid: r.amount, currency: r.currency })),
             null,

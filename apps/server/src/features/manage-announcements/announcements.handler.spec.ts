@@ -8,7 +8,7 @@ import { ListAnnouncementsFeature } from './list-announcements.feature';
 import { ListAnnouncementsHandler } from './list-announcements.handler';
 import { announcementMemberWhere, announceToWorkspace } from './notify';
 import { ownedByDirectionsWhere, visibleToMemberWhere } from './target';
-import { expiringSegmentWhere } from './renewal-segment';
+import { studentWhere } from '../../domains/metrics/students';
 import { UpdateAnnouncementFeature } from './update-announcement.feature';
 import { UpdateAnnouncementHandler } from './update-announcement.handler';
 import { serializeAnnouncement } from './schemas';
@@ -154,7 +154,10 @@ describe('getAnnouncementFeed', () => {
           .mockResolvedValue([row({ publishedAt: new Date('2026-07-04Z') })]),
         count: jest.fn().mockResolvedValue(1),
       },
-      workspaceMember: { findFirst: jest.fn().mockResolvedValue(null) },
+      workspaceMember: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       workspace: {
         findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner' }),
       },
@@ -173,14 +176,29 @@ describe('getAnnouncementFeed', () => {
     expect(out.data[0]).toMatchObject({ id: 'a1', authorName: 'Coach' });
   });
 
-  // The renewal segment over several current abonements at once.
-  const segmentFeed = async (member: unknown) => {
+  // «Только на продление» is the renewal rule (renewal-rules) asked about
+  // this one member; `subscriptions` are the rows it reads.
+  const segmentFeed = async (subscriptions: unknown[] | null, accessUntil: Date | null = null) => {
     const prisma = {
       announcement: {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
       },
-      workspaceMember: { findFirst: jest.fn().mockResolvedValue(member) },
+      workspaceMember: {
+        findFirst: jest.fn().mockResolvedValue({ role: { name: 'user' } }),
+        findMany: jest.fn().mockResolvedValue(
+          subscriptions === null
+            ? []
+            : [
+                {
+                  userId: 'u1',
+                  accessUntil,
+                  user: { firstname: null, lastname: null, email: null, phone: null },
+                  subscriptions,
+                },
+              ],
+        ),
+      },
       workspace: { findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner' }) },
       groupMember: { findMany: jest.fn().mockResolvedValue([]) },
       groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
@@ -189,42 +207,54 @@ describe('getAnnouncementFeed', () => {
       new GetAnnouncementFeedFeature({}, 'w1', 'u1'),
     );
     return {
-      select: prisma.workspaceMember.findFirst.mock.calls[0][0].select,
+      memberWhere: prisma.workspaceMember.findMany.mock.calls[0][0].where,
       where: prisma.announcement.findMany.mock.calls[0][0].where,
     };
   };
   const started = new Date('2026-07-01Z');
-
-  it('reads only the current abonements of the member', async () => {
-    const { select } = await segmentFeed(null);
-    expect(select.subscriptions.where).toEqual({
-      NOT: { workspaceMemberId: null },
-      status: 'ACTIVE',
-      OR: [{ endDate: null }, { endDate: { gt: expect.any(Date) } }],
-    });
+  const sub = (o: {
+    classesRemaining: number | null;
+    startDate: Date | null;
+    directions?: Array<{ direction: { id: string } }>;
+  }) => ({
+    status: 'ACTIVE',
+    endDate: null,
+    classesTotal: o.classesRemaining === null ? null : 12,
+    plan: { id: 'p1', name: 'Абонемент' },
+    directions: [],
+    ...o,
   });
 
-  it('a member is due for renewal when any current pack is on its last class', async () => {
-    const { where } = await segmentFeed({
-      accessUntil: new Date(Date.now() + 60 * 86_400_000),
-      role: { name: 'user' },
-      subscriptions: [
-        { classesRemaining: 10, status: 'ACTIVE', startDate: started },
-        { classesRemaining: 1, status: 'ACTIVE', startDate: started },
-      ],
+  it('asks the renewal rule about this student only', async () => {
+    const { memberWhere, where } = await segmentFeed(null);
+    expect(memberWhere).toEqual({
+      AND: [studentWhere('w1', 'owner'), { userId: 'u1' }],
     });
+    expect(where.audience).toBe('ALL');
+  });
+
+  it('a member is due for renewal when a pack is on its last class and not renewed ahead', async () => {
+    // The healthy pack covers another scope, so it doesn't renew the low one.
+    const { where } = await segmentFeed([
+      sub({ classesRemaining: 10, startDate: started, directions: [{ direction: { id: 'd-bjj' } }] }),
+      sub({ classesRemaining: 1, startDate: started }),
+    ]);
     expect(where).not.toHaveProperty('audience');
+    const renewed = await segmentFeed([
+      sub({ classesRemaining: 10, startDate: started }),
+      sub({ classesRemaining: 1, startDate: started }),
+    ]);
+    expect(renewed.where.audience).toBe('ALL');
   });
 
   it('a lapsing window is not "expiring" while any abonement awaits its first visit', async () => {
-    const { where } = await segmentFeed({
-      accessUntil: new Date(Date.now() + 2 * 86_400_000),
-      role: { name: 'user' },
-      subscriptions: [
-        { classesRemaining: null, status: 'ACTIVE', startDate: started },
-        { classesRemaining: null, status: 'ACTIVE', startDate: null },
+    const { where } = await segmentFeed(
+      [
+        sub({ classesRemaining: null, startDate: started }),
+        sub({ classesRemaining: null, startDate: null }),
       ],
-    });
+      new Date(Date.now() + 2 * 86_400_000),
+    );
     expect(where.audience).toBe('ALL');
   });
 
@@ -467,12 +497,9 @@ describe('announcements by direction', () => {
       findFirst: jest.fn().mockResolvedValue(
         over.role === undefined
           ? null
-          : {
-              accessUntil: null,
-              role: over.role ? { name: over.role } : null,
-              subscriptions: [],
-            },
+          : { role: over.role ? { name: over.role } : null },
       ),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     workspace: {
       findUnique: jest
@@ -584,17 +611,13 @@ describe('announcementMemberWhere', () => {
     ).toBeUndefined();
   });
 
-  it('keeps the renewal segment alone for a club-wide EXPIRING one', () => {
-    // Both sides build "now"-relative dates: freeze the clock or a millisecond
-    // tick between the two calls makes them differ.
-    jest.useFakeTimers({ now: new Date('2026-11-01T12:00:00Z') });
-    try {
-      expect(
-        announcementMemberWhere({ audience: 'EXPIRING', directionId: null, groups: [] }),
-      ).toEqual(expiringSegmentWhere());
-    } finally {
-      jest.useRealTimers();
-    }
+  it('keeps the renewal list alone for a club-wide EXPIRING one', () => {
+    expect(
+      announcementMemberWhere(
+        { audience: 'EXPIRING', directionId: null, groups: [] },
+        ['due1', 'due2'],
+      ),
+    ).toEqual({ userId: { in: ['due1', 'due2'] } });
   });
 
   it('targets direction members or staff', () => {
@@ -603,16 +626,49 @@ describe('announcementMemberWhere', () => {
     ).toEqual({ OR: [ofBjj, staff] });
   });
 
-  it('ANDs the direction with the renewal segment', () => {
-    const w = announcementMemberWhere({ audience: 'EXPIRING', directionId: BJJ, groups: [] });
+  it('ANDs the direction with the renewal list', () => {
+    const w = announcementMemberWhere(
+      { audience: 'EXPIRING', directionId: BJJ, groups: [] },
+      ['due1'],
+    );
     expect(w).toEqual({
-      AND: [{ OR: [ofBjj, staff] }, expect.objectContaining({ OR: expect.any(Array) })],
+      AND: [{ OR: [ofBjj, staff] }, { userId: { in: ['due1'] } }],
+    });
+  });
+
+  it('pushes an EXPIRING one to the members of «Продлить» only', async () => {
+    const notifyWorkspace = jest.fn();
+    const prisma = {
+      workspace: { findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner' }) },
+      workspaceMember: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            userId: 'due',
+            accessUntil: new Date(Date.now() + 86_400_000),
+            user: { firstname: null, lastname: null, email: null, phone: null },
+            subscriptions: [],
+          },
+        ]),
+      },
+    };
+    await announceToWorkspace(prisma as never, { notifyWorkspace } as never, {
+      id: 'a1',
+      workspaceId: 'w1',
+      title: 'T',
+      body: 'B',
+      authorId: 'u1',
+      audience: 'EXPIRING',
+      directionId: null,
+      groups: [],
+    });
+    expect(notifyWorkspace.mock.calls[0][0].memberWhere).toEqual({
+      userId: { in: ['due'] },
     });
   });
 
   it('passes the filter to the fan-out', async () => {
     const notifyWorkspace = jest.fn();
-    await announceToWorkspace({ notifyWorkspace } as never, {
+    await announceToWorkspace({} as never, { notifyWorkspace } as never, {
       id: 'a1',
       workspaceId: 'w1',
       title: 'T',
@@ -626,7 +682,7 @@ describe('announcementMemberWhere', () => {
       OR: [ofBjj, staff],
     });
     notifyWorkspace.mockClear();
-    await announceToWorkspace({ notifyWorkspace } as never, {
+    await announceToWorkspace({} as never, { notifyWorkspace } as never, {
       id: 'a2',
       workspaceId: 'w1',
       title: 'T',

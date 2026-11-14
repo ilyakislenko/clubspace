@@ -5481,7 +5481,7 @@ export type GetWorkspaceStatsOutputOutput = {
     today: {
         sessions: number;
         checkins: number;
-        newMembers: number;
+        newStudents: number;
         revenue: number | null;
         currency: string | null;
     };
@@ -5489,11 +5489,11 @@ export type GetWorkspaceStatsOutputOutput = {
         videos: number;
         videosReady: number;
         courses: number;
-        members: number;
+        students: number;
+        activeStudents: number;
+        studentsWithAbonement: number;
     };
     activity: {
-        activeMembers7d: number;
-        activeMembers30d: number;
         videoViewers7d: number;
         videoViewers30d: number;
         completions7d: number;
@@ -5503,24 +5503,24 @@ export type GetWorkspaceStatsOutputOutput = {
         sessions30d: number;
         checkins7d: number;
         checkins30d: number;
-        distinctAttendees30d: number;
+        attendedStudents7d: number;
+        attendedStudents30d: number;
         trend: Array<{
             week: string;
             checkins: number;
         }>;
     };
     retention: {
-        inactiveMembers30d: number;
-        expiredAccess: number;
-        expiringSoon: number;
+        notAttended30d: number;
+        renewalsDue: number | null;
     };
     revenue: {
-        activeSubscriptions: number;
         revenue30d: number;
         mrr: number;
+        expected30d: number;
         currency: string | null;
         awaitingPayment: {
-            count: number;
+            students: number;
             amount: number;
         };
         trend: Array<{
@@ -5694,6 +5694,16 @@ export type ListRenewalCandidatesOutputOutput = {
         firstname: string | null;
         lastname: string | null;
         email: string | null;
+        phone: string | null;
+        guardians: Array<{
+            userId: string;
+            firstname: string | null;
+            lastname: string | null;
+            email: string | null;
+            phone: string | null;
+            relation: 'PARENT' | 'GUARDIAN' | 'OTHER';
+            confirmed: boolean;
+        }>;
         reason: 'out_of_classes' | 'low_classes' | 'access_expiring';
         classesRemaining: number | null;
         classesTotal: number | null;
@@ -5708,6 +5718,9 @@ export type ListRenewalCandidatesOutputOutput = {
             icon: string | null;
         }>;
     }>;
+    total: number;
+    curPage: number;
+    perPage: number;
 };
 
 export type AwaitingPaymentOutputOutput = {
@@ -5724,6 +5737,9 @@ export type AwaitingPaymentOutputOutput = {
         createdAt: string;
     }>;
     total: number;
+    members: number;
+    curPage: number;
+    perPage: number;
 };
 
 export type AssignSubscriptionInput = {
@@ -6855,8 +6871,8 @@ export type GetCoachAnalyticsOutputOutput = {
 export type GetRevenueForecastOutputOutput = {
     computedAt: string | null;
     currency: string | null;
-    members: number;
-    monthlyRecurring: number;
+    students: number;
+    mrr: number;
     horizons: Array<{
         days: number;
         potential: number;
@@ -9885,7 +9901,7 @@ export type ListMembersData = {
         curPage?: number;
         perPage?: number;
         q?: string;
-        access?: 'all' | 'expiring' | 'expired' | 'inactive';
+        access?: 'all' | 'renew' | 'unpaid' | 'inactive';
         staffOnly?: boolean;
         sort?: 'name' | 'expiry' | 'newest' | 'oldest' | 'role';
     };
@@ -12477,7 +12493,14 @@ export type List4Data = {
     path: {
         workspaceId: string;
     };
-    query?: never;
+    query?: {
+        gymId?: string;
+        directionId?: string;
+        groupId?: string;
+        coachId?: string;
+        curPage?: number;
+        perPage?: number;
+    };
     url: '/workspaces/{workspaceId}/renewal-candidates';
 };
 
@@ -12492,7 +12515,14 @@ export type ListAwaitingPaymentData = {
     path: {
         workspaceId: string;
     };
-    query?: never;
+    query?: {
+        gymId?: string;
+        directionId?: string;
+        groupId?: string;
+        coachId?: string;
+        curPage?: number;
+        perPage?: number;
+    };
     url: '/workspaces/{workspaceId}/awaiting-payment';
 };
 

@@ -217,7 +217,8 @@ describe('club analytics', () => {
         expect(cohorts.body.cohorts.reduce((s: number, x: { size: number }) => s + x.size, 0)).toBe(4)
 
         const forecast = await get(c.w, 'forecast', c.ownerActor).expect(200)
-        expect(forecast.body).toMatchObject({ members: 4, currency: 'RUB' })
+        // The live student count: the dashboard's «Ученики» (staff excluded).
+        expect(forecast.body).toMatchObject({ students: 4, currency: 'RUB' })
         expect(forecast.body.horizons[0]).toMatchObject({ days: 30, potential: 10000 })
     })
 
@@ -235,10 +236,9 @@ describe('club analytics', () => {
         expect((await callList(c.w, c.coachA).expect(200)).body.data[0].monthlySpend).toBeNull()
         const occupancy = await get(c.w, 'occupancy', c.coachA).expect(200)
         expect(occupancy.body.slots.map((s: { groupId: string }) => s.groupId)).toEqual([c.gA.id])
-        const coaches = await get(c.w, 'coaches', c.coachA).expect(200)
-        expect(coaches.body.coaches.map((x: { coachId: string }) => x.coachId)).toEqual([c.coachAId])
-        const forecast = await get(c.w, 'forecast', c.coachA).expect(200)
-        expect(forecast.body.members).toBe(2)
+        // Coaches comparison is for sport leads, the forecast for club admins.
+        await get(c.w, 'coaches', c.coachA).expect(403)
+        await get(c.w, 'forecast', c.coachA).expect(403)
         // Asking for another coach's direction yields nothing, not their data.
         expect(await callListIds(c.w, c.coachA, `?directionId=${c.mma}`)).toEqual([])
     })
@@ -246,8 +246,7 @@ describe('club analytics', () => {
     it('shows a direction manager only the groups of their direction', async () => {
         const c = await setup()
         expect(await callListIds(c.w, c.manager)).toEqual([c.m2.id])
-        const coaches = await get(c.w, 'coaches', c.manager).expect(200)
-        expect(coaches.body.coaches.map((x: { coachId: string }) => x.coachId)).toEqual([c.coachBId])
+        await get(c.w, 'coaches', c.manager).expect(403)
         const cohorts = await get(c.w, 'cohorts', c.manager).expect(200)
         expect(cohorts.body.cohorts.reduce((s: number, x: { size: number }) => s + x.size, 0)).toBe(2)
     })

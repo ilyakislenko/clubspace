@@ -12,7 +12,7 @@ import {
 import { ymdToDbDate } from '../../../domains/subscriptions/freeze-dates'
 import type { Prisma } from '../../../infrastructure/prisma'
 import { localDateInTz } from '../../attendance/attendance-utils'
-import { awaitingPaymentWhere } from '../../get-workspace-stats/revenue'
+import { awaitingPaymentWhere } from '../../../domains/subscriptions/renewal-rules'
 import { capResult, defineTool, McpToolContext, McpToolError, pageInput, paginate } from '../mcp-tool'
 import {
     assertDirectionArg,

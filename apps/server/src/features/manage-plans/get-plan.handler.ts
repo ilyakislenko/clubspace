@@ -9,7 +9,7 @@ import { PrismaService } from '../../infrastructure/prisma'
 import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
-import { paidInRangeWhere } from '../get-workspace-stats/revenue'
+import { paidInRangeWhere } from '../../domains/metrics/revenue'
 import { GetPlanFeature, GetPlanFeatureResponse } from './get-plan.feature'
 import { PLAN_WRITE_REFUSAL, planDtoInclude, serializePlan } from './schemas'
 

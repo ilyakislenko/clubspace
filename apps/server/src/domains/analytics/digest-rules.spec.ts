@@ -85,8 +85,8 @@ const reports = (over: {
     const forecast: ForecastReport = {
         computedAt: null,
         currency: 'RUB',
-        members: 40,
-        monthlyRecurring: 200000,
+        students: 40,
+        mrr: 200000,
         horizons: [
             { days: 30, potential: 100000, expected: 70000, atRisk: 30000 },
             { days: 90, potential: 300000, expected: 180000, atRisk: 120000 },
@@ -117,7 +117,7 @@ describe('buildWeeklyDigest', () => {
         expect(d.facts.map(nbsp)).toEqual([
             'Под риском ухода никого — ученики ходят стабильно',
             'Прогноз продлений на 30 дней: 70 000 ₽ из 100 000 ₽ возможных (продлевают 70%)',
-            'Активных учеников: 40, вместе они платят 200 000 ₽ в месяц',
+            'Учеников: 40, регулярный доход в месяц — 200 000 ₽',
         ])
         expect(d.actions.map((a) => a.path)).toEqual(['analytics/cohorts', 'analytics/coaches'])
     })

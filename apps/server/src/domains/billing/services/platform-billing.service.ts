@@ -35,10 +35,7 @@ import {
     type WorkspaceQuote,
 } from '../quote-workspace-billing'
 import { estimateTrialCost, trialCapsApply } from '../trial-limits'
-
-// A member counts as active for the tier when, within this many days, they
-// attended in the club or opened it in the app.
-export const ACTIVE_MEMBER_WINDOW_DAYS = 30
+import { countActiveStudentsMany } from '../../metrics/active-students'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -241,41 +238,6 @@ export class PlatformBillingService {
         return row !== null
     }
 
-    // Active members per club in one grouped query: students (role `user`,
-    // dependents included — they are students too; staff never count) who
-    // attended or opened the club in the app within the window. Pending
-    // applicants (INVITED) are not members yet; the owner never counts.
-    // Served by the [workspaceId, status, lastAttendedAt|lastSeenAt] indexes.
-    async countActiveMembersMany(
-        workspaces: { id: string; ownerId: string }[],
-        now: Date = new Date(),
-    ): Promise<Map<string, number>> {
-        const result = new Map<string, number>(workspaces.map((w) => [w.id, 0]))
-        if (workspaces.length === 0) return result
-        const since = addDays(now, -ACTIVE_MEMBER_WINDOW_DAYS)
-        const rows = await this.prisma.workspaceMember.groupBy({
-            by: ['workspaceId'],
-            where: {
-                workspaceId: { in: workspaces.map((w) => w.id) },
-                status: { not: 'INVITED' },
-                role: { name: 'user' },
-                OR: [
-                    { lastAttendedAt: { gte: since } },
-                    { lastSeenAt: { gte: since } },
-                ],
-                NOT: {
-                    OR: workspaces.map((w) => ({
-                        workspaceId: w.id,
-                        userId: w.ownerId,
-                    })),
-                },
-            },
-            _count: { _all: true },
-        })
-        for (const row of rows) result.set(row.workspaceId, row._count._all)
-        return result
-    }
-
     // Seconds watched in the club during the calendar month containing `at`.
     async viewedSeconds(workspaceId: string, at: Date): Promise<number> {
         const row = await this.prisma.videoViewingMonth.findUnique({
@@ -320,7 +282,7 @@ export class PlatformBillingService {
         const [row, active, modules, storageBytes, viewedSecondsThisMonth] =
             await Promise.all([
                 this.getBilling(workspaceId),
-                this.countActiveMembersMany([workspace], now),
+                countActiveStudentsMany(this.prisma, [workspace], now),
                 this.prisma.workspaceModuleEntitlement.findMany({
                     where: { workspaceId },
                     select: {
@@ -421,7 +383,7 @@ export class PlatformBillingService {
         const trialEnd = row.trialEndsAt
         const until = trialEnd && trialEnd < now ? trialEnd : now
         const [active, storageBytes, viewing] = await Promise.all([
-            this.countActiveMembersMany([workspace], until),
+            countActiveStudentsMany(this.prisma, [workspace], until),
             this.storageBytes(workspaceId),
             this.prisma.videoViewingMonth.aggregate({
                 where: {

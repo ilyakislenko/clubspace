@@ -331,9 +331,10 @@ describe('MCP server (ИИ-ассистент)', () => {
         const overview = await call(secret, 'club_overview')
         expect(overview.isError).toBe(false)
         expect(overview.structuredContent).toMatchObject({
-            members: { total: 2, active: 2 },
+            // The dashboard's metrics; nobody opened the app or was marked
+            // through it here, so no one is «активный».
+            students: { total: 2, active: 0, withAbonement: 2 },
             attendance: { checkins30d: 3 },
-            abonements: { current: 2 },
             money: { revenue30d: 4000, unpaid: { count: 1, amount: 4000 } },
         })
         expect(JSON.parse(overview.content[0].text)).toEqual(overview.structuredContent)
@@ -514,7 +515,7 @@ describe('MCP server (ИИ-ассистент)', () => {
         const foreignGroup = await call(secretB, 'schedule', { groupId: c.bjjGroup.id })
         expect(foreignGroup.isError).toBe(true)
         expect((await call(secretB, 'club_overview')).structuredContent).toMatchObject({
-            members: { total: 1 },
+            students: { total: 1 },
             attendance: { checkins30d: 0 },
         })
 
@@ -599,7 +600,7 @@ describe('MCP server (ИИ-ассистент)', () => {
         expect(schedule).toMatchObject({ events: [{ title: 'Семинар по БЖЖ' }] })
 
         const overview = (await call(secret, 'club_overview')).structuredContent!
-        expect(overview).toMatchObject({ members: { total: 1 }, attendance: { checkins30d: 2 }, money: null })
+        expect(overview).toMatchObject({ students: { total: 1 }, attendance: { checkins30d: 2 }, money: null })
         expect((await call(secret, 'attendance_stats')).structuredContent!.checkins).toBe(2)
         expect((await call(secret, 'schedule', { directionId: c.mma })).isError).toBe(true)
         expect((await call(secret, 'list_events')).structuredContent!.items).toHaveLength(1)

@@ -1075,8 +1075,8 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
             if (last && last.tariff.price > 0) last.isPaid = false
         })
     // The rest of those whose abonement ends soon by days renew the same way
-    // in the last days, so only part of the studio shows in «К продлению» and
-    // «Доступ истекает», as in a healthy studio.
+    // in the last days, so only part of the studio shows in «Продлить», as in
+    // a healthy studio.
     for (const p of persons) {
         if (fixedPeople.has(p) || p.archetype !== 'regular' || p.stopYmd || p.subs.some((s) => s.pending)) continue
         const live = liveSub(p)

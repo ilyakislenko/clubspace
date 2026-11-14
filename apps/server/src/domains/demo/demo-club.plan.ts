@@ -1145,7 +1145,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
 
     // Most people renew before the abonement runs out: the next one is bought
     // ahead (paid, waiting for its first visit), so at any moment only part of
-    // the club is in «К продлению» and «Доступ истекает», as in a healthy club.
+    // the club is in «Продлить», as in a healthy club.
     // Same share and lead time as the past renewals above, so the sales of the
     // last weeks don't spike in the revenue trend.
     const renewsAhead: Archetype[] = ['regular', 'fanatic', 'casual']

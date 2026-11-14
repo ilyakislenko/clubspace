@@ -1,7 +1,8 @@
 "use client"
 
+import { MoreHorizontal } from "lucide-react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { MemberSubscriptionPanel } from "../../../../../../features/subscriptions/MemberSubscriptionPanel"
@@ -10,6 +11,10 @@ import { MemberRankPanel } from "../../../../../../features/ranks/MemberRankPane
 
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -25,6 +30,7 @@ import {
 import { errorMessage } from "../../../../../../shared/lib/error-message"
 import {
   getMemberProgress,
+  removeWorkspaceMember,
   updateMemberProfile,
   type MemberProgress,
 } from "../../../../../../shared/api/members"
@@ -52,6 +58,8 @@ import {
   useWorkspaceFeatures,
 } from "../../../../../../shared/lib/use-workspace-features"
 import { GuardianContacts } from "../../../../../../features/users/GuardianContacts"
+import { MemberAccessDialog } from "../../../../../../features/users/MemberAccessDialog"
+import { abonementEnd, accessDiffers } from "../../../../../../features/users/member-access"
 import { ProfileEditForm } from "../../../../../../features/users/ProfileEditForm"
 import { MemberNotesPanel } from "../../../../../../features/users/MemberNotesPanel"
 import { MemberAttendancePanel } from "../../../../../../features/users/MemberAttendancePanel"
@@ -68,24 +76,24 @@ const formatPosition = (sec: number): string => {
   return `${m}:${String(s).padStart(2, "0")}`
 }
 
-// App access, not the abonement (the panel below shows those): say «Доступ»
-// in every case so «Нет действующего абонемента» never sits under a bare
-// «Активен» or «Без ограничения».
-const formatAccessLabel = (iso: string | null): string => {
-  if (!iso) return "Доступ без ограничения"
+// App access (WorkspaceMember.accessUntil), shown only when it differs from
+// the abonements' end (member-access).
+const appAccessLabel = (iso: string | null): string => {
+  if (!iso) return "Доступ к приложению без ограничения"
   const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return "Доступ без ограничения"
-  const expired = d < new Date()
   const fmt = d.toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
     year: "numeric",
   })
-  return expired ? `Доступ истёк ${fmt}` : `Доступ до ${fmt}`
+  return d < new Date()
+    ? `Доступ к приложению истёк ${fmt}`
+    : `Доступ к приложению до ${fmt}`
 }
 
 export default function MemberProgressPage() {
   const params = useParams<{ workspaceId: string; userId: string }>()
+  const router = useRouter()
   const vocabulary = useVocabulary()
   const workspaceId = params?.workspaceId
   const userId = params?.userId
@@ -110,6 +118,8 @@ export default function MemberProgressPage() {
   const [savingRole, setSavingRole] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
+  const [accessOpen, setAccessOpen] = useState(false)
+  const [removing, setRemoving] = useState(false)
   // Who is looking: only needed below the sport-lead tier, where the
   // abonements of one's own row are out of scope.
   const [viewerUserId, setViewerUserId] = useState<string | null>(null)
@@ -258,6 +268,20 @@ export default function MemberProgressPage() {
     }
   }
 
+  const handleRemove = async () => {
+    if (!workspaceId || !userId || !data) return
+    if (!window.confirm(`Удалить ${formatName(data.member)} из клуба?`)) return
+    setRemoving(true)
+    setActionError(null)
+    try {
+      await removeWorkspaceMember({ workspaceId, userId })
+      router.push(`/workspace/${workspaceId}/users`)
+    } catch (err) {
+      setActionError(errorMessage(err, "Не удалось удалить участника."))
+      setRemoving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -297,6 +321,14 @@ export default function MemberProgressPage() {
       : 0
   const accessExpired =
     member.accessUntil !== null && new Date(member.accessUntil) < new Date()
+  const endOfAbonements = abonementEnd(data.currentAbonements)
+  const showAccess =
+    !member.isOwner && accessDiffers(member.accessUntil, endOfAbonements)
+  // Access override and removal: the sport leads', staff rows the club admins'.
+  const canEditMember =
+    !member.isOwner &&
+    canManageProfile &&
+    canActOnRole(myMembership, member.roleName)
 
   // The panel (own fetch, adds achievements) supersedes the compact progress
   // list below, so only one «Посещаемость» block is ever on screen.
@@ -319,6 +351,33 @@ export default function MemberProgressPage() {
               Ребёнок
             </span>
           )}
+          {canEditMember && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto"
+                  disabled={removing}
+                  aria-label="Действия с участником"
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setAccessOpen(true)}>
+                  Изменить доступ к приложению
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onSelect={() => void handleRemove()}
+                >
+                  Удалить из клуба
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           {member.email && (
@@ -336,18 +395,30 @@ export default function MemberProgressPage() {
           )}
           <span>{formatRoleName(member.roleName, vocabulary)}</span>
           <span>·</span>
-          <span
-            className={
-              accessExpired
-                ? "font-medium text-destructive"
-                : member.accessUntil
-                  ? "text-foreground"
-                  : ""
-            }
-          >
-            {formatAccessLabel(member.accessUntil)}
-          </span>
-          <span>·</span>
+          {showAccess && (
+            <>
+              {canEditMember ? (
+                <button
+                  type="button"
+                  onClick={() => setAccessOpen(true)}
+                  className={`underline-offset-2 hover:underline ${
+                    accessExpired ? "font-medium text-destructive" : "text-foreground"
+                  }`}
+                >
+                  {appAccessLabel(member.accessUntil)}
+                </button>
+              ) : (
+                <span
+                  className={
+                    accessExpired ? "font-medium text-destructive" : "text-foreground"
+                  }
+                >
+                  {appAccessLabel(member.accessUntil)}
+                </span>
+              )}
+              <span>·</span>
+            </>
+          )}
           <span>
             добавлен{" "}
             {new Date(member.createdAt).toLocaleDateString("ru-RU", {
@@ -362,6 +433,22 @@ export default function MemberProgressPage() {
           className="text-sm text-muted-foreground"
         />
       </div>
+
+      {canEditMember && workspaceId && userId && (
+        <MemberAccessDialog
+          open={accessOpen}
+          onOpenChange={setAccessOpen}
+          workspaceId={workspaceId}
+          userId={userId}
+          accessUntil={member.accessUntil}
+          abonementEnd={endOfAbonements}
+          onSaved={(accessUntil) =>
+            setData((prev) =>
+              prev ? { ...prev, member: { ...prev.member, accessUntil } } : prev,
+            )
+          }
+        />
+      )}
 
       {!member.isOwner &&
         workspaceId &&

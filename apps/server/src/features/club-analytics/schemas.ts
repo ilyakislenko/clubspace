@@ -181,8 +181,11 @@ export const serializeCoachReport = (r: CoachReport) => ({
 export const RevenueForecastSchema = z.object({
     computedAt: z.iso.datetime().nullable(),
     currency: z.string().nullable(),
-    members: z.number().int(),
-    monthlyRecurring: z.number().int(),
+    // `students_total` and `mrr` over the filtered students (glossary B2): the
+    // dashboard's numbers when no filter is set.
+    students: z.number().int(),
+    mrr: z.number().int(),
+    // `expected_revenue_30d` / `expected_revenue_90d`.
     horizons: z.array(
         z.object({
             days: z.number().int(),

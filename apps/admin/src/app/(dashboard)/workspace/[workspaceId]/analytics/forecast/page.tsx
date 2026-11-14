@@ -91,14 +91,14 @@ export default function ForecastPage() {
                 key={h.days}
                 className="space-y-3 rounded-lg border border-border bg-card p-4"
               >
-                <div className="text-xs uppercase text-muted-foreground">
-                  Следующие {h.days} {pluralRu(h.days, "день", "дня", "дней")}
+                <div className="text-xs text-muted-foreground">
+                  Ожидается за {h.days} {pluralRu(h.days, "день", "дня", "дней")}
                 </div>
                 <div className="whitespace-nowrap text-3xl font-semibold tabular-nums">
                   {money(h.expected)}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  ожидаемо от продлений
+                  продления с поправкой на риск ухода
                 </div>
                 <dl className="grid grid-cols-2 gap-2 text-sm">
                   <dt className="text-muted-foreground">Если все продлят</dt>
@@ -137,9 +137,9 @@ export default function ForecastPage() {
               }
             />
             <AnalyticsCard
-              label="Средние траты в месяц"
-              value={money(data.monthlyRecurring)}
-              subtitle={`${data.members} ${pluralRu(data.members, "ученик", "ученика", "учеников")} сейчас, в среднем за полгода (продажи месяца — в «Обзоре»)`}
+              label="Регулярный доход в месяц"
+              value={money(data.mrr)}
+              subtitle={`${data.students} ${pluralRu(data.students, "ученик", "ученика", "учеников")} · оплаченные действующие абонементы в пересчёте на 30 дней`}
             />
             <AnalyticsCard
               label="На кону у учеников с высоким риском"

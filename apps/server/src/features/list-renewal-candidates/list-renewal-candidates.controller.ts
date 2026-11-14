@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common'
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -12,10 +12,14 @@ import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     ListRenewalCandidatesFeature,
+    ListRenewalCandidatesInputSchema,
     ListRenewalCandidatesOutputSchema,
     type ListRenewalCandidatesFeatureResponse,
 } from './list-renewal-candidates.feature'
 
+class ListRenewalCandidatesQuery extends createZodDto(
+    ListRenewalCandidatesInputSchema,
+) {}
 class ListRenewalCandidatesOutput extends createZodDto(
     ListRenewalCandidatesOutputSchema,
 ) {}
@@ -30,6 +34,7 @@ export class ListRenewalCandidatesController {
     @ZodResponse({ type: ListRenewalCandidatesOutput })
     async list(
         @Param('workspaceId') workspaceId: string,
+        @Query() query: ListRenewalCandidatesQuery,
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<
@@ -37,6 +42,7 @@ export class ListRenewalCandidatesController {
             ListRenewalCandidatesFeatureResponse
         >(
             new ListRenewalCandidatesFeature(
+                query,
                 workspaceId,
                 user.userId,
                 user.role?.name ?? null,

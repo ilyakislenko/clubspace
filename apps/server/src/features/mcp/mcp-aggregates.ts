@@ -13,7 +13,7 @@ import {
     paidOn,
     revenueByPlan,
     revenueTrend,
-} from '../get-workspace-stats/revenue'
+} from '../../domains/metrics/revenue'
 
 // ---- Revenue ----
 

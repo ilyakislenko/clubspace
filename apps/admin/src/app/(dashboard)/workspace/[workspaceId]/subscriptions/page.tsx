@@ -9,17 +9,11 @@ import { Button } from "@clubspace/ui-kit/ui"
 import {
   createPlan,
   deletePlan,
-  listAwaitingPayment,
   listPlans,
-  listRenewalCandidates,
   updatePlan,
-  type AwaitingPayment,
   type Plan,
-  type RenewalCandidate,
 } from "../../../../../shared/api/subscriptions"
 import { errorMessage } from "../../../../../shared/lib/error-message"
-import { isClubAdmin } from "../../../../../shared/lib/permissions"
-import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { inputCls } from "../../../../../shared/lib/input-class"
 import { parseIntInput } from "../../../../../shared/lib/parse-int-input"
 import { pluralRu } from "../../../../../shared/lib/plural-ru"
@@ -41,49 +35,12 @@ import { useDirections } from "../../../../../features/directions/use-directions
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { agree, fromFirstSession } from "@clubspace/ui-kit/brand"
 
-const REASON_LABEL: Record<RenewalCandidate["reason"], string> = {
-  out_of_classes: "Занятия закончились",
-  low_classes: "Осталось 1 занятие",
-  access_expiring: "Доступ заканчивается",
-}
-
-const REASON_CLASS: Record<RenewalCandidate["reason"], string> = {
-  out_of_classes: "bg-red-50 text-red-700 ring-red-600/20",
-  low_classes: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  access_expiring: "bg-amber-50 text-amber-700 ring-amber-600/20",
-}
-
-const candidateName = (c: RenewalCandidate): string => {
-  const full = [c.firstname, c.lastname].filter(Boolean).join(" ").trim()
-  return full || c.email || "—"
-}
-
-// access_expiring also covers windows that already ended — say so instead of
-// "заканчивается" for someone whose access ran out months ago.
-const isLapsed = (c: RenewalCandidate): boolean => {
-  if (c.reason !== "access_expiring") return false
-  const end = c.endDate ?? c.accessUntil
-  return end != null && new Date(end).getTime() < Date.now()
-}
-
-const fmtDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "short",
-  })
-
 export default function WorkspaceSubscriptionsPage() {
   const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
-  // Sport leads follow payments and renewals here; tariffs are the club
-  // admins' (create, edit, archive, the tariff page).
-  const canManagePlans = isClubAdmin(useMyMembership(workspaceId))
 
   const [plans, setPlans] = useState<Plan[]>([])
-  const [candidates, setCandidates] = useState<RenewalCandidate[]>([])
-  const [awaiting, setAwaiting] = useState<AwaitingPayment[]>([])
-  const [awaitingTotal, setAwaitingTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -112,15 +69,8 @@ export default function WorkspaceSubscriptionsPage() {
   const load = useCallback(async () => {
     if (!workspaceId) return
     try {
-      const [plansRes, candidatesRes, awaitingRes] = await Promise.all([
-        listPlans({ workspaceId, includeInactive: true }),
-        listRenewalCandidates({ workspaceId }),
-        listAwaitingPayment({ workspaceId }),
-      ])
+      const plansRes = await listPlans({ workspaceId, includeInactive: true })
       setPlans(plansRes.data)
-      setCandidates(candidatesRes.data)
-      setAwaiting(awaitingRes.data)
-      setAwaitingTotal(awaitingRes.total)
       setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить тарифы"))
@@ -312,9 +262,9 @@ export default function WorkspaceSubscriptionsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Тарифы и абонементы</h1>
         <p className="text-sm text-muted-foreground">
-          Задайте тарифы клуба. Абонемент участнику назначается на его странице
-          в разделе «Участники» — при назначении автоматически выставляется
-          «Доступ до».
+          Задайте тарифы клуба. Абонемент назначается в карточке ученика
+          (раздел «Участники»); кому пора продлить — в «Кому позвонить» →
+          «Продлить».
         </p>
       </div>
 
@@ -324,101 +274,6 @@ export default function WorkspaceSubscriptionsPage() {
         </div>
       )}
 
-      {!loading && (
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="mb-1 font-medium">Ожидают оплаты</div>
-          {awaiting.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Все абонементы оплачены
-            </p>
-          ) : (
-            <>
-              <p className="mb-3 text-xs text-muted-foreground">
-                Абонементы оформлены, но оплата не отмечена. Отметьте её на
-                странице участника.
-              </p>
-              {awaitingTotal > awaiting.length && (
-                <p className="mb-3 text-xs text-muted-foreground">
-                  Показаны первые {awaiting.length} из {awaitingTotal}
-                </p>
-              )}
-              <ul className="divide-y divide-border">
-                {awaiting.map((a) => (
-                  <li key={a.subscriptionId}>
-                    <Link
-                      href={`/workspace/${workspaceId}/users/${a.userId}`}
-                      className="-mx-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-md px-2 py-2 transition hover:bg-muted"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">
-                          {a.memberName}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {a.planName} ·{" "}
-                          {a.startDate
-                            ? `с ${fmtDate(a.startDate)}`
-                            : `начнётся ${fromFirstSession(vocabulary)}`}
-                        </div>
-                      </div>
-                      <span className="shrink-0 text-sm font-medium tabular-nums">
-                        {formatAmount(a.amount, a.currency)}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
-      )}
-
-      {!loading && candidates.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="mb-1 font-medium">Кому продать абонемент</div>
-          <p className="mb-3 text-xs text-muted-foreground">
-            У этих участников заканчиваются или уже закончились занятия или
-            доступ. Назначьте новый абонемент на странице участника в разделе
-            «Участники».
-          </p>
-          <ul className="divide-y divide-border">
-            {candidates.map((c) => (
-              <li key={c.userId}>
-                <Link
-                  href={`/workspace/${workspaceId}/users/${c.userId}`}
-                  className="-mx-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-md px-2 py-2 transition hover:bg-muted"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">
-                      {candidateName(c)}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
-                      {c.planName && <span>{c.planName}</span>}
-                      <DirectionScopeChips directions={c.directions} />
-                      <span>
-                        {c.planName ? "· " : ""}
-                        {c.classesTotal != null
-                          ? `Занятий: ${c.classesRemaining ?? 0} из ${c.classesTotal}`
-                          : c.endDate
-                            ? `до ${fmtDate(c.endDate)}`
-                            : c.accessUntil
-                              ? `Доступ до ${fmtDate(c.accessUntil)}`
-                              : c.email}
-                      </span>
-                    </div>
-                  </div>
-                  <span
-                    className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${isLapsed(c) ? REASON_CLASS.out_of_classes : REASON_CLASS[c.reason]}`}
-                  >
-                    {isLapsed(c) ? "Доступ закончился" : REASON_LABEL[c.reason]}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {canManagePlans && (
       <form
         onSubmit={onSubmit}
         className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-card/40 p-4 sm:grid-cols-5"
@@ -561,7 +416,6 @@ export default function WorkspaceSubscriptionsPage() {
           )}
         </div>
       </form>
-      )}
 
       {plans.length > 0 && directions.length > 0 && (
         <div className="flex justify-end">
@@ -590,16 +444,12 @@ export default function WorkspaceSubscriptionsPage() {
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  {canManagePlans ? (
-                    <Link
-                      href={`/workspace/${workspaceId}/subscriptions/plans/${p.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {p.name}
-                    </Link>
-                  ) : (
-                    <span className="font-medium">{p.name}</span>
-                  )}
+                  <Link
+                    href={`/workspace/${workspaceId}/subscriptions/plans/${p.id}`}
+                    className="font-medium hover:underline"
+                  >
+                    {p.name}
+                  </Link>
                   <DirectionScopeChips directions={p.directions} />
                   {p.isFreeTrial && (
                     <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
@@ -631,7 +481,6 @@ export default function WorkspaceSubscriptionsPage() {
                   {p.description ? ` · ${p.description}` : ""}
                 </div>
               </div>
-              {canManagePlans && (
               <div className="flex shrink-0 gap-2">
                 <Button
                   variant="outline"
@@ -655,7 +504,6 @@ export default function WorkspaceSubscriptionsPage() {
                   Удалить
                 </Button>
               </div>
-              )}
             </li>
           ))}
         </ul>

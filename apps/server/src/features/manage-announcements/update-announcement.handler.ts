@@ -116,7 +116,7 @@ export class UpdateAnnouncementHandler
         if (!wasLive && isLive) {
             // Newly live (draft/scheduled → now): notify (deduped on the id) and
             // add the row to open feeds live.
-            await announceToWorkspace(this.notifications, updated)
+            await announceToWorkspace(this.prisma, this.notifications, updated)
             showInOpenFeeds(this.realtime, f.workspaceId, serialized, targeted)
         } else if (isLive && targeted) {
             this.realtime.invalidate(f.workspaceId, ['announcements'])

@@ -2,11 +2,10 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import {
   Button,
-  DatePicker,
   Input,
   Select,
   SelectContent,
@@ -21,19 +20,13 @@ import {
   listPendingUsers,
   listWorkspaceMembers,
   rejectPendingMember,
-  removeWorkspaceMember,
-  updateMemberAccess,
   type MemberAccessFilter,
   type MemberSort,
   type PendingUser,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 import { errorMessage } from "../../../../../shared/lib/error-message"
-import {
-  canActOnRole,
-  isClubAdmin,
-  isSportLead,
-} from "../../../../../shared/lib/permissions"
+import { isClubAdmin, isSportLead } from "../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../shared/lib/member-status"
 import { formatRoleName } from "../../../../../shared/lib/role-labels"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
@@ -46,12 +39,6 @@ import { GuardianContacts } from "../../../../../features/users/GuardianContacts
 import { MemberProgressBlock } from "../../../../../features/users/MemberProgressBlock"
 import { PendingInvitationsPanel } from "../../../../../features/users/PendingInvitationsPanel"
 import { MyProfileCard } from "../../../../../features/users/MyProfileCard"
-
-const isoToDate = (iso: string | null): Date | null => {
-  if (!iso) return null
-  const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? null : date
-}
 
 const MS_1D = 24 * 3600 * 1000
 
@@ -81,44 +68,18 @@ const formatLastCheckIn = (iso: string | null): string => {
   if (days === 1) return "визит вчера"
   return `посл. визит ${days} дн назад`
 }
-// Access-window segments the dashboard retention cards deep-link into
-// (?filter=expiring|expired|inactive); the server applies the same
-// definitions as the dashboard counters.
+// Roster segments, the same definitions as the screens that count them
+// (?filter=renew|unpaid|inactive deep-links from the dashboard): «Кончается
+// абонемент» = «Кому позвонить → Продлить», «Должники» = its «Ожидают оплаты».
 const ACCESS_FILTER_LABELS: Record<MemberAccessFilter, string> = {
   all: "Все",
-  expiring: "Доступ истекает",
-  expired: "Доступ закончился",
-  inactive: "Неактивны 30д",
+  renew: "Кончается абонемент",
+  unpaid: "Должники",
+  inactive: "Не были 30 дней",
 }
+const ACCESS_FILTERS: MemberAccessFilter[] = ["all", "renew", "unpaid", "inactive"]
 const parseAccessFilter = (value: string | null): MemberAccessFilter =>
-  value === "expiring" || value === "expired" || value === "inactive"
-    ? value
-    : "all"
-
-const dateToEndOfDayIso = (date: Date | null): string | null => {
-  if (!date) return null
-  // Treat the date as end-of-day local time so "до 1 июня" means 1 июня is still inside the access window.
-  const local = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    23,
-    59,
-    59,
-    999,
-  )
-  return local.toISOString()
-}
-
-const sameDay = (a: Date | null, b: Date | null): boolean => {
-  if (!a && !b) return true
-  if (!a || !b) return false
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  )
-}
+  ACCESS_FILTERS.find((f) => f === value) ?? "all"
 
 const SORT_LABELS: Record<MemberSort, string> = {
   expiry: "Скоро истекает",
@@ -133,19 +94,19 @@ const formatName = (member: WorkspaceMember): string => {
   return parts.length ? parts.join(" ") : (member.email ?? "—")
 }
 
-const formatAccessLabel = (iso: string | null): string => {
-  if (!iso) return "Без ограничения"
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return "—"
-  const formatted = date.toLocaleDateString("ru-RU", {
+const fmtDay = (iso: string): string =>
+  new Date(iso).toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
     year: "numeric",
   })
-  return date < new Date()
-    ? `Истёк ${formatted}`
-    : `Доступ до ${formatted}`
-}
+
+// One visible expiry per row: each abonement's own end; the app-access window
+// only for a member without an abonement (the card shows the rest).
+const accessLabel = (iso: string): string =>
+  new Date(iso) < new Date()
+    ? `Доступ истёк ${fmtDay(iso)}`
+    : `Доступ до ${fmtDay(iso)}`
 
 export default function WorkspaceUsersPage() {
   const params = useParams<{ workspaceId: string }>()
@@ -166,11 +127,6 @@ export default function WorkspaceUsersPage() {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [removingId, setRemovingId] = useState<string | null>(null)
-  const [accessDrafts, setAccessDrafts] = useState<
-    Record<string, Date | null>
-  >({})
-  const [savingAccessId, setSavingAccessId] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<MemberSort>("expiry")
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
@@ -220,11 +176,6 @@ export default function WorkspaceUsersPage() {
       setPagesShown((chunks * chunk) / ROSTER_PAGE)
       setHasMore(last.data.length === chunk && chunks * chunk < last.total)
       setWorkspaceVideoTotal(results[0].workspaceVideoTotal)
-      setAccessDrafts(
-        Object.fromEntries(
-          data.map((m) => [m.userId, isoToDate(m.accessUntil)]),
-        ),
-      )
     } catch (err) {
       if (request !== rosterRequest.current) return
       setError(errorMessage(err, "Не удалось загрузить участников."))
@@ -247,13 +198,6 @@ export default function WorkspaceUsersPage() {
         page.data.length === ROSTER_PAGE &&
           (pagesShown + 1) * ROSTER_PAGE < page.total,
       )
-      // Drafts already being edited win over the fresh rows.
-      setAccessDrafts((prev) => ({
-        ...Object.fromEntries(
-          page.data.map((m) => [m.userId, isoToDate(m.accessUntil)]),
-        ),
-        ...prev,
-      }))
     } catch (err) {
       setError(errorMessage(err, "Не удалось загрузить участников."))
     } finally {
@@ -330,75 +274,6 @@ export default function WorkspaceUsersPage() {
       setRejectingUserId(null)
     }
   }
-
-  const handleRemove = async (member: WorkspaceMember) => {
-    if (!workspaceId) return
-    if (member.isOwner) return
-    const ok = window.confirm(`Удалить ${formatName(member)} из клуба?`)
-    if (!ok) return
-
-    setRemovingId(member.userId)
-    setError(null)
-    try {
-      await removeWorkspaceMember({ workspaceId, userId: member.userId })
-      setMembers((prev) => prev.filter((m) => m.userId !== member.userId))
-      setTotal((prev) => Math.max(prev - 1, 0))
-      // The rows after it moved up a place: reload what is shown so the next
-      // «Показать ещё» doesn't skip one.
-      void loadRoster(true, Math.max(pagesShown, 1))
-    } catch (err) {
-      setError(
-        errorMessage(err, "Не удалось удалить участника."),
-      )
-    } finally {
-      setRemovingId(null)
-    }
-  }
-
-  const handleAccessSave = async (
-    member: WorkspaceMember,
-    nextDate: Date | null,
-  ) => {
-    if (!workspaceId) return
-    const nextIso = dateToEndOfDayIso(nextDate)
-    setSavingAccessId(member.userId)
-    setError(null)
-    try {
-      const response = await updateMemberAccess({
-        workspaceId,
-        userId: member.userId,
-        accessUntil: nextIso,
-      })
-      setMembers((prev) =>
-        prev.map((m) =>
-          m.userId === member.userId
-            ? { ...m, accessUntil: response.accessUntil }
-            : m,
-        ),
-      )
-      setAccessDrafts((prev) => ({
-        ...prev,
-        [member.userId]: isoToDate(response.accessUntil),
-      }))
-    } catch (err) {
-      setError(
-        errorMessage(err, "Не удалось сохранить доступ."),
-      )
-    } finally {
-      setSavingAccessId(null)
-    }
-  }
-
-
-  const draftDirtyByUser = useMemo(() => {
-    const map: Record<string, boolean> = {}
-    for (const member of members) {
-      const draft = accessDrafts[member.userId] ?? null
-      const original = isoToDate(member.accessUntil)
-      map[member.userId] = !sameDay(draft, original)
-    }
-    return map
-  }, [accessDrafts, members])
 
   // Adopt a ?filter= deep-link from the dashboard retention cards once, on
   // mount. Read from window (not useSearchParams) to avoid a Suspense boundary.
@@ -592,10 +467,8 @@ export default function WorkspaceUsersPage() {
               </Select>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">Доступ</span>
-              {(
-                ["all", "expiring", "expired", "inactive"] as MemberAccessFilter[]
-              ).map((key) => (
+              <span className="text-xs text-muted-foreground">Показать</span>
+              {ACCESS_FILTERS.map((key) => (
                 <Button
                   key={key}
                   type="button"
@@ -628,19 +501,8 @@ export default function WorkspaceUsersPage() {
         {members.length > 0 && (
           <ul className="divide-y divide-border rounded-lg border border-border">
             {members.map((member) => {
-              const draft = accessDrafts[member.userId] ?? null
-              const dirty = draftDirtyByUser[member.userId]
-              const expired =
-                member.accessUntil !== null &&
-                new Date(member.accessUntil) < new Date()
               return (
-                // The access controls take ~480px: beside the details only
-                // from xl (the list is up to 1024px there), below them before,
-                // so the details are not squeezed into a one-word column.
-                <li
-                  key={member.userId}
-                  className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1fr),auto] xl:items-center"
-                >
+                <li key={member.userId} className="p-3">
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
                       {workspaceId && !member.isOwner ? (
@@ -692,18 +554,19 @@ export default function WorkspaceUsersPage() {
                           {formatLastCheckIn(member.lastCheckInAt)}
                         </span>
                       )}
-                      {!member.isOwner && (
-                        <span
-                          className={cn(
-                            "whitespace-nowrap",
-                            expired
-                              ? "font-medium text-destructive"
-                              : member.accessUntil && "text-foreground",
-                          )}
-                        >
-                          {formatAccessLabel(member.accessUntil)}
-                        </span>
-                      )}
+                      {!member.isOwner &&
+                        member.abonements.length === 0 &&
+                        member.accessUntil && (
+                          <span
+                            className={cn(
+                              "whitespace-nowrap",
+                              new Date(member.accessUntil) < new Date() &&
+                                "font-medium text-destructive",
+                            )}
+                          >
+                            {accessLabel(member.accessUntil)}
+                          </span>
+                        )}
                       {!member.isOwner &&
                         member.abonements.map((a, i) => (
                           <span
@@ -715,9 +578,10 @@ export default function WorkspaceUsersPage() {
                                 "font-medium text-amber-600",
                             )}
                           >
-                            {a.classesTotal !== null
-                              ? `${a.planName}: осталось ${a.classesRemaining ?? 0} из ${a.classesTotal}`
-                              : a.planName}
+                            {a.planName}
+                            {a.classesTotal !== null &&
+                              `: осталось ${a.classesRemaining ?? 0} из ${a.classesTotal}`}
+                            {a.endDate && ` · до ${fmtDay(a.endDate)}`}
                           </span>
                         ))}
                     </div>
@@ -726,68 +590,6 @@ export default function WorkspaceUsersPage() {
                         member={member}
                         videoTotal={workspaceVideoTotal}
                       />
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-                    {!member.isOwner &&
-                      canActOnRole(myMembership, member.roleName) && (
-                      <>
-                        <DatePicker
-                          value={draft}
-                          onChange={(date) =>
-                            setAccessDrafts((prev) => ({
-                              ...prev,
-                              [member.userId]: date,
-                            }))
-                          }
-                          disabled={savingAccessId === member.userId}
-                          placeholder="Без ограничения"
-                          className="h-8 w-[200px]"
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          disabled={
-                            !dirty || savingAccessId === member.userId
-                          }
-                          onClick={() => void handleAccessSave(member, draft)}
-                        >
-                          {savingAccessId === member.userId
-                            ? "Сохраняем..."
-                            : "Сохранить"}
-                        </Button>
-                        {member.accessUntil && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            disabled={savingAccessId === member.userId}
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Сделать доступ ${formatName(member)} бессрочным?`,
-                                )
-                              )
-                                void handleAccessSave(member, null)
-                            }}
-                          >
-                            Бессрочно
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          type="button"
-                          onClick={() => void handleRemove(member)}
-                          disabled={removingId === member.userId}
-                        >
-                          {removingId === member.userId
-                            ? "Удаляем..."
-                            : "Удалить"}
-                        </Button>
-                      </>
                     )}
                   </div>
                 </li>

@@ -263,6 +263,7 @@ for (const roleCase of ROLE_MATRIX) {
     const routes = [
       ...visible,
       ...roleCase.offMenu,
+      ...roleCase.tabs,
       ...(await detailRoutes(request, token, workspaceId, visible)),
     ]
     for (const route of routes) {

@@ -12,13 +12,8 @@ import {
     paidInRangeWhere,
     paidOn,
     ticketsPaidInRangeWhere,
-} from '../get-workspace-stats/revenue'
-import {
-    renewalNeed,
-    renewalSoon,
-    renewalSubscriptionSelect,
-    renewalSubscriptionsWhere,
-} from '../list-renewal-candidates/list-renewal-candidates-utils'
+} from '../../domains/metrics/revenue'
+import { loadRenewalDue } from '../../domains/subscriptions/renewal-rules'
 
 const fullName = (u: { firstname: string | null; lastname: string | null }) =>
     [u.firstname, u.lastname].filter(Boolean).join(' ').trim()
@@ -298,41 +293,15 @@ export class ExportService {
         )
     }
 
-    // Outreach list: the same members as the «На продление» screen
-    // (list-renewal-candidates-utils: an abonement running out of classes or
-    // time, or the access window lapsing, not already renewed with the same
-    // scope) — a ready call/message list. The last column names the
-    // abonement to renew.
+    // Outreach list: the same members, in the same order, as «Удержание →
+    // Продлить» (renewal-rules) — a ready call/message list. The last column
+    // names the abonement to renew.
     async renewalsCsv(workspaceId: string): Promise<string> {
         const now = new Date()
         const tz = await this.clubTz(workspaceId)
-        const soon = renewalSoon(now)
-        const members = await this.prisma.workspaceMember.findMany({
-            where: { workspaceId, status: 'ACTIVE' },
-            select: {
-                accessUntil: true,
-                user: {
-                    select: {
-                        firstname: true,
-                        lastname: true,
-                        email: true,
-                    },
-                },
-                subscriptions: {
-                    where: renewalSubscriptionsWhere(now),
-                    orderBy: currentSubscriptionOrderBy,
-                    select: renewalSubscriptionSelect,
-                },
-            },
-            orderBy: { accessUntil: 'asc' },
-        })
+        const due = await loadRenewalDue(this.prisma, workspaceId, now)
 
-        const rows = members.flatMap((m) => {
-            const need = renewalNeed(m.subscriptions, m.accessUntil, {
-                now,
-                soon,
-            })
-            if (!need) return []
+        const rows = due.map(({ user, accessUntil, need }) => {
             const sub = need.current ? need.subscription : null
             const reason =
                 need.reason === 'out_of_classes'
@@ -341,15 +310,13 @@ export class ExportService {
                       ? 'Осталось 1 занятие'
                       : 'Доступ истекает'
             return [
-                [
-                    fullName(m.user),
-                    m.user.email,
-                    reason,
-                    sub?.classesRemaining ?? '',
-                    sub?.classesTotal ?? '',
-                    day(m.accessUntil, tz),
-                    need.subscription?.plan.name ?? '',
-                ],
+                fullName(user),
+                user.email,
+                reason,
+                sub?.classesRemaining ?? '',
+                sub?.classesTotal ?? '',
+                day(accessUntil, tz),
+                need.subscription?.plan.name ?? '',
             ]
         })
 

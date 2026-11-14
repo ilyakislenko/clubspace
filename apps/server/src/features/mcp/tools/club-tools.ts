@@ -2,11 +2,13 @@ import { z } from 'zod'
 
 import { loadWorkspaceRisk } from '../../../domains/retention/load-workspace-risk'
 import { summarizeRisk } from '../../../domains/retention/risk-signals'
-import { currentSubscriptionWhere } from '../../../domains/subscriptions/current-subscriptions'
+import { countStudentsWithAbonement } from '../../../domains/metrics/abonements'
+import { countActiveStudents } from '../../../domains/metrics/active-students'
+import { countNewStudents, countStudents, type StudentScope } from '../../../domains/metrics/students'
 import { ymdToDbDate } from '../../../domains/subscriptions/freeze-dates'
 import { localDateInTz } from '../../attendance/attendance-utils'
+import { awaitingPaymentWhere } from '../../../domains/subscriptions/renewal-rules'
 import {
-    awaitingPaymentWhere,
     dominantCurrency,
     paidInRangeWhere,
     paidOn,
@@ -15,7 +17,7 @@ import {
     ticketRevenueRow,
     ticketRevenueSelect,
     ticketsPaidInRangeWhere,
-} from '../../get-workspace-stats/revenue'
+} from '../../../domains/metrics/revenue'
 import { defineTool } from '../mcp-tool'
 import { groupRef, planRef, scopedStudentIds } from './tool-helpers'
 
@@ -137,8 +139,9 @@ export const clubOverviewTool = defineTool({
     name: 'club_overview',
     title: 'Сводка по клубу',
     description:
-        'Главные цифры клуба на сейчас: ученики (всего, активные, новые за 30 дней), посещаемость за 7 и 30 дней, ' +
-        'действующие абонементы, сколько учеников в зоне риска оттока, ближайшие события и аттестации. ' +
+        'Главные цифры клуба на сейчас — те же, что в «Обзоре клуба»: ученики (всего; активные — были на занятии или ' +
+        'открывали приложение за 30 дней; новые за 30 дней; с действующим абонементом), посещаемость за 7 и 30 дней, ' +
+        'сколько учеников в зоне риска оттока, ближайшие события и аттестации. ' +
         'Для токена администратора — ещё выручка за 30 дней и текущий месяц и сумма неоплаченных абонементов. ' +
         'Хорошая отправная точка для вопросов «как дела в клубе».',
     input: z.object({}),
@@ -149,7 +152,13 @@ export const clubOverviewTool = defineTool({
         const since30 = new Date(now.getTime() - 30 * DAY_MS)
         const in7 = new Date(now.getTime() + 7 * DAY_MS)
         const todayYmd = localDateInTz(now, tz)
-        const students = scope.students()
+        // The dashboard's student metrics (domains/metrics), narrowed to a
+        // direction manager's directions.
+        const studentScope: StudentScope = {
+            workspaceId: scope.workspaceId,
+            ownerId: access.ownerId,
+            ...(scope.isAdmin ? {} : { where: scope.students() }),
+        }
         const recordsSince = (gte: Date) => ({
             workspaceId: scope.workspaceId,
             markedAt: { gte },
@@ -166,13 +175,13 @@ export const clubOverviewTool = defineTool({
             checkins30d,
             attendees30d,
             sessions30d,
-            currentAbonements,
+            withAbonement,
             events7d,
             gradings,
         ] = await Promise.all([
-            prisma.workspaceMember.count({ where: students }),
-            prisma.workspaceMember.count({ where: { ...students, status: 'ACTIVE' } }),
-            prisma.workspaceMember.count({ where: { ...students, createdAt: { gte: since30 } } }),
+            countStudents(prisma, studentScope),
+            countActiveStudents(prisma, studentScope, now),
+            countNewStudents(prisma, studentScope, since30),
             prisma.group.count({ where: scope.groups() }),
             prisma.direction.findMany({
                 where: scope.directions(),
@@ -189,9 +198,7 @@ export const clubOverviewTool = defineTool({
             prisma.attendanceSession.count({
                 where: { ...scope.sessions(), startAt: { gte: since30, lte: now } },
             }),
-            prisma.subscription.count({
-                where: { workspaceMember: students, ...currentSubscriptionWhere(now) },
-            }),
+            countStudentsWithAbonement(prisma, studentScope, now),
             prisma.workspaceEvent.count({
                 where: { ...scope.events(), startAt: { gte: now, lt: in7 } },
             }),
@@ -262,7 +269,7 @@ export const clubOverviewTool = defineTool({
                     ? 'весь клуб'
                     : `направления: ${directions.map((d) => d.name).join(', ')}`,
                 dataMode: ctx.people.personal ? 'с персональными данными' : 'обезличено',
-                members: { total, active, new30d },
+                students: { total, active, new30d, withAbonement },
                 groups,
                 attendance: {
                     checkins7d,
@@ -270,7 +277,6 @@ export const clubOverviewTool = defineTool({
                     distinctAttendees30d: attendees30d.length,
                     sessions30d,
                 },
-                abonements: { current: currentAbonements },
                 atRisk: summarizeRisk(risk),
                 upcoming: { events7d, gradings },
                 money,

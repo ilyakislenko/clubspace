@@ -252,6 +252,89 @@ realtime/poll.
 **Acceptance.** Each glossary metric shows the identical value on every screen that displays it
 (checked by the smoke crawl or a server spec computing all surfaces from the same fixture).
 
+**Glossary.** «Ученик» everywhere = `studentWhere` (`domains/metrics/students.ts`): an `ACTIVE`
+membership with the role `user` (children included), never the owner or staff. People counts are
+over the caller's scope (a coach: own groups; the forecast: its filters). Functions live in
+`apps/server/src/domains/metrics/` unless another module is named.
+
+| Metric id | Russian label | Definition | Server function | Shown on |
+|---|---|---|---|---|
+| `members_total` | «Участники (N)» | every membership but pending invitations (students, staff, the owner's row, suspended/blocked) | `memberRosterWhere` | members list header |
+| `students_total` | «Ученики» | students | `countStudents` | dashboard, «Прогноз выручки» card subtitle, weekly digest, AI `club_overview` |
+| `students_active` | «Активные ученики» | students with `lastAttendedAt` or `lastSeenAt` (opened the club in the app) within 30 days — what the club pays ClubSpace by | `countActiveStudents`, `countActiveStudentsMany` | dashboard, «Тариф» (bill, tier), platform console, AI |
+| `students_with_abonement` | «Ученики с абонементом» | students holding ≥ 1 current abonement (`currentSubscriptionWhere`; paid or not); people, not abonements | `countStudentsWithAbonement` | dashboard, AI |
+| `students_attended_7d` / `_30d` | «Были на занятиях за неделю / за 30 дней» | students with ≥ 1 check-in in the window | `countStudentsAttended` | dashboard |
+| `students_not_attended_30d` | «Не были на занятиях 30 дней» | students without a check-in in 30 days (never-attended included); = `students_total − students_attended_30d` | `notAttendedWhere`, `countStudentsNotAttended` | dashboard, members filter `inactive` |
+| `new_students_today` | «Новые ученики» | students whose membership started since the club-local midnight | `countNewStudents` | dashboard |
+| `checkins_7d` / `_30d` / `_today` | «Отметок за неделю / сегодня» | students' attendance records in the window | `countStudentCheckins`, `studentCheckinsWhere` | dashboard (cards, weekly trend) |
+| `mrr` | «Регулярный доход в месяц» | current paid time-boxed abonements (anyone's), each `amountPaid × 30 / term days`; open-ended or not-started packs add 0; dominant currency | `computeRevenue` over `loadCurrentSales`, `loadMonthlyRecurringIncome` | dashboard, «Прогноз выручки», weekly digest |
+| `revenue_30d` | «Выручка за 30 дней» | paid in the trailing 30 days by payment date: abonements (former members' too) + event tickets | `computeRevenue` over `loadSales` | dashboard (+ trend, by tariff), AI `club_overview` |
+| `revenue_today` | «Выручка сегодня» | the same sales since the club-local midnight | `sumRevenue` over `loadSales` | dashboard |
+| `expected_revenue_30d` / `_90d` | «Ожидается за 30 / 90 дней» | renewals of current students' abonements inside the horizon × each student's renewal probability (club renewal share scaled by churn score), from the hourly snapshot; «Если все продлят» = the same at probability 1 | `expectedRevenue`, `loadExpectedRevenue` | dashboard (30), «Прогноз выручки» (30, 90), weekly digest |
+| `money_at_stake` | «на кону» / «На кону у учеников с высоким риском» | sum of the students' average monthly spend over 180 days (`monthlySpend`, snapshot): over the call list / over high-risk students | `domains/analytics/churn-score.ts` `monthlySpend`; `loadCallList`, `loadForecastReport` | «Кому позвонить», «Прогноз выручки» |
+| `awaiting_payment` | «Ожидают оплаты» | abonements sold and not paid (ACTIVE or EXPIRED, held by a member): the people who owe and the agreed amount | `domains/subscriptions/renewal-rules.ts` `awaitingPaymentWhere`, `countAwaitingPaymentMembers`; amount `summarizeAwaiting` | dashboard, «Продлить → Ожидают оплаты» header, members filter `unpaid` |
+| `renewals_due` | «Продлить» | students needing the next abonement (`renewal-rules.ts` header: pack empty/last class, term ends within 7 days, or ended within 30 days, next one not bought) | `renewal-rules.ts` `countRenewalsDue`, `loadRenewalDue` | dashboard (sport leads), «Продлить» list, members filter `renew`, announcement audience |
+| `call_list` | «Кому позвонить» | B1 | `domains/retention/call-list.ts` `loadCallList` | B1 |
+
+**Decisions (wave 3).**
+- `domains/metrics/` holds the people and money functions (`students`, `active-students`,
+  `abonements`, `attendance`, `revenue` — moved from `features/get-workspace-stats/revenue.ts` —,
+  `expected-revenue`); renewals and the receivable stay in `domains/subscriptions/renewal-rules.ts`
+  (B3) and are only imported.
+- One student base for every count (`studentWhere`): the dashboard used to count every status
+  (315), the forecast its snapshot rows (313), the bill `status ≠ INVITED` (293). Now all read 313
+  on the demo club. The bill moved from `PlatformBillingService.countActiveMembersMany` to
+  `countActiveStudentsMany` (callers: the bill, the trial cost, the platform console list and
+  «отметить оплату»); a blocked or suspended member is no longer billed.
+- Dashboard: «Активные абонементы» (abonements) → «Ученики с абонементом» (people, moved out of
+  «Финансы» into «Ученики и продления»); «Активны за неделю / месяц» (check-in based, clashing with
+  the billing «активный») → «Были на занятиях за неделю / за 30 дней»; the duplicate «Уникальных за
+  месяц» removed; «Неактивны за месяц» → «Не были на занятиях 30 дней» (sum with «Были на занятиях
+  за 30 дней» = «Ученики»); «Новые участники» (counted students) → «Новые ученики»; «Активные
+  ученики» added; «К продлению» + «Доступ истекает» + «Доступ закончился» → one «Продлить» tile
+  (sport leads, `retention.renewalsDue`, links to `retention?tab=renew`); a fourth money tile
+  «Ожидается за 30 дней» links to the forecast, so the three monthly money figures sit side by side
+  with subtitles saying what each is («оплаченные действующие абонементы в пересчёте на 30 дней» /
+  «фактически оплачено за последние 30 дней» / «продления в ближайшие 30 дней с поправкой на риск
+  ухода»). «Ожидают оплаты» counts people («не оплатили: N учеников»). Check-ins (week, 30 days,
+  today, trend) count students only.
+- Stats DTO: `counts.{students, activeStudents, studentsWithAbonement}`,
+  `attendance.attendedStudents7d/30d`, `retention.{notAttended30d, renewalsDue}` (null below sport lead),
+  `revenue.{mrr, revenue30d, expected30d, awaitingPayment.{students, amount}}`,
+  `today.newStudents`; `activeSubscriptions`, `activeMembers*`, `distinctAttendees30d`,
+  `inactiveMembers30d`, `expiredAccess`, `expiringSoon` removed. Money stays club-admin only.
+- «Прогноз выручки»: «Средние траты в месяц» (sum of the 180-day average spend, a third monthly
+  figure, 1 341 735) replaced by «Регулярный доход в месяц» = `mrr` over the filtered students'
+  abonements; `members` (snapshot rows) → `students` (live, filtered by the scope's groups);
+  DTO `members/monthlyRecurring` → `students/mrr`. The horizon cards read «Ожидается за 30 / 90
+  дней». The weekly digest says «Учеников: N, регулярный доход в месяц — X» (it said «Активных
+  учеников» for the snapshot count).
+- AI `club_overview`: `members.{total, active}` (every status / status ACTIVE) and
+  `abonements.current` → `students.{total, active, new30d, withAbonement}` from the same functions.
+- Members list header «Участники (N)» was already right (everyone but invitations; staff included).
+  Mobile shows none of these metrics (home/«Прогресс» show the call list — B1 — and the coach's own
+  attendance overview), so no mobile change.
+- Smoke (local DB, ACADEMY, own server; the demo data has aged):
+
+  | Metric | Before (old definitions) | After — every surface |
+  |---|---|---|
+  | students | dashboard 315 · forecast 313 | dashboard 313 · forecast 313 |
+  | members | members list 325 | members list 325 |
+  | active students | bill 292 · «Активны за месяц» 279 (check-ins) | dashboard 292 · bill 292 |
+  | attended 30 days | «Активны за месяц» 279 · «Уникальных за месяц» 279 | «Были на занятиях за 30 дней» 279 |
+  | not attended 30 days | 34 | dashboard 34 · members filter 34 (279 + 34 = 313) |
+  | abonement holders | «Активные абонементы» 281 (abonements) | «Ученики с абонементом» 277 (people) |
+  | monthly money | MRR 1 159 900 · forecast «средние траты» 1 289 819 | dashboard 1 159 900 · forecast 1 159 900 |
+  | expected 30 days | forecast only | dashboard 759 915 · forecast 759 915 |
+  | awaiting payment | 5 abonements | dashboard 5 · list header 5 · members filter 5 (25 400 ₽) |
+  | renewals due | three tiles | dashboard 93 · «Продлить» 93 · members filter 93 |
+
+  Admin and owner identical; the head coach gets the same counts, no money (`revenue` null,
+  forecast and bill 403).
+- Acceptance spec: `apps/server-e2e/src/analytics/metric-glossary.e2e-spec.ts` builds one club
+  (owner, coach, four students, an applicant, a blocked member) and asserts every glossary metric
+  on stats, forecast, bill, members list + filters, «Продлить» and «Ожидают оплаты».
+
 ### B3. Renewals in one place; one visible expiry
 **Problem.** Renewals appear in 5 places: dashboard tiles («К продлению», «Доступ истекает»,
 «Доступ закончился», «Неактивны»), «Кому продать абонемент» and «Ожидают оплаты» on the tariffs page,
@@ -268,6 +351,40 @@ member filters, the «Абонемент кончился» chip, the announceme
 - Keep the `accessUntil` column (it drives app/video access and freezes, see `schema.prisma:2076-2103`).
   Remove the per-row editor from the members list. In the member card show «Доступ к приложению до»
   only when it differs from the current abonement end, with the manual override there.
+
+**Decisions (wave 3, B3).**
+- One module: `domains/subscriptions/renewal-rules.ts`. `renewalNeed` (per-scope rule, moved from
+  `list-renewal-candidates-utils`, now deleted) over `studentsIn` (B2 student base); `loadRenewalDue` /
+  `renewalDueUserIds` / `countRenewalsDue` / `isRenewalDue`; `awaitingPaymentWhere` (moved from
+  `get-workspace-stats/revenue.ts`), `owesPaymentWhere`, `countAwaitingPaymentMembers`. Readers: «Продлить»
+  list, members filters, announcement push + feed, dashboard tile, renewals CSV, AI `renewals_due`.
+  `manage-announcements/renewal-segment.ts` is deleted (its Prisma/JS twins disagreed with the list).
+- Rule change: a member with no current abonement whose access window lapsed **more than 30 days ago**
+  is no longer «на продление» (left the club; same window as the call list's «Абонемент кончился»).
+  The «Только на продление» audience now also honours «renewed ahead» (a healthy abonement of the same
+  scope), like the list. Staff and the owner never count (students only).
+- `GET renewal-candidates` and `GET awaiting-payment`: `gymId/directionId/groupId/coachId`
+  (`resolveAnalyticsScope`, foreign id → 404; members of the matching groups via
+  `analyticsScopeMemberWhere`), `curPage`/`perPage` (50, max 200), `total`; awaiting adds `members`
+  (people). Renewal rows add `phone` and `guardians`. Both stay `SPORT_LEADS` (direction managers and
+  coaches don't get the tab).
+- Admin: `ws/retention` has tabs «Позвонить» (unchanged call list) · «Продлить» (sport leads only,
+  `?tab=renew`): header «N ученикам пора продлить», analytics filters, «Ожидают оплаты · N учеников»
+  section (only when non-empty), renewal table; rows open the member card (assign / mark paid live
+  there — no list action exists). Dashboard tile «Продлить» → `retention?tab=renew`, value `countRenewalsDue`.
+- Members filters: `access=all|renew|unpaid|inactive` («Кончается абонемент» / «Должники» / «Не были
+  30 дней»; `?filter=` deep-links); `expiring`/`expired` (access-window segments) are gone. Rows lose the
+  date editor, Сохранить, Бессрочно and Удалить; each abonement shows its own end, the access window
+  only for a member without abonements.
+- Member card: «Доступ к приложению до …» only when it differs (by local day) from the latest current
+  abonement end; the label (and «⋯ → Изменить доступ к приложению») opens the override dialog (date,
+  «Без ограничения», «Как у абонемента»). «⋯ → Удалить из клуба» moved here from the list rows.
+- «Тарифы и абонементы» lists no people → `ClubAdminGate` again (the nested plan-page gate is folded
+  into it); e2e role matrix: `subscriptions` is club-admin-only for head coach and coach, and every sport
+  lead visits `retention?tab=renew` (new `tabs` field).
+- Smoke (local DB, ACADEMY, own server): owner / admin / head coach — list 93 = members filter `renew` 93
+  (same ids) = dashboard tile 93 = renewals CSV 93; awaiting 5 abonements / 5 people = filter `unpaid` 5 =
+  tile 5; direction manager 403 on the list.
 
 ### B4. Schedule edited in one place
 **Problem.** Group time slots and cancellations are edited on the groups list, the group page and the

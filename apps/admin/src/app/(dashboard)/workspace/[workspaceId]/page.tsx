@@ -15,7 +15,6 @@ import {
 } from "../../../../shared/api/leaderboard"
 import { listPendingUsers } from "../../../../shared/api/members"
 import { listAtRiskMembers } from "../../../../shared/api/retention"
-import { listRenewalCandidates } from "../../../../shared/api/subscriptions"
 import {
   actionMetaFor,
   formatActor,
@@ -77,7 +76,6 @@ export default function WorkspaceOverviewPage() {
 
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
-  const [renewalsDue, setRenewalsDue] = useState<number | null>(null)
   const [atRisk, setAtRisk] = useState<number | null>(null)
   const [pendingCount, setPendingCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -118,18 +116,6 @@ export default function WorkspaceOverviewPage() {
     ])
   }, [workspaceId])
 
-  // Sport-lead endpoint — own effect so the membership resolving doesn't
-  // re-run the stats/leaderboard load above.
-  const loadRenewals = useCallback(async () => {
-    if (!workspaceId || !canLead) return
-    try {
-      const res = await listRenewalCandidates({ workspaceId })
-      setRenewalsDue(res.data.length)
-    } catch {
-      setRenewalsDue(null)
-    }
-  }, [workspaceId, canLead])
-
   // «Кому позвонить» count, the same number as the list header and the apps
   // (the server scopes it for coaches). Only the summary is needed.
   const loadAtRisk = useCallback(async () => {
@@ -141,10 +127,6 @@ export default function WorkspaceOverviewPage() {
       setAtRisk(null)
     }
   }, [workspaceId])
-
-  useEffect(() => {
-    void loadRenewals()
-  }, [loadRenewals])
 
   useEffect(() => {
     void loadAtRisk()
@@ -175,7 +157,6 @@ export default function WorkspaceOverviewPage() {
     ],
     () => {
       void load()
-      void loadRenewals()
       refreshAtRisk()
     },
   )
@@ -194,6 +175,9 @@ export default function WorkspaceOverviewPage() {
         </p>
       )}
 
+      {/* Every number below is one glossary metric (docs/design/
+          2026-11-08-admin-cleanup.md B2); the subtitles say how the money
+          figures differ. */}
       {stats?.revenue && showSubscriptions && (
         <section className="space-y-2">
           <h2 className="text-sm font-medium">Финансы</h2>
@@ -205,7 +189,7 @@ export default function WorkspaceOverviewPage() {
               value={formatMoney(stats.revenue.mrr, stats.revenue.currency)}
               // A «с первого занятия» abonement has no term yet: nothing to
               // spread over 30 days until that first visit (revenue.ts).
-              subtitle={`действующие абонементы в пересчёте на 30 дней; абонементы «${fromFirstSession(vocabulary)}» входят после ${agree(vocabulary.session, "первой", "первого")} ${vocabulary.session.gen}`}
+              subtitle={`оплаченные действующие абонементы в пересчёте на 30 дней; «${fromFirstSession(vocabulary)}» — после ${agree(vocabulary.session, "первой", "первого")} ${vocabulary.session.gen}`}
               loading={loading}
             />
             <StatCard
@@ -214,14 +198,18 @@ export default function WorkspaceOverviewPage() {
                 stats.revenue.revenue30d,
                 stats.revenue.currency,
               )}
-              subtitle="фактически оплачено"
+              subtitle="фактически оплачено за последние 30 дней"
               loading={loading}
             />
             <StatCard
-              label="Активные абонементы"
-              value={stats.revenue.activeSubscriptions}
+              label="Ожидается за 30 дней"
+              value={formatMoney(
+                stats.revenue.expected30d,
+                stats.revenue.currency,
+              )}
+              subtitle="продления в ближайшие 30 дней с поправкой на риск ухода"
               loading={loading}
-              href={`/workspace/${workspaceId}/subscriptions`}
+              href={`/workspace/${workspaceId}/analytics/forecast`}
             />
             <StatCard
               label="Ожидают оплаты"
@@ -229,10 +217,10 @@ export default function WorkspaceOverviewPage() {
                 stats.revenue.awaitingPayment.amount,
                 stats.revenue.currency,
               )}
-              subtitle={`не оплачено абонементов: ${stats.revenue.awaitingPayment.count}`}
-              tone={stats.revenue.awaitingPayment.count > 0 ? "warn" : "default"}
+              subtitle={`не оплатили: ${stats.revenue.awaitingPayment.students} ${pluralRu(stats.revenue.awaitingPayment.students, "ученик", "ученика", "учеников")}`}
+              tone={stats.revenue.awaitingPayment.students > 0 ? "warn" : "default"}
               loading={loading}
-              href={`/workspace/${workspaceId}/subscriptions`}
+              href={`/workspace/${workspaceId}/retention?tab=renew`}
             />
           </div>
 
@@ -250,21 +238,36 @@ export default function WorkspaceOverviewPage() {
       )}
 
       <section className="space-y-2">
-        <h2 className="text-sm font-medium">Продления и удержание</h2>
+        <h2 className="text-sm font-medium">Ученики и продления</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             label="Ученики"
-            value={stats?.counts.members}
+            value={stats?.counts.students}
             loading={loading}
             href={`/workspace/${workspaceId}/users`}
           />
-          {canLead && showSubscriptions && (
+          <StatCard
+            label="Активные ученики"
+            value={stats?.counts.activeStudents}
+            subtitle={`были на ${vocabulary.session.prep} или открывали приложение за 30 дней`}
+            loading={loading}
+          />
+          {showSubscriptions && (
             <StatCard
-              label="К продлению"
-              value={renewalsDue ?? undefined}
-              subtitle="заканчиваются занятия / доступ"
+              label="Ученики с абонементом"
+              value={stats?.counts.studentsWithAbonement}
+              subtitle="есть действующий абонемент"
               loading={loading}
-              href={`/workspace/${workspaceId}/subscriptions`}
+            />
+          )}
+          {canLead && showSubscriptions && stats?.retention.renewalsDue != null && (
+            <StatCard
+              label="Продлить"
+              value={stats.retention.renewalsDue}
+              subtitle="абонемент заканчивается или закончился"
+              loading={loading}
+              tone={stats.retention.renewalsDue > 0 ? "warn" : "default"}
+              href={`/workspace/${workspaceId}/retention?tab=renew`}
             />
           )}
           {canLead && pendingCount !== null && (
@@ -285,33 +288,14 @@ export default function WorkspaceOverviewPage() {
             tone="warn"
             href={`/workspace/${workspaceId}/retention`}
           />
-          <StatCard
-            label="Неактивны за месяц"
-            value={stats?.retention.inactiveMembers30d}
-            subtitle="без отметок 30 дней"
-            loading={loading}
-            tone="warn"
-            href={`/workspace/${workspaceId}/users?filter=inactive`}
-          />
-          {showSubscriptions && (
-            <>
-              <StatCard
-                label="Доступ истекает"
-                value={stats?.retention.expiringSoon}
-                subtitle="в ближайшие 14 дней"
-                loading={loading}
-                tone="warn"
-                href={`/workspace/${workspaceId}/users?filter=expiring`}
-              />
-              <StatCard
-                label="Доступ закончился"
-                value={stats?.retention.expiredAccess}
-                subtitle="требуют продления"
-                loading={loading}
-                tone="danger"
-                href={`/workspace/${workspaceId}/users?filter=expired`}
-              />
-            </>
+          {showAttendance && (
+            <StatCard
+              label={`Не были на ${vocabulary.session.prepPl} 30 дней`}
+              value={stats?.retention.notAttended30d}
+              loading={loading}
+              tone="warn"
+              href={`/workspace/${workspaceId}/users?filter=inactive`}
+            />
           )}
         </div>
       </section>
@@ -329,13 +313,13 @@ export default function WorkspaceOverviewPage() {
               <StatCard
                 label="Отметок сегодня"
                 value={stats.today.checkins}
-                subtitle="учеников отметилось"
+                subtitle={`отметки учеников на ${vocabulary.session.prepPl}`}
                 loading={loading}
               />
             )}
             <StatCard
-              label="Новые участники"
-              value={stats.today.newMembers}
+              label="Новые ученики"
+              value={stats.today.newStudents}
               subtitle="вступили сегодня"
               loading={loading}
               href={`/workspace/${workspaceId}/users`}
@@ -355,38 +339,36 @@ export default function WorkspaceOverviewPage() {
         <h2 className="text-sm font-medium">Посещаемость</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <StatCard
-            label="Активны за неделю"
-            value={stats?.activity.activeMembers7d}
+            label={`Были на ${vocabulary.session.prepPl} за неделю`}
+            value={stats?.attendance.attendedStudents7d}
             subtitle={
-              stats && stats.counts.members > 0
+              stats && stats.counts.students > 0
                 ? `${Math.round(
-                    (stats.activity.activeMembers7d / stats.counts.members) *
+                    (stats.attendance.attendedStudents7d / stats.counts.students) *
                       100,
-                  )}% учеников были на ${vocabulary.session.prep}`
+                  )}% учеников`
                 : undefined
             }
             loading={loading}
           />
           <StatCard
-            label="Активны за месяц"
-            value={stats?.activity.activeMembers30d}
+            label={`Были на ${vocabulary.session.prepPl} за 30 дней`}
+            value={stats?.attendance.attendedStudents30d}
             subtitle={
-              stats && stats.counts.members > 0
+              stats && stats.counts.students > 0
                 ? `${Math.round(
-                    (stats.activity.activeMembers30d / stats.counts.members) *
+                    (stats.attendance.attendedStudents30d / stats.counts.students) *
                       100,
-                  )}% учеников были на ${vocabulary.session.prep}`
+                  )}% учеников`
                 : undefined
             }
             loading={loading}
           />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             label={`${cap(vocabulary.session.nomPl)} за неделю`}
             value={stats?.attendance.sessions7d}
             subtitle={
-              stats ? `${stats.attendance.sessions30d} за месяц` : undefined
+              stats ? `${stats.attendance.sessions30d} за 30 дней` : undefined
             }
             loading={loading}
           />
@@ -394,14 +376,8 @@ export default function WorkspaceOverviewPage() {
             label="Отметок за неделю"
             value={stats?.attendance.checkins7d}
             subtitle={
-              stats ? `${stats.attendance.checkins30d} за месяц` : undefined
+              stats ? `${stats.attendance.checkins30d} за 30 дней` : undefined
             }
-            loading={loading}
-          />
-          <StatCard
-            label="Уникальных за месяц"
-            value={stats?.attendance.distinctAttendees30d}
-            subtitle="учеников отметилось"
             loading={loading}
           />
         </div>

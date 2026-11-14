@@ -1,11 +1,12 @@
 "use client"
 
-import { SportLeadGate } from "../../../../../shared/workspace/access-gate"
+import { ClubAdminGate } from "../../../../../shared/workspace/access-gate"
 
-export default function SportLeadLayout({
+// Tariff management (and the tariff pages below) is the club admins'.
+export default function ClubAdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return <SportLeadGate>{children}</SportLeadGate>
+  return <ClubAdminGate>{children}</ClubAdminGate>
 }

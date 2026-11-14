@@ -81,7 +81,7 @@ export class AnalyticsDigestService {
             }),
         ])
         // Nothing to say about a club without students yet.
-        if (forecast.members === 0) return 0
+        if (forecast.students === 0) return 0
         const digest = buildWeeklyDigest({
             callList: callList.entries,
             forecast,

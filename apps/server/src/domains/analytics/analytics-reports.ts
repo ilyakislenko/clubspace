@@ -3,8 +3,12 @@
 // and the weekly digest build the same numbers.
 import { localDateInTz } from '../../features/attendance/attendance-utils'
 import { displayName } from '../../features/attendance/schemas'
+import { analyticsScopeMemberWhere } from '../../features/club-analytics/analytics-scope'
 import type { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
+import { expectedRevenue, type RevenueHorizon } from '../metrics/expected-revenue'
+import { loadMonthlyRecurringIncome } from '../metrics/revenue'
+import { countStudents } from '../metrics/students'
 import { addDaysYmd, dbDateToYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
 import { churnLevel } from './churn-score'
 import { type CoachStat, computeCoachStats } from './coach-stats'
@@ -292,12 +296,16 @@ export const loadCoachReport = async (
 
 // ---- Forecast ----
 
+// `students` and `mrr` are the live glossary metrics over the scope's
+// students (the same functions as the dashboard, so the unfiltered forecast
+// shows the dashboard's numbers); the horizons, the renewal share and the
+// risk money come from the hourly snapshot.
 export type ForecastReport = {
     computedAt: Date | null
     currency: string | null
-    members: number
-    monthlyRecurring: number
-    horizons: { days: number; potential: number; expected: number; atRisk: number }[]
+    students: number
+    mrr: number
+    horizons: RevenueHorizon[]
     renewal: {
         clubRate: number
         clubSample: number
@@ -307,6 +315,7 @@ export type ForecastReport = {
         scopeSample: number
         usesDefault: boolean
     }
+    // Average monthly spend (180 days) of the scope's high-risk students.
     highRiskMoney: number
     trial: TrialConversion
 }
@@ -315,10 +324,21 @@ export const loadForecastReport = async (
     prisma: PrismaService,
     p: { workspaceId: string; scope: AnalyticsScope; now: Date },
 ): Promise<ForecastReport> => {
-    const [run, rows, formerRows] = await Promise.all([
+    const memberWhere = p.scope.groupIds === null ? undefined : analyticsScopeMemberWhere(p.scope)
+    const workspace = await prisma.workspace.findUniqueOrThrow({
+        where: { id: p.workspaceId },
+        select: { ownerId: true },
+    })
+    const [run, rows, formerRows, students, mrr] = await Promise.all([
         loadRun(prisma, p.workspaceId),
         prisma.analyticsMemberSnapshot.findMany({ where: { workspaceId: p.workspaceId } }),
         prisma.analyticsFormerMember.findMany({ where: { workspaceId: p.workspaceId } }),
+        countStudents(prisma, {
+            workspaceId: p.workspaceId,
+            ownerId: workspace.ownerId,
+            ...(memberWhere ? { where: memberWhere } : {}),
+        }),
+        loadMonthlyRecurringIncome(prisma, p.workspaceId, p.now, memberWhere),
     ])
     const kept = rows.filter((r) => inScope(p.scope, r.groupIds))
     const sum = (f: (r: (typeof kept)[number]) => number) => kept.reduce((s, r) => s + f(r), 0)
@@ -328,22 +348,13 @@ export const loadForecastReport = async (
     const former = formerRows.filter((r) => inScope(p.scope, r.groupIds))
     const due = sum((r) => r.renewalsDue) + former.reduce((s, r) => s + r.renewalsDue, 0)
     const done = sum((r) => r.renewalsDone) + former.reduce((s, r) => s + r.renewalsDone, 0)
-    const horizon = (days: number, potential: number, expected: number) => ({
-        days,
-        potential,
-        expected,
-        atRisk: potential - expected,
-    })
     const currencies = kept.flatMap((r) => (r.currency ? [r.currency] : []))
     return {
         computedAt: run?.riskComputedAt ?? null,
-        currency: currencies[0] ?? null,
-        members: kept.length,
-        monthlyRecurring: sum((r) => r.monthlySpend),
-        horizons: [
-            horizon(30, sum((r) => r.potential30), sum((r) => r.expected30)),
-            horizon(90, sum((r) => r.potential90), sum((r) => r.expected90)),
-        ],
+        currency: mrr.currency ?? currencies[0] ?? null,
+        students,
+        mrr: mrr.amount,
+        horizons: expectedRevenue(kept),
         renewal: {
             clubRate: run?.clubRenewalRate ?? FORECAST_RULES.defaultRenewalRate,
             clubSample: run?.renewalSample ?? 0,

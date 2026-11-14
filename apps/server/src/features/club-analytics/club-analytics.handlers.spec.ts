@@ -163,10 +163,10 @@ describe('GetRevenueForecastHandler', () => {
         ['the owner', OWNER],
         ['an admin', ADMIN],
     ])('reads the whole club for %s', async (_, who) => {
-        ;(loadForecastReport as jest.Mock).mockResolvedValue({ computedAt: AT, members: 3 })
+        ;(loadForecastReport as jest.Mock).mockResolvedValue({ computedAt: AT, students: 3 })
         await expect(run(setup(), who)).resolves.toEqual({
             computedAt: AT.toISOString(),
-            members: 3,
+            students: 3,
         })
         expect((loadForecastReport as jest.Mock).mock.calls[0][1]).toMatchObject({
             workspaceId: 'ws',

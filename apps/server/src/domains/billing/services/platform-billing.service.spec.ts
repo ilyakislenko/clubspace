@@ -116,44 +116,6 @@ describe('PlatformBillingService', () => {
         })
     })
 
-    describe('countActiveMembersMany', () => {
-        it('counts students active in the last 30 days, never staff, applicants or the owner', async () => {
-            const { service, prisma } = build()
-            activeMembers(prisma, 42)
-            const result = await service.countActiveMembersMany(
-                [{ id: 'w1', ownerId: 'owner' }, { id: 'w2', ownerId: 'o2' }],
-                NOW,
-            )
-            expect(result).toEqual(new Map([['w1', 42], ['w2', 0]]))
-            const since = new Date(NOW.getTime() - 30 * DAY)
-            expect(prisma.workspaceMember.groupBy.mock.calls[0][0]).toEqual({
-                by: ['workspaceId'],
-                where: {
-                    workspaceId: { in: ['w1', 'w2'] },
-                    status: { not: 'INVITED' },
-                    role: { name: 'user' },
-                    OR: [
-                        { lastAttendedAt: { gte: since } },
-                        { lastSeenAt: { gte: since } },
-                    ],
-                    NOT: {
-                        OR: [
-                            { workspaceId: 'w1', userId: 'owner' },
-                            { workspaceId: 'w2', userId: 'o2' },
-                        ],
-                    },
-                },
-                _count: { _all: true },
-            })
-        })
-
-        it('skips the query for an empty page', async () => {
-            const { service, prisma } = build()
-            await expect(service.countActiveMembersMany([], NOW)).resolves.toEqual(new Map())
-            expect(prisma.workspaceMember.groupBy).not.toHaveBeenCalled()
-        })
-    })
-
     describe('recordViewing', () => {
         it('adds seconds to the month with one atomic upsert', async () => {
             const { service, prisma } = build()

@@ -111,8 +111,7 @@ describe('computeRevenue', () => {
                     endDate: day(31),
                     isPaid: true,
                 },
-                // Foreign-currency row is counted in the total but excluded
-                // from the RUB money figures.
+                // A foreign-currency row stays out of the RUB money figures.
                 {
                     amountPaid: 100,
                     currency: 'USD',
@@ -127,7 +126,6 @@ describe('computeRevenue', () => {
             ],
         )
         expect(out).toEqual({
-            activeSubscriptions: 3,
             revenue30d: 5000,
             mrr: 8000,
             currency: 'RUB',
@@ -136,7 +134,6 @@ describe('computeRevenue', () => {
 
     it('is all-zero / null when there are no subscriptions', () => {
         expect(computeRevenue([], [])).toEqual({
-            activeSubscriptions: 0,
             revenue30d: 0,
             mrr: 0,
             currency: null,

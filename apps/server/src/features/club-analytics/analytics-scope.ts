@@ -1,5 +1,5 @@
 import type { AnalyticsScope } from '../../domains/analytics/analytics-reports'
-import type { PrismaService } from '../../infrastructure/prisma'
+import type { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { type CoachContext, ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import { cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
@@ -82,3 +82,18 @@ export const resolveAnalyticsScope = async (
         scope: { groupIds: new Set(groups.map((g) => g.id)), includeGroupless: false },
     }
 }
+
+// The members a scope covers: students of its groups (the whole club = no
+// narrowing). For per-member lists filtered in the database.
+export const analyticsScopeMemberWhere = (
+    scope: AnalyticsScope,
+): Prisma.WorkspaceMemberWhereInput =>
+    scope.groupIds === null
+        ? {}
+        : {
+              user: {
+                  groupMemberships: {
+                      some: { groupId: { in: [...scope.groupIds] } },
+                  },
+              },
+          }

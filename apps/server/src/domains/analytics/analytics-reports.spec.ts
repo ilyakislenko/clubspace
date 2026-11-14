@@ -48,7 +48,11 @@ const makePrisma = () => ({
         groupBy: jest.fn().mockResolvedValue([]),
     },
     analyticsSlotOccurrence: { findMany: jest.fn().mockResolvedValue([]) },
-    workspace: { findUniqueOrThrow: jest.fn().mockResolvedValue({ timezone: 'Asia/Tomsk' }) },
+    workspace: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ timezone: 'Asia/Tomsk', ownerId: 'owner' }),
+    },
+    workspaceMember: { count: jest.fn().mockResolvedValue(0) },
+    subscription: { findMany: jest.fn().mockResolvedValue([]) },
     user: { findMany: jest.fn().mockResolvedValue([]) },
     group: { findMany: jest.fn().mockResolvedValue([]) },
     groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
@@ -274,19 +278,30 @@ describe('loadCoachReport', () => {
 })
 
 describe('loadForecastReport', () => {
-    it('sums the scope’s members', async () => {
+    // A 30-day paid abonement held now: 6 000 a month.
+    const current = {
+        amountPaid: 6000,
+        currency: 'RUB',
+        isPaid: true,
+        startDate: ago(10),
+        endDate: new Date(NOW.getTime() + 20 * DAY),
+    }
+
+    it('sums the scope’s snapshot rows; students and income are the live metrics of the scope', async () => {
         const prisma = makePrisma()
         prisma.analyticsMemberSnapshot.findMany.mockResolvedValue([
             snapshot('a'),
             snapshot('b', { score: 10, monthlySpend: 4000, currency: null, trialStartedAt: ago(30), trialConvertedAt: ago(28) }),
             snapshot('other', { groupIds: ['g2'] }),
         ])
+        prisma.workspaceMember.count.mockResolvedValue(2)
+        prisma.subscription.findMany.mockResolvedValue([current])
         const r = await loadForecastReport(prisma as never, { workspaceId: 'ws', scope: ONLY_G1, now: NOW })
         expect(r).toEqual({
             computedAt: RUN.riskComputedAt,
             currency: 'RUB',
-            members: 2,
-            monthlyRecurring: 9000,
+            students: 2,
+            mrr: 6000,
             horizons: [
                 { days: 30, potential: 10000, expected: 2000, atRisk: 8000 },
                 { days: 90, potential: 30000, expected: 4000, atRisk: 26000 },
@@ -295,6 +310,17 @@ describe('loadForecastReport', () => {
             highRiskMoney: 5000,
             trial: { trials: 1, converted: 1, rate: 1, medianDaysToPay: 2 },
         })
+        // Both live figures narrow to the students of the scope's groups.
+        const inGroups = { user: { groupMemberships: { some: { groupId: { in: ['g1'] } } } } }
+        expect(prisma.workspaceMember.count.mock.calls[0][0].where.AND).toContainEqual(inGroups)
+        expect(prisma.subscription.findMany.mock.calls[0][0].where.workspaceMember).toEqual(inGroups)
+    })
+
+    it('the whole club reads every student and every current abonement', async () => {
+        const prisma = makePrisma()
+        await loadForecastReport(prisma as never, { workspaceId: 'ws', scope: WHOLE, now: NOW })
+        expect(prisma.workspaceMember.count.mock.calls[0][0].where).not.toHaveProperty('AND')
+        expect(prisma.subscription.findMany.mock.calls[0][0].where).not.toHaveProperty('workspaceMember')
     })
 
     it('counts the scope’s former students in the renewal share and trials, not in money', async () => {
@@ -327,8 +353,9 @@ describe('loadForecastReport', () => {
         const r = await loadForecastReport(prisma as never, { workspaceId: 'ws', scope: ONLY_G1, now: NOW })
         expect(r.renewal).toMatchObject({ scopeRate: 9 / 12, scopeSample: 12 })
         expect(r.trial).toMatchObject({ trials: 1, converted: 0 })
-        expect(r.members).toBe(1)
-        expect(r.monthlyRecurring).toBe(5000)
+        // Money and the horizons are about the ones still here.
+        expect(r.horizons[0]).toMatchObject({ potential: 5000, expected: 1000 })
+        expect(r.highRiskMoney).toBe(5000)
     })
 
     it('falls back to the default rate without a run', async () => {
@@ -342,6 +369,6 @@ describe('loadForecastReport', () => {
             scopeSample: 0,
             usesDefault: true,
         })
-        expect(r.members).toBe(0)
+        expect(r.students).toBe(0)
     })
 })

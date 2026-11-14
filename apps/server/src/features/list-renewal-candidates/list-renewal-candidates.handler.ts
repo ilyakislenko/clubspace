@@ -1,21 +1,23 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { currentSubscriptionOrderBy } from '../../domains/subscriptions/current-subscriptions'
+import { loadRenewalDue } from '../../domains/subscriptions/renewal-rules'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
+    analyticsScopeMemberWhere,
+    resolveAnalyticsScope,
+} from '../club-analytics/analytics-scope'
+import {
     ListRenewalCandidatesFeature,
     ListRenewalCandidatesFeatureResponse,
+    RENEWALS_DEFAULT_PER_PAGE,
 } from './list-renewal-candidates.feature'
-import {
-    REASON_RANK,
-    renewalNeed,
-    renewalSoon,
-    renewalSubscriptionSelect,
-    renewalSubscriptionsWhere,
-} from './list-renewal-candidates-utils'
+import { serializeRenewalCandidate } from './schemas'
 
+// «Продлить»: the club's students due for renewal (renewal-rules — the same
+// set the dashboard tile counts and the members filter lists), most urgent
+// first. Sport leads only, the whole club; the filters narrow it to groups.
 @Feature(ListRenewalCandidatesFeature)
 export class ListRenewalCandidatesHandler
     implements
@@ -29,7 +31,9 @@ export class ListRenewalCandidatesHandler
         private readonly rbac: RbacService,
     ) {}
 
-    async execute(f: ListRenewalCandidatesFeature) {
+    async execute(
+        f: ListRenewalCandidatesFeature,
+    ): Promise<ListRenewalCandidatesFeatureResponse> {
         await assertSportLead(
             this.rbac,
             {
@@ -40,73 +44,24 @@ export class ListRenewalCandidatesHandler
             },
             'Смотреть список на продление может только администратор клуба',
         )
-
-        const now = new Date()
-        const soon = renewalSoon(now)
-
-        const members = await this.prisma.workspaceMember.findMany({
-            where: { workspaceId: f.workspaceId, status: 'ACTIVE' },
-            select: {
-                userId: true,
-                accessUntil: true,
-                user: {
-                    select: {
-                        firstname: true,
-                        lastname: true,
-                        email: true,
-                    },
-                },
-                subscriptions: {
-                    where: renewalSubscriptionsWhere(now),
-                    orderBy: currentSubscriptionOrderBy,
-                    select: renewalSubscriptionSelect,
-                },
-            },
+        const { scope } = await resolveAnalyticsScope(
+            this.prisma,
+            this.rbac,
+            f,
+            f.payload,
+        )
+        const due = await loadRenewalDue(this.prisma, f.workspaceId, new Date(), {
+            memberWhere: analyticsScopeMemberWhere(scope),
         })
-
-        const candidates = members
-            .map((m) => {
-                const need = renewalNeed(m.subscriptions, m.accessUntil, {
-                    now,
-                    soon,
-                })
-                if (!need) return null
-                const sub = need.subscription
-                return {
-                    userId: m.userId,
-                    firstname: m.user.firstname,
-                    lastname: m.user.lastname,
-                    email: m.user.email,
-                    reason: need.reason,
-                    classesRemaining: need.current
-                        ? (sub?.classesRemaining ?? null)
-                        : null,
-                    classesTotal: need.current
-                        ? (sub?.classesTotal ?? null)
-                        : null,
-                    accessUntil: m.accessUntil
-                        ? m.accessUntil.toISOString()
-                        : null,
-                    planId: sub?.plan.id ?? null,
-                    planName: sub?.plan.name ?? null,
-                    endDate: sub?.endDate ? sub.endDate.toISOString() : null,
-                    directions: sub
-                        ? sub.directions.map((d) => d.direction)
-                        : [],
-                    sortKey: (need.end ?? m.accessUntil)?.toISOString() ?? null,
-                }
-            })
-            .filter((c): c is NonNullable<typeof c> => c !== null)
-
-        candidates.sort((a, b) => {
-            const byReason = REASON_RANK[a.reason] - REASON_RANK[b.reason]
-            if (byReason !== 0) return byReason
-            // Soonest end first; nulls (no window) last.
-            const ax = a.sortKey ?? '9999'
-            const bx = b.sortKey ?? '9999'
-            return ax.localeCompare(bx)
-        })
-
-        return { data: candidates.map(({ sortKey: _sortKey, ...c }) => c) }
+        const curPage = f.payload.curPage ?? 1
+        const perPage = f.payload.perPage ?? RENEWALS_DEFAULT_PER_PAGE
+        return {
+            data: due
+                .slice((curPage - 1) * perPage, curPage * perPage)
+                .map(serializeRenewalCandidate),
+            total: due.length,
+            curPage,
+            perPage,
+        }
     }
 }

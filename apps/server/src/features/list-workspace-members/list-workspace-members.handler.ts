@@ -1,10 +1,16 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { notAttendedWhere } from '../../domains/metrics/attendance'
+import { memberRosterWhere } from '../../domains/metrics/students'
 import {
     currentSubscriptionOrderBy,
     currentSubscriptionWhere,
     subscriptionScopeSelect,
 } from '../../domains/subscriptions/current-subscriptions'
+import {
+    owesPaymentWhere,
+    renewalDueUserIds,
+} from '../../domains/subscriptions/renewal-rules'
 import { userSearchWhere } from '../../domains/users/user-search'
 import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { STAFF_ROLES } from '../../shared/decorators/roles.decorator'
@@ -13,7 +19,6 @@ import {
     memberGuardiansSelect,
     serializeMemberGuardians,
 } from '../dependents/schemas'
-import { notAwaitingFirstVisitWhere } from '../manage-announcements/renewal-segment'
 import {
     ListWorkspaceMembersFeature,
     ListWorkspaceMembersFeatureResponse,
@@ -21,54 +26,35 @@ import {
     MEMBERS_DEFAULT_PER_PAGE,
 } from './list-workspace-members.feature'
 
-const MS_1D = 24 * 3600 * 1000
-
 // Every word of the query must match the member (userSearchWhere).
 export const memberSearchWhere = (
     q: string,
 ): Prisma.WorkspaceMemberWhereInput[] =>
     userSearchWhere(q).map((user) => ({ user }))
 
-// The dashboard retention segments (get-workspace-stats): ACTIVE students —
-// neither the owner nor staff — whose access lapsed, lapses within 14 days
-// (not a pending abonement's provisional window), or who haven't checked in
-// for 30 days (never included).
-export const memberAccessWhere = (
+// The roster segments, one definition each (shared with the screens that
+// count them): «Кончается абонемент» = the «Удержание → Продлить» list,
+// «Должники» = members with an unpaid abonement (the «Ожидают оплаты» list),
+// «Не были 30 дней» = students without a check-in in 30 days.
+export const memberAccessWhere = async (
+    prisma: PrismaService,
     access: NonNullable<ListWorkspaceMembersInput['access']>,
     ctx: { workspaceId: string; workspaceOwnerId: string; now: Date },
-): Prisma.WorkspaceMemberWhereInput | null => {
-    if (access === 'all') return null
+): Promise<Prisma.WorkspaceMemberWhereInput | null> => {
     const { workspaceId, workspaceOwnerId, now } = ctx
-    const student: Prisma.WorkspaceMemberWhereInput = {
-        status: 'ACTIVE',
-        NOT: [
-            { role: { name: { in: [...STAFF_ROLES] } } },
-            { userId: workspaceOwnerId },
-        ],
-    }
-    if (access === 'expired') {
-        return { ...student, accessUntil: { lt: now } }
-    }
-    if (access === 'expiring') {
-        return {
-            ...student,
-            accessUntil: {
-                gte: now,
-                lt: new Date(now.getTime() + 14 * MS_1D),
-            },
-            ...notAwaitingFirstVisitWhere,
-        }
-    }
-    return {
-        ...student,
-        user: {
-            attendanceRecords: {
-                none: {
-                    workspaceId,
-                    markedAt: { gte: new Date(now.getTime() - 30 * MS_1D) },
+    switch (access) {
+        case 'all':
+            return null
+        case 'renew':
+            return {
+                userId: {
+                    in: await renewalDueUserIds(prisma, workspaceId, now),
                 },
-            },
-        },
+            }
+        case 'unpaid':
+            return owesPaymentWhere
+        case 'inactive':
+            return notAttendedWhere(workspaceId, workspaceOwnerId, now)
     }
 }
 
@@ -151,13 +137,16 @@ export class ListWorkspaceMembersHandler
         const perPage = payload.perPage ?? MEMBERS_DEFAULT_PER_PAGE
 
         const filters: Prisma.WorkspaceMemberWhereInput[] = [
+            // INVITED rows belong to the "ожидают приглашения" panel.
+            memberRosterWhere(workspaceId),
+            ...(scopedUserIds ? [{ userId: { in: scopedUserIds } }] : []),
             ...(payload.q ? memberSearchWhere(payload.q) : []),
         ]
-        const accessWhere = memberAccessWhere(payload.access ?? 'all', {
-            workspaceId,
-            workspaceOwnerId: ctx.workspaceOwnerId,
-            now,
-        })
+        const accessWhere = await memberAccessWhere(
+            this.prisma,
+            payload.access ?? 'all',
+            { workspaceId, workspaceOwnerId: ctx.workspaceOwnerId, now },
+        )
         if (accessWhere) filters.push(accessWhere)
         if (payload.staffOnly) {
             filters.push({
@@ -168,13 +157,7 @@ export class ListWorkspaceMembersHandler
             })
         }
 
-        const where: Prisma.WorkspaceMemberWhereInput = {
-            workspaceId,
-            // INVITED rows belong to the "ожидают приглашения" panel.
-            status: { not: 'INVITED' },
-            ...(scopedUserIds ? { userId: { in: scopedUserIds } } : {}),
-            ...(filters.length > 0 ? { AND: filters } : {}),
-        }
+        const where: Prisma.WorkspaceMemberWhereInput = { AND: filters }
 
         const [members, total] = await Promise.all([
             this.prisma.workspaceMember.findMany({

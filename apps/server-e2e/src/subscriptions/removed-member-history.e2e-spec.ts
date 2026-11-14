@@ -42,14 +42,14 @@ describe('abonements of a removed member', () => {
     const stats = (auth: [string, string], workspaceId: string) =>
         ctx.http().get(`/workspaces/${workspaceId}/stats`).set(...auth).expect(200)
 
-    it('keeps revenue and drops the debt and the active count', async () => {
+    it('keeps revenue and drops the debt and the abonement holders', async () => {
         const { workspace, ownerActor, payer, debtor } = await setup()
         const before = await stats(ownerActor.auth, workspace.id)
         expect(before.body.revenue).toMatchObject({
             revenue30d: 4500,
-            activeSubscriptions: 2,
-            awaitingPayment: { count: 1, amount: 4500 },
+            awaitingPayment: { students: 1, amount: 4500 },
         })
+        expect(before.body.counts.studentsWithAbonement).toBe(2)
 
         for (const userId of [payer.id, debtor.id]) {
             await ctx
@@ -67,9 +67,9 @@ describe('abonements of a removed member', () => {
         const after = await stats(ownerActor.auth, workspace.id)
         expect(after.body.revenue).toMatchObject({
             revenue30d: 4500,
-            activeSubscriptions: 0,
-            awaitingPayment: { count: 0, amount: 0 },
+            awaitingPayment: { students: 0, amount: 0 },
         })
+        expect(after.body.counts.studentsWithAbonement).toBe(0)
         expect(after.body.revenue.trend.at(-1).revenue).toBe(4500)
 
         const awaiting = await ctx

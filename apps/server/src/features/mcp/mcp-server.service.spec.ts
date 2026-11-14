@@ -244,60 +244,60 @@ describe('McpServerService — methods', () => {
 
     it('tags the tariff in renewals and debts too (an archived one included) without naming the member', async () => {
         const P = '11111111-1111-4111-8111-111111111111'
+        // Debts come through the admin list (the bus); renewals from the one
+        // renewal rule over the roster (renewal-rules).
         const bus = {
-            execute: jest
-                .fn()
-                .mockResolvedValueOnce({
-                    data: [
-                        {
-                            userId: 'm1',
-                            firstname: 'Иван',
-                            lastname: 'Петров',
-                            email: 'ivan@x.ru',
-                            reason: 'low_classes',
-                            classesRemaining: 1,
-                            classesTotal: 8,
-                            accessUntil: null,
-                            planId: P,
-                            planName: 'Старый тариф',
-                            endDate: null,
-                            directions: [],
-                        },
-                        {
-                            userId: 'm2',
-                            firstname: null,
-                            lastname: null,
-                            email: null,
-                            reason: 'access_expiring',
-                            classesRemaining: null,
-                            classesTotal: null,
-                            accessUntil: '2026-11-05T00:00:00.000Z',
-                            planId: null,
-                            planName: null,
-                            endDate: null,
-                            directions: [],
-                        },
-                    ],
-                })
-                .mockResolvedValueOnce({
-                    total: 1,
-                    data: [
-                        {
-                            subscriptionId: 's1',
-                            userId: 'm1',
-                            memberName: 'Иван Петров',
-                            memberPhone: '+79990000000',
-                            planId: P,
-                            planName: 'Старый тариф',
-                            amount: 5000,
-                            currency: 'RUB',
-                            startDate: null,
-                            createdAt: '2026-10-01T10:00:00.000Z',
-                        },
-                    ],
-                }),
+            execute: jest.fn().mockResolvedValueOnce({
+                total: 1,
+                data: [
+                    {
+                        subscriptionId: 's1',
+                        userId: 'm1',
+                        memberName: 'Иван Петров',
+                        memberPhone: '+79990000000',
+                        planId: P,
+                        planName: 'Старый тариф',
+                        amount: 5000,
+                        currency: 'RUB',
+                        startDate: null,
+                        createdAt: '2026-10-01T10:00:00.000Z',
+                    },
+                ],
+            }),
         }
         const s = setup({ bus })
+        Object.assign(s.prisma.workspaceMember, {
+            findMany: jest.fn().mockResolvedValue([
+                {
+                    userId: 'm1',
+                    accessUntil: null,
+                    user: {
+                        firstname: 'Иван',
+                        lastname: 'Петров',
+                        email: 'ivan@x.ru',
+                        phone: '+79990000000',
+                        dependentOf: [],
+                    },
+                    subscriptions: [
+                        {
+                            status: 'ACTIVE',
+                            startDate: new Date(Date.now() - 86_400_000),
+                            endDate: null,
+                            classesRemaining: 1,
+                            classesTotal: 8,
+                            plan: { id: P, name: 'Старый тариф' },
+                            directions: [],
+                        },
+                    ],
+                },
+                {
+                    userId: 'm2',
+                    accessUntil: new Date(Date.now() + 2 * 86_400_000),
+                    user: { firstname: null, lastname: null, email: null, phone: null, dependentOf: [] },
+                    subscriptions: [],
+                },
+            ]),
+        })
         const structured = async (name: string) => {
             const res = await s.request('tools/call', { name, arguments: {} })
             return (res.body as { result: { structuredContent: { items: Record<string, unknown>[] } } }).result

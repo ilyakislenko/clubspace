@@ -24,13 +24,13 @@ import {
 // Monday 2 Nov 2026 09:15 in Tomsk.
 const MONDAY = new Date('2026-11-02T02:15:00.000Z')
 
-const mockReports = (members: number) => {
+const mockReports = (students: number) => {
     ;(loadCallList as jest.Mock).mockResolvedValue({ scoredAt: null, entries: [] })
     ;(loadForecastReport as jest.Mock).mockResolvedValue({
         computedAt: null,
         currency: 'RUB',
-        members,
-        monthlyRecurring: 100000,
+        students,
+        mrr: 100000,
         horizons: [],
         renewal: { clubRate: 0.7, clubSample: 0, scopeRate: null, scopeSample: 0, usesDefault: true },
         highRiskMoney: 0,

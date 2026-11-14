@@ -92,7 +92,7 @@ export const buildWeeklyDigest = (r: {
     }
     // Always true, so a quiet club still gets its facts.
     facts.push(
-        `Активных учеников: ${r.forecast.members}, вместе они платят ${formatMoney(r.forecast.monthlyRecurring, ccy)} в месяц`,
+        `Учеников: ${r.forecast.students}, регулярный доход в месяц — ${formatMoney(r.forecast.mrr, ccy)}`,
     )
 
     const open = r.callList.filter((e) => !e.snoozed)

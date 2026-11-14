@@ -1,16 +1,15 @@
-// Pure revenue math for the owner dashboard, split out so it can be unit
-// tested without a database. Amounts stay in the subscription's own integer
-// unit; callers pass already-active rows (status ACTIVE, not expired) and the
-// rows paid in the trailing 30 days. Money counts PAID rows only («Ожидает
-// оплаты» is a receivable, not revenue): every reader goes through
+// Club money (glossary B2): what was sold, what recurs, what is owed. Amounts
+// stay in the subscription's own integer unit. Money counts PAID rows only
+// («Ожидает оплаты» is a receivable, not revenue): every reader goes through
 // paidInRangeWhere(), and a row's revenue date is paidOn(). Revenue includes
 // the abonements of former members (the sale happened); the receivable does
-// not — nobody is chased after leaving the club.
+// not — nobody is chased after leaving the club (awaitingPaymentWhere lives
+// with the renewal rules, domains/subscriptions/renewal-rules.ts).
 
-import { heldSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
-import { localDateInTz, wallClockToUtc } from '../attendance/attendance-utils'
-
-const DAY_MS = 24 * 3600 * 1000
+import { localDateInTz, wallClockToUtc } from '../../features/attendance/attendance-utils'
+import type { Prisma, PrismaService } from '../../infrastructure/prisma'
+import { currentSubscriptionWhere } from '../subscriptions/current-subscriptions'
+import { DAY_MS } from '../subscriptions/freeze-dates'
 
 export type SubAmountRow = { amountPaid: number; currency: string }
 export type ActiveSubRow = SubAmountRow & {
@@ -75,17 +74,6 @@ export const ticketRevenueRow = (r: {
     planName: r.event.title,
 })
 
-// Prisma `where` for the receivable: sold, not paid yet, still a live sale (an
-// expired debt is still a debt; a cancelled sale is not), held by a member. The
-// dashboard card and the «Ожидают оплаты» list share it so their numbers always
-// agree.
-export const awaitingPaymentWhere = (workspaceId: string) => ({
-    workspaceId,
-    ...heldSubscriptionWhere,
-    isPaid: false,
-    status: { in: ['ACTIVE', 'EXPIRED'] as ('ACTIVE' | 'EXPIRED')[] },
-})
-
 // The receivable: abonements sold and not paid yet. Counts every row; the
 // amount sums the club's dominant currency only, like the other money figures.
 export const summarizeAwaiting = (
@@ -143,7 +131,6 @@ export const sumRevenue = (
 }
 
 export type RevenueSummary = {
-    activeSubscriptions: number
     revenue30d: number
     mrr: number
     currency: string | null
@@ -221,24 +208,94 @@ export const revenueByPlan = (
     return [...acc.values()].sort((a, b) => b.revenue - a.revenue)
 }
 
-// Collapse active + recent rows into the dashboard's revenue card. To keep the
-// number coherent for mixed-currency clubs, MRR and revenue30d sum only the
-// dominant currency; activeSubscriptions counts every active row.
+// Collapse current + recent rows into the money figures. To keep the number
+// coherent for mixed-currency clubs, MRR and revenue30d sum only the dominant
+// currency (of the current abonements, else of the sales).
 export const computeRevenue = (
-    active: ActiveSubRow[],
+    current: ActiveSubRow[],
     recent30: SubAmountRow[],
 ): RevenueSummary => {
-    const currency = dominantCurrency(active) ?? dominantCurrency(recent30)
-    const mrr = active
+    const currency = dominantCurrency(current) ?? dominantCurrency(recent30)
+    const mrr = current
         .filter((r) => r.currency === currency)
         .reduce((sum, r) => sum + monthlyEquivalent(r), 0)
     const revenue30d = recent30
         .filter((r) => r.currency === currency)
         .reduce((sum, r) => sum + r.amountPaid, 0)
-    return {
-        activeSubscriptions: active.length,
-        revenue30d,
-        mrr,
-        currency,
-    }
+    return { revenue30d, mrr, currency }
 }
+
+// ---- Loaders: the rows every money figure is computed from ----
+
+// The current abonements behind metric `mrr` («Регулярный доход в месяц»):
+// every abonement held now (a member may hold several), whoever holds it;
+// `memberWhere` narrows to the holders of a view (the forecast's filters).
+export const loadCurrentSales = (
+    prisma: PrismaService,
+    workspaceId: string,
+    now: Date,
+    memberWhere?: Prisma.WorkspaceMemberWhereInput,
+): Promise<ActiveSubRow[]> =>
+    prisma.subscription.findMany({
+        where: {
+            workspaceId,
+            ...currentSubscriptionWhere(now),
+            ...(memberWhere ? { workspaceMember: memberWhere } : {}),
+        },
+        select: { amountPaid: true, currency: true, isPaid: true, startDate: true, endDate: true },
+    })
+
+// metric `mrr` on its own (the forecast); the dashboard computes it from the
+// same rows with computeRevenue.
+export const loadMonthlyRecurringIncome = async (
+    prisma: PrismaService,
+    workspaceId: string,
+    now: Date,
+    memberWhere?: Prisma.WorkspaceMemberWhereInput,
+): Promise<{ amount: number; currency: string | null }> => {
+    const { mrr, currency } = computeRevenue(
+        await loadCurrentSales(prisma, workspaceId, now, memberWhere),
+        [],
+    )
+    return { amount: mrr, currency }
+}
+
+// Paid sales since `since` — abonements and event tickets, dated by payment —
+// behind metrics `revenue_30d`, `revenue_today`, the trend and the breakdown.
+export const loadSales = async (
+    prisma: PrismaService,
+    workspaceId: string,
+    since: Date,
+): Promise<Array<DatedSubRow & PlanSubRow>> => {
+    const [subs, tickets] = await Promise.all([
+        prisma.subscription.findMany({
+            where: { workspaceId, ...paidInRangeWhere({ gte: since }) },
+            select: {
+                amountPaid: true,
+                currency: true,
+                paidAt: true,
+                createdAt: true,
+                planId: true,
+                plan: { select: { name: true } },
+            },
+        }),
+        prisma.eventRegistration.findMany({
+            where: { workspaceId, ...ticketsPaidInRangeWhere({ gte: since }) },
+            select: ticketRevenueSelect,
+        }),
+    ])
+    return [
+        ...subs.map((r) => ({
+            amountPaid: r.amountPaid,
+            currency: r.currency,
+            paidAt: r.paidAt,
+            createdAt: r.createdAt,
+            planId: r.planId,
+            planName: r.plan.name,
+        })),
+        ...tickets.map(ticketRevenueRow),
+    ]
+}
+
+// The trailing-30-day window of metric `revenue_30d`.
+export const revenueWindowStart = (now: Date): Date => new Date(now.getTime() - 30 * DAY_MS)

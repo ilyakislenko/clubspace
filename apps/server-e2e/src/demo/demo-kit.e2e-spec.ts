@@ -139,7 +139,7 @@ describe('demo kit', () => {
         expect(owner.status).toBe(201)
         const auth: [string, string] = ['Authorization', `Bearer ${owner.body.accessToken}`]
         const stats = await ctx.http().get(`/workspaces/${workspaceId}/stats`).set(...auth).expect(200)
-        const students = stats.body.counts.members as number
+        const students = stats.body.counts.students as number
         const share = (n: number) => n / students
         const atRisk = await ctx
             .http()
@@ -163,12 +163,13 @@ describe('demo kit', () => {
             ).length,
         ).toBeGreaterThanOrEqual(3)
         const renewals = await ctx.http().get(`/workspaces/${workspaceId}/renewal-candidates`).set(...auth).expect(200)
-        expect(share(renewals.body.data.length)).toBeGreaterThan(0.05)
-        expect(share(renewals.body.data.length)).toBeLessThan(0.2)
-        expect(share(stats.body.retention.expiringSoon)).toBeLessThan(0.22)
-        expect(share(stats.body.retention.inactiveMembers30d)).toBeLessThan(0.1)
-        expect(stats.body.revenue.awaitingPayment.count).toBeGreaterThanOrEqual(3)
-        expect(stats.body.revenue.awaitingPayment.count).toBeLessThanOrEqual(5)
+        expect(share(renewals.body.total)).toBeGreaterThan(0.05)
+        expect(share(renewals.body.total)).toBeLessThan(0.2)
+        // The dashboard tile is the list's total.
+        expect(stats.body.retention.renewalsDue).toBe(renewals.body.total)
+        expect(share(stats.body.retention.notAttended30d)).toBeLessThan(0.1)
+        expect(stats.body.revenue.awaitingPayment.students).toBeGreaterThanOrEqual(2)
+        expect(stats.body.revenue.awaitingPayment.students).toBeLessThanOrEqual(5)
         const trend = stats.body.revenue.trend as { revenue: number }[]
         expect(trend).toHaveLength(6)
         // The current month may have just begun; the five before it are full.
