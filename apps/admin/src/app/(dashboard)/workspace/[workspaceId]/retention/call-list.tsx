@@ -79,7 +79,7 @@ export function CallList() {
         ...analyticsScope(filter),
         reason: snoozed ? undefined : (reason ?? undefined),
         snoozed,
-        page,
+        curPage: page,
         perPage,
       }),
     [workspaceId, filter, reason, snoozed],

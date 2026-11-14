@@ -96,4 +96,5 @@ export const LEGACY_REDIRECTS: readonly { from: string; to: string }[] = [
   { from: 'directions', to: 'settings/directions' },
   { from: 'analytics', to: 'analytics/forecast' },
   { from: 'analytics/churn', to: 'retention' },
+  { from: 'videos', to: 'content' },
 ]

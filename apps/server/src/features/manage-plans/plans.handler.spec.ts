@@ -303,6 +303,7 @@ describe('updatePlan', () => {
         const out = await rename(prisma, STORED_AT.toISOString())
         expect(prisma.plan.updateMany.mock.calls[0][0].where).toEqual({
             id: 'p1',
+            workspaceId: 'w1',
             updatedAt: STORED_AT,
         })
         expect(prisma.plan.update.mock.calls[0][0].data).toEqual({ name: 'Безлимит' })

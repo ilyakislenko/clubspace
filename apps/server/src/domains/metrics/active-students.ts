@@ -6,7 +6,7 @@ import type { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { DAY_MS } from '../subscriptions/freeze-dates'
 import { type StudentScope, studentsIn, studentWhere } from './students'
 
-export const ACTIVE_STUDENT_WINDOW_DAYS = 30
+const ACTIVE_STUDENT_WINDOW_DAYS = 30
 
 // Served by the [workspaceId, status, lastAttendedAt|lastSeenAt] indexes.
 const activeSince = (now: Date): Prisma.WorkspaceMemberWhereInput => {

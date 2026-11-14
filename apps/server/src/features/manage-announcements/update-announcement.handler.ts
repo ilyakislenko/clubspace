@@ -85,7 +85,7 @@ export class UpdateAnnouncementHandler
         const updated = await this.prisma.$transaction(async (tx) => {
             await claimUnchanged(p.expectedUpdatedAt, (expected) =>
                 tx.announcement.updateMany({
-                    where: { id: f.announcementId, updatedAt: expected },
+                    where: { id: f.announcementId, workspaceId: f.workspaceId, updatedAt: expected },
                     data: { updatedAt: new Date() },
                 }),
             )

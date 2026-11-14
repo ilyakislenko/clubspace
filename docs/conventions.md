@@ -101,6 +101,19 @@ export class XHandler implements IFeatureHandler<XFeature, XFeatureResponse> {
 - **Idempotent create on a compound unique:** Prisma `upsert` isn't atomic there — use
   `create` + `catch (P2002) → findUnique` (check `(e as {code}).code === 'P2002'`).
 - **Enum values** are passed as string literals (`status: 'ACTIVE'`), matching the codebase.
+- **Edit forms and concurrent saves:** an update input that an edit form sends spreads
+  `ExpectedUpdatedAtField` (`shared/utils/optimistic-concurrency.ts`); the handler calls
+  `claimUnchanged(payload.expectedUpdatedAt, (expected) => tx.<model>.updateMany({ where: { id,
+  workspaceId, updatedAt: expected }, data: { updatedAt: new Date() } }))` inside the same
+  `$transaction` as the real update, which throws `StaleUpdateError` (409 `STALE_UPDATE`).
+  Omitted = last write wins (mobile, MCP). The read endpoint returns `updatedAt`.
+- **Counts of people, money and renewals** come only from `domains/metrics/*` and
+  `domains/subscriptions/renewal-rules.ts` (the glossary in
+  `docs/design/2026-11-08-admin-cleanup.md` B2). A new screen or report reuses those functions;
+  never write its own `where` for «students», «active», «awaiting payment» or «renewal due».
+- **Call list cache:** a write that changes who is on «Кому позвонить» (contact logged,
+  membership removed) calls `CallListCacheService.invalidate(workspaceId)`; everything else
+  waits out the 60 s TTL.
 
 ### controller.ts
 ```ts
@@ -255,6 +268,20 @@ Reference wrapper: `apps/admin/src/shared/api/events.ts`.
   route keep `role="tablist"` buttons with `?tab=` (see `retention/page.tsx`). On `LeadGate`
   pages read `useDirectionScope(workspaceId)` (`shared/workspace/use-direction-scope.ts`) to hide
   row actions outside `canManageDirection` and pass `allowedDirectionIds` to `DirectionSelect`.
+- **Confirmations:** `await confirmDialog({ title, description, destructive })` from
+  `shared/ui/confirm-dialog.tsx` (host mounted once in `app/(dashboard)/layout.tsx`); the
+  description names what is lost («В группе 21 ученик…»). No `window.confirm`. Component specs
+  render `<ConfirmDialogHost />` next to the component.
+- **Unsaved changes:** a form or side panel calls `useDirtyGuard(dirty)`
+  (`shared/lib/use-dirty-guard.ts`); closing a changed panel (Esc, outside click, «Отмена») goes
+  through `await confirmLeave()` (see `EventFormSheet.tsx`).
+- **Edit forms send the version they opened with** as `expectedUpdatedAt` (captured when the panel
+  opens, not on re-render); on a 409 keep the draft and show `<StaleUpdateNotice>`
+  (`shared/ui/stale-update-notice.tsx`) with «Обновить».
+- **Moving or adding a route:** the old page file becomes
+  `redirectInWorkspace(props, "<new path>")` (`shared/workspace/legacy-redirect.ts`, keeps the
+  query), and the admin e2e role table `apps/admin-e2e/src/role-matrix.ts` gets the route
+  (`ROLE_MATRIX`) or the redirect (`LEGACY_REDIRECTS`) — the smoke suite derives the rest.
 - Prefer a self-contained component (own fetch) over threading state through a large page.
 - Verify: `npx tsc -p apps/admin/tsconfig.json --noEmit`. Visual QA needs the app running.
 

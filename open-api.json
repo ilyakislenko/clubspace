@@ -11661,7 +11661,7 @@
             }
           },
           {
-            "name": "page",
+            "name": "curPage",
             "required": false,
             "in": "query",
             "schema": {
@@ -47548,7 +47548,7 @@
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
-          "page": {
+          "curPage": {
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
@@ -47569,7 +47569,7 @@
           "data",
           "summary",
           "total",
-          "page",
+          "curPage",
           "perPage",
           "scoredAt"
         ],

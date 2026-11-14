@@ -76,7 +76,7 @@ export class UpdatePlanHandler
         const plan = await this.prisma.$transaction(async (tx) => {
             await claimUnchanged(p.expectedUpdatedAt, (expected) =>
                 tx.plan.updateMany({
-                    where: { id: f.planId, updatedAt: expected },
+                    where: { id: f.planId, workspaceId: f.workspaceId, updatedAt: expected },
                     data: { updatedAt: new Date() },
                 }),
             )

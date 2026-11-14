@@ -178,7 +178,7 @@ describe('updateGroup optimistic concurrency', () => {
         const out = await rename(handler, STORED_AT.toISOString())
         expect(tx.group.updateMany).toHaveBeenCalledWith(
             expect.objectContaining({
-                where: { id: 'g1', updatedAt: STORED_AT },
+                where: { id: 'g1', workspaceId: 'w1', updatedAt: STORED_AT },
             }),
         )
         expect(tx.group.update).toHaveBeenCalled()

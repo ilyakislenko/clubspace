@@ -13,7 +13,7 @@ export const AT_RISK_MAX_PER_PAGE = 200
 export const ListAtRiskMembersInputSchema = AnalyticsFilterSchema.extend({
     reason: AtRiskReasonSchema.optional(),
     snoozed: strictBoolean().optional(),
-    page: z.coerce.number().int().min(1).optional(),
+    curPage: z.coerce.number().int().min(1).optional(),
     perPage: z.coerce.number().int().min(1).max(AT_RISK_MAX_PER_PAGE).optional(),
 })
 
@@ -22,7 +22,7 @@ export const ListAtRiskMembersOutputSchema = z.object({
     summary: AtRiskSummarySchema,
     // Rows matching every filter (chip and snoozed included), across pages.
     total: z.number().int(),
-    page: z.number().int(),
+    curPage: z.number().int(),
     perPage: z.number().int(),
     // When the churn scores were computed (null = not yet).
     scoredAt: z.iso.datetime().nullable(),

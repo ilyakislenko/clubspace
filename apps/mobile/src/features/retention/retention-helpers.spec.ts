@@ -49,7 +49,7 @@ const list = (moneyAtStake: number | null = 8000): AtRiskList => ({
     currency: "RUB",
   },
   total: 3,
-  page: 1,
+  curPage: 1,
   perPage: 2,
   scoredAt: null,
 })

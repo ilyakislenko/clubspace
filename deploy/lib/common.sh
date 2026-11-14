@@ -110,10 +110,10 @@ url_origin() {
 # their Content-Security-Policy. When the two differ, the browser blocks video
 # preview and nothing on the server side logs an error. Compares what is
 # running: the server container's ROOT_URL against the policy each web app
-# actually sends. Silent and 0 when they match; otherwise prints what is wrong
-# and how to fix it, and returns 1. A web app that sends no policy (down or
-# still starting — asked 3 times, 3 s apart) is reported as not answering, not
-# as a wrong build.
+# actually sends. Silent and 0 when they match. Otherwise prints what is wrong
+# and how to fix it: returns 1 for a wrong build (or an unreadable ROOT_URL),
+# 2 when the only problem is a web app that sends no policy (down or still
+# starting — asked 3 times, 3 s apart), so a caller can tell the two apart.
 check_api_origin() {
     local root origin svc try policy media down="" bad="" msg=""
     root="$(compose exec -T server printenv ROOT_URL 2> /dev/null || true)"
@@ -153,7 +153,8 @@ check_api_origin() {
     fi
     [ -z "$msg" ] && return 0
     printf '%s\n' "${msg% }"
-    return 1
+    [ -n "$bad" ] && return 1
+    return 2
 }
 
 # One ops job at a time: a nightly backup must not start in the middle of an

@@ -109,7 +109,7 @@ export function AtRiskMembersScreen() {
         workspaceId: workspace.workspaceId,
         snoozed: showSnoozed,
         reason: showSnoozed ? undefined : (reason ?? undefined),
-        page: Math.floor(rows.length / PER_PAGE) + 1,
+        curPage: Math.floor(rows.length / PER_PAGE) + 1,
         perPage: PER_PAGE,
       })
       setMore((prev) => [...prev, ...res.data])

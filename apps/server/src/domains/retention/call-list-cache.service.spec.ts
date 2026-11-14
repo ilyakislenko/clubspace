@@ -3,7 +3,7 @@ jest.mock('./call-list', () => ({ loadCallList: jest.fn() }))
 import { Logger } from '@nestjs/common'
 
 import { loadCallList } from './call-list'
-import { CALL_LIST_TTL_MS, CallListCacheService } from './call-list-cache.service'
+import { CACHE_WAIT_MS, CALL_LIST_TTL_MS, CallListCacheService } from './call-list-cache.service'
 
 const LIST = { scoredAt: null, entries: [{ userId: 'a' }] }
 const FRESH = { scoredAt: null, entries: [{ userId: 'b' }] }
@@ -107,5 +107,20 @@ describe('CallListCacheService', () => {
         redis.eval.mockRejectedValue(new Error('down'))
         expect(await cache.get('w1')).toEqual(LIST)
         await expect(cache.invalidate('w1')).resolves.toBeUndefined()
+    })
+
+    it('stops waiting for a Redis that does not answer and reads the database', async () => {
+        jest.useFakeTimers()
+        try {
+            const { cache, redis } = make()
+            const silent = () => new Promise<never>(() => undefined)
+            redis.get.mockImplementation(silent)
+            redis.eval.mockImplementation(silent)
+            const read = cache.get('w1')
+            await jest.advanceTimersByTimeAsync(CACHE_WAIT_MS)
+            await expect(read).resolves.toEqual(LIST)
+        } finally {
+            jest.useRealTimers()
+        }
     })
 })

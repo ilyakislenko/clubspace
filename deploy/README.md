@@ -650,10 +650,11 @@ never set either one on its own; the way to get them apart is to change
 `DOMAIN` and restart without rebuilding `admin` and `client`. Two checks catch
 it (`check_api_origin` in `deploy/lib/common.sh`: the server container's
 `ROOT_URL` against the `media-src` the running `admin` and `client` send):
-`update.sh` rolls the update back on a mismatch, and `healthcheck.sh` alerts
-(`api-origin`) within five minutes of a manual `up`. The message names both
-addresses and the fix: `docker compose -f docker-compose.prod.yml --env-file
-.env.production up -d --build admin client`.
+`update.sh` rolls the update back on a mismatch (a web app that does not answer
+after three tries is only reported — the container checks cover a crash), and
+`healthcheck.sh` alerts (`api-origin`) within five minutes of a manual `up`. The
+message names both addresses and the fix: `docker compose -f
+docker-compose.prod.yml --env-file .env.production up -d --build admin client`.
 
 ## Verify
 

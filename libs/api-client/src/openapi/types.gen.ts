@@ -6692,7 +6692,7 @@ export type ListAtRiskMembersOutputOutput = {
         currency: string | null;
     };
     total: number;
-    page: number;
+    curPage: number;
     perPage: number;
     scoredAt: string | null;
 };
@@ -13175,7 +13175,7 @@ export type ListAtRiskMembersData = {
         coachId?: string;
         reason?: 'lapsed' | 'newcomer' | 'absent' | 'declining';
         snoozed?: boolean;
-        page?: number;
+        curPage?: number;
         perPage?: number;
     };
     url: '/workspaces/{workspaceId}/at-risk-members';

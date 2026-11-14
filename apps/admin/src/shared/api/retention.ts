@@ -17,7 +17,7 @@ export const listAtRiskMembers = async (
     workspaceId: string
     reason?: AtRiskReason
     snoozed?: boolean
-    page?: number
+    curPage?: number
     perPage?: number
   } & AnalyticsScope,
 ): Promise<AtRiskList> =>
@@ -31,7 +31,7 @@ export const listAtRiskMembers = async (
       coachId: params.coachId,
       reason: params.reason,
       snoozed: params.snoozed,
-      page: params.page,
+      curPage: params.curPage,
       perPage: params.perPage,
     },
   })

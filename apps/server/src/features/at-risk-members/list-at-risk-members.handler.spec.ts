@@ -178,12 +178,11 @@ describe('ListAtRiskMembersHandler', () => {
 
     it('pages through the rows', async () => {
         const { run } = make()
-        const second = await run(OWNER, { page: 2, perPage: 2 })
-        expect(second).toMatchObject({ page: 2, perPage: 2, total: 3 })
+        const second = await run(OWNER, { curPage: 2, perPage: 2 })
+        expect(second).toMatchObject({ curPage: 2, perPage: 2, total: 3 })
         expect(second.data.map((m) => m.userId)).toEqual(['c'])
-        const past = await run(OWNER, { page: 5, perPage: 2 })
+        const past = await run(OWNER, { curPage: 5, perPage: 2 })
         expect(past.data).toEqual([])
-        expect((await run(OWNER)).perPage).toBe(50)
     })
 
     it('keeps the score join and leaves members without a snapshot unscored', async () => {

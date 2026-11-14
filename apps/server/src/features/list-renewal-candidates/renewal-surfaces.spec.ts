@@ -5,8 +5,8 @@
 jest.mock('../../shared/access/assert-admin-scope', () => ({
     assertSportLead: jest.fn().mockResolvedValue(undefined),
 }))
-jest.mock('../club-analytics/analytics-scope', () => ({
-    ...jest.requireActual('../club-analytics/analytics-scope'),
+jest.mock('../../domains/analytics/analytics-scope', () => ({
+    ...jest.requireActual('../../domains/analytics/analytics-scope'),
     resolveAnalyticsScope: jest
         .fn()
         .mockResolvedValue({ scope: { groupIds: null, includeGroupless: true } }),

@@ -20,6 +20,21 @@ const droppedKey = (workspaceId: string): string => `call-list:${workspaceId}:dr
 
 type Entry = { at: number; list: CallList }
 
+// The shared client queues commands and retries while Redis is down, which
+// would hold every call-list read for seconds. The cache gives up after this
+// and the list is computed from the database.
+export const CACHE_WAIT_MS = 500
+
+// Executor form: the server's TS lib (es2022) has no Promise.withResolvers.
+const withinCacheWait = <T>(op: Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(
+            () => reject(new Error(`no answer in ${CACHE_WAIT_MS} ms`)),
+            CACHE_WAIT_MS,
+        )
+        op.then(resolve, reject).finally(() => clearTimeout(timer))
+    })
+
 // Store the list unless the club was dropped after the computation started —
 // the check and the SET in one atomic step, so a contact logged in between
 // cannot be overwritten by the older list.
@@ -47,7 +62,7 @@ export class CallListCacheService {
     async get(workspaceId: string): Promise<CallList> {
         const startedAt = Date.now()
         try {
-            const hit = await this.redis.get(listKey(workspaceId))
+            const hit = await withinCacheWait(this.redis.get(listKey(workspaceId)))
             if (hit) {
                 const entry = JSON.parse(hit) as Entry
                 if (startedAt - entry.at < CALL_LIST_TTL_MS) return entry.list
@@ -59,9 +74,10 @@ export class CallListCacheService {
             workspaceId,
             now: new Date(startedAt),
         })
-        try {
-            const entry: Entry = { at: startedAt, list }
-            await this.redis.eval(
+        // Stored in the background: the caller already has the list.
+        const entry: Entry = { at: startedAt, list }
+        void withinCacheWait(
+            this.redis.eval(
                 STORE_UNLESS_DROPPED,
                 2,
                 listKey(workspaceId),
@@ -69,23 +85,23 @@ export class CallListCacheService {
                 JSON.stringify(entry),
                 String(startedAt),
                 String(CALL_LIST_TTL_MS),
-            )
-        } catch (err) {
-            this.warn('write', err)
-        }
+            ),
+        ).catch((err: unknown) => this.warn('write', err))
         return list
     }
 
     /** Drop the club's list after a write that changes who is on it. */
     async invalidate(workspaceId: string): Promise<void> {
         try {
-            await this.redis.set(
-                droppedKey(workspaceId),
-                String(Date.now()),
-                'PX',
-                CALL_LIST_TTL_MS,
+            await withinCacheWait(
+                this.redis.set(
+                    droppedKey(workspaceId),
+                    String(Date.now()),
+                    'PX',
+                    CALL_LIST_TTL_MS,
+                ),
             )
-            await this.redis.del(listKey(workspaceId))
+            await withinCacheWait(this.redis.del(listKey(workspaceId)))
         } catch (err) {
             this.warn('invalidate', err)
         }

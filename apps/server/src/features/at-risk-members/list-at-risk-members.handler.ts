@@ -8,7 +8,7 @@ import { CallListCacheService } from '../../domains/retention/call-list-cache.se
 import { PrismaService } from '../../infrastructure/prisma'
 import { isClubAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
-import { resolveAnalyticsScope } from '../club-analytics/analytics-scope'
+import { resolveAnalyticsScope } from '../../domains/analytics/analytics-scope'
 import {
     AT_RISK_DEFAULT_PER_PAGE,
     ListAtRiskMembersFeature,
@@ -55,18 +55,18 @@ export class ListAtRiskMembersHandler
                 e.snoozed === snoozed &&
                 (!payload.reason || e.reason === payload.reason),
         )
-        const page = payload.page ?? 1
+        const curPage = payload.curPage ?? 1
         const perPage = payload.perPage ?? AT_RISK_DEFAULT_PER_PAGE
         return {
             data: rows
-                .slice((page - 1) * perPage, page * perPage)
+                .slice((curPage - 1) * perPage, curPage * perPage)
                 .map((e) => serializeAtRiskMember(e, seesMoney)),
             summary: {
                 ...summary,
                 moneyAtStake: seesMoney ? summary.moneyAtStake : null,
             },
             total: rows.length,
-            page,
+            curPage,
             perPage,
             scoredAt: list.scoredAt,
         }

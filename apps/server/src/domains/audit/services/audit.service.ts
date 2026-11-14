@@ -365,6 +365,16 @@ export class AuditService {
             if (event.metadata) collectIds(event.metadata)
         }
 
+        // Names come only from the journal's own club (the platform journal,
+        // workspaceId null, may name any club's objects). Users are not
+        // scoped: the owner has no member row and removed members lose theirs,
+        // and both must still be named in the club's history.
+        const inClub =
+            payload.workspaceId !== null ? { workspaceId: payload.workspaceId } : {}
+        const inClubVia =
+            payload.workspaceId !== null
+                ? { group: { workspaceId: payload.workspaceId } }
+                : {}
         const [
             users,
             videos,
@@ -391,31 +401,31 @@ export class AuditService {
                 : [],
             videoIds.size > 0
                 ? this.prisma.video.findMany({
-                      where: { id: { in: Array.from(videoIds) } },
+                      where: { id: { in: Array.from(videoIds) }, ...inClub },
                       select: { id: true, title: true },
                   })
                 : [],
             courseIds.size > 0
                 ? this.prisma.course.findMany({
-                      where: { id: { in: Array.from(courseIds) } },
+                      where: { id: { in: Array.from(courseIds) }, ...inClub },
                       select: { id: true, title: true },
                   })
                 : [],
             gymIds.size > 0
                 ? this.prisma.gym.findMany({
-                      where: { id: { in: Array.from(gymIds) } },
+                      where: { id: { in: Array.from(gymIds) }, ...inClub },
                       select: { id: true, name: true },
                   })
                 : [],
             groupIds.size > 0
                 ? this.prisma.group.findMany({
-                      where: { id: { in: Array.from(groupIds) } },
+                      where: { id: { in: Array.from(groupIds) }, ...inClub },
                       select: { id: true, name: true },
                   })
                 : [],
             slotIds.size > 0
                 ? this.prisma.groupScheduleSlot.findMany({
-                      where: { id: { in: Array.from(slotIds) } },
+                      where: { id: { in: Array.from(slotIds) }, ...inClubVia },
                       select: {
                           id: true,
                           dayOfWeek: true,
@@ -426,7 +436,7 @@ export class AuditService {
                 : [],
             exceptionIds.size > 0
                 ? this.prisma.scheduleException.findMany({
-                      where: { id: { in: Array.from(exceptionIds) } },
+                      where: { id: { in: Array.from(exceptionIds) }, ...inClubVia },
                       select: {
                           id: true,
                           fromDate: true,
@@ -437,7 +447,7 @@ export class AuditService {
                 : [],
             eventIds.size > 0
                 ? this.prisma.workspaceEvent.findMany({
-                      where: { id: { in: Array.from(eventIds) } },
+                      where: { id: { in: Array.from(eventIds) }, ...inClub },
                       select: { id: true, title: true },
                   })
                 : [],
@@ -449,13 +459,18 @@ export class AuditService {
                 : [],
             chapterIds.size > 0
                 ? this.prisma.chapter.findMany({
-                      where: { id: { in: Array.from(chapterIds) } },
+                      where: {
+                          id: { in: Array.from(chapterIds) },
+                          ...(payload.workspaceId !== null
+                              ? { course: { workspaceId: payload.workspaceId } }
+                              : {}),
+                      },
                       select: { id: true, title: true },
                   })
                 : [],
             directionIds.size > 0
                 ? this.prisma.direction.findMany({
-                      where: { id: { in: Array.from(directionIds) } },
+                      where: { id: { in: Array.from(directionIds) }, ...inClub },
                       select: { id: true, name: true },
                   })
                 : [],

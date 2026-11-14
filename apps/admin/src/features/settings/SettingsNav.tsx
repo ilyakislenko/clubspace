@@ -9,7 +9,7 @@ import { useVocabulary } from "../../shared/lib/vocabulary"
 
 // Sections of «Настройки», in menu order. `path` is relative to
 // `/workspace/<id>/settings` ("" = the default section).
-export const settingsSections = (
+const settingsSections = (
   v: ClubVocabulary,
 ): Array<{ path: string; label: string }> => [
   { path: "", label: "Профиль клуба" },

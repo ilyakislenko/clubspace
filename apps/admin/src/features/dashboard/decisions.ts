@@ -2,7 +2,7 @@
 // in this order, each only while its count is above zero. A count is null
 // when the viewer's role has no such list (a coach has no «Продлить») or its
 // request failed — the row is then absent too.
-export const DECISION_KEYS = [
+const DECISION_KEYS = [
   "call", // «Кому позвонить» (B1 call list)
   "renew", // «Продлить» (renewals_due)
   "awaiting", // «Ожидают оплаты» (awaiting_payment, people)

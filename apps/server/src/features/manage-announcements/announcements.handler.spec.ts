@@ -465,6 +465,7 @@ describe('announcements by direction', () => {
     await promise;
     expect(prisma.announcement.updateMany.mock.calls[0][0].where).toEqual({
       id: 'a1',
+      workspaceId: 'w1',
       updatedAt: row().updatedAt,
     });
     expect(prisma.announcement.update.mock.calls[0][0].data).toEqual({ title: 'New' });

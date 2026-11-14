@@ -39,10 +39,6 @@ export const studentsIn = (scope: StudentScope): Prisma.WorkspaceMemberWhereInpu
         ? { AND: [studentWhere(scope.workspaceId, scope.ownerId), scope.where] }
         : studentWhere(scope.workspaceId, scope.ownerId)
 
-// metric `members_total`
-export const countMembers = (prisma: PrismaService, workspaceId: string): Promise<number> =>
-    prisma.workspaceMember.count({ where: memberRosterWhere(workspaceId) })
-
 // metric `students_total`
 export const countStudents = (prisma: PrismaService, scope: StudentScope): Promise<number> =>
     prisma.workspaceMember.count({ where: studentsIn(scope) })

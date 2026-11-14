@@ -5,7 +5,7 @@ import type { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { DAY_MS } from '../subscriptions/freeze-dates'
 import { type StudentScope, studentsIn, studentWhere } from './students'
 
-export const ATTENDANCE_WINDOW_DAYS = 30
+const ATTENDANCE_WINDOW_DAYS = 30
 
 const checkedInSince = (workspaceId: string, since: Date) => ({
     attendanceRecords: { some: { workspaceId, markedAt: { gte: since } } },
@@ -62,7 +62,7 @@ export const countStudentsNotAttended = (
 // metric `checkins_7d` / `checkins_30d` / `checkins_today` (and the weekly
 // trend): check-ins of students since `since` (a coach marking themselves
 // present is not one).
-export const studentCheckinsWhere = (
+const studentCheckinsWhere = (
     scope: StudentScope,
     since: Date,
 ): Prisma.AttendanceRecordWhereInput => ({

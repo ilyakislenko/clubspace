@@ -4,7 +4,7 @@ import { loadForecastReport } from '../../domains/analytics/analytics-reports'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
-import { resolveAnalyticsScope } from './analytics-scope'
+import { resolveAnalyticsScope } from '../../domains/analytics/analytics-scope'
 import { GetRevenueForecastFeature, GetRevenueForecastFeatureResponse } from './get-revenue-forecast.feature'
 import { serializeForecastReport } from './schemas'
 

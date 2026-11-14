@@ -1,9 +1,12 @@
-import type { AnalyticsScope } from '../../domains/analytics/analytics-reports'
 import type { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { type CoachContext, ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import { cap, loadClubVocabulary } from '../../shared/utils/club-vocabulary'
-import type { AnalyticsFilter } from './schemas'
+import type { AnalyticsScope } from './analytics-reports'
+
+// The report filters every analytics route accepts (`AnalyticsFilterSchema`
+// in features/club-analytics/schemas validates them on the way in).
+type AnalyticsFilter = { gymId?: string; directionId?: string; groupId?: string; coachId?: string }
 
 // Who sees what in «Аналитика»: owner, admin and head coach the whole club;
 // anyone else (a coach, a direction manager) only the groups they act on as

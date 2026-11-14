@@ -4,15 +4,15 @@
 jest.mock('../../shared/access/assert-admin-scope', () => ({
     assertSportLead: jest.fn().mockResolvedValue(undefined),
 }))
-jest.mock('../club-analytics/analytics-scope', () => ({
-    ...jest.requireActual('../club-analytics/analytics-scope'),
+jest.mock('../../domains/analytics/analytics-scope', () => ({
+    ...jest.requireActual('../../domains/analytics/analytics-scope'),
     resolveAnalyticsScope: jest.fn(),
 }))
 
 import { awaitingPaymentWhere } from '../../domains/subscriptions/renewal-rules'
 import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import { ForbiddenError } from '../../shared/errors/shared.errors'
-import { resolveAnalyticsScope } from '../club-analytics/analytics-scope'
+import { resolveAnalyticsScope } from '../../domains/analytics/analytics-scope'
 import {
     ListAwaitingPaymentFeature,
     type ListAwaitingPaymentInput,

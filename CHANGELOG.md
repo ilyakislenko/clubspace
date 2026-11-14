@@ -106,6 +106,25 @@
 - Деплой проверяет, что `ROOT_URL` сервера разрешён для видео в CSP админки и
   сайта: `update.sh` откатывает обновление, `healthcheck.sh` присылает
   предупреждение.
+- API (ломающие изменения для внешних клиентов; мобильное приложение,
+  сайт и MCP обновлены):
+  - удалены `GET analytics/churn`, `GET rank-ladders/:id/roster`,
+    `POST rank-ladders/:id/promotions`, роль-уровень `WORKSPACE_ADMINS`;
+  - `GET at-risk-members`: постранично (`curPage`, `perPage`), без `scope=mine`
+    и `canContact`; `GET groups` — без составов, расписаний и настроек записи
+    (состав — `GET groups/:groupId/members`);
+  - `GET stats` без `activity`, `topVideos7d`, `recentEvents`, трендов,
+    разбивки по тарифам и старых счётчиков (`members`, `courses`,
+    `distinctAttendees30d`, `retention.*`), с полями словаря метрик и
+    `revenuePrev30d`; прогноз: `members` → `students`, `monthlyRecurring` → `mrr`;
+  - `GET members` без прогресса видео и `workspaceVideoTotal`, с `owesPayment`
+    и фильтром `access=all|renew|unpaid|inactive`; `AiTokenOutput` без
+    `canRevoke`;
+  - `renewal-candidates`, `awaiting-payment`, `rank-readiness` постраничны;
+    события ограничены 366 днями; `freeze-requests` отдаёт `total`;
+  - необязательное `expectedUpdatedAt` (409 `STALE_UPDATE`) в правках группы,
+    тарифа, настроек, публичной страницы, «О клубе» и объявления; цена тарифа
+    ≤ 100 000 000.
 
 ### Готовность к запуску
 - Healthcheck для admin, client и pwa в `docker-compose.prod.yml`;

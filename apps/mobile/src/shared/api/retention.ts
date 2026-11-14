@@ -16,7 +16,7 @@ export const listAtRiskMembers = async (params: {
   workspaceId: string
   reason?: AtRiskReason
   snoozed?: boolean
-  page?: number
+  curPage?: number
   perPage?: number
 }): Promise<AtRiskList> =>
   await getApiClient().request<AtRiskList>({
@@ -25,7 +25,7 @@ export const listAtRiskMembers = async (params: {
     params: {
       reason: params.reason,
       snoozed: params.snoozed,
-      page: params.page,
+      curPage: params.curPage,
       perPage: params.perPage,
     },
   })

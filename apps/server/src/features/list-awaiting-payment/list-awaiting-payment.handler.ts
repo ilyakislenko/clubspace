@@ -10,7 +10,7 @@ import { RbacService } from '../../shared/services/rbac.service'
 import {
     analyticsScopeMemberWhere,
     resolveAnalyticsScope,
-} from '../club-analytics/analytics-scope'
+} from '../../domains/analytics/analytics-scope'
 import {
     AWAITING_DEFAULT_PER_PAGE,
     ListAwaitingPaymentFeature,

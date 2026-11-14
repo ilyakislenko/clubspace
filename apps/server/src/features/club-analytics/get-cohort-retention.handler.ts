@@ -3,7 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { loadCohortReport } from '../../domains/analytics/analytics-reports'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
-import { resolveAnalyticsScope } from './analytics-scope'
+import { resolveAnalyticsScope } from '../../domains/analytics/analytics-scope'
 import { GetCohortRetentionFeature, GetCohortRetentionFeatureResponse } from './get-cohort-retention.feature'
 import { serializeCohortReport } from './schemas'
 

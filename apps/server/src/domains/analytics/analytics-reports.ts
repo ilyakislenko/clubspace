@@ -3,7 +3,7 @@
 // and the weekly digest build the same numbers.
 import { localDateInTz } from '../../features/attendance/attendance-utils'
 import { displayName } from '../../features/attendance/schemas'
-import { analyticsScopeMemberWhere } from '../../features/club-analytics/analytics-scope'
+import { analyticsScopeMemberWhere } from './analytics-scope'
 import type { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { expectedRevenue, type RevenueHorizon } from '../metrics/expected-revenue'

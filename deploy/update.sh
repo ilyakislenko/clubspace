@@ -277,7 +277,15 @@ update() {
     smoke || rollback "новая версия не поднялась (server /healthz или перезапуски контейнеров)"
     # The web apps' policy must allow the API's public address, or video
     # preview is blocked in the browser while every container looks healthy.
-    mismatch="$(check_api_origin)" || rollback "$mismatch"
+    # A wrong build rolls back; a web app that is merely not answering yet
+    # (exit 2) is reported — the container checks above cover a crashed one.
+    local origin_rc=0
+    mismatch="$(check_api_origin)" || origin_rc=$?
+    case "$origin_rc" in
+        0) ;;
+        2) warn "$mismatch" ;;
+        *) rollback "$mismatch" ;;
+    esac
     public="${HEALTH_API_URL:-https://api.$DOMAIN${PUBLIC_PORT_SUFFIX:-}}/healthz"
     curl -fsS -m 15 -o /dev/null "$public" || warn "$public снаружи не отвечает, хотя контейнер здоров — проверьте Caddy/DNS"
 

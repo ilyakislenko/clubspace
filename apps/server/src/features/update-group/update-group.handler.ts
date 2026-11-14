@@ -109,7 +109,7 @@ export class UpdateGroupHandler
             // A form that read an older version is refused before any write.
             await claimUnchanged(expectedUpdatedAt, (expected) =>
                 tx.group.updateMany({
-                    where: { id: groupId, updatedAt: expected },
+                    where: { id: groupId, workspaceId, updatedAt: expected },
                     data: { updatedAt: new Date() },
                 }),
             )

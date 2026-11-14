@@ -93,7 +93,8 @@ a comparison with other coaches and the audit log. The audit page claims «То�
 | Settings (sections, coach permissions, booking rules, time zone, notifications), roles, public page, integrations / MCP & AI tokens, club import, data exports, audit log | ✅ | ❌ | ❌ | ❌ |
 | Groups, gyms, schedule edits, substitutions, cancellations | ✅ | ✅ | scoped | own groups (existing rules) |
 | Ranks ladders, gradings, courses & videos, announcements, events | ✅ | ✅ | scoped | existing rules |
-| Call list / renewals, cohorts, occupancy | ✅ whole club | ✅ whole club | scoped | own groups |
+| Call list, cohorts, occupancy | ✅ whole club | ✅ whole club | scoped | own groups |
+| Renewals («Продлить», «Ожидают оплаты») | ✅ | ✅ (row amounts = agreed price, operational) | ❌ | ❌ |
 | Coaches comparison | ✅ | ✅ | ❌ | ❌ |
 | AI assistant | ✅ | only if its tools respect the money tier (verify `features/ai-chat`, MCP tools), else ❌ | ❌ | ❌ |
 
@@ -197,10 +198,11 @@ realtime/poll.
   `GET analytics/churn`, `ListChurnRisk*`, `loadChurnReport`, `CONTACT_FRESH_DAYS`,
   `CHURN_LIST_MIN_SCORE` and the admin `listChurnRisk`/`splitChurnList`/`CHURN_LEVEL_*` are deleted.
   Query: `gymId`/`directionId`/`groupId`/`coachId` (resolved by `resolveAnalyticsScope`, foreign id →
-  404), `reason` (chip), `snoozed` (`true` = the contacted ones instead of the ones to call), `page`,
+  404), `reason` (chip), `snoozed` (`true` = the contacted ones instead of the ones to call), `curPage`,
   `perPage` (50, max 200). Response: `data`, `summary` (`total` + per reason + `high` + `snoozed` +
   `moneyAtStake`, over scope and filters, not over the chip or the page), `total` (rows matching
-  everything), `page`, `perPage`, `scoredAt`.
+  everything), `curPage`, `perPage`, `scoredAt` (renamed from `page` in the final review, to match
+  every other paged endpoint).
 - Scope = the matrix: sport leads the whole club (group-less members included), a coach or a
   direction manager the groups they act on as their own (`ownGroupsWhere`) **regardless of
   `coachSeesAllGroups`** — the old `scope=mine` parameter and the read-all coach's view of other
@@ -223,7 +225,8 @@ realtime/poll.
   кону …» (money for club admins), the analytics filters, reason chips with counts, «Связались
   недавно (N)» switch, a «Риск» column, «Показать ещё». `ws/analytics/churn` redirects there; the
   churn card left «Аналитика»; the sidebar group «Аналитика» is hidden when a role has no item in it
-  (a plain coach). The dashboard tile reads the summary with `perPage=1`.
+  (a plain coach). The dashboard tile reads the summary with `perPage=1`. *Superseded in wave 4:*
+  the sidebar item is «Удержание» with tabs «Позвонить» · «Продлить»; the «Аналитика» group is gone.
 - Mobile: the home and «Прогресс» cards read `atrisk:<ws>:summary` (`perPage=1`); «Кому позвонить»
   pages its own keys per view (`atrisk:<ws>:open|snoozed:<reason>`), chips filter on the server,
   «Связались» removes the row, moves every count (`applyContact`) and invalidates `atrisk:<ws>` so
@@ -273,7 +276,7 @@ over the caller's scope (a coach: own groups; the forecast: its filters). Functi
 | `revenue_today` | «Выручка сегодня» | the same sales since the club-local midnight | `sumRevenue` over `loadSales` | stats API only (not drawn since wave 5) |
 | `expected_revenue_30d` / `_90d` | «Ожидается за 30 / 90 дней» | renewals of current students' abonements inside the horizon × each student's renewal probability (club renewal share scaled by churn score), from the hourly snapshot; «Если все продлят» = the same at probability 1 | `expectedRevenue`, `loadExpectedRevenue` | «Прогноз выручки» (30, 90), weekly digest; stats API (30) |
 | `money_at_stake` | «на кону» / «На кону у учеников с высоким риском» | sum of the students' average monthly spend over 180 days (`monthlySpend`, snapshot): over the call list / over high-risk students | `domains/analytics/churn-score.ts` `monthlySpend`; `loadCallList`, `loadForecastReport` | «Кому позвонить», «Прогноз выручки» |
-| `awaiting_payment` | «Ожидают оплаты» | abonements sold and not paid (ACTIVE or EXPIRED, held by a member): the people who owe and the agreed amount | `domains/subscriptions/renewal-rules.ts` `awaitingPaymentWhere`, `countAwaitingPaymentMembers`; amount `summarizeAwaiting` | dashboard «Нужно решение» (people from the list endpoint; amount for club admins), «Продлить → Ожидают оплаты» header, members filter `unpaid` |
+| `awaiting_payment` | «Ожидают оплаты» | abonements sold and not paid (ACTIVE or EXPIRED, held by a member): the people who owe and the agreed amount | `domains/subscriptions/renewal-rules.ts` `awaitingPaymentWhere`, `countAwaitingPaymentMembers`; amount `summarizeAwaiting` | dashboard «Нужно решение» (people from the list endpoint; the total for club admins), «Продлить → Ожидают оплаты» header, members filter `unpaid`. The per-row agreed price is shown to sport leads too: it is what they collect in cash (Q1), not club revenue |
 | `renewals_due` | «Продлить» | students needing the next abonement (`renewal-rules.ts` header: pack empty/last class, term ends within 7 days, or ended within 30 days, next one not bought) | `renewal-rules.ts` `countRenewalsDue`, `loadRenewalDue` | dashboard «Нужно решение» (sport leads), «Продлить» list, members filter `renew`, announcement audience |
 | `call_list` | «Кому позвонить» | B1 | `domains/retention/call-list.ts` `loadCallList` | B1; dashboard «Нужно решение» |
 
@@ -829,7 +832,8 @@ Apply the UI rules to each page. Concrete targets (evidence in the UX audit, sec
   notice or redirect; API 403 tolerated there) and `offMenu` (not in the sidebar, still opens).
   Filled with the §1 tiers as implemented in this wave (head_coach: money/system blocked; coach:
   sidebar Обзор/Расписание/Участники/Кто пропадает/Отток, lead pages blocked, groups/content/events/
-  cohorts/occupancy off-menu).
+  cohorts/occupancy off-menu). *Superseded in wave 4:* coach sidebar = Сегодня · Расписание ·
+  Ученики · Удержание.
 - Exceptions only as listed data in `apps/admin-e2e/src/checks.ts` with a reason
   (`CONSOLE_ALLOWLIST`, `KNOWN_DEFECTS`); both empty. The suite found two app defects, fixed in
   this wave: a plain coach's own member page requested abonements (403), and the video page asked
@@ -996,7 +1000,7 @@ flows change; reviewer pass before merge (`.claude/agents/README.md`, `cs-review
 - One «Кому позвонить» count, identical on admin list, dashboard and mobile; one «Продлить» list.
 - Glossary in this doc; each metric identical across screens.
 - Group time edited only in the calendar; groups page ≤ ~2 screens for 21 groups.
-- No expired abonement labelled «Активен»; no English «Network Error»; no `window.confirm` (if F8 done).
+- No expired abonement labelled «Активен»; no English «Network Error»; no `window.confirm`.
 - Admin smoke e2e green for owner/admin/head_coach/coach in `verify.sh`/CI; coverage ratchet raised.
 - tsc clean (server, admin, mobile, client); all tests green; contract in sync.
 

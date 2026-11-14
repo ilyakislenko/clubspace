@@ -5,7 +5,7 @@
 
 export type CalendarView = "day" | "week" | "month" | "agenda"
 
-export const CALENDAR_VIEWS: readonly CalendarView[] = ["day", "week", "month", "agenda"]
+const CALENDAR_VIEWS: readonly CalendarView[] = ["day", "week", "month", "agenda"]
 
 export const isCalendarView = (v: unknown): v is CalendarView =>
   typeof v === "string" && (CALENDAR_VIEWS as readonly string[]).includes(v)
