@@ -107,6 +107,8 @@ const build = (opts: {
     createError?: unknown
     updateManyCount?: number
     family?: Record<string, unknown> | null
+    // The agreement read again right before the provider call (null: cancelled meanwhile).
+    stillLive?: Record<string, unknown> | null
 } = {}) => {
     const prisma = {
         memberAutopay: {
@@ -114,6 +116,7 @@ const build = (opts: {
                 .fn()
                 .mockResolvedValue(opts.agreement === undefined ? agreement() : opts.agreement),
             findMany: jest.fn().mockResolvedValue([]),
+            findFirst: jest.fn().mockResolvedValue(opts.stillLive === undefined ? { id: 'ap-1' } : opts.stillLive),
             updateMany: jest.fn().mockResolvedValue({ count: opts.updateManyCount ?? 1 }),
         },
         workspaceMember: {
@@ -262,6 +265,18 @@ describe('MemberAutopayService.chargeOne', () => {
             reason: 'Ответ платёжной системы потерян — сверьте платёж в личном кабинете ЮKassa',
         })
         expect(lost.gateway.createPayment).not.toHaveBeenCalled()
+    })
+
+    it('a cancel that lands while the pass prices the charge stops it before the provider is called', async () => {
+        const s = build({ stillLive: null })
+        expect(await s.service.chargeOne('ap-1', now)).toMatchObject({
+            outcome: 'SKIPPED',
+            reason: 'Автоплатёж отключён до списания',
+        })
+        expect(s.gateway.createPayment).not.toHaveBeenCalled()
+        expect(s.prisma.payment.updateMany).toHaveBeenCalledWith(
+            expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELED' }) }),
+        )
     })
 
     it('a concurrent run that created the row first wins (P2002 → skip)', async () => {

@@ -318,6 +318,21 @@ export class MemberAutopayService {
             }
         }
 
+        // The member may have cancelled while this pass was pricing: read the
+        // agreement again right before the provider call (the cancel clears the
+        // token in the same write), so a cancel never meets a charge sent after it.
+        const stillLive = await this.prisma.memberAutopay.findFirst({
+            where: { id: a.id, status: 'ACTIVE', paymentMethodId: a.paymentMethodId },
+            select: { id: true },
+        })
+        if (!stillLive) {
+            await this.prisma.payment.updateMany({
+                where: { id: payment.id, status: 'PENDING', providerPaymentId: null },
+                data: { status: 'CANCELED', failureReason: 'autopay cancelled before the charge' },
+            })
+            return skip('Автоплатёж отключён до списания')
+        }
+
         let gateway: GatewayPayment
         try {
             gateway = await this.gateway.createPayment(
