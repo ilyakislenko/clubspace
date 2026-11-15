@@ -36,10 +36,12 @@ const RULE_B_EXCEPTIONS: Record<string, AdminTier> = {
 // needs; do not let it spread.
 const EXPECTED_ALLOW_EXPIRED_ACCESS = [
     'club-about/club-about.controller.ts getClubAbout',
-    // Refusing autopay must work after access ran out (376-ФЗ,
-    // docs/design/2026-11-15-member-autopay.md §3.5): the list and the cancel.
+    // Member autopay after access ran out (docs/design/2026-11-15-member-autopay.md
+    // §3.5): refusing must always work (376-ФЗ); accepting new terms is how a
+    // lapsed member's renewal (and access) comes back.
     'member-autopay/my-autopays.controller.ts listMyAutopays',
     'member-autopay/my-autopays.controller.ts cancelMyAutopay',
+    'member-autopay/my-autopays.controller.ts acceptMyAutopayTerms',
     // «Оплатить онлайн» on the lock screen: paying is how access comes back.
     'online-payments/my-payments.controller.ts getOnlinePurchaseOptions',
     'online-payments/my-payments.controller.ts getCheckoutQuote',
@@ -49,10 +51,13 @@ const EXPECTED_ALLOW_EXPIRED_ACCESS = [
 
 // Controller methods allowed to carry @AllowSuspendedWorkspace (they stay open
 // in a suspended club). Only what the admin needs to show the state and get
-// the club paid for.
+// the club paid for — and a member's refusal of autopay (376-ФЗ: the club's
+// suspension never blocks it; the charge job skips suspended clubs).
 const EXPECTED_ALLOW_SUSPENDED = [
     'club-legal/workspace-legal.controller.ts acceptWorkspaceLegal',
     'get-my-workspace-membership/get-my-workspace-membership.controller.ts getMyMembership',
+    'member-autopay/my-autopays.controller.ts cancelMyAutopay',
+    'member-autopay/my-autopays.controller.ts listMyAutopays',
     'workspace-billing/workspace-billing.controller.ts getWorkspaceBilling',
     'workspace-billing/workspace-billing.controller.ts getWorkspaceBillingPayment',
     'workspace-billing/workspace-billing.controller.ts listWorkspaceBillingPayments',

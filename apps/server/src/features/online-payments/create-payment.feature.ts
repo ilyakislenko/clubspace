@@ -15,6 +15,9 @@ export const CreatePaymentInputSchema = z
         // The consent version the screen showed (the offer's consentVersion);
         // required with autopay.
         autopayConsentVersion: z.string().max(64).optional(),
+        // The renewal amount the consent showed («дальше Y», the offer's
+        // renewalAmount); required with autopay. 409 when it changed since.
+        autopayRenewalAmount: z.number().int().min(0).max(100_000_000).optional(),
     })
     .superRefine((v, ctx) => {
         if (v.autopay && !v.autopayConsentVersion) {
@@ -22,6 +25,13 @@ export const CreatePaymentInputSchema = z
                 code: 'custom',
                 path: ['autopayConsentVersion'],
                 message: 'Не указана версия условий автоплатежа',
+            })
+        }
+        if (v.autopay && v.autopayRenewalAmount === undefined) {
+            ctx.addIssue({
+                code: 'custom',
+                path: ['autopayRenewalAmount'],
+                message: 'Не указана сумма продления',
             })
         }
     })

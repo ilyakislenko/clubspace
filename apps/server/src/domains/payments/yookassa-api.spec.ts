@@ -226,7 +226,18 @@ describe('YooKassa response parsing', () => {
             currency: 'RUB',
             paymentMethod: null,
             cancellationReason: null,
+            metadataPaymentId: null,
         })
+    })
+
+    it('reads our payment id back from the metadata', () => {
+        expect(
+            parseYookassaPayment({
+                id: 'yk-2',
+                status: 'pending',
+                metadata: { paymentId: '11111111-1111-4111-8111-111111111111', workspaceId: 'ws-1' },
+            }).metadataPaymentId,
+        ).toBe('11111111-1111-4111-8111-111111111111')
     })
 
     it('reads the saved card and the reason of a refusal', () => {

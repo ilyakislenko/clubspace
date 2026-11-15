@@ -220,8 +220,8 @@ export function OnlinePurchaseSection({
     const promoCode = promo?.quotes[plan.id]?.discount?.code
       ? promo.code
       : undefined
-    // The consent version of the text the member saw: the quote's (priced
-    // with the code) once quoted, else the tariff's.
+    // The consent the member saw (version and renewal amount): the quote's
+    // (priced with the code) once quoted, else the tariff's.
     const quoted = promo?.quotes[plan.id]
     const consent = quoted ? quoted.autopay : plan.autopay
     try {
@@ -230,8 +230,7 @@ export function OnlinePurchaseSection({
         data: checkoutInput({
           planId: plan.id,
           promoCode,
-          autopayConsentVersion:
-            autopayOn[plan.id] && consent ? consent.consentVersion : null,
+          autopay: autopayOn[plan.id] ? consent : null,
         }),
       })
       setOutcome(null)
@@ -243,8 +242,11 @@ export function OnlinePurchaseSection({
       }
     } catch (e) {
       showToast(errorMessage(e, "Не удалось начать оплату"), "error")
-      // The refusal may come from a state the block doesn't show yet.
+      // The refusal may come from a state the block doesn't show yet (the
+      // renewal amount or the consent changed): re-read the options, and
+      // re-quote this tariff when its price came from a promo quote.
       void load()
+      if (promo && quoted) await quoteOne(plan, promo.code)
     } finally {
       setBuyingId(null)
     }

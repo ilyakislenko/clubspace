@@ -157,4 +157,20 @@ describe('autopay texts', () => {
             'Данные карты хранит ЮKassa, клуб и ClubSpace их не видят.',
         ])
     })
+
+    it('never promises a pack 3 days’ notice: one class left, then 3 days before the term end', () => {
+        const lines = autopayConsentLines({
+            clubName: 'Студия',
+            planName: '8 занятий',
+            amountNow: 3000,
+            renewalAmount: 3000,
+            currency: 'RUB',
+            classCount: 8,
+        })
+        expect(lines[1]).toContain('когда закончатся занятия или срок')
+        expect(lines[2]).toBe(
+            'Когда останется одно занятие, пришлём напоминание; если занятия не закончатся раньше — ещё и за 3 дня до окончания срока.',
+        )
+        expect(lines.join(' ')).not.toContain('За 3 дня до списания')
+    })
 })

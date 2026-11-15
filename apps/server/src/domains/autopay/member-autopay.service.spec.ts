@@ -67,6 +67,7 @@ const agreement = (over: Record<string, unknown> = {}) => ({
         timezone: 'Europe/Moscow',
         type: 'GRAPPLING',
         subscriptionEnabled: true,
+        isActive: true,
         billing: null,
         moduleEntitlements: [],
         paymentSettings: settings(),
@@ -87,6 +88,7 @@ const anchor = (over: Record<string, unknown> = {}) => ({
     updatedAt: new Date('2026-11-14T10:00:00Z'),
     directions: [],
     consumedRecords: [] as Array<{ markedAt: Date }>,
+    burnedBookings: [] as Array<{ updatedAt: Date }>,
     ...over,
 })
 
@@ -109,6 +111,8 @@ const build = (opts: {
     family?: Record<string, unknown> | null
     // The agreement read again right before the provider call (null: cancelled meanwhile).
     stillLive?: Record<string, unknown> | null
+    // PENDING renewal rows the reconcile sweep reads.
+    stale?: Array<Record<string, unknown>>
 } = {}) => {
     const prisma = {
         memberAutopay: {
@@ -136,7 +140,10 @@ const build = (opts: {
                 : jest.fn(async ({ data }) => paymentRow(data)),
             update: jest.fn().mockResolvedValue({}),
             updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+            findMany: jest.fn().mockResolvedValue(opts.stale ?? []),
         },
+        workspacePaymentSettings: { findUnique: jest.fn().mockResolvedValue(settings()) },
         discount: { findFirst: jest.fn().mockResolvedValue(opts.family ?? null) },
         guardianship: { findMany: jest.fn().mockResolvedValue([]) },
         workspace: { findUnique: jest.fn().mockResolvedValue({ timezone: 'Europe/Moscow' }) },
@@ -149,6 +156,7 @@ const build = (opts: {
             amountMinor: 450000,
             currency: 'RUB',
         }),
+        getPayment: jest.fn(),
     }
     const activation = { applyProviderStatus: jest.fn().mockResolvedValue('activated') }
     const agreements = {
@@ -159,6 +167,7 @@ const build = (opts: {
         reminder: jest.fn().mockResolvedValue(undefined),
         packLow: jest.fn().mockResolvedValue(undefined),
         termsChanged: jest.fn().mockResolvedValue(undefined),
+        staffAlert: jest.fn().mockResolvedValue(undefined),
     }
     const service = new MemberAutopayService(
         prisma as never,
@@ -168,6 +177,15 @@ const build = (opts: {
         notices as never,
     )
     return { service, prisma, gateway, activation, agreements, notices }
+}
+
+// A renewal's request body as stored at its first send.
+const storedRequest = {
+    description: 'Автоплатёж: абонемент «Безлимит» — Клуб',
+    itemName: 'Абонемент «Безлимит»',
+    customerEmail: 'member@example.com',
+    returnUrl: 'https://app.example.com',
+    receipt: { enabled: true, vatCode: 4, paymentSubject: 'service', paymentMode: 'full_prepayment' },
 }
 
 describe('MemberAutopayService.chargeOne', () => {
@@ -190,6 +208,13 @@ describe('MemberAutopayService.chargeOne', () => {
             idempotenceKey: `autopay:${ANCHOR}:0`,
             receiptEmail: 'member@example.com',
             autopayId: 'ap-1',
+            chargeRequest: {
+                description: 'Автоплатёж: абонемент «Безлимит» — Клуб',
+                itemName: 'Абонемент «Безлимит»',
+                customerEmail: 'member@example.com',
+                returnUrl: 'https://app.example.com',
+                receipt: { enabled: true, vatCode: 1, paymentSubject: 'service', paymentMode: 'full_prepayment' },
+            },
             createdAt: now,
         })
         const [creds, input] = s.gateway.createPayment.mock.calls[0]
@@ -204,8 +229,8 @@ describe('MemberAutopayService.chargeOne', () => {
             description: 'Автоплатёж: абонемент «Безлимит» — Клуб',
         })
         expect(input.savePaymentMethod).toBeUndefined()
-        expect(s.prisma.payment.update).toHaveBeenCalledWith({
-            where: { id: 'pay-1' },
+        expect(s.prisma.payment.updateMany).toHaveBeenCalledWith({
+            where: { id: 'pay-1', providerPaymentId: null },
             data: { providerPaymentId: 'yk-9' },
         })
         expect(s.activation.applyProviderStatus).toHaveBeenCalledWith({
@@ -242,15 +267,24 @@ describe('MemberAutopayService.chargeOne', () => {
                 amount: 4500,
                 currency: 'RUB',
                 receiptEmail: 'member@example.com',
+                chargeRequest: storedRequest,
                 createdAt: new Date(now.getTime() - 20 * 60_000),
             }),
+            // Renamed since the first send: the re-send still repeats the body.
+            agreement: agreement({ plan: { ...agreement().plan, name: 'Безлимит PRO' } }),
         })
         await old.service.chargeOne('ap-1', now)
         expect(old.prisma.payment.create).not.toHaveBeenCalled()
-        expect(old.gateway.createPayment.mock.calls[0][1]).toMatchObject({
+        const [creds, input] = old.gateway.createPayment.mock.calls[0]
+        expect(input).toMatchObject({
             paymentId: 'pay-0',
             idempotenceKey: `autopay:${ANCHOR}:0`,
+            description: storedRequest.description,
+            itemName: storedRequest.itemName,
+            customerEmail: storedRequest.customerEmail,
+            paymentMethodId: 'pm-1',
         })
+        expect(creds.receipt).toEqual(storedRequest.receipt)
     })
 
     it('never re-sends a request whose answer has been missing for 20 h (the provider key may have expired)', async () => {
@@ -492,6 +526,149 @@ describe('MemberAutopayService.chargeOne', () => {
     })
 })
 
+describe('MemberAutopayService — provider answers (money review)', () => {
+    const resendRow = (over: Record<string, unknown> = {}) =>
+        paymentRow({
+            id: 'pay-0',
+            idempotenceKey: `autopay:${ANCHOR}:0`,
+            amount: 4500,
+            currency: 'RUB',
+            planName: 'Безлимит',
+            workspaceId: 'ws-1',
+            chargeRequest: storedRequest,
+            createdAt: new Date(now.getTime() - 30 * 60_000),
+            ...over,
+        })
+
+    it('a 4xx on a re-send means the outcome is unknown: row stays PENDING, staff alerted, no decline', async () => {
+        const s = build({ existing: resendRow() })
+        s.gateway.createPayment.mockRejectedValue(new PaymentGatewayError('x', 400, 'Idempotence key reused'))
+        expect(await s.service.chargeOne('ap-1', now)).toMatchObject({
+            outcome: 'SKIPPED',
+            reason: 'Исход списания неизвестен — сверьте в ЮKassa',
+        })
+        expect(s.prisma.payment.updateMany).not.toHaveBeenCalled()
+        expect(s.agreements.onChargeDeclined).not.toHaveBeenCalled()
+        expect(s.notices.staffAlert.mock.calls[0][0]).toMatchObject({ refId: 'pay-0:unknown' })
+    })
+
+    it('a 429 is retried with the same key; nothing is counted', async () => {
+        const s = build()
+        s.gateway.createPayment.mockRejectedValue(new PaymentGatewayError('x', 429, 'Too many requests'))
+        expect(await s.service.chargeOne('ap-1', now)).toMatchObject({ outcome: 'SKIPPED', sent: true })
+        expect(s.agreements.onChargeDeclined).not.toHaveBeenCalled()
+        expect(s.prisma.payment.deleteMany).not.toHaveBeenCalled()
+    })
+
+    it('refused club keys (401/403) are the club’s problem: staff alert, no decline, no member notice', async () => {
+        const first = build()
+        first.gateway.createPayment.mockRejectedValue(new PaymentGatewayError('x', 401, 'Invalid credentials'))
+        expect(await first.service.chargeOne('ap-1', now)).toMatchObject({ reason: 'Ключи ЮKassa не приняты' })
+        // Nothing was created at the provider: the first send's row goes.
+        expect(first.prisma.payment.deleteMany).toHaveBeenCalledWith({
+            where: { id: 'pay-1', status: 'PENDING', providerPaymentId: null },
+        })
+        expect(first.agreements.onChargeDeclined).not.toHaveBeenCalled()
+        expect(first.notices.staffAlert.mock.calls[0][0]).toMatchObject({
+            refId: 'credentials:ws-1:2026-12-14',
+            path: 'settings',
+        })
+        const resend = build({ existing: resendRow() })
+        resend.gateway.createPayment.mockRejectedValue(new PaymentGatewayError('x', 403, 'Forbidden'))
+        await resend.service.chargeOne('ap-1', now)
+        expect(resend.prisma.payment.deleteMany).not.toHaveBeenCalled()
+        expect(resend.agreements.onChargeDeclined).not.toHaveBeenCalled()
+    })
+
+    it('alerts staff once a request has had no answer for 20 h, and never re-sends it', async () => {
+        const s = build({ existing: resendRow({ createdAt: new Date(now.getTime() - 21 * 60 * 60_000) }) })
+        await s.service.chargeOne('ap-1', now)
+        expect(s.gateway.createPayment).not.toHaveBeenCalled()
+        expect(s.notices.staffAlert.mock.calls[0][0]).toMatchObject({ refId: 'pay-0:lost' })
+    })
+
+    it('counts a decline that was never counted instead of stalling the period', async () => {
+        const s = build({ existing: resendRow({ status: 'CANCELED', failureReason: 'insufficient_funds' }) })
+        expect(await s.service.chargeOne('ap-1', now)).toMatchObject({ outcome: 'DECLINED' })
+        expect(s.agreements.onChargeDeclined).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'pay-0' }),
+            'insufficient_funds',
+            now,
+        )
+        const dropped = build({
+            existing: resendRow({ status: 'CANCELED', failureReason: 'autopay cancelled before the charge' }),
+        })
+        await dropped.service.chargeOne('ap-1', now)
+        expect(dropped.agreements.onChargeDeclined).not.toHaveBeenCalled()
+    })
+
+    it('leaves an answered PENDING row to the reconcile sweep', async () => {
+        const s = build({ existing: resendRow({ providerPaymentId: 'yk-1' }) })
+        expect(await s.service.chargeOne('ap-1', now)).toMatchObject({
+            reason: 'Платёж обрабатывается платёжной системой',
+        })
+        expect(s.gateway.createPayment).not.toHaveBeenCalled()
+    })
+
+    it('treats an unanswered autopay row of another period as in flight', async () => {
+        const s = build({ inflight: { id: 'pay-x' } })
+        await s.service.chargeOne('ap-1', now)
+        const or = s.prisma.payment.findFirst.mock.calls[0][0].where.OR
+        expect(or).toContainEqual({
+            idempotenceKey: { startsWith: 'autopay:' },
+            providerPaymentId: null,
+            createdAt: { gte: new Date(now.getTime() - 20 * 60 * 60 * 1000) },
+        })
+    })
+
+    it('skips (never cancels) while the club is suspended or switched off', async () => {
+        const ws = agreement().workspace
+        for (const workspace of [{ ...ws, isActive: false }, { ...ws, billing: { status: 'SUSPENDED' } }]) {
+            const s = build({ agreement: agreement({ workspace }) })
+            expect(await s.service.chargeOne('ap-1', now)).toMatchObject({
+                outcome: 'SKIPPED',
+                reason: 'Клуб приостановлен',
+            })
+            expect(s.agreements.cancel).not.toHaveBeenCalled()
+        }
+    })
+
+    it('visits an expired card only for the cancel checks', async () => {
+        const expired = agreement({ status: 'NEEDS_ACTION', needsActionReason: 'CARD_EXPIRED' })
+        const s = build({ agreement: expired })
+        expect(await s.service.chargeOne('ap-1', now)).toMatchObject({ reason: 'Ждёт новую карту' })
+        expect(s.gateway.createPayment).not.toHaveBeenCalled()
+        const gone = build({ agreement: expired, member: null })
+        expect(await gone.service.chargeOne('ap-1', now)).toMatchObject({ outcome: 'CANCELLED' })
+    })
+
+    it('reconciles: re-reads an answered PENDING charge, reports one unanswered for 20 h', async () => {
+        const answered = paymentRow({
+            id: 'pay-a',
+            workspaceId: 'ws-1',
+            providerPaymentId: 'yk-7',
+            createdAt: new Date(now.getTime() - 60 * 60_000),
+        })
+        const lost = paymentRow({
+            id: 'pay-l',
+            workspaceId: 'ws-1',
+            idempotenceKey: `autopay:${ANCHOR}:1`,
+            createdAt: new Date(now.getTime() - 21 * 60 * 60_000),
+        })
+        const s = build({ stale: [answered, lost] })
+        const read = { providerPaymentId: 'yk-7', status: 'SUCCEEDED', amountMinor: 450000, currency: 'RUB', confirmationUrl: null }
+        s.gateway.getPayment.mockResolvedValue(read)
+        expect(await s.service.reconcile(now)).toBe(1)
+        expect(s.gateway.getPayment.mock.calls[0][1]).toBe('yk-7')
+        expect(s.activation.applyProviderStatus).toHaveBeenCalledWith({ workspaceId: 'ws-1', gateway: read, now })
+        expect(s.notices.staffAlert.mock.calls.map((c) => c[0].refId)).toEqual(['pay-l:lost'])
+        expect(s.prisma.payment.findMany.mock.calls[0][0].where).toMatchObject({
+            status: 'PENDING',
+            idempotenceKey: { startsWith: 'autopay:' },
+        })
+    })
+})
+
 describe('MemberAutopayService.runCharges', () => {
     it('goes through each candidate page by page; one failure never stops the run', async () => {
         const s = build()
@@ -509,6 +686,7 @@ describe('MemberAutopayService.runCharges', () => {
         })
         expect(s.prisma.memberAutopay.findMany.mock.calls[0][0].where.OR).toEqual([
             { status: 'ACTIVE' },
+            { status: 'NEEDS_ACTION', needsActionReason: 'CARD_EXPIRED' },
             {
                 status: 'NEEDS_ACTION',
                 needsActionReason: { in: ['CHARGE_FAILED', 'GRANT_REFUSED', 'TERMS_CHANGED'] },

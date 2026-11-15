@@ -25,6 +25,7 @@ const abonement = (o: {
     updatedAt: NOW,
     directions: (o.directions ?? []).map((directionId) => ({ directionId })),
     consumedRecords: [],
+    burnedBookings: [],
 })
 
 const cancelledRow = {

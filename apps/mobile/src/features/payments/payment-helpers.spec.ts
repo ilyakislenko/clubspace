@@ -119,26 +119,27 @@ describe("paymentStatusLine", () => {
 
 describe("checkoutInput", () => {
   it("sends no autopay while the switch is off (the default)", () => {
-    expect(checkoutInput({ planId: "p1", autopayConsentVersion: null })).toEqual({
+    expect(checkoutInput({ planId: "p1", autopay: null })).toEqual({
       planId: "p1",
     })
     expect(
-      checkoutInput({ planId: "p1", promoCode: "OSEN", autopayConsentVersion: null }),
+      checkoutInput({ planId: "p1", promoCode: "OSEN", autopay: null }),
     ).toEqual({ planId: "p1", promoCode: "OSEN" })
   })
 
-  it("sends autopay with the consent version the screen showed", () => {
+  it("sends autopay with the consent version and renewal amount the screen showed", () => {
     expect(
       checkoutInput({
         planId: "p1",
         promoCode: "OSEN",
-        autopayConsentVersion: "2026-11-15",
+        autopay: { consentVersion: "2026-11-16", renewalAmount: 4000 },
       }),
     ).toEqual({
       planId: "p1",
       promoCode: "OSEN",
       autopay: true,
-      autopayConsentVersion: "2026-11-15",
+      autopayConsentVersion: "2026-11-16",
+      autopayRenewalAmount: 4000,
     })
   })
 })

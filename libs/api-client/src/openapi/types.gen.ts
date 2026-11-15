@@ -8370,6 +8370,7 @@ export type CreatePaymentInput = {
     promoCode?: string;
     autopay?: boolean;
     autopayConsentVersion?: string;
+    autopayRenewalAmount?: number;
 };
 
 export type CreatePaymentOutputOutput = {

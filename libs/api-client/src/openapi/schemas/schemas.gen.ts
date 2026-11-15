@@ -296,6 +296,11 @@ export const CreatePaymentInputSchema = {
         autopayConsentVersion: {
             type: 'string',
             maxLength: 64
+        },
+        autopayRenewalAmount: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 100000000
         }
     },
     required: [

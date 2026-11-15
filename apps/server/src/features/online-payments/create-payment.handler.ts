@@ -3,7 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AUTOPAY_CONSENT_VERSION } from '../../domains/autopay/autopay-consent'
 import { AutopayNotificationsService } from '../../domains/autopay/autopay-notifications'
-import { autopayOffered } from '../../domains/autopay/autopay-offer'
+import { autopayOffered, autopayRenewalPrice } from '../../domains/autopay/autopay-offer'
 import { isWorkspaceEntitled } from '../../domains/billing/module-entitlement'
 import {
     onlineGrantStart,
@@ -14,6 +14,7 @@ import { scopeDirectionIds } from '../../domains/subscriptions/current-subscript
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
+    ConflictError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
@@ -32,6 +33,10 @@ import {
 import { priceOnlineItem } from './price-online-item'
 import { serializeMyPayment } from './schemas'
 import { startProviderPayment } from './start-provider-payment'
+
+// An autopay charge of the tariff still processing blocks a checkout this long
+// (the pass's own in-flight window).
+const AUTOPAY_CHARGE_INFLIGHT_MS = 3 * 24 * 60 * 60 * 1000
 
 // The member buys a tariff online (startProviderPayment), optionally ticking
 // «Продлевать автоматически» on a tariff the club renews by autopay
@@ -95,6 +100,27 @@ export class CreatePaymentHandler
         if (start.kind === 'blocked') {
             throw new BadRequestError({ message: start.message })
         }
+        // This tariff's autopay charge is still at the provider: a second
+        // purchase now would be paid and then refused at the grant.
+        const charging = await this.prisma.payment.findFirst({
+            where: {
+                workspaceId: f.workspaceId,
+                userId: f.userId,
+                planId: plan.id,
+                status: 'PENDING',
+                idempotenceKey: { startsWith: 'autopay:' },
+                createdAt: { gte: new Date(now.getTime() - AUTOPAY_CHARGE_INFLIGHT_MS) },
+            },
+            select: { id: true },
+        })
+        if (charging) {
+            throw new BadRequestError({
+                message: 'Автоплатёж по этому тарифу сейчас списывается — подождите несколько минут',
+            })
+        }
+        const renewalAmount = autopay
+            ? await this.assertRenewalAmount(f, plan, workspace.timezone, now)
+            : null
 
         // A repeated tap (or a member who came back from the provider's page
         // without paying) gets the same payment instead of a second one — at
@@ -110,6 +136,7 @@ export class CreatePaymentHandler
                 status: 'PENDING',
                 confirmationUrl: { not: null },
                 autopayConsentVersion: autopay ? AUTOPAY_CONSENT_VERSION : null,
+                autopayRenewalAmount: renewalAmount,
                 createdAt: { gte: new Date(now.getTime() - PENDING_REUSE_MS) },
             },
             orderBy: { createdAt: 'desc' },
@@ -172,6 +199,8 @@ export class CreatePaymentHandler
                 itemName: `Абонемент «${plan.name}»`,
                 customerEmail: user.email,
                 autopayConsentVersion: autopay ? AUTOPAY_CONSENT_VERSION : null,
+                autopayRenewalAmount: renewalAmount,
+                autopayShopId: autopay ? settings.shopId : null,
             },
         )
     }
@@ -208,5 +237,29 @@ export class CreatePaymentHandler
                 message: 'Автоплатёж по этому тарифу уже включён',
             })
         }
+    }
+
+    // The renewal amount the consent showed must still be the one a renewal
+    // would charge (automatic discounts only): the agreement stores exactly
+    // what the member agreed to.
+    private async assertRenewalAmount(
+        f: CreatePaymentFeature,
+        plan: { id: string; price: number; currency: string },
+        timezone: string,
+        now: Date,
+    ): Promise<number> {
+        const renewal = await autopayRenewalPrice(this.prisma, {
+            workspaceId: f.workspaceId,
+            userId: f.userId,
+            plan,
+            now,
+            today: localDateInTz(now, timezone),
+        })
+        if (f.payload.autopayRenewalAmount !== renewal.amount) {
+            throw new ConflictError({
+                message: 'Сумма продления изменилась — обновите экран',
+            })
+        }
+        return renewal.amount
     }
 }

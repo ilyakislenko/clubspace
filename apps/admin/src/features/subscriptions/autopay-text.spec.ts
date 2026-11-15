@@ -144,10 +144,18 @@ describe("renewalAutopayLine", () => {
 })
 
 describe("autopayImpact", () => {
-  const saved = { price: 4000, durationDays: 30, classCount: null, autopayAvailable: true }
+  const saved = {
+    price: 4000,
+    durationDays: 30,
+    classCount: null,
+    autopayAvailable: true,
+    directionIds: ["d1", "d2"],
+  }
 
-  it("ends autopay when the tariff stops offering it", () => {
+  it("ends autopay when the tariff stops offering it or changes its directions", () => {
     expect(autopayImpact(saved, { ...saved, autopayAvailable: false })).toBe("off")
+    expect(autopayImpact(saved, { ...saved, directionIds: ["d1"] })).toBe("off")
+    expect(autopayImpact(saved, { ...saved, directionIds: ["d2", "d1"] })).toBeNull()
   })
 
   it("asks for consent on a rise or another term or pack size, not on a drop", () => {

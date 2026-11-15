@@ -93,6 +93,7 @@ describe('member autopay', () => {
         const created = await checkout(s, s.memberActor, {
             autopay: true,
             autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+            autopayRenewalAmount: s.plan.price,
         }).expect(201)
         const providerId = gateway.created[gateway.created.length - 1]
         const id = (await ctx.prisma.payment.findUniqueOrThrow({ where: { id: created.body.payment.id } }))
@@ -468,11 +469,16 @@ describe('member autopay', () => {
         const refused = await checkout(s, s.memberActor, {
             autopay: true,
             autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+            autopayRenewalAmount: 4500,
         })
         expect(refused.status).toBe(400)
         expect(refused.body.message).toBe('Автоплатёж для этого тарифа недоступен')
         await ctx.prisma.plan.update({ where: { id: s.plan.id }, data: { autopayAvailable: true } })
-        const stale = await checkout(s, s.memberActor, { autopay: true, autopayConsentVersion: '2020-01-01' })
+        const stale = await checkout(s, s.memberActor, {
+            autopay: true,
+            autopayConsentVersion: '2020-01-01',
+            autopayRenewalAmount: 4500,
+        })
         expect(stale.status).toBe(400)
 
         const oneOff = await checkout(s, s.memberActor, {}).expect(201)
@@ -499,6 +505,7 @@ describe('member autopay', () => {
         const created = await checkout(s, s.memberActor, {
             autopay: true,
             autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+            autopayRenewalAmount: 4500,
         }).expect(201)
         const id = (await ctx.prisma.payment.findUniqueOrThrow({ where: { id: created.body.payment.id } }))
             .providerPaymentId as string
@@ -527,6 +534,7 @@ describe('member autopay', () => {
         const res = await checkout(s, s.memberActor, {
             autopay: true,
             autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+            autopayRenewalAmount: 4500,
         })
         expect(res.status).toBe(400)
         expect(res.body.message).toBe(
@@ -540,5 +548,58 @@ describe('member autopay', () => {
         expect(await kinds(s.owner.id, 'subscription.autopay_staff_alert')).toHaveLength(1)
         // The member can still pay without it.
         await checkout(s, s.memberActor, {}).expect(201)
+    })
+
+    it('refuses with 409 when the renewal amount the consent showed is no longer the price', async () => {
+        const s = await setup()
+        const res = await checkout(s, s.memberActor, {
+            autopay: true,
+            autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+            autopayRenewalAmount: 4000,
+        })
+        expect(res.status).toBe(409)
+        expect(gateway.created).toHaveLength(0)
+        // The agreement stores the amount the member saw, not a later price.
+        const { agreement } = await setUpAutopay(s)
+        expect(agreement.termsAmount).toBe(4500)
+    })
+
+    it('settles an answered charge whose webhook never came (the reconcile re-read)', async () => {
+        const s = await setup()
+        const { anchor } = await setUpAutopay(s)
+        const tz = await tzOf(s)
+        const S = localDateInTz(anchor.endDate as Date, tz)
+        gateway.charges = [{ status: 'PENDING' }]
+        const t = at(addDaysYmd(S, -1), '10:30', tz)
+        expect(await pass().runCharges(t)).toEqual({ PENDING: 1 })
+        const pending = await ctx.prisma.payment.findFirstOrThrow({
+            where: { idempotenceKey: `autopay:${anchor.id}:0` },
+        })
+        expect(pending.providerPaymentId).not.toBeNull()
+        // The provider settles it; no webhook arrives.
+        gateway.setStatus(pending.providerPaymentId as string, 'SUCCEEDED')
+        await pass().runCharges(new Date(t.getTime() + 60 * 60 * 1000))
+        expect(await subsOf(s)).toHaveLength(2)
+        expect(charges()).toHaveLength(1)
+        expect(
+            (await ctx.prisma.payment.findUniqueOrThrow({ where: { id: pending.id } })).status,
+        ).toBe('SUCCEEDED')
+    })
+
+    it('a re-send repeats the stored body even after the tariff was renamed', async () => {
+        const s = await setup()
+        const { anchor } = await setUpAutopay(s)
+        const tz = await tzOf(s)
+        const S = localDateInTz(anchor.endDate as Date, tz)
+        gateway.charges = [{ error: new PaymentGatewayError('timeout', null, null), landed: 'SUCCEEDED' }]
+        const t = at(addDaysYmd(S, -1), '10:30', tz)
+        await pass().runCharges(t)
+        await ctx.prisma.plan.update({ where: { id: s.plan.id }, data: { name: 'Безлимит PRO' } })
+        expect(await pass().runCharges(new Date(t.getTime() + 15 * 60 * 1000))).toEqual({ CHARGED: 1 })
+        const [first, again] = charges().map((c) => c.input)
+        expect(again.description).toBe(first.description)
+        expect(again.itemName).toBe(first.itemName)
+        expect(again.idempotenceKey).toBe(first.idempotenceKey)
+        expect(await subsOf(s)).toHaveLength(2)
     })
 })

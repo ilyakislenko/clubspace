@@ -1,14 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { z } from 'zod'
 
 import { localDateInTz } from '../../features/attendance/attendance-utils'
 import { PENDING_REUSE_MS } from '../../features/online-payments/load-buyer'
 import { environment } from '../../environments/environment'
 import {
+    type Payment,
     type Prisma,
     PrismaService,
     type WorkspacePaymentSettings,
 } from '../../infrastructure/prisma'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
+import { suspensionReason } from '../billing/billing-rules'
 import {
     isWorkspaceEntitled,
     moduleEntitlementSelect,
@@ -16,8 +19,15 @@ import {
 import { onlineGrantStart, sameScopeAbonements } from '../payments/online-grant-start'
 import { toGatewayCredentials } from '../payments/payment-credentials'
 import { PaymentGatewayClient } from '../payments/payment-gateway.client'
-import { type GatewayPayment, PaymentGatewayError } from '../payments/payment-gateway.types'
-import { PaymentActivationService } from '../payments/services/payment-activation.service'
+import {
+    type GatewayPayment,
+    PaymentGatewayError,
+    type ReceiptSettings,
+} from '../payments/payment-gateway.types'
+import {
+    PaymentActivationService,
+    type ProviderStatusOutcome,
+} from '../payments/services/payment-activation.service'
 import { scopeDirectionIds } from '../subscriptions/current-subscriptions'
 import { type AutopayAbonementRow, lastUsedAt, loadAutopayAbonements } from './autopay-anchor'
 import { AutopayNotificationsService } from './autopay-notifications'
@@ -56,6 +66,56 @@ export type AutopayChargeResult = {
 
 // At most this many provider requests per pass; the rest wait an hour.
 export const MAX_CHARGES_PER_RUN = 200
+
+// failureReason of a period's row the pass dropped because the agreement was
+// cancelled before the provider call (not a decline).
+const CANCELLED_BEFORE_CHARGE = 'autopay cancelled before the charge'
+
+// The provider request body of a renewal charge as first sent
+// (Payment.chargeRequest). The saved card is not part of it: the token lives
+// only on the agreement and dies with a cancel.
+const ChargeRequestSchema = z.object({
+    description: z.string(),
+    itemName: z.string(),
+    customerEmail: z.string(),
+    returnUrl: z.string(),
+    receipt: z.object({
+        enabled: z.boolean(),
+        vatCode: z.number(),
+        paymentSubject: z.string(),
+        paymentMode: z.string(),
+        taxSystemCode: z.number().nullable().optional(),
+    }),
+})
+type ChargeRequest = z.infer<typeof ChargeRequestSchema>
+
+const receiptSettingsOf = (s: WorkspacePaymentSettings): ReceiptSettings => ({
+    enabled: s.receiptEnabled,
+    vatCode: s.vatCode,
+    paymentSubject: s.paymentSubject,
+    paymentMode: s.paymentMode,
+})
+
+type PaymentRecord = Payment
+
+const outcomeOf = (
+    applied: ProviderStatusOutcome,
+    gateway: GatewayPayment,
+): Pick<AutopayChargeResult, 'outcome' | 'reason'> => {
+    switch (applied) {
+        case 'activated':
+            return { outcome: 'CHARGED', reason: null }
+        case 'paid-not-activated':
+            return { outcome: 'NEEDS_ACTION', reason: 'Оплачено, но абонемент не оформлен' }
+        case 'canceled':
+            return { outcome: 'DECLINED', reason: gateway.cancellationReason ?? null }
+        case 'unchanged':
+            return gateway.status === 'PENDING'
+                ? { outcome: 'PENDING', reason: null }
+                : { outcome: 'SKIPPED', reason: 'Ответ платёжной системы не применён' }
+    }
+}
+
 // Candidates are read in pages of this size (by id).
 const PAGE = 200
 // A renewal row with no provider answer yet is re-sent (same key) only after
@@ -95,6 +155,7 @@ const agreementInclude = {
             timezone: true,
             type: true,
             subscriptionEnabled: true,
+            isActive: true,
             ...moduleEntitlementSelect('ONLINE_PAYMENTS'),
             paymentSettings: true,
         },
@@ -109,6 +170,9 @@ const agreementInclude = {
 const PASS_WHERE = (now: Date) => ({
     OR: [
         { status: 'ACTIVE' as const },
+        // Visited for the cancel checks only (lapse, tariff, club): an expired
+        // card is never charged.
+        { status: 'NEEDS_ACTION' as const, needsActionReason: 'CARD_EXPIRED' },
         {
             status: 'NEEDS_ACTION' as const,
             needsActionReason: { in: ['CHARGE_FAILED', 'GRANT_REFUSED', 'TERMS_CHANGED'] },
@@ -140,6 +204,7 @@ export class MemberAutopayService {
         now: Date = new Date(),
     ): Promise<Partial<Record<AutopayChargeOutcome, number>>> {
         const counts: Partial<Record<AutopayChargeOutcome, number>> = {}
+        await this.reconcile(now)
         let sent = 0
         await this.forEachCandidate(PASS_WHERE(now), async (id) => {
             if (sent >= MAX_CHARGES_PER_RUN) return false
@@ -183,6 +248,9 @@ export class MemberAutopayService {
         const { agreement: a, plan, workspace, settings, anchor, subs, scope, tz } = loaded
 
         if (a.status === 'NEEDS_ACTION') {
+            // An expired card waits for a new one (the pass only ran the
+            // cancel checks above).
+            if (a.needsActionReason === 'CARD_EXPIRED') return skip('Ждёт новую карту')
             // A stop is lifted only by a new period (a failed charge, a refused
             // grant) or by terms that fit again.
             if (a.needsActionReason !== 'TERMS_CHANGED' && a.attemptAnchorId === anchor.id) {
@@ -250,7 +318,8 @@ export class MemberAutopayService {
         if (start.kind === 'blocked') return skip(start.message)
 
         const idempotenceKey = autopayIdempotenceKey(anchor.id, failedAttempts)
-        // A member checkout or an earlier charge still in flight: let it settle.
+        // A member checkout or an earlier charge still in flight (answered or
+        // not, whatever period it renews): let it settle.
         const inflight = await this.prisma.payment.findFirst({
             where: {
                 workspaceId: a.workspaceId,
@@ -268,6 +337,11 @@ export class MemberAutopayService {
                         providerPaymentId: { not: null },
                         createdAt: { gte: new Date(now.getTime() - AUTOPAY_INFLIGHT_MS) },
                     },
+                    {
+                        idempotenceKey: { startsWith: AUTOPAY_KEY_PREFIX },
+                        providerPaymentId: null,
+                        createdAt: { gte: new Date(now.getTime() - RESEND_BEFORE_MS) },
+                    },
                 ],
             },
             select: { id: true },
@@ -275,52 +349,53 @@ export class MemberAutopayService {
         if (inflight) return skip('Предыдущий платёж ещё обрабатывается')
         if (!a.paymentMethodId) return skip('Нет сохранённой карты')
 
-        let payment = await this.prisma.payment.findUnique({ where: { idempotenceKey } })
-        if (payment && (payment.status !== 'PENDING' || payment.providerPaymentId)) {
-            return skip('Этот период уже списан')
+        const existing = await this.prisma.payment.findUnique({ where: { idempotenceKey } })
+        if (existing) return this.continueCharge(loaded, existing, now)
+
+        const request: ChargeRequest = {
+            description: `Автоплатёж: абонемент «${plan.name}» — ${workspace.name}`,
+            itemName: `Абонемент «${plan.name}»`,
+            customerEmail: (loaded.user.email ?? a.receiptEmail).slice(0, 255),
+            // No payer, no confirmation page: YooKassa never redirects.
+            returnUrl: environment.appUrl ?? '',
+            receipt: receiptSettingsOf(settings),
         }
-        if (payment && payment.createdAt.getTime() > now.getTime() - RESEND_AFTER_MS) {
+        let payment: PaymentRecord
+        try {
+            payment = await this.prisma.payment.create({
+                data: {
+                    workspaceId: a.workspaceId,
+                    userId: a.userId,
+                    planId: plan.id,
+                    planName: plan.name.slice(0, 255),
+                    provider: 'YOOKASSA',
+                    amount: price.amount,
+                    listPrice: price.listPrice,
+                    discountId: price.discountId,
+                    discountName: price.discountName,
+                    discountAmount: price.discountAmount,
+                    currency: plan.currency,
+                    idempotenceKey,
+                    receiptEmail: request.customerEmail,
+                    autopayId: a.id,
+                    // The exact body: a re-send with this key repeats it.
+                    chargeRequest: request,
+                    // The pass's clock: the re-send window and the
+                    // in-flight guard compare against the same `now`.
+                    createdAt: now,
+                },
+            })
+        } catch (e) {
+            if (!isP2002(e)) throw e
             return skip('Этот период уже списывается')
-        }
-        if (payment && payment.createdAt.getTime() <= now.getTime() - RESEND_BEFORE_MS) {
-            this.logger.error(
-                `Autopay charge ${payment.id} (key ${payment.idempotenceKey}) has had no provider answer for 20 h — not re-sent; reconcile it in the ЮKassa dashboard`,
-            )
-            return skip('Ответ платёжной системы потерян — сверьте платёж в личном кабинете ЮKassa')
-        }
-        const receiptEmail = (loaded.user.email ?? a.receiptEmail).slice(0, 255)
-        if (!payment) {
-            try {
-                payment = await this.prisma.payment.create({
-                    data: {
-                        workspaceId: a.workspaceId,
-                        userId: a.userId,
-                        planId: plan.id,
-                        planName: plan.name.slice(0, 255),
-                        provider: 'YOOKASSA',
-                        amount: price.amount,
-                        listPrice: price.listPrice,
-                        discountId: price.discountId,
-                        discountName: price.discountName,
-                        discountAmount: price.discountAmount,
-                        currency: plan.currency,
-                        idempotenceKey,
-                        receiptEmail,
-                        autopayId: a.id,
-                        // The pass's clock: the re-send window and the
-                        // in-flight guard compare against the same `now`.
-                        createdAt: now,
-                    },
-                })
-            } catch (e) {
-                if (!isP2002(e)) throw e
-                return skip('Этот период уже списывается')
-            }
         }
 
         // The member may have cancelled while this pass was pricing: read the
         // agreement again right before the provider call (the cancel clears the
-        // token in the same write), so a cancel never meets a charge sent after it.
+        // token in the same write). This only narrows the window — a cancel can
+        // still commit while the request is at the provider; such a charge is
+        // granted and staff are alerted to decide on a refund
+        // (MemberAutopayAgreementsService.alertChargedAfterCancel).
         const stillLive = await this.prisma.memberAutopay.findFirst({
             where: { id: a.id, status: 'ACTIVE', paymentMethodId: a.paymentMethodId },
             select: { id: true },
@@ -328,41 +403,118 @@ export class MemberAutopayService {
         if (!stillLive) {
             await this.prisma.payment.updateMany({
                 where: { id: payment.id, status: 'PENDING', providerPaymentId: null },
-                data: { status: 'CANCELED', failureReason: 'autopay cancelled before the charge' },
+                data: { status: 'CANCELED', failureReason: CANCELLED_BEFORE_CHARGE },
             })
             return skip('Автоплатёж отключён до списания')
         }
+        return this.send(loaded, payment, request, a.paymentMethodId, now, false)
+    }
 
+    // The period's row already exists (an earlier pass, a concurrent one).
+    private async continueCharge(
+        loaded: Loaded,
+        payment: PaymentRecord,
+        now: Date,
+    ): Promise<AutopayChargeResult> {
+        if (payment.status === 'SUCCEEDED' || payment.status === 'REFUNDED') {
+            return skip('Этот период уже списан')
+        }
+        if (payment.status === 'CANCELED') {
+            if (payment.failureReason === CANCELLED_BEFORE_CHARGE) {
+                return skip('Автоплатёж отключён до списания')
+            }
+            // A decline that was never counted (it arrived while the agreement
+            // was stopped): count it now — guarded on the attempt — so the
+            // period moves on to its next attempt instead of stalling.
+            await this.agreements.onChargeDeclined(payment, payment.failureReason, now)
+            return { outcome: 'DECLINED', reason: payment.failureReason }
+        }
+        // PENDING with the provider's id: the reconcile sweep re-reads it.
+        if (payment.providerPaymentId) return skip('Платёж обрабатывается платёжной системой')
+        if (payment.createdAt.getTime() > now.getTime() - RESEND_AFTER_MS) {
+            return skip('Этот период уже списывается')
+        }
+        if (payment.createdAt.getTime() <= now.getTime() - RESEND_BEFORE_MS) {
+            await this.alertLostAnswer(payment)
+            return skip('Ответ платёжной системы потерян — сверьте платёж в личном кабинете ЮKassa')
+        }
+        const request = ChargeRequestSchema.safeParse(payment.chargeRequest)
+        const methodId = loaded.agreement.paymentMethodId
+        if (!request.success || !methodId) return skip('Нечем повторить запрос')
+        return this.send(loaded, payment, request.data, methodId, now, true)
+    }
+
+    // The provider call. A re-send repeats the stored body with the same
+    // Idempotence-Key, so YooKassa answers with the first payment if it was
+    // created. Only a refusal of a first send is a decline: a re-send's 4xx
+    // means the outcome of the first request is unknown.
+    private async send(
+        loaded: Loaded,
+        payment: PaymentRecord,
+        request: ChargeRequest,
+        paymentMethodId: string,
+        now: Date,
+        resend: boolean,
+    ): Promise<AutopayChargeResult> {
+        const { agreement: a, settings, tz } = loaded
+        const creds = toGatewayCredentials(settings, environment.encryptionKey)
         let gateway: GatewayPayment
         try {
             gateway = await this.gateway.createPayment(
-                toGatewayCredentials(settings, environment.encryptionKey),
+                creds.provider === 'YOOKASSA' ? { ...creds, receipt: request.receipt } : creds,
                 {
                     paymentId: payment.id,
                     workspaceId: a.workspaceId,
                     idempotenceKey: payment.idempotenceKey,
                     amount: payment.amount,
                     currency: payment.currency,
-                    description: `Автоплатёж: абонемент «${plan.name}» — ${workspace.name}`,
-                    itemName: `Абонемент «${plan.name}»`,
-                    // No payer, no confirmation page: YooKassa never redirects.
-                    returnUrl: environment.appUrl ?? '',
-                    customerEmail: payment.receiptEmail ?? receiptEmail,
-                    paymentMethodId: a.paymentMethodId,
+                    description: request.description,
+                    itemName: request.itemName,
+                    returnUrl: request.returnUrl,
+                    customerEmail: request.customerEmail,
+                    paymentMethodId,
                 },
             )
         } catch (err) {
             if (!(err instanceof PaymentGatewayError)) throw err
             this.logger.warn(
-                `Autopay charge ${payment.id} failed: ${err.message}${
+                `Autopay charge ${payment.id}${resend ? ' (re-send)' : ''} failed: ${err.message}${
                     err.providerMessage ? ` (${err.providerMessage})` : ''
                 }`,
             )
-            // Not an answer: the same request (same Idempotence-Key) next pass.
-            if (err.status === null || err.status >= 500) {
+            // No answer, an outage or a rate limit: the same request next pass.
+            if (err.status === null || err.status >= 500 || err.status === 429) {
                 return { outcome: 'SKIPPED', reason: 'Платёжная система не ответила — повторим', sent: true }
             }
-            // The provider refused the request itself: a decline like any other.
+            // The club's keys were refused: the club's problem, not the
+            // member's — no decline, no member notice. A first send created
+            // nothing at the provider, so its row goes (the next pass retries).
+            if (err.status === 401 || err.status === 403) {
+                if (!resend) {
+                    await this.prisma.payment.deleteMany({
+                        where: { id: payment.id, status: 'PENDING', providerPaymentId: null },
+                    })
+                }
+                await this.notices.staffAlert({
+                    workspaceId: a.workspaceId,
+                    refId: `credentials:${a.workspaceId}:${localDateInTz(now, tz)}`,
+                    path: 'settings',
+                    message: `ЮKassa отклонила ключи магазина при автоплатеже (${err.providerMessage ?? err.status}). Автоплатежи учеников не списываются, пока подключение не исправлено в «Онлайн-оплате».`,
+                    metadata: { paymentId: payment.id },
+                })
+                return { outcome: 'SKIPPED', reason: 'Ключи ЮKassa не приняты', sent: true }
+            }
+            if (resend) {
+                await this.notices.staffAlert({
+                    workspaceId: a.workspaceId,
+                    refId: `${payment.id}:unknown`,
+                    path: 'subscriptions/payments',
+                    message: `Не удалось узнать, прошло ли списание автоплатежа ${payment.amount} ${payment.currency} за «${payment.planName}»: ЮKassa отклонила повтор запроса (${err.providerMessage ?? err.status}). Сверьте платёж в личном кабинете ЮKassa.`,
+                    metadata: { paymentId: payment.id },
+                })
+                return { outcome: 'SKIPPED', reason: 'Исход списания неизвестен — сверьте в ЮKassa', sent: true }
+            }
+            // A first send the provider refused itself: a decline like any other.
             const reason = (err.providerMessage ?? 'refused').slice(0, 500)
             const marked = await this.prisma.payment.updateMany({
                 where: { id: payment.id, status: 'PENDING' },
@@ -374,8 +526,8 @@ export class MemberAutopayService {
             return { outcome: 'DECLINED', reason, sent: true }
         }
 
-        await this.prisma.payment.update({
-            where: { id: payment.id },
+        await this.prisma.payment.updateMany({
+            where: { id: payment.id, providerPaymentId: null },
             data: { providerPaymentId: gateway.providerPaymentId },
         })
         // The same path as the webhook: whichever arrives first applies it.
@@ -384,18 +536,72 @@ export class MemberAutopayService {
             gateway,
             now,
         })
-        switch (applied) {
-            case 'activated':
-                return { outcome: 'CHARGED', reason: null, sent: true }
-            case 'paid-not-activated':
-                return { outcome: 'NEEDS_ACTION', reason: 'Оплачено, но абонемент не оформлен', sent: true }
-            case 'canceled':
-                return { outcome: 'DECLINED', reason: gateway.cancellationReason ?? null, sent: true }
-            case 'unchanged':
-                return gateway.status === 'PENDING'
-                    ? { outcome: 'PENDING', reason: null, sent: true }
-                    : { outcome: 'SKIPPED', reason: 'Ответ платёжной системы не применён', sent: true }
+        return { ...outcomeOf(applied, gateway), sent: true }
+    }
+
+    // Renewal charges the provider has not settled: a PENDING row with the
+    // provider's id is re-read and applied (its webhook may never come); a
+    // row with no answer for 20 h is reported to staff. Runs before the
+    // charges, whatever the agreement's state.
+    async reconcile(now: Date = new Date()): Promise<number> {
+        const stale = await this.prisma.payment.findMany({
+            where: {
+                status: 'PENDING',
+                idempotenceKey: { startsWith: AUTOPAY_KEY_PREFIX },
+                createdAt: { lte: new Date(now.getTime() - RESEND_AFTER_MS) },
+            },
+            orderBy: { createdAt: 'asc' },
+            take: MAX_CHARGES_PER_RUN,
+        })
+        let settled = 0
+        for (const payment of stale) {
+            try {
+                if (!payment.providerPaymentId) {
+                    if (payment.createdAt.getTime() <= now.getTime() - RESEND_BEFORE_MS) {
+                        await this.alertLostAnswer(payment)
+                    }
+                    continue
+                }
+                const settings = await this.prisma.workspacePaymentSettings.findUnique({
+                    where: { workspaceId: payment.workspaceId },
+                })
+                if (settings?.provider !== 'YOOKASSA') continue
+                const gateway = await this.gateway.getPayment(
+                    toGatewayCredentials(settings, environment.encryptionKey),
+                    payment.providerPaymentId,
+                )
+                const applied = await this.activation.applyProviderStatus({
+                    workspaceId: payment.workspaceId,
+                    gateway,
+                    now,
+                })
+                if (applied !== 'unchanged') settled++
+                else if (payment.createdAt.getTime() <= now.getTime() - RESEND_BEFORE_MS) {
+                    await this.alertLostAnswer(payment)
+                }
+            } catch (err) {
+                this.logger.warn(
+                    `Autopay reconcile of ${payment.id} failed: ${
+                        err instanceof Error ? err.message : String(err)
+                    }`,
+                )
+            }
         }
+        return settled
+    }
+
+    // Once per payment: the money may be taken and nothing granted.
+    private async alertLostAnswer(payment: PaymentRecord) {
+        this.logger.error(
+            `Autopay charge ${payment.id} (key ${payment.idempotenceKey}) has had no provider answer for 20 h — reconcile it in the ЮKassa dashboard`,
+        )
+        await this.notices.staffAlert({
+            workspaceId: payment.workspaceId,
+            refId: `${payment.id}:lost`,
+            path: 'subscriptions/payments',
+            message: `ЮKassa так и не ответила о списании автоплатежа ${payment.amount} ${payment.currency} за «${payment.planName}». Проверьте платёж в личном кабинете ЮKassa: если деньги списаны, оформите абонемент вручную или верните их.`,
+            metadata: { paymentId: payment.id },
+        })
     }
 
     // Reminders of one ACTIVE agreement inside the window: the 3-day notice
@@ -523,7 +729,12 @@ export class MemberAutopayService {
         if (settings.provider !== 'YOOKASSA' || settings.shopId !== agreement.shopId) {
             return cancel('клуб сменил платёжную систему')
         }
-        // Skipped, not cancelled: resumes when the club does.
+        // Skipped, not cancelled — resumes when the club does: a suspended or
+        // switched-off club (its members can still list and cancel), the
+        // section off, online payments not entitled.
+        if (suspensionReason(workspace, environment.billing.enabled)) {
+            return { result: skip('Клуб приостановлен') }
+        }
         if (!workspace.subscriptionEnabled || !isWorkspaceEntitled(workspace, now)) {
             return { result: skip('Онлайн-оплата клуба сейчас недоступна') }
         }

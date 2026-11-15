@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 
+import { environment } from '../../environments/environment'
 import { localDateInTz } from '../../features/attendance/attendance-utils'
 import {
     type MemberAutopay,
@@ -43,6 +44,8 @@ export type AutopayPaymentRef = {
     autopayConsentVersion: string | null
     receiptEmail: string | null
     createdAt: Date
+    autopayRenewalAmount: number | null
+    autopayShopId: string | null
 }
 
 // A setup payment's agreement, for the activation's audit and push.
@@ -113,7 +116,7 @@ export class MemberAutopayAgreementsService {
         const [settings, plan, workspace] = await Promise.all([
             tx.workspacePaymentSettings.findUnique({
                 where: { workspaceId: payment.workspaceId },
-                select: { provider: true, shopId: true },
+                select: { provider: true, shopId: true, autopayEnabled: true },
             }),
             tx.plan.findUnique({
                 where: { id: payment.planId },
@@ -123,6 +126,7 @@ export class MemberAutopayAgreementsService {
                     price: true,
                     currency: true,
                     durationDays: true,
+                    autopayAvailable: true,
                     directions: { select: { directionId: true } },
                 },
             }),
@@ -131,15 +135,33 @@ export class MemberAutopayAgreementsService {
                 select: { timezone: true },
             }),
         ])
-        if (settings?.provider !== 'YOOKASSA' || !settings.shopId || !plan) return null
+        // Autopay must still be allowed exactly as at the checkout: the global
+        // switch, the club setting, the tariff, and the very shop the card was
+        // saved in. Otherwise the abonement stands and the token is not kept.
+        if (
+            !environment.memberAutopay.enabled ||
+            settings?.provider !== 'YOOKASSA' ||
+            !settings.autopayEnabled ||
+            !settings.shopId ||
+            settings.shopId !== payment.autopayShopId ||
+            !plan?.autopayAvailable
+        ) {
+            return null
+        }
 
-        const renewal = await autopayRenewalPrice(tx, {
-            workspaceId: payment.workspaceId,
-            userId: payment.userId,
-            plan,
-            now,
-            today: localDateInTz(now, workspace.timezone),
-        })
+        // The amount the consent showed («дальше Y»): a price that rose since
+        // is caught at charge time as TERMS_CHANGED, never taken silently.
+        const termsAmount =
+            payment.autopayRenewalAmount ??
+            (
+                await autopayRenewalPrice(tx, {
+                    workspaceId: payment.workspaceId,
+                    userId: payment.userId,
+                    plan,
+                    now,
+                    today: localDateInTz(now, workspace.timezone),
+                })
+            ).amount
 
         const scope = scopeDirectionIds(plan)
         const others = await tx.memberAutopay.findMany({
@@ -174,7 +196,7 @@ export class MemberAutopayAgreementsService {
             cardLast4,
             shopId: settings.shopId,
             receiptEmail: (payment.receiptEmail ?? '').slice(0, 255),
-            termsAmount: renewal.amount,
+            termsAmount,
             currency: plan.currency,
             termsDurationDays: sub.durationDays ?? plan.durationDays,
             termsClassCount: sub.classesTotal,
@@ -190,27 +212,40 @@ export class MemberAutopayAgreementsService {
             where: { liveKey },
             select: { id: true },
         })
-        const row = existing
-            ? await tx.memberAutopay.update({ where: { id: existing.id }, data: terms })
-            : await tx.memberAutopay.create({
-                  data: {
-                      ...terms,
-                      workspaceId: payment.workspaceId,
-                      userId: payment.userId,
-                      planId: plan.id,
-                      liveKey,
-                      provider: 'YOOKASSA',
-                  },
+        // Re-arm only a live row (a cancel committed meanwhile stays final —
+        // a new token is never written onto a refused agreement); otherwise
+        // a fresh agreement.
+        const rearmed = existing
+            ? await tx.memberAutopay.updateMany({
+                  where: { id: existing.id, status: { not: 'CANCELLED' } },
+                  data: terms,
               })
+            : { count: 0 }
+        const autopayId =
+            existing && rearmed.count === 1
+                ? existing.id
+                : (
+                      await tx.memberAutopay.create({
+                          data: {
+                              ...terms,
+                              workspaceId: payment.workspaceId,
+                              userId: payment.userId,
+                              planId: plan.id,
+                              liveKey,
+                              provider: 'YOOKASSA',
+                          },
+                          select: { id: true },
+                      })
+                  ).id
         await tx.payment.update({
             where: { id: payment.id },
-            data: { autopayId: row.id },
+            data: { autopayId },
         })
         return {
-            autopayId: row.id,
+            autopayId,
             replaced,
-            termsAmount: row.termsAmount,
-            currency: row.currency,
+            termsAmount: terms.termsAmount,
+            currency: terms.currency,
             cardLast4,
         }
     }
@@ -240,20 +275,23 @@ export class MemberAutopayAgreementsService {
     // ─── Renewal outcomes ───────────────────────────────────────────────
 
     // A renewal charge succeeded and granted the abonement (inside the claim
-    // transaction): a fresh start, a lower price becomes the agreed one.
+    // transaction): a fresh start, a lower price becomes the agreed one. The
+    // write is guarded, so a cancel that committed meanwhile stays final —
+    // 'cancelled' tells the activation the money arrived after a refusal.
     async onChargeSucceededInTx(
         tx: Tx,
         payment: Pick<AutopayPaymentRef, 'autopayId' | 'amount'>,
         now: Date,
-    ) {
-        if (!payment.autopayId) return
+    ): Promise<'reset' | 'cancelled' | 'none'> {
+        if (!payment.autopayId) return 'none'
         const row = await tx.memberAutopay.findUnique({
             where: { id: payment.autopayId },
             select: { status: true, termsAmount: true },
         })
-        if (!row || row.status === 'CANCELLED') return
-        await tx.memberAutopay.update({
-            where: { id: payment.autopayId },
+        if (!row) return 'none'
+        if (row.status === 'CANCELLED') return 'cancelled'
+        const reset = await tx.memberAutopay.updateMany({
+            where: { id: payment.autopayId, status: { not: 'CANCELLED' } },
             data: {
                 status: 'ACTIVE',
                 needsActionReason: null,
@@ -264,6 +302,24 @@ export class MemberAutopayAgreementsService {
                 lastChargedAt: now,
                 termsAmount: Math.min(row.termsAmount, payment.amount),
             },
+        })
+        return reset.count === 1 ? 'reset' : 'cancelled'
+    }
+
+    // A renewal charge was already at the provider when the member cancelled
+    // and it went through: the abonement is granted; staff decide on a
+    // refund (E1 «Платежи»).
+    async alertChargedAfterCancel(payment: AutopayPaymentRef) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: payment.userId },
+            select: { firstname: true, lastname: true },
+        })
+        await this.notices.staffAlert({
+            workspaceId: payment.workspaceId,
+            refId: `${payment.id}:after-cancel`,
+            path: 'subscriptions/payments',
+            message: `Автоплатёж ${fullNameWithoutEmail(user ?? { firstname: null, lastname: null })} за «${payment.planName}» (${formatMoney(payment.amount, payment.currency)}) прошёл после того, как ученик его отключил: списание уже было отправлено. Абонемент оформлен — решите, вернуть ли деньги, в «Платежах».`,
+            metadata: { autopayId: payment.autopayId, paymentId: payment.id },
         })
     }
 
@@ -555,6 +611,10 @@ export class MemberAutopayAgreementsService {
                 status: 'CANCELLED',
                 liveKey: null,
                 paymentMethodId: null,
+                // Nothing personal stays on a refused agreement (the last 4
+                // digits remain for the history line).
+                paymentMethodTitle: null,
+                receiptEmail: '',
                 needsActionReason: null,
                 nextAttemptAt: null,
                 cancelledAt: p.now,

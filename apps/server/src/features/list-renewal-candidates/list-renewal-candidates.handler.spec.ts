@@ -517,6 +517,7 @@ describe('listRenewalCandidates paging and filters', () => {
             updatedAt: new Date('2026-11-15T09:00:00Z'),
             directions: [{ directionId: BJJ.id }],
             consumedRecords: [],
+            burnedBookings: [],
             workspaceMember: { userId: 'auto' },
         };
         const prisma = prismaFor(due, autopays, [anchor]);

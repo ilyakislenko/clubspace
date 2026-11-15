@@ -11,6 +11,7 @@ import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
 import { AllowExpiredAccess } from '../../shared/decorators/allow-expired-access.decorator'
+import { AllowSuspendedWorkspace } from '../../shared/decorators/allow-suspended-workspace.decorator'
 import {
     CurrentUser,
     type CurrentUserPayload,
@@ -39,8 +40,9 @@ class MyAutopayOutput extends createZodDto(CancelMyAutopayOutputSchema) {}
 class AcceptMyAutopayTermsInput extends createZodDto(AcceptMyAutopayTermsInputSchema) {}
 
 // The member's own autopay (docs/design/2026-11-15-member-autopay.md §3.5) —
-// no @Roles, no section switch. The list and the cancel stay open after
-// access ran out: a refusal must always be possible (376-ФЗ).
+// no @Roles, no section switch. All three stay open after access ran out
+// (paying for a renewal is how access comes back; a refusal must always be
+// possible, 376-ФЗ); the list and the cancel also in a suspended club.
 @Controller('workspaces/:workspaceId/me/autopays')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class MyAutopaysController {
@@ -48,6 +50,7 @@ export class MyAutopaysController {
 
     @Get()
     @AllowExpiredAccess()
+    @AllowSuspendedWorkspace()
     @ZodResponse({ type: ListMyAutopaysOutput })
     async listMyAutopays(
         @Param('workspaceId') workspaceId: string,
@@ -60,6 +63,7 @@ export class MyAutopaysController {
 
     @Post(':autopayId/cancel')
     @AllowExpiredAccess()
+    @AllowSuspendedWorkspace()
     @ZodResponse({ type: MyAutopayOutput })
     async cancelMyAutopay(
         @Param('workspaceId') workspaceId: string,
@@ -72,6 +76,7 @@ export class MyAutopaysController {
     }
 
     @Post(':autopayId/accept-terms')
+    @AllowExpiredAccess()
     @ZodResponse({ type: MyAutopayOutput })
     async acceptMyAutopayTerms(
         @Param('workspaceId') workspaceId: string,

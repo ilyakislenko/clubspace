@@ -181,3 +181,15 @@ describe('helpers', () => {
         expect(autopayCardLabel(null)).toBe('сохранённый способ оплаты')
     })
 })
+
+describe('a started pack with no end date', () => {
+    it('is charged 1 h after its last class, never while classes remain', () => {
+        const open = sub({ endDate: null, classesTotal: 8, classesRemaining: 2 })
+        expect(autopayDueAt(open, MSK, null)).toBeNull()
+        const used = sub({ endDate: null, classesTotal: 8, classesRemaining: 0 })
+        expect(autopayDueAt(used, MSK, new Date('2026-11-20T15:00:00Z'))).toEqual(
+            new Date('2026-11-20T16:00:00Z'),
+        )
+        expect(pickAnchor([used], [], now)?.id).toBe('s-1')
+    })
+})

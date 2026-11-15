@@ -447,20 +447,44 @@ describe('tariff autopay', () => {
         },
     ) => {
         let row = { ...stored, ...current }
+        let scope: string[] = []
         return withTx({
             workspacePaymentSettings: { findUnique: jest.fn().mockResolvedValue(settings) },
+            direction: {
+                findMany: jest.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+                    where.id.in.map((id) => ({ id })),
+                ),
+            },
             plan: {
-                findFirst: jest.fn(async () => row),
+                findFirst: jest.fn(async () => ({
+                    ...row,
+                    directions: scope.map((directionId) => ({ directionId })),
+                })),
                 create: jest.fn(async ({ data }: { data: Partial<typeof stored> }) => ({
                     ...stored,
                     ...data,
                     directions: [],
                 })),
                 // What the handler wrote is what it reads back.
-                update: jest.fn(async ({ data }: { data: Partial<typeof stored> }) => {
-                    row = { ...row, ...data }
-                    return row
-                }),
+                update: jest.fn(
+                    async ({
+                        data,
+                    }: {
+                        data: Partial<typeof stored> & {
+                            directions?: { create: Array<{ directionId: string }> }
+                        }
+                    }) => {
+                        const { directions, ...fields } = data
+                        if (directions) scope = directions.create.map((c) => c.directionId)
+                        row = { ...row, ...fields }
+                        return {
+                            ...row,
+                            directions: scope.map((id) => ({
+                                direction: { id, name: id, color: null, icon: null },
+                            })),
+                        }
+                    },
+                ),
             },
         })
     }
@@ -572,6 +596,39 @@ describe('tariff autopay', () => {
         await update(db({ autopayAvailable: false }), { price: 5000 }, a)
         expect(a.notifyTermsChanged).not.toHaveBeenCalled()
         expect(a.cancelForPlan).not.toHaveBeenCalled()
+    })
+
+    // Agreements renew abonements of the tariff's scope; a new scope would
+    // leave them renewing something else (review P2-3): they stop.
+    it('stops the live agreements when the directions change, not when they are re-sent', async () => {
+        const a = autopay()
+        await update(db(), { directionIds: [] }, a)
+        expect(a.cancelForPlan).not.toHaveBeenCalled()
+        await update(db(), { directionIds: ['d-bjj'] }, a)
+        expect(a.cancelForPlan).toHaveBeenCalledWith('p1', 'тариф изменился')
+        expect(a.notifyTermsChanged).not.toHaveBeenCalled()
+        const off = autopay()
+        await update(db({ autopayAvailable: false }), { directionIds: ['d-bjj'] }, off)
+        expect(off.cancelForPlan).not.toHaveBeenCalled()
+    })
+
+    // Charged a day before the end and retried over 5 days (review P2-2).
+    it('allows autopay only on a term of 7 days or more', async () => {
+        const message = 'Продлевать автоплатежом можно тариф сроком от 7 дней'
+        await expect(
+            create(db(), { purchasableOnline: true, autopayAvailable: true, durationDays: 6 }),
+        ).rejects.toThrow(message)
+        await expect(update(db(), { durationDays: 5 })).rejects.toThrow(message)
+        await expect(update(db({ autopayAvailable: false, durationDays: 3 }), { autopayAvailable: true })).rejects.toThrow(
+            message,
+        )
+        // Unticking it with the shorter term in one save is fine.
+        const prisma = db()
+        await update(prisma, { durationDays: 5, autopayAvailable: false })
+        expect(prisma.plan.update.mock.calls[0][0].data).toEqual({ durationDays: 5, autopayAvailable: false })
+        await expect(
+            create(db(), { purchasableOnline: true, autopayAvailable: true, durationDays: 7 }),
+        ).resolves.toMatchObject({ autopayAvailable: true })
     })
 })
 

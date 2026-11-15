@@ -3455,6 +3455,14 @@ model Payment {
   // Set on a checkout where the member ticked autopay: the consent text
   // version shown. The activation creates the agreement from it.
   autopayConsentVersion String?        @db.VarChar(64)
+  // Setup checkout: the renewal amount the consent showed («дальше Y») — the
+  // agreement's termsAmount — and the YooKassa shop the card is saved in.
+  autopayRenewalAmount  Int?
+  autopayShopId         String?        @db.VarChar(64)
+  // Renewal charge: the provider request body as first sent (description,
+  // item name, receipt e-mail and settings, saved method), so a re-send with
+  // the same Idempotence-Key sends exactly the same body.
+  chargeRequest         Json?
   // Why the provider refused (YooKassa cancellation_details.reason).
   failureReason         String?        @db.VarChar(500)
 

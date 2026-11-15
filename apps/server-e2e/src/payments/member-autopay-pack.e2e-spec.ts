@@ -73,7 +73,12 @@ describe('member autopay — class pack', () => {
             .http()
             .post(`/workspaces/${workspace.id}/payments`)
             .set(...memberActor.auth)
-            .send({ planId: plan.id, autopay: true, autopayConsentVersion: AUTOPAY_CONSENT_VERSION })
+            .send({
+                planId: plan.id,
+                autopay: true,
+                autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+                autopayRenewalAmount: 3000,
+            })
             .expect(201)
         const providerId = (
             await ctx.prisma.payment.findUniqueOrThrow({ where: { id: created.body.payment.id } })

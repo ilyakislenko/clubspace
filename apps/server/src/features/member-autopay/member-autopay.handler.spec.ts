@@ -1,12 +1,14 @@
 import 'reflect-metadata'
 
 import { ALLOW_EXPIRED_ACCESS } from '../../shared/decorators/allow-expired-access.decorator'
+import { ALLOW_SUSPENDED_WORKSPACE } from '../../shared/decorators/allow-suspended-workspace.decorator'
 import {
     BadRequestError,
     ConflictError,
     ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { AUTOPAY_CONSENT_VERSION } from '../../domains/autopay/autopay-consent'
 import { RbacService } from '../../shared/services/rbac.service'
 import { AcceptMyAutopayTermsFeature } from './accept-my-autopay-terms.feature'
 import { AcceptMyAutopayTermsHandler } from './accept-my-autopay-terms.handler'
@@ -40,6 +42,7 @@ const ANCHOR = {
     updatedAt: new Date('2026-11-14T09:00:00Z'),
     directions: [],
     consumedRecords: [],
+    burnedBookings: [],
 }
 
 const PLAN = {
@@ -66,7 +69,7 @@ const agreement = (over: Partial<Agreement> = {}): Agreement => ({
     currency: 'RUB',
     termsDurationDays: 30,
     termsClassCount: null,
-    consentVersion: '2026-11-15',
+    consentVersion: AUTOPAY_CONSENT_VERSION,
     consentedAt: new Date('2026-11-14T09:00:00Z'),
     failedAttempts: 0,
     nextAttemptAt: null,
@@ -221,7 +224,7 @@ describe('listMyAutopays', () => {
             amount: 4500,
             durationDays: 30,
             classCount: null,
-            consentVersion: '2026-11-15',
+            consentVersion: AUTOPAY_CONSENT_VERSION,
         })
     })
 
@@ -324,7 +327,7 @@ describe('acceptMyAutopayTerms', () => {
     ) =>
         new AcceptMyAutopayTermsHandler(m.prisma as never, m.audit as never).execute(
             new AcceptMyAutopayTermsFeature(
-                { amount: 4500, durationDays: 30, classCount: null, consentVersion: '2026-11-15', ...payload },
+                { amount: 4500, durationDays: 30, classCount: null, consentVersion: AUTOPAY_CONSENT_VERSION, ...payload },
                 'w1',
                 'a1',
                 userId,
@@ -347,7 +350,7 @@ describe('acceptMyAutopayTerms', () => {
             termsDurationDays: 30,
             termsClassCount: null,
             currency: 'RUB',
-            consentVersion: '2026-11-15',
+            consentVersion: AUTOPAY_CONSENT_VERSION,
             consentedAt: NOW,
             status: 'ACTIVE',
             needsActionReason: null,
@@ -371,7 +374,7 @@ describe('acceptMyAutopayTerms', () => {
                 planName: 'Безлимит',
                 from: { amount: 4000, durationDays: 30, classCount: null },
                 to: { amount: 4500, durationDays: 30, classCount: null },
-                consentVersion: '2026-11-15',
+                consentVersion: AUTOPAY_CONSENT_VERSION,
             },
         })
     })
@@ -451,7 +454,7 @@ describe('listMemberAutopays (member card)', () => {
         const [a] = (await list(m, { userId: 'hc1', role: 'head_coach' })).data
         expect(a.cardLabel).toBeNull()
         expect(a.termsAmount).toBeNull()
-        expect(a.newTerms).toEqual({ amount: null, durationDays: 30, classCount: null, consentVersion: '2026-11-15' })
+        expect(a.newTerms).toEqual({ amount: null, durationDays: 30, classCount: null, consentVersion: AUTOPAY_CONSENT_VERSION })
         expect(JSON.stringify(a)).not.toContain('4444')
     })
 
@@ -534,18 +537,21 @@ describe('cancelMemberAutopay (at the member’s request)', () => {
     })
 })
 
-// 376-ФЗ: a member whose access ran out must still see and refuse autopay;
-// accepting new terms is not a refusal and stays behind the access check.
+// 376-ФЗ: a member whose access ran out — or whose club is suspended — must
+// still see and refuse autopay; accepting new terms works after access ran
+// out (the renewal is how it comes back), not in a suspended club.
 describe('routes', () => {
-    // The guard reads this metadata off the route handler.
-    const allowsExpired = (handler: object) =>
-        Reflect.getMetadata(ALLOW_EXPIRED_ACCESS, handler) === true
+    // The guards read this metadata off the route handler.
+    const has = (key: string, handler: object) => Reflect.getMetadata(key, handler) === true
 
-    it('keeps the list and the cancel open after access ran out', () => {
+    it('keeps the member routes open after access ran out, the refusal in a suspended club too', () => {
         const proto = MyAutopaysController.prototype
-        expect(allowsExpired(proto.listMyAutopays)).toBe(true)
-        expect(allowsExpired(proto.cancelMyAutopay)).toBe(true)
-        expect(allowsExpired(proto.acceptMyAutopayTerms)).toBe(false)
-        expect(allowsExpired(MemberAutopaysController.prototype.cancelMemberAutopay)).toBe(false)
+        expect(has(ALLOW_EXPIRED_ACCESS, proto.listMyAutopays)).toBe(true)
+        expect(has(ALLOW_EXPIRED_ACCESS, proto.cancelMyAutopay)).toBe(true)
+        expect(has(ALLOW_EXPIRED_ACCESS, proto.acceptMyAutopayTerms)).toBe(true)
+        expect(has(ALLOW_SUSPENDED_WORKSPACE, proto.listMyAutopays)).toBe(true)
+        expect(has(ALLOW_SUSPENDED_WORKSPACE, proto.cancelMyAutopay)).toBe(true)
+        expect(has(ALLOW_SUSPENDED_WORKSPACE, proto.acceptMyAutopayTerms)).toBe(false)
+        expect(has(ALLOW_EXPIRED_ACCESS, MemberAutopaysController.prototype.cancelMemberAutopay)).toBe(false)
     })
 })

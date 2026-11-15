@@ -149,19 +149,32 @@ export const renewalAutopayLine = (
 export const autopayPeople = (n: number): string =>
   `${n} ${pluralRu(n, "ученика", "учеников", "учеников")}`
 
-type PlanTerms = { price: number; durationDays: number; classCount: number | null }
+type PlanTerms = {
+  price: number
+  durationDays: number
+  classCount: number | null
+  autopayAvailable: boolean
+  // The tariff's scope (empty = whole club).
+  directionIds: readonly string[]
+}
+
+// The shortest term a tariff renewed by autopay may have — a zod refine on
+// the server (manage-plans), so the contract can't carry it.
+export const AUTOPAY_MIN_DURATION_DAYS = 7
+export const AUTOPAY_TERM_TEXT = `Автоплатёж — для тарифов сроком от ${AUTOPAY_MIN_DURATION_DAYS} дней`
+
+const sameIds = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && a.every((id) => b.includes(id))
 
 // What saving a tariff does to the members renewing it by autopay: ends it
-// (autopay, online sale or the tariff itself switched off), asks them to accept
-// new terms (a higher price, another term or pack size — the server's
+// (autopay, online sale or the tariff itself switched off, or its directions
+// changed — the server cancels with «тариф изменился»), asks them to accept new
+// terms (a higher price, another term or pack size — the server's
 // TERMS_CHANGED rule), or nothing. A tariff without autopay affects nobody.
-export const autopayImpact = (
-  saved: PlanTerms & { autopayAvailable: boolean },
-  next: PlanTerms & { autopayAvailable: boolean },
-): "off" | "terms" | null =>
+export const autopayImpact = (saved: PlanTerms, next: PlanTerms): "off" | "terms" | null =>
   !saved.autopayAvailable
     ? null
-    : !next.autopayAvailable
+    : !next.autopayAvailable || !sameIds(saved.directionIds, next.directionIds)
       ? "off"
       : next.price > saved.price ||
           next.durationDays !== saved.durationDays ||

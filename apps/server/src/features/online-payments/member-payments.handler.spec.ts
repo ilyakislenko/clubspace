@@ -124,6 +124,8 @@ const prismaFor = (opts: {
     uses?: number
     // The member's autopay agreements ({ planId, status }).
     autopays?: Array<{ planId: string; status: string }>
+    // A renewal charge of the tariff still PENDING.
+    charging?: Record<string, unknown> | null
 } = {}) => ({
     workspace: {
         findUnique: jest
@@ -161,7 +163,11 @@ const prismaFor = (opts: {
         findUniqueOrThrow: jest.fn().mockResolvedValue({ email: 'member@example.com' }),
     },
     payment: {
-        findFirst: jest.fn().mockResolvedValue(opts.recent ?? null),
+        // The autopay in-flight check asks for a renewal key; anything else
+        // is the checkout's reuse lookup.
+        findFirst: jest.fn(async (args: { where: { idempotenceKey?: { startsWith?: string } } }) =>
+            args.where.idempotenceKey?.startsWith ? (opts.charging ?? null) : (opts.recent ?? null),
+        ),
         create: jest.fn(async ({ data }) => paymentRow(data)),
         update: jest.fn(async ({ data }) => paymentRow(data)),
         count: jest.fn().mockResolvedValue(0),
@@ -497,9 +503,14 @@ describe('createPayment', () => {
         const buy = (
             prisma: ReturnType<typeof prismaFor>,
             gateway = gatewayOk(),
-            payload: { autopay?: boolean; autopayConsentVersion?: string } = {
+            payload: {
+                autopay?: boolean
+                autopayConsentVersion?: string
+                autopayRenewalAmount?: number
+            } = {
                 autopay: true,
                 autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+                autopayRenewalAmount: 4500,
             },
             n = notices(),
         ) =>
@@ -536,7 +547,7 @@ describe('createPayment', () => {
                 [
                     prismaFor({ settings: autopayClub, plan: renewable }),
                     'Условия автоплатежа обновились — обновите экран',
-                    { autopay: true, autopayConsentVersion: '2020-01-01' },
+                    { autopay: true, autopayConsentVersion: '2020-01-01', autopayRenewalAmount: 4500 },
                 ],
                 [
                     prismaFor({
@@ -576,16 +587,45 @@ describe('createPayment', () => {
             expect(gateway.createPayment).toHaveBeenCalled()
         })
 
-        it('reuses a pending payment only for the same choice', async () => {
+        it('reuses a pending payment only for the same choice and renewal amount', async () => {
+            const reuseWhere = (p: ReturnType<typeof prismaFor>) =>
+                p.payment.findFirst.mock.calls
+                    .map((c) => c[0].where)
+                    .find((w: Record<string, unknown>) => 'autopayConsentVersion' in w)
             const prisma = prismaFor({ settings: autopayClub, plan: renewable })
             await buy(prisma)
-            expect(prisma.payment.findFirst.mock.calls[0][0].where).toMatchObject({
+            expect(reuseWhere(prisma)).toMatchObject({
                 autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+                autopayRenewalAmount: 4500,
             })
             const oneOff = prismaFor({ settings: autopayClub, plan: renewable })
             await buy(oneOff, gatewayOk(), {})
-            expect(oneOff.payment.findFirst.mock.calls[0][0].where).toMatchObject({
+            expect(reuseWhere(oneOff)).toMatchObject({
                 autopayConsentVersion: null,
+                autopayRenewalAmount: null,
+            })
+        })
+
+        it('stores the renewal amount the consent showed and the shop; 409 when it changed', async () => {
+            const prisma = prismaFor({ settings: autopayClub, plan: renewable })
+            await buy(prisma)
+            expect(prisma.payment.create.mock.calls[0][0].data).toMatchObject({
+                autopayRenewalAmount: 4500,
+                autopayShopId: '123456',
+            })
+            const changed = prismaFor({ settings: autopayClub, plan: renewable, family: family(10), familyEligible: true })
+            await expect(buy(changed)).rejects.toMatchObject({
+                statusCode: 409,
+                message: 'Сумма продления изменилась — обновите экран',
+            })
+            expect(changed.payment.create).not.toHaveBeenCalled()
+        })
+
+        it('refuses a checkout while the tariff’s autopay charge is at the provider', async () => {
+            const prisma = prismaFor({ settings: autopayClub, plan: renewable, charging: { id: 'pay-a' } })
+            await expect(buy(prisma, gatewayOk(), {})).rejects.toMatchObject({
+                statusCode: 400,
+                message: 'Автоплатёж по этому тарифу сейчас списывается — подождите несколько минут',
             })
         })
 

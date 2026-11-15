@@ -26,7 +26,12 @@ import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { confirmDialog } from "../../shared/ui/confirm-dialog"
-import { autopayImpact, autopayPeople } from "./autopay-text"
+import {
+  AUTOPAY_MIN_DURATION_DAYS,
+  AUTOPAY_TERM_TEXT,
+  autopayImpact,
+  autopayPeople,
+} from "./autopay-text"
 import {
   confirmLeave,
   sameData,
@@ -177,6 +182,19 @@ export function PlanFormSheet({
       errs.classCount = `Введите число занятий от ${L.classCount.min} до ${L.classCount.max} или оставьте пустым`
     const cur = form.currency.trim().toUpperCase()
     if (!/^[A-Z]{3}$/.test(cur)) errs.currency = "Код из 3 букв, например RUB"
+    // The server's refine (manage-plans): an autopay tariff runs a week or more.
+    if (
+      parsedDays !== null &&
+      parsedDays < AUTOPAY_MIN_DURATION_DAYS &&
+      clubAutopay?.offered === true &&
+      clubAutopay.enabled &&
+      form.autopayAvailable &&
+      form.purchasableOnline &&
+      !form.isFreeTrial &&
+      parsedPrice !== null &&
+      parsedPrice > 0
+    )
+      errs.durationDays = AUTOPAY_TERM_TEXT
     setFieldErrors(errs)
     if (Object.keys(errs).length > 0 || parsedPrice === null || parsedDays === null)
       return
@@ -202,14 +220,18 @@ export function PlanFormSheet({
     // Members renewing this tariff by autopay hear about it first. Without the
     // checkbox the flag stays, but ending online sale still ends autopay.
     const impact = current
-      ? autopayImpact(current, {
-          price: parsedPrice,
-          durationDays: parsedDays,
-          classCount: parsedClasses,
-          autopayAvailable: autopayShown
-            ? autopayAvailable
-            : current.autopayAvailable && purchasableOnline,
-        })
+      ? autopayImpact(
+          { ...current, directionIds: current.directions.map((d) => d.id) },
+          {
+            price: parsedPrice,
+            durationDays: parsedDays,
+            classCount: parsedClasses,
+            autopayAvailable: autopayShown
+              ? autopayAvailable
+              : current.autopayAvailable && purchasableOnline,
+            directionIds: form.directionIds,
+          },
+        )
       : null
     if (current && impact) {
       let count = 0
@@ -288,7 +310,11 @@ export function PlanFormSheet({
     )
   const freeOrTrial = form.isFreeTrial || form.price.trim() === "0"
   const onlineOn = form.purchasableOnline && !freeOrTrial
-  // Needs online sale and the club's setting; shown as off while it can't apply.
+  // Needs online sale and the club's setting (shown as off while it can't
+  // apply), and a term of a week or more: ticking needs it, and a ticked box
+  // stays on so the save can refuse a shorter term (AUTOPAY_TERM_TEXT).
+  const longEnough =
+    (parseIntInput(form.durationDays, L.durationDays) ?? 0) >= AUTOPAY_MIN_DURATION_DAYS
   const autopayOpen = onlineOn && clubAutopay?.enabled === true
   const autopayOn = form.autopayAvailable && autopayOpen
 
@@ -408,7 +434,7 @@ export function PlanFormSheet({
                 <input
                   type="checkbox"
                   checked={autopayOn}
-                  disabled={!autopayOpen}
+                  disabled={!autopayOpen || (!longEnough && !autopayOn)}
                   onChange={(e) => set("autopayAvailable", e.target.checked)}
                 />
                 Можно продлевать автоплатежом
@@ -426,6 +452,8 @@ export function PlanFormSheet({
                   </>
                 ) : !onlineOn ? (
                   "Сначала отметьте «Можно купить онлайн»"
+                ) : !longEnough ? (
+                  AUTOPAY_TERM_TEXT
                 ) : (
                   "Ученик сам включит автопродление при оплате в приложении и сможет отключить его в любой момент."
                 )}

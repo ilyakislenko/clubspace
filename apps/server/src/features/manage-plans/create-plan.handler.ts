@@ -11,7 +11,9 @@ import {
 import {
     assertClubOffersAutopay,
     assertDirectionsInWorkspace,
+    AUTOPAY_MIN_DURATION_DAYS,
     AUTOPAY_NEEDS_ONLINE_MESSAGE,
+    AUTOPAY_SHORT_TERM_MESSAGE,
     canSellOnline,
     ONLINE_FREE_PLAN_MESSAGE,
     PLAN_WRITE_REFUSAL,
@@ -51,6 +53,9 @@ export class CreatePlanHandler
         if (f.payload.autopayAvailable) {
             if (!f.payload.purchasableOnline) {
                 throw new BadRequestError({ message: AUTOPAY_NEEDS_ONLINE_MESSAGE })
+            }
+            if (f.payload.durationDays < AUTOPAY_MIN_DURATION_DAYS) {
+                throw new BadRequestError({ message: AUTOPAY_SHORT_TERM_MESSAGE })
             }
             await assertClubOffersAutopay(this.prisma, f.workspaceId)
         }

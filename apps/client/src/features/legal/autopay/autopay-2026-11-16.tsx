@@ -7,7 +7,7 @@ import { SUPPORT_EMAIL } from "../../../shared/lib/legal"
 // key of this edition in ../registry.ts. A published edition is never edited:
 // a change is a new edition plus the server constant bump, in one deploy.
 
-export function Autopay20261115() {
+export function Autopay20261116() {
   return (
     <section className="space-y-3 text-sm leading-6">
       <p>
@@ -81,9 +81,10 @@ export function Autopay20261115() {
         период автоплатёж не списывает.
       </p>
       <p>
-        4.6. За 3 дня до списания мы присылаем напоминание с датой и суммой — в
-        приложении и на e-mail. Для пакета занятий — ещё уведомление, когда
-        останется одно занятие.
+        4.6. Перед списанием мы присылаем напоминание с датой и суммой — в
+        приложении и на e-mail. Для абонемента на срок — за 3 дня до списания.
+        Для пакета занятий — когда останется одно занятие; если занятия не
+        закончатся раньше — ещё и за 3 дня до окончания срока пакета.
       </p>
 
       <h2 className="text-lg font-semibold">5. Если списание не прошло</h2>

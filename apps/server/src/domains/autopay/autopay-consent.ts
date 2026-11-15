@@ -7,7 +7,7 @@ import { formatMoney } from '../analytics/money'
 // a word means a new version here and a new edition of /legal/autopay
 // (apps/client/src/features/legal/autopay, keyed by this version).
 // Черновик — требует проверки юристом (design §14).
-export const AUTOPAY_CONSENT_VERSION = '2026-11-15'
+export const AUTOPAY_CONSENT_VERSION = '2026-11-16'
 
 export const autopayConsentLines = (p: {
     clubName: string
@@ -26,7 +26,11 @@ export const autopayConsentLines = (p: {
             ? 'за день до окончания срока'
             : 'когда закончатся занятия или срок'
     }.`,
-    'За 3 дня до списания пришлём напоминание.',
+    // A pack used up early is charged 1 h after its last class: the notice
+    // is «one class left», not 3 days ahead.
+    p.classCount === null
+        ? 'За 3 дня до списания пришлём напоминание.'
+        : 'Когда останется одно занятие, пришлём напоминание; если занятия не закончатся раньше — ещё и за 3 дня до окончания срока.',
     'Отключить автоплатёж можно в любой момент в разделе «Мой абонемент» — следующих списаний не будет.',
     'Если клуб изменит цену или условия тарифа, спишем новую сумму только после вашего подтверждения.',
     'Данные карты хранит ЮKassa, клуб и ClubSpace их не видят.',

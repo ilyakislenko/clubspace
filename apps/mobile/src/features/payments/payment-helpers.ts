@@ -235,17 +235,21 @@ export const paymentStatusLine = (p: {
 }
 
 // The checkout body for a tariff. Autopay is opt-in: it is sent only when the
-// member switched it on, with the consent version the screen showed (the
-// server refuses a stale one).
+// member switched it on, with the consent the screen showed — its version and
+// renewal amount (the server refuses either when stale).
 export const checkoutInput = (p: {
   planId: string
   promoCode?: string
-  autopayConsentVersion: string | null
+  autopay: { consentVersion: string; renewalAmount: number } | null
 }): CreatePaymentInput => ({
   planId: p.planId,
   ...(p.promoCode ? { promoCode: p.promoCode } : {}),
-  ...(p.autopayConsentVersion
-    ? { autopay: true, autopayConsentVersion: p.autopayConsentVersion }
+  ...(p.autopay
+    ? {
+        autopay: true,
+        autopayConsentVersion: p.autopay.consentVersion,
+        autopayRenewalAmount: p.autopay.renewalAmount,
+      }
     : {}),
 })
 

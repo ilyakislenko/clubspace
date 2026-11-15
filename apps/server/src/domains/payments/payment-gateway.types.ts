@@ -69,6 +69,9 @@ export type GatewayPayment = {
     // Why a CANCELED payment was refused (YooKassa cancellation_details.reason,
     // e.g. insufficient_funds, permission_revoked).
     cancellationReason?: string | null
+    // Our Payment.id as echoed in the provider's metadata (YooKassa only):
+    // finds a payment whose provider id never reached us (a lost answer).
+    metadataPaymentId?: string | null
 }
 
 export type GatewayPaymentMethod = {

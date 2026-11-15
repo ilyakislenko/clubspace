@@ -30,6 +30,11 @@ export const autopayAbonementSelect = {
         take: 1,
         select: { markedAt: true },
     },
+    burnedBookings: {
+        orderBy: { updatedAt: 'desc' },
+        take: 1,
+        select: { updatedAt: true },
+    },
 } as const satisfies Prisma.SubscriptionSelect
 
 export type AutopayAbonementRow = Prisma.SubscriptionGetPayload<{
@@ -55,10 +60,15 @@ export const loadAutopayAbonements = (
         select: autopayAbonementSelect,
     })
 
-// When the pack's last class went: its last deducting check-in, else the
-// row's last write (a class burned by a late cancel).
-export const lastUsedAt = (anchor: AutopayAbonementRow): Date =>
-    anchor.consumedRecords[0]?.markedAt ?? anchor.updatedAt
+// When the pack's last class went: the later of its last deducting check-in
+// and its last class burned by a late cancel / no-show (the booking's write
+// that took it); the row's last write when it has neither.
+export const lastUsedAt = (anchor: AutopayAbonementRow): Date => {
+    const checkIn = anchor.consumedRecords[0]?.markedAt
+    const burn = anchor.burnedBookings[0]?.updatedAt
+    if (checkIn && burn) return checkIn > burn ? checkIn : burn
+    return checkIn ?? burn ?? anchor.updatedAt
+}
 
 // The anchor of an agreement and its next charge day (for the member's and
 // staff's «следующее списание»), from the member's abonements.

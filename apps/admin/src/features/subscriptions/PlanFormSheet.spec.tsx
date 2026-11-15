@@ -176,6 +176,50 @@ describe("PlanFormSheet — «Можно продлевать автоплате
     expect(screen.getByText("Сначала отметьте «Можно купить онлайн»")).toBeTruthy()
   })
 
+  it("needs a term of a week or more to tick", async () => {
+    club(true)
+    await renderForm(plan({ purchasableOnline: true, durationDays: 1 }))
+    expect(autopayBox().disabled).toBe(true)
+    expect(screen.getByText("Автоплатёж — для тарифов сроком от 7 дней")).toBeTruthy()
+    fireEvent.change(screen.getByLabelText("Дней доступа"), { target: { value: "7" } })
+    expect(autopayBox().disabled).toBe(false)
+  })
+
+  it("refuses to shorten an autopay tariff below a week", async () => {
+    club(true)
+    await renderForm(plan({ purchasableOnline: true, autopayAvailable: true }))
+    fireEvent.change(screen.getByLabelText("Дней доступа"), { target: { value: "5" } })
+    expect(autopayBox().checked).toBe(true)
+    submit()
+    await waitFor(() => expect(screen.getAllByText("Автоплатёж — для тарифов сроком от 7 дней")).toHaveLength(2))
+    expect(updateMock).not.toHaveBeenCalled()
+    expect(getPlanMock).not.toHaveBeenCalled()
+  })
+
+  it("asks before a directions change ends autopay", async () => {
+    club(true)
+    getPlanMock.mockResolvedValue({ autopayCount: 2 })
+    render(
+      <>
+        <PlanFormSheet
+          {...props}
+          directions={[{ id: "d1", name: "БЖЖ" } as never, { id: "d2", name: "ММА" } as never]}
+          plan={plan({
+            purchasableOnline: true,
+            autopayAvailable: true,
+            directions: [{ id: "d1", name: "БЖЖ" } as never],
+          })}
+        />
+        <ConfirmDialogHost />
+      </>,
+    )
+    await act(() => Promise.resolve())
+    fireEvent.change(screen.getByLabelText("Цена"), { target: { value: "5000" } })
+    fireEvent.click(screen.getByRole("button", { name: "Весь клуб" }))
+    submit()
+    await screen.findByRole("dialog", { name: "Автоплатёж отключится у 2 учеников" })
+  })
+
   it("is sent when ticked on an online tariff", async () => {
     club(true)
     await renderForm(online)

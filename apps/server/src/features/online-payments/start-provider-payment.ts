@@ -70,6 +70,10 @@ export const startProviderPayment = async (
         // The consent version the member accepted with «Продлевать
         // автоматически» (an autopay setup); null for a one-off payment.
         autopayConsentVersion?: string | null
+        // With it: the renewal amount the consent showed and the shop the
+        // card is saved in (the setup checks both).
+        autopayRenewalAmount?: number | null
+        autopayShopId?: string | null
     },
 ) => {
     if (!environment.appUrl) {
@@ -95,6 +99,8 @@ export const startProviderPayment = async (
             // Where the 54-ФЗ receipt goes; a partial refund's receipt reuses it.
             receiptEmail: p.customerEmail.slice(0, 255),
             autopayConsentVersion,
+            autopayRenewalAmount: autopayConsentVersion ? (p.autopayRenewalAmount ?? null) : null,
+            autopayShopId: autopayConsentVersion ? (p.autopayShopId ?? null) : null,
         },
     })
 

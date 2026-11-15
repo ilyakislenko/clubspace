@@ -117,6 +117,11 @@ export const AUTOPAY_NEEDS_ONLINE_MESSAGE =
     'Продлевать автоплатежом можно только тариф, который покупают онлайн'
 export const AUTOPAY_CLUB_OFF_MESSAGE =
     'Включите автоплатежи в разделе «Онлайн-оплата»'
+// A renewal is charged a day before the term ends and retried over 5 days:
+// a shorter term would overlap its own retries.
+export const AUTOPAY_MIN_DURATION_DAYS = 7
+export const AUTOPAY_SHORT_TERM_MESSAGE =
+    'Продлевать автоплатежом можно тариф сроком от 7 дней'
 export const assertClubOffersAutopay = async (
     prisma: Pick<PrismaService, 'workspacePaymentSettings'>,
     workspaceId: string,
@@ -132,3 +137,5 @@ export const assertClubOffersAutopay = async (
 
 // Why live agreements on this tariff stop when it no longer renews by autopay.
 export const PLAN_AUTOPAY_OFF_REASON = 'клуб больше не продлевает этот тариф автоматически'
+// …and when its directions changed: they renew abonements of the old scope.
+export const PLAN_SCOPE_CHANGED_REASON = 'тариф изменился'

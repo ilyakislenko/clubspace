@@ -80,6 +80,7 @@ const setup = (opts: {
             updateMany: jest
                 .fn()
                 .mockResolvedValue({ count: opts.markCount ?? 1 }),
+            findUnique: jest.fn().mockResolvedValue(null),
         },
         $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
     }
@@ -108,6 +109,7 @@ const setup = (opts: {
         onChargeSucceededInTx: jest.fn().mockResolvedValue(undefined),
         onChargeDeclined: jest.fn().mockResolvedValue(undefined),
         onGrantRefused: jest.fn().mockResolvedValue(undefined),
+        alertChargedAfterCancel: jest.fn().mockResolvedValue(undefined),
     }
     const service = new PaymentActivationService(
         prisma as never,
@@ -562,5 +564,42 @@ describe('PaymentActivationService — member autopay', () => {
         })
         expect(setupRefused.autopay.onGrantRefused).not.toHaveBeenCalled()
         expect(setupRefused.autopay.setUpFromPaymentInTx).not.toHaveBeenCalled()
+    })
+
+    it('a charge that lands after the member cancelled: granted, tailored notice, staff decide on a refund', async () => {
+        const s = setup({ payment: renewalPayment() })
+        s.autopay.onChargeSucceededInTx.mockResolvedValue('cancelled')
+        expect(await s.service.applyProviderStatus({ workspaceId: 'ws-1', gateway: gateway(), now })).toBe(
+            'activated',
+        )
+        expect(s.autopay.alertChargedAfterCancel).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'pay-1' }),
+        )
+        expect(s.notifications.notifyUser.mock.calls[0][0].message).toContain(
+            'началось до того, как вы отключили автоплатёж',
+        )
+    })
+
+    it('finds a payment whose provider id never reached us by the metadata id (guarded claim)', async () => {
+        const s = setup({ payment: null })
+        const id = '22222222-2222-4222-8222-222222222222'
+        s.prisma.payment.findUnique.mockResolvedValue(renewalPayment({ id, providerPaymentId: 'yk-9' }))
+        await s.service.applyProviderStatus({
+            workspaceId: 'ws-1',
+            gateway: gateway({ providerPaymentId: 'yk-9', metadataPaymentId: id }),
+            now,
+        })
+        expect(s.prisma.payment.updateMany).toHaveBeenCalledWith({
+            where: { id, workspaceId: 'ws-1', providerPaymentId: null },
+            data: { providerPaymentId: 'yk-9' },
+        })
+        expect(s.subscriptions.grantFromPlanInTx).toHaveBeenCalled()
+        const forged = setup({ payment: null })
+        await forged.service.applyProviderStatus({
+            workspaceId: 'ws-1',
+            gateway: gateway({ metadataPaymentId: 'not-a-uuid' }),
+            now,
+        })
+        expect(forged.prisma.payment.updateMany).not.toHaveBeenCalled()
     })
 })

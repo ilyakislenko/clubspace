@@ -29,6 +29,8 @@ import {
     toMinorUnits,
 } from '../payment-gateway.types'
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export type ProviderStatusOutcome =
     // The abonement was created and linked / the ticket marked paid.
     | 'activated'
@@ -66,6 +68,8 @@ type PaymentRow = {
     idempotenceKey: string
     receiptEmail: string | null
     createdAt: Date
+    autopayRenewalAmount: number | null
+    autopayShopId: string | null
 }
 
 // The sale's price facts as the activation copies them and audits them.
@@ -100,12 +104,13 @@ export class PaymentActivationService {
         gateway: GatewayPayment
         now?: Date
     }): Promise<ProviderStatusOutcome> {
-        const payment = await this.prisma.payment.findFirst({
-            where: {
-                workspaceId: p.workspaceId,
-                providerPaymentId: p.gateway.providerPaymentId,
-            },
-        })
+        const payment =
+            (await this.prisma.payment.findFirst({
+                where: {
+                    workspaceId: p.workspaceId,
+                    providerPaymentId: p.gateway.providerPaymentId,
+                },
+            })) ?? (await this.claimByMetadata(p.workspaceId, p.gateway))
         if (!payment) {
             this.logger.warn(
                 `Webhook for unknown payment ${p.gateway.providerPaymentId} in workspace ${p.workspaceId}`,
@@ -148,6 +153,21 @@ export class PaymentActivationService {
                   now,
               )
             : this.activate(payment, p.gateway, now)
+    }
+
+    // A payment whose provider id never reached us (the create answer was
+    // lost): the provider echoes our Payment.id in its metadata. Only a row of
+    // this club still without a provider id is claimed (compare-and-set), so a
+    // forged metadata id can't take over another payment.
+    private async claimByMetadata(workspaceId: string, gateway: GatewayPayment) {
+        const id = gateway.metadataPaymentId
+        if (!id || !UUID.test(id)) return null
+        const claimed = await this.prisma.payment.updateMany({
+            where: { id, workspaceId, providerPaymentId: null },
+            data: { providerPaymentId: gateway.providerPaymentId },
+        })
+        if (claimed.count !== 1) return null
+        return this.prisma.payment.findUnique({ where: { id } })
     }
 
     // An event ticket: the claim and the «paid ONLINE» mark commit together.
@@ -241,6 +261,7 @@ export class PaymentActivationService {
                 classesRemaining: number | null
             }
             setup: AutopaySetup | null
+            afterCancel: boolean
         } | null
         try {
             granted = await this.prisma.$transaction(async (tx) => {
@@ -321,7 +342,9 @@ export class PaymentActivationService {
                           now,
                       )
                     : null
-                if (isRenewal) await this.autopay.onChargeSucceededInTx(tx, payment, now)
+                const afterCancel = isRenewal
+                    ? (await this.autopay.onChargeSucceededInTx(tx, payment, now)) === 'cancelled'
+                    : false
                 return {
                     subscriptionId: result.subscription.id,
                     planName: result.subscription.plan.name,
@@ -329,6 +352,7 @@ export class PaymentActivationService {
                     timezone: member.workspace.timezone,
                     sub: result.subscription,
                     setup,
+                    afterCancel,
                 }
             })
         } catch (err) {
@@ -364,6 +388,9 @@ export class PaymentActivationService {
             },
         })
         if (granted.setup) await this.autopay.announceSetUp(payment, granted.setup)
+        // The member cancelled while the charge was at the provider: staff
+        // decide on a refund.
+        if (granted.afterCancel) await this.autopay.alertChargedAfterCancel(payment)
         this.realtime.invalidate(payment.workspaceId, [
             'members',
             'subscription',
@@ -390,6 +417,7 @@ export class PaymentActivationService {
                 classesRemaining: number | null
             }
             setup: AutopaySetup | null
+            afterCancel: boolean
         },
         isSetup: boolean,
         isRenewal: boolean,
@@ -399,6 +427,9 @@ export class PaymentActivationService {
             const until = granted.sub.endDate
                 ? ` Действует до ${formatRuDate(granted.sub.endDate, tz)}.`
                 : ''
+            if (granted.afterCancel) {
+                return `Списание ${formatMoney(payment.amount, payment.currency)} за абонемент «${granted.planName}» началось до того, как вы отключили автоплатёж, и прошло. Абонемент оформлен.${until} Если он вам не нужен, обратитесь в клуб с просьбой о возврате. Новых списаний не будет.`
+            }
             return `Автоплатёж: списали ${formatMoney(payment.amount, payment.currency)} за абонемент «${granted.planName}».${until}`
         }
         if (!isSetup) return `Абонемент «${granted.planName}» оформлен. Спасибо!`

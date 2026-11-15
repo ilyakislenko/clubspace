@@ -114,7 +114,11 @@ export const anchorKind = (
 // while classes are left the pack is live, and the grant refuses a new pack
 // over a live one with classes (onlineGrantStart / grantFromPlan), so charging
 // earlier would take money for an abonement that can't be granted.
-// `lastUsedAt`: the last deducting check-in of the pack (null: unknown).
+// `lastUsedAt`: when the pack's last class went (null: unknown).
+// A started pack with no end date (an old or imported sale) has no term end:
+// it is charged only when used up (1 h after the last class); while classes
+// remain it is current and nothing is due. After that charge the new pack has
+// an end, so the usual lapse rule applies from then on.
 export const autopayDueAt = (
     anchor: Pick<
         AutopayAbonement,
@@ -123,6 +127,11 @@ export const autopayDueAt = (
     tz: string,
     lastUsedAt: Date | null,
 ): Date | null => {
+    if (anchor.startDate !== null && anchor.endDate === null && anchor.classesTotal !== null) {
+        return (anchor.classesRemaining ?? 0) > 0
+            ? null
+            : new Date((lastUsedAt ?? anchor.startDate).getTime() + PACK_CHARGE_DELAY_MS)
+    }
     const s = renewalStartYmd(anchor, tz)
     if (s === null) return null
     if (anchor.classesTotal === null) return at10(addDaysYmd(s, -1), tz)

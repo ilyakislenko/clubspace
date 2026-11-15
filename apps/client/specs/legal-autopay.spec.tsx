@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { render, screen } from "@testing-library/react"
 import React from "react"
 
-import { Autopay20261115 } from "../src/features/legal/autopay/autopay-2026-11-15"
+import { Autopay20261116 } from "../src/features/legal/autopay/autopay-2026-11-16"
 import { editionVersions, findEdition } from "../src/features/legal/editions"
 import { AUTOPAY_EDITIONS } from "../src/features/legal/registry"
 
@@ -32,15 +32,15 @@ describe("autopay terms editions", () => {
   })
 
   it("resolves the published edition and nothing inherited", () => {
-    expect(findEdition(AUTOPAY_EDITIONS, "2026-11-15")).toBe(Autopay20261115)
+    expect(findEdition(AUTOPAY_EDITIONS, "2026-11-16")).toBe(Autopay20261116)
     expect(findEdition(AUTOPAY_EDITIONS, "constructor")).toBeNull()
   })
 })
 
-describe("Autopay20261115", () => {
+describe("Autopay20261116", () => {
   // design §5.3: every point the page must state.
   it("states the club as seller, the card storage, timing, changes, cancel, refunds and receipts", () => {
-    const { container } = render(<Autopay20261115 />)
+    const { container } = render(<Autopay20261116 />)
     const text = container.textContent ?? ""
     expect(text).toContain("Продавец абонемента и получатель денег — клуб")
     expect(text).toContain("ClubSpace — программное обеспечение")
@@ -48,7 +48,11 @@ describe("Autopay20261115", () => {
     expect(text).toContain("последние 4 цифры")
     expect(text).toContain("за день до окончания текущего")
     expect(text).toContain("когда занятия закончились")
-    expect(text).toContain("За 3 дня до списания")
+    expect(text).toContain("за 3 дня до списания")
+    // Packs: the «one class left» notice, plus 3 days before the term end
+    // when the classes outlast it (matches the 2026-11-16 consent line).
+    expect(text).toContain("когда останется одно занятие")
+    expect(text).toContain("за 3 дня до окончания срока пакета")
     expect(text).toContain("только после вашего подтверждения")
     expect(text).toContain("«Мой абонемент»")
     expect(text).toContain("попросив об этом клуб")

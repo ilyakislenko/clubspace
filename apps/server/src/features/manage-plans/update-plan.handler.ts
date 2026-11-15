@@ -1,6 +1,10 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { MemberAutopayAgreementsService } from '../../domains/autopay/member-autopay-agreements.service'
+import {
+    sameScope,
+    scopeDirectionIds,
+} from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import {
@@ -12,10 +16,13 @@ import { claimUnchanged } from '../../shared/utils/optimistic-concurrency'
 import {
     assertClubOffersAutopay,
     assertDirectionsInWorkspace,
+    AUTOPAY_MIN_DURATION_DAYS,
     AUTOPAY_NEEDS_ONLINE_MESSAGE,
+    AUTOPAY_SHORT_TERM_MESSAGE,
     canSellOnline,
     ONLINE_FREE_PLAN_MESSAGE,
     PLAN_AUTOPAY_OFF_REASON,
+    PLAN_SCOPE_CHANGED_REASON,
     PLAN_WRITE_REFUSAL,
     planDtoInclude,
     serializePlan,
@@ -57,6 +64,7 @@ export class UpdatePlanHandler
                 autopayAvailable: true,
                 durationDays: true,
                 classCount: true,
+                directions: { select: { directionId: true } },
             },
         })
         if (!existing) throw new NotFoundError({ message: 'Тариф не найден' })
@@ -85,6 +93,9 @@ export class UpdatePlanHandler
         }
         const autopayAvailable =
             purchasableOnline && (p.autopayAvailable ?? existing.autopayAvailable)
+        if (autopayAvailable && (p.durationDays ?? existing.durationDays) < AUTOPAY_MIN_DURATION_DAYS) {
+            throw new BadRequestError({ message: AUTOPAY_SHORT_TERM_MESSAGE })
+        }
         const directionIds =
             p.directionIds !== undefined
                 ? await assertDirectionsInWorkspace(
@@ -151,13 +162,21 @@ export class UpdatePlanHandler
         })
 
         // Live agreements (docs/design/2026-11-15-member-autopay.md §3.5):
-        // the tariff stopped renewing by autopay → cancel them; less
-        // favourable terms → tell the members now (the charge waits for their
-        // confirmation, the service compares per agreement).
+        // the tariff stopped renewing by autopay → cancel them; its scope
+        // changed → cancel them too (they renew abonements of the old scope;
+        // the member re-arms with a new purchase); less favourable terms →
+        // tell the members now (the charge waits for their confirmation, the
+        // service compares per agreement).
         const renews = (x: { isActive: boolean; purchasableOnline: boolean; autopayAvailable: boolean }) =>
             x.isActive && x.purchasableOnline && x.autopayAvailable
+        const scopeChanged = !sameScope(
+            scopeDirectionIds(existing),
+            plan.directions.map((d) => d.direction.id),
+        )
         if (renews(existing) && !renews(plan)) {
             await this.autopay.cancelForPlan(plan.id, PLAN_AUTOPAY_OFF_REASON)
+        } else if (renews(existing) && scopeChanged) {
+            await this.autopay.cancelForPlan(plan.id, PLAN_SCOPE_CHANGED_REASON)
         } else if (
             renews(plan) &&
             (plan.price > existing.price ||

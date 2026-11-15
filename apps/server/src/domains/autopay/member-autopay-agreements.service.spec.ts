@@ -1,4 +1,11 @@
+jest.mock('../../environments/environment', () => ({
+    environment: { memberAutopay: { enabled: true }, billing: { enabled: true } },
+}))
+
+import { environment } from '../../environments/environment'
 import { MemberAutopayAgreementsService } from './member-autopay-agreements.service'
+
+const env = environment as unknown as { memberAutopay: { enabled: boolean } }
 
 const ANCHOR = '11111111-1111-4111-8111-111111111111'
 const now = new Date('2026-12-14T08:40:00Z') // 11:40 Moscow
@@ -34,6 +41,8 @@ const payment = (over: Record<string, unknown> = {}) => ({
     autopayConsentVersion: null as string | null,
     receiptEmail: 'member@example.com',
     createdAt: new Date('2026-11-14T10:00:00Z'),
+    autopayRenewalAmount: null as number | null,
+    autopayShopId: null as string | null,
     ...over,
 })
 
@@ -88,7 +97,9 @@ const build = (opts: {
         },
         workspacePaymentSettings: {
             findUnique: jest.fn().mockResolvedValue(
-                opts.settings === undefined ? { provider: 'YOOKASSA', shopId: 'shop-1' } : opts.settings,
+                opts.settings === undefined
+                    ? { provider: 'YOOKASSA', shopId: 'shop-1', autopayEnabled: true }
+                    : opts.settings,
             ),
         },
         plan: {
@@ -98,6 +109,7 @@ const build = (opts: {
                 price: 4500,
                 currency: 'RUB',
                 durationDays: 30,
+                autopayAvailable: true,
                 classCount: null,
                 updatedAt: new Date('2026-12-01T00:00:00Z'),
                 directions: [],
@@ -150,7 +162,13 @@ const savedCard = {
 }
 
 describe('MemberAutopayAgreementsService.setUpFromPaymentInTx', () => {
-    const setupPayment = payment({ autopayId: null, autopayConsentVersion: '2026-11-15', amount: 4050 })
+    const setupPayment = payment({
+        autopayId: null,
+        autopayConsentVersion: '2026-11-16',
+        amount: 4050,
+        autopayRenewalAmount: 4050,
+        autopayShopId: 'shop-1',
+    })
 
     it('creates the agreement with the renewal price, the granted terms and the card hints only', async () => {
         const s = build({ family: true })
@@ -178,7 +196,7 @@ describe('MemberAutopayAgreementsService.setUpFromPaymentInTx', () => {
             currency: 'RUB',
             termsDurationDays: 30,
             termsClassCount: null,
-            consentVersion: '2026-11-15',
+            consentVersion: '2026-11-16',
             consentedAt: setupPayment.createdAt,
         })
         expect(s.db.payment.update).toHaveBeenCalledWith({
@@ -202,12 +220,14 @@ describe('MemberAutopayAgreementsService.setUpFromPaymentInTx', () => {
             { durationDays: 30, classesTotal: null },
             now,
         )
-        expect(s.db.memberAutopay.update.mock.calls[0][0]).toMatchObject({
-            where: { id: 'ap-1' },
+        // The replaced agreement is cancelled first, then this one re-armed
+        // with a guarded write.
+        expect(s.db.memberAutopay.updateMany.mock.calls[1][0]).toMatchObject({
+            where: { id: 'ap-1', status: { not: 'CANCELLED' } },
             data: { status: 'ACTIVE', needsActionReason: null, failedAttempts: 0, paymentMethodId: 'pm-1' },
         })
         expect(s.db.memberAutopay.create).not.toHaveBeenCalled()
-        expect(s.db.memberAutopay.updateMany).toHaveBeenCalledTimes(1)
+        expect(s.db.memberAutopay.updateMany).toHaveBeenCalledTimes(2)
         expect(s.db.memberAutopay.updateMany.mock.calls[0][0]).toMatchObject({
             where: { id: 'ap-old', status: { not: 'CANCELLED' } },
             data: { status: 'CANCELLED', paymentMethodId: null, liveKey: null, cancelSource: 'SYSTEM' },
@@ -247,14 +267,77 @@ describe('MemberAutopayAgreementsService.setUpFromPaymentInTx', () => {
         ).toBeNull()
         expect(s.db.memberAutopay.create).not.toHaveBeenCalled()
     })
+
+    it('creates a fresh agreement when the live row was cancelled meanwhile (no token on a refused row)', async () => {
+        const s = build({ existing: { id: 'ap-1' } })
+        s.db.memberAutopay.updateMany.mockResolvedValue({ count: 0 })
+        const out = await s.service.setUpFromPaymentInTx(
+            s.db as never,
+            setupPayment,
+            savedCard,
+            { durationDays: 30, classesTotal: null },
+            now,
+        )
+        expect(out?.autopayId).toBe('ap-new')
+        expect(s.db.memberAutopay.create).toHaveBeenCalled()
+    })
+
+    it('stores the renewal amount the consent showed, even when the price rose since', async () => {
+        const s = build()
+        s.db.plan.findUnique.mockResolvedValue({ ...(await s.db.plan.findUnique()), price: 5000 })
+        const out = await s.service.setUpFromPaymentInTx(
+            s.db as never,
+            { ...setupPayment, autopayRenewalAmount: 4500 },
+            savedCard,
+            { durationDays: 30, classesTotal: null },
+            now,
+        )
+        expect(out?.termsAmount).toBe(4500)
+    })
+
+    it('keeps no token when autopay stopped being allowed during the checkout', async () => {
+        const cases: Array<[Parameters<typeof build>[0], Record<string, unknown>]> = [
+            [{ settings: { provider: 'YOOKASSA', shopId: 'shop-1', autopayEnabled: false } }, {}],
+            [{ settings: { provider: 'YOOKASSA', shopId: 'shop-2', autopayEnabled: true } }, {}],
+            [{}, { autopayAvailable: false }],
+        ]
+        for (const [opts, planOver] of cases) {
+            const s = build(opts)
+            s.db.plan.findUnique.mockResolvedValue({ ...(await s.db.plan.findUnique()), ...planOver })
+            expect(
+                await s.service.setUpFromPaymentInTx(
+                    s.db as never,
+                    setupPayment,
+                    savedCard,
+                    { durationDays: 30, classesTotal: null },
+                    now,
+                ),
+            ).toBeNull()
+            expect(s.db.memberAutopay.create).not.toHaveBeenCalled()
+        }
+        env.memberAutopay.enabled = false
+        const off = build()
+        expect(
+            await off.service.setUpFromPaymentInTx(
+                off.db as never,
+                setupPayment,
+                savedCard,
+                { durationDays: 30, classesTotal: null },
+                now,
+            ),
+        ).toBeNull()
+        env.memberAutopay.enabled = true
+    })
 })
 
 describe('MemberAutopayAgreementsService renewal outcomes', () => {
     it('a success resets the attempts and keeps the lower of the agreed and the charged amount', async () => {
         const s = build()
-        await s.service.onChargeSucceededInTx(s.db as never, { autopayId: 'ap-1', amount: 4050 }, now)
-        expect(s.db.memberAutopay.update).toHaveBeenCalledWith({
-            where: { id: 'ap-1' },
+        expect(
+            await s.service.onChargeSucceededInTx(s.db as never, { autopayId: 'ap-1', amount: 4050 }, now),
+        ).toBe('reset')
+        expect(s.db.memberAutopay.updateMany).toHaveBeenCalledWith({
+            where: { id: 'ap-1', status: { not: 'CANCELLED' } },
             data: {
                 status: 'ACTIVE',
                 needsActionReason: null,
@@ -265,6 +348,24 @@ describe('MemberAutopayAgreementsService renewal outcomes', () => {
                 lastChargedAt: now,
                 termsAmount: 4050,
             },
+        })
+    })
+
+    it('never brings a cancelled agreement back: a success after the cancel says so', async () => {
+        const cancelled = build({ row: row({ status: 'CANCELLED' }) })
+        expect(
+            await cancelled.service.onChargeSucceededInTx(cancelled.db as never, { autopayId: 'ap-1', amount: 4500 }, now),
+        ).toBe('cancelled')
+        expect(cancelled.db.memberAutopay.updateMany).not.toHaveBeenCalled()
+        // A cancel that commits between the read and the guarded write.
+        const raced = build({ updateManyCount: 0 })
+        expect(
+            await raced.service.onChargeSucceededInTx(raced.db as never, { autopayId: 'ap-1', amount: 4500 }, now),
+        ).toBe('cancelled')
+        await raced.service.alertChargedAfterCancel(payment())
+        expect(raced.notices.staffAlert.mock.calls[0][0]).toMatchObject({
+            refId: 'pay-1:after-cancel',
+            message: expect.stringContaining('решите, вернуть ли деньги'),
         })
     })
 
@@ -377,6 +478,8 @@ describe('MemberAutopayAgreementsService.cancel', () => {
                 status: 'CANCELLED',
                 liveKey: null,
                 paymentMethodId: null,
+                paymentMethodTitle: null,
+                receiptEmail: '',
                 needsActionReason: null,
                 nextAttemptAt: null,
                 cancelledAt: now,
