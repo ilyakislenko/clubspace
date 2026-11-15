@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { VideoTranscodeProducer } from '../../domains/video/services/video-transcode.producer'
 import { tooLargeMessage } from '../../domains/video/services/video.service'
 import { FilesService } from '../../infrastructure/files/services/files.service'
@@ -31,6 +32,7 @@ export class CompleteMyVideoReviewUploadHandler
         private readonly files: FilesService,
         private readonly transcode: VideoTranscodeProducer,
         private readonly notifications: NotificationProducerService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(
@@ -76,6 +78,8 @@ export class CompleteMyVideoReviewUploadHandler
             memberName: person(request.member).name,
             title: request.title,
         })
+        // The clip is a request now: staff «Заявки» update live.
+        this.realtime.invalidate(f.workspaceId, ['requests'])
         return await serializeReviewSummary(this.files, {
             ...request,
             clip: { ...clip, status: 'uploaded' },

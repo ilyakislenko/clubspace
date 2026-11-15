@@ -68,6 +68,7 @@ export class CancelSubscriptionFreezeRequestHandler
         this.realtime.invalidate(f.workspaceId, [
             'subscription',
             'freeze-requests',
+            'requests',
         ])
         return serializeFreezeRequest(fresh)
     }

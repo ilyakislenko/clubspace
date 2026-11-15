@@ -8,13 +8,8 @@ import {
   getWorkspaceStats,
   type WorkspaceStats,
 } from "../../../../shared/api/stats"
-import { listPendingUsers } from "../../../../shared/api/members"
 import { listAtRiskMembers } from "../../../../shared/api/retention"
-import {
-  listAwaitingPayment,
-  listPendingFreezeRequests,
-  type PendingFreezeRequests,
-} from "../../../../shared/api/subscriptions"
+import { listAwaitingPayment } from "../../../../shared/api/subscriptions"
 import { AT_RISK_REFRESH_MS } from "../../../../shared/lib/at-risk"
 import { errorMessage } from "../../../../shared/lib/error-message"
 import { hasAccess, isClubAdmin, isSportLead } from "../../../../shared/lib/permissions"
@@ -32,6 +27,7 @@ import { DecisionList } from "../../../../features/dashboard/DecisionList"
 import { AttendanceBlock, MoneyBlock } from "../../../../features/dashboard/Figures"
 import { TodayClasses } from "../../../../features/dashboard/TodayClasses"
 import { useTodayClasses } from "../../../../features/dashboard/use-today-classes"
+import { useRequestCounts } from "../../../../features/requests/use-request-counts"
 
 const numberFmt = new Intl.NumberFormat("ru-RU")
 const formatMoney = (amount: number, currency: string | null) =>
@@ -68,9 +64,10 @@ export default function WorkspaceOverviewPage() {
 
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
   const [atRisk, setAtRisk] = useState<number | null>(null)
-  const [pendingCount, setPendingCount] = useState<number | null>(null)
   const [awaitingCount, setAwaitingCount] = useState<number | null>(null)
-  const [freezes, setFreezes] = useState<PendingFreezeRequests | null>(null)
+  // «Заявки»: join, freeze, personal, video — the server counts what this
+  // viewer may decide, the same read as the «Ученики» tab badge.
+  const requests = useRequestCounts(workspaceId)
   const [error, setError] = useState<string | null>(null)
 
   const loadStats = useCallback(async () => {
@@ -87,18 +84,12 @@ export default function WorkspaceOverviewPage() {
   const role = membership ? `${canLead}:${showSubscriptions}` : null
   const loadRows = useCallback(async () => {
     if (!workspaceId || role === null) return
-    const [pending, awaiting, freezes] = await Promise.all([
-      // Approving members and the debt list are the sport leads'.
-      canLead ? countOrNull(async () => (await listPendingUsers({ workspaceId })).total) : null,
+    // The debt list is the sport leads'.
+    setAwaitingCount(
       canLead && showSubscriptions
-        ? countOrNull(async () => (await listAwaitingPayment({ workspaceId, perPage: 1 })).members)
+        ? await countOrNull(async () => (await listAwaitingPayment({ workspaceId, perPage: 1 })).members)
         : null,
-      // Every coach decides the requests of their own groups' members.
-      showSubscriptions ? listPendingFreezeRequests({ workspaceId }).catch(() => null) : null,
-    ])
-    setPendingCount(pending)
-    setAwaitingCount(awaiting)
-    setFreezes(freezes)
+    )
     // `role` stands for canLead + showSubscriptions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, role])
@@ -124,7 +115,8 @@ export default function WorkspaceOverviewPage() {
   // The at-risk list recomputes club-wide, so its refetch is throttled.
   const refreshAtRisk = useThrottledCallback(() => void loadAtRisk(), AT_RISK_REFRESH_MS)
 
-  useWorkspaceRealtime(workspaceId, ["members", "attendance", "subscription", "freeze-requests"], () => {
+  // «Заявки» reload themselves on the `requests` signal (useRequestCounts).
+  useWorkspaceRealtime(workspaceId, ["members", "attendance", "subscription"], () => {
     void loadStats()
     void loadRows()
     refreshAtRisk()
@@ -139,8 +131,7 @@ export default function WorkspaceOverviewPage() {
     call: atRisk,
     renew: canLead && showSubscriptions ? (stats?.retention.renewalsDue ?? null) : null,
     awaiting: awaitingCount,
-    join: pendingCount,
-    freeze: freezes?.total ?? null,
+    requests: requests?.counts.total ?? null,
     video: isLead && showVideos && stats ? stats.counts.videos - stats.counts.videosReady : null,
   }
   const money = canAdmin && showSubscriptions ? (stats?.revenue ?? null) : null
@@ -172,7 +163,7 @@ export default function WorkspaceOverviewPage() {
                 ? formatMoney(stats.revenue.awaitingPayment.amount, stats.revenue.currency)
                 : null
             }
-            freezeRequests={freezes?.data ?? []}
+            requestCounts={requests?.counts ?? null}
           />
           {classes.status === "failed" ? (
             <section className="space-y-2">

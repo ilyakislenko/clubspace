@@ -3052,6 +3052,10 @@ export type RemoveWorkspaceMemberOutputOutput = {
     status: 'removed';
 };
 
+export type RejectPendingMemberInput = {
+    comment?: string;
+};
+
 export type RejectPendingMemberOutputOutput = {
     status: 'rejected';
 };
@@ -8217,6 +8221,74 @@ export type PaymentJournalEntryDetailOutputOutput = {
     fullRefundCancelsRegistration: boolean;
 };
 
+export type ListOpenRequestsOutputOutput = {
+    data: Array<{
+        id: string;
+        kind: 'join' | 'freeze' | 'personal' | 'video';
+        requestId: string;
+        createdAt: string;
+        member: {
+            userId: string;
+            name: string;
+            email: string | null;
+            isDependent: boolean;
+            guardians: Array<{
+                userId: string;
+                firstname: string | null;
+                lastname: string | null;
+                email: string | null;
+                phone: string | null;
+                relation: 'PARENT' | 'GUARDIAN' | 'OTHER';
+                confirmed: boolean;
+            }>;
+        };
+        join: {
+            roleName: string;
+        } | null;
+        freeze: {
+            fromDate: string;
+            untilDate: string;
+            days: number;
+            reason: string;
+            planName: string;
+            subscriptionId: string;
+            subscriptionEndDate: string | null;
+        } | null;
+        personal: {
+            coach: {
+                userId: string;
+                name: string;
+            };
+            gymName: string | null;
+            timezone: string;
+            memberComment: string | null;
+            options: Array<{
+                id: string;
+                startAt: string;
+                durationMin: number;
+            }>;
+        } | null;
+        video: {
+            title: string;
+            message: string | null;
+            clipStatus: 'processing' | 'ready';
+            durationSec: number | null;
+            commentCount: number;
+        } | null;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+    counts: {
+        join: number;
+        freeze: number;
+        personal: number;
+        video: number;
+        total: number;
+    };
+    kinds: Array<'join' | 'freeze' | 'personal' | 'video'>;
+};
+
 export type CreateRefundInput = {
     target: 'abonement' | 'ticket' | 'unapplied';
     targetId: string;
@@ -10717,7 +10789,7 @@ export type RemoveMemberResponses = {
 export type RemoveMemberResponse = RemoveMemberResponses[keyof RemoveMemberResponses];
 
 export type RejectPendingMemberData = {
-    body?: never;
+    body?: RejectPendingMemberInput;
     path: {
         workspaceId: string;
         userId: string;
@@ -14184,6 +14256,25 @@ export type GetPaymentJournalEntryResponses = {
 };
 
 export type GetPaymentJournalEntryResponse = GetPaymentJournalEntryResponses[keyof GetPaymentJournalEntryResponses];
+
+export type ListOpenRequestsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        kind?: 'join' | 'freeze' | 'personal' | 'video';
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/requests';
+};
+
+export type ListOpenRequestsResponses = {
+    default: ListOpenRequestsOutputOutput;
+};
+
+export type ListOpenRequestsResponse = ListOpenRequestsResponses[keyof ListOpenRequestsResponses];
 
 export type CreateRefundData = {
     body: CreateRefundInput;

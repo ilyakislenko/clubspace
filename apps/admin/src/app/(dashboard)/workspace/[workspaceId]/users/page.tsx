@@ -21,13 +21,9 @@ import {
 import { cn } from "@clubspace/ui-kit/util"
 
 import {
-  addWorkspaceMember,
-  listPendingUsers,
   listWorkspaceMembers,
-  rejectPendingMember,
   type MemberAccessFilter,
   type MemberSort,
-  type PendingUser,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 import { errorMessage } from "../../../../../shared/lib/error-message"
@@ -42,8 +38,10 @@ import { formatRoleName } from "../../../../../shared/lib/role-labels"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
-import { confirmDialog } from "../../../../../shared/ui/confirm-dialog"
+import { SectionTabs } from "../../../../../shared/workspace/section-tabs"
 import { InviteSheet } from "../../../../../features/invite/InviteSheet"
+import { useRequestCounts } from "../../../../../features/requests/use-request-counts"
+import { memberTabs } from "../sections"
 
 // Rows per «Показать ещё».
 const ROSTER_PAGE = 50
@@ -85,11 +83,6 @@ const formatName = (member: WorkspaceMember): string => {
   const parts = [member.firstname, member.lastname].filter(Boolean)
   return parts.length ? parts.join(" ") : (member.email ?? "—")
 }
-
-const pendingName = (user: PendingUser): string =>
-  [user.firstname, user.lastname].filter(Boolean).join(" ") ||
-  user.email ||
-  "Без имени"
 
 // «12 декабря», with the year only when it is not this year's.
 const fmtDay = (iso: string): string => {
@@ -149,6 +142,8 @@ export default function WorkspaceUsersPage() {
   // settings are the club admins'.
   const canManageMembers = isSportLead(myMembership)
   const canAdmin = isClubAdmin(myMembership)
+  // «Заявки · N» on the tab: what waits for this viewer's decision.
+  const requests = useRequestCounts(workspaceId)
 
   const [error, setError] = useState<string | null>(null)
   const [members, setMembers] = useState<WorkspaceMember[]>([])
@@ -163,9 +158,6 @@ export default function WorkspaceUsersPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [accessFilter, setAccessFilter] = useState<MemberAccessFilter>("all")
-  const [pending, setPending] = useState<PendingUser[]>([])
-  const [invitingUserId, setInvitingUserId] = useState<string | null>(null)
-  const [rejectingUserId, setRejectingUserId] = useState<string | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
   // A response for an older search/order/segment is dropped.
   const rosterRequest = useRef(0)
@@ -234,28 +226,13 @@ export default function WorkspaceUsersPage() {
     }
   }
 
-  const loadPending = async () => {
-    if (!workspaceId) return
-    const res = await listPendingUsers({ workspaceId }).catch(() => ({
-      data: [],
-      total: 0,
-    }))
-    setPending(res.data)
-  }
-
-  // After a change: the rows already shown, then the join requests.
-  const refresh = () =>
-    Promise.all([loadRoster(true, Math.max(pagesShown, 1)), loadPending()])
+  // After a change: the rows already shown.
+  const refresh = () => loadRoster(true, Math.max(pagesShown, 1))
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 250)
     return () => clearTimeout(handle)
   }, [searchQuery])
-
-  useEffect(() => {
-    void loadPending()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId])
 
   // A new search, order or segment starts over from the first page.
   useEffect(() => {
@@ -268,44 +245,6 @@ export default function WorkspaceUsersPage() {
   useWorkspaceRealtime(workspaceId, ["members", "subscription"], () =>
     void refresh(),
   )
-
-  const handleApprovePending = async (user: PendingUser) => {
-    if (!workspaceId) return
-    setInvitingUserId(user.userId)
-    setError(null)
-    try {
-      // Approve by id: works for every pending request, including a child
-      // profile a parent filed by code (no e-mail).
-      await addWorkspaceMember({ workspaceId, data: { userId: user.userId } })
-      await refresh()
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось принять заявку."))
-    } finally {
-      setInvitingUserId(null)
-    }
-  }
-
-  const handleRejectPending = async (user: PendingUser) => {
-    if (!workspaceId) return
-    const ok = await confirmDialog({
-      title: `Отклонить заявку: ${pendingName(user)}?`,
-      description:
-        "Человек не попадёт в клуб и не сможет подать заявку снова по коду клуба.",
-      confirmLabel: "Отклонить",
-      destructive: true,
-    })
-    if (!ok) return
-    setRejectingUserId(user.userId)
-    setError(null)
-    try {
-      await rejectPendingMember({ workspaceId, userId: user.userId })
-      await refresh()
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось отклонить заявку."))
-    } finally {
-      setRejectingUserId(null)
-    }
-  }
 
   // Adopt deep-links once, on mount: ?filter= from the dashboard retention
   // cards, ?invite=1 from the launch checklist. Read from window (not
@@ -324,34 +263,16 @@ export default function WorkspaceUsersPage() {
   // A search or segment is narrowing the roster (as opposed to an empty club).
   const filtering = debouncedQuery !== "" || accessFilter !== "all"
 
+  // Shown while there is a roster to search, or a search/segment narrowing it.
+  const showControls = total > 0 || filtering || searchQuery !== ""
+
   return (
     <div className="max-w-5xl space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Ученики</h1>
-        {workspaceId && (
-          <div className="flex items-center gap-1">
-            <Button type="button" onClick={() => setInviteOpen(true)}>
-              Пригласить
-            </Button>
-            {canAdmin && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Ещё">
-                    <MoreHorizontal className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                    <Link href={`/workspace/${workspaceId}/club-import`}>
-                      Импорт из Excel (CSV)
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        )}
-      </div>
+      <SectionTabs
+        title="Ученики"
+        tabs={memberTabs}
+        badges={{ "users-requests": requests?.counts.total }}
+      />
 
       {error && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -359,83 +280,65 @@ export default function WorkspaceUsersPage() {
         </p>
       )}
 
-      {canManageMembers && pending.length > 0 && (
-        <section className="rounded-lg border border-amber-500/40 bg-amber-500/5">
-          <h2 className="px-3 pt-2.5 text-sm font-medium">
-            Заявки на вступление · {pending.length}
-          </h2>
-          <ul className="divide-y divide-amber-500/20">
-            {pending.map((user) => {
-              const busy =
-                invitingUserId === user.userId || rejectingUserId === user.userId
-              const name = pendingName(user)
-              return (
-                <li
-                  key={user.userId}
-                  className="flex items-center justify-between gap-3 px-3 py-2"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">{name}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {user.email && user.email !== name && `${user.email} · `}
-                      заявка от {fmtDay(user.createdAt)}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void handleApprovePending(user)}
-                    disabled={busy}
-                  >
-                    {invitingUserId === user.userId ? "Принимаем…" : "Принять"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => void handleRejectPending(user)}
-                    disabled={busy}
-                  >
-                    {rejectingUserId === user.userId ? "Отклоняем…" : "Отклонить"}
-                  </Button>
-                </li>
-              )
-            })}
-          </ul>
-        </section>
-      )}
-
-      {(total > 0 || filtering || searchQuery !== "") && (
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Поиск по имени, e-mail, телефону или родителю"
-              aria-label="Поиск"
-              className="h-9 max-w-sm flex-1"
-            />
-            <Select
-              value={sortBy}
-              onValueChange={(value) => setSortBy(value as MemberSort)}
-            >
-              <SelectTrigger className="h-9 w-[240px]" aria-label="Сортировка">
-                <SelectValue>{SORT_LABELS[sortBy]}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {SORTS.map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {SORT_LABELS[key]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="ml-auto text-xs text-muted-foreground">
-              {loading
-                ? "Обновление…"
-                : `${total} ${pluralRu(total, "человек", "человека", "человек")}`}
-            </span>
-          </div>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {showControls && (
+            <>
+              <Input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Поиск по имени, e-mail, телефону или родителю"
+                aria-label="Поиск"
+                className="h-9 max-w-sm flex-1"
+              />
+              <Select
+                value={sortBy}
+                onValueChange={(value) => setSortBy(value as MemberSort)}
+              >
+                <SelectTrigger className="h-9 w-[240px]" aria-label="Сортировка">
+                  <SelectValue>{SORT_LABELS[sortBy]}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {SORTS.map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {SORT_LABELS[key]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">
+                {loading
+                  ? "Обновление…"
+                  : `${total} ${pluralRu(total, "человек", "человека", "человек")}`}
+              </span>
+            </>
+          )}
+          {workspaceId && (
+            <div className="ml-auto flex items-center gap-1">
+              <Button type="button" onClick={() => setInviteOpen(true)}>
+                Пригласить
+              </Button>
+              {canAdmin && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label="Ещё">
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <Link href={`/workspace/${workspaceId}/club-import`}>
+                        Импорт из Excel (CSV)
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          )}
+        </div>
+        {showControls && (
           <div className="flex flex-wrap items-center gap-1">
             {ACCESS_FILTERS.map((key) => (
               <Button
@@ -451,8 +354,8 @@ export default function WorkspaceUsersPage() {
               </Button>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {!loading && total === 0 && !filtering && (
         <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">

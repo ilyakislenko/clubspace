@@ -9,8 +9,9 @@
 //   server allows it; the menu just doesn't offer it, or offers it outside the
 //   sidebar list: the account menu, the settings section list). Visited and
 //   checked like any other page.
-// `tabs`: tabs of a sidebar page opened by URL (?tab=…); visited and checked
-//   like any other page (a refused list behind the tab fails the visit).
+// `tabs`: tabs or filtered views of a page opened by URL (?tab=…, ?kind=…);
+//   visited and checked like any other page (a refused list behind the tab
+//   fails the visit).
 //
 // Matrix: docs/design/2026-11-08-admin-cleanup.md §1. Owner and admin see
 // everything; a club without a section (ranks off in «Ритм») hides it for
@@ -55,19 +56,36 @@ const CLUB_ADMIN_OFF_MENU = ['billing', 'club-import', ...SETTINGS_SECTIONS] as 
 // «Удержание → Продлить» (renewals and unpaid abonements): sport leads.
 const RENEW_TAB = 'retention?tab=renew'
 
+// «Ученики → Заявки» (every role; the tab itself is crawled from the section
+// tab row) filtered to one kind — where the «Сегодня» row leads when only one
+// kind waits. A kind the role has no requests of falls back to the whole list.
+const REQUESTS_KIND_TAB = 'users/requests?kind=freeze'
+
 export const ROLE_MATRIX: readonly RoleCase[] = [
-  { role: 'owner', email: 'owner@academy.demo', blocked: [], offMenu: CLUB_ADMIN_OFF_MENU, tabs: [RENEW_TAB] },
-  { role: 'admin', email: 'admin@academy.demo', blocked: [], offMenu: CLUB_ADMIN_OFF_MENU, tabs: [RENEW_TAB] },
+  {
+    role: 'owner',
+    email: 'owner@academy.demo',
+    blocked: [],
+    offMenu: CLUB_ADMIN_OFF_MENU,
+    tabs: [RENEW_TAB, REQUESTS_KIND_TAB],
+  },
+  {
+    role: 'admin',
+    email: 'admin@academy.demo',
+    blocked: [],
+    offMenu: CLUB_ADMIN_OFF_MENU,
+    tabs: [RENEW_TAB, REQUESTS_KIND_TAB],
+  },
   {
     role: 'head_coach',
     email: 'coach@academy.demo',
     blocked: CLUB_ADMIN_ONLY,
     offMenu: [],
-    tabs: [RENEW_TAB],
+    tabs: [RENEW_TAB, REQUESTS_KIND_TAB],
   },
   {
-    // Sidebar: Сегодня, Расписание, Ученики, Удержание (no «Отчёты»: every
-    // report is a lead's).
+    // Sidebar: Сегодня, Расписание, Ученики (Список · Заявки), Удержание (no
+    // «Отчёты»: every report is a lead's).
     role: 'coach',
     email: 'pedagog@ritm.demo',
     blocked: [
@@ -81,7 +99,7 @@ export const ROLE_MATRIX: readonly RoleCase[] = [
       'announcements',
     ],
     offMenu: ['groups', 'content', 'events', 'analytics/cohorts', 'analytics/occupancy'],
-    tabs: [],
+    tabs: [REQUESTS_KIND_TAB],
   },
 ]
 

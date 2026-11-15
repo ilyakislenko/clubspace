@@ -155,6 +155,7 @@ export class RequestSubscriptionFreezeHandler
         this.realtime.invalidate(f.workspaceId, [
             'subscription',
             'freeze-requests',
+            'requests',
         ])
 
         // Best-effort as a whole: the request is already saved.

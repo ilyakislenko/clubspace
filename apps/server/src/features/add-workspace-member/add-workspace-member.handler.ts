@@ -192,7 +192,7 @@ export class AddWorkspaceMemberHandler
             metadata: { email, outcome },
         })
 
-        this.realtime.invalidate(workspaceId, ['members'])
+        this.realtime.invalidate(workspaceId, ['members', 'requests'])
         // An invited person is not a member yet: their room joins on accept.
         if (outcome !== 'invited') {
             this.realtime.joinWorkspaceRoom([userId], workspaceId)

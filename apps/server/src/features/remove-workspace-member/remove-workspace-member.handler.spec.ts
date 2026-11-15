@@ -111,6 +111,12 @@ describe('RemoveWorkspaceMemberHandler', () => {
         const { handler, realtime } = build()
         await run(handler)
         expect(realtime.leaveWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
+        // Their pending freeze request leaves the queue and «Заявки».
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', [
+            'members',
+            'freeze-requests',
+            'requests',
+        ])
     })
 
     it('hands the event places they held to the waitlists once the removal commits', async () => {

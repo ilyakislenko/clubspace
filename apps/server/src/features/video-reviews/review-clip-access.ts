@@ -1,4 +1,4 @@
-import type { PrismaService } from '../../infrastructure/prisma'
+import type { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { ForbiddenError } from '../../shared/errors/shared.errors'
 import type { CoachContext, RbacService } from '../../shared/services/rbac.service'
 
@@ -35,6 +35,26 @@ export const uncoachedMemberWhere = (workspaceId: string) => ({
         none: { group: { workspaceId, coaches: { some: {} } } },
     },
 })
+
+/**
+ * The member scope of the staff «Разборы» lists (club list, requests inbox):
+ * club-wide viewers (owner, admins, head coaches) the whole club; a coach the
+ * members of their own groups plus members no group coach looks after (the
+ * same people the request notification goes to).
+ */
+export async function reviewStaffMemberWhere(scope: {
+    workspaceId: string
+    clubWide: boolean
+    ownGroupMemberIds: () => Promise<string[]>
+}): Promise<Prisma.VideoReviewRequestWhereInput> {
+    if (scope.clubWide) return {}
+    return {
+        OR: [
+            { memberUserId: { in: await scope.ownGroupMemberIds() } },
+            { member: uncoachedMemberWhere(scope.workspaceId) },
+        ],
+    }
+}
 
 /**
  * Whether club staff in `ctx` may see `memberUserId`'s clips: owner, club

@@ -116,6 +116,8 @@ describe('addWorkspaceMember', () => {
         expect(out).toEqual({ userId: 'u1', email: 'ann@b.com', outcome: 'approved' })
         // An open app session starts receiving the club's events at once.
         expect(realtime.joinWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
+        // The applicant leaves «Заявки» of every open admin screen.
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['members', 'requests'])
     })
 
     // The row keeps its role, so approving a pending coach is staff business.

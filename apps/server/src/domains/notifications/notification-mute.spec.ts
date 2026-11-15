@@ -8,6 +8,7 @@ describe('isMuteExempt', () => {
         'freeze.approved',
         'personal.confirmed',
         'member.approved',
+        'member.join_declined',
         'member.invitation',
         'dropin.cancelled',
         'exception.notify',

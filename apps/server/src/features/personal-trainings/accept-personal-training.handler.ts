@@ -140,6 +140,7 @@ export class AcceptPersonalTrainingHandler
             [request.memberId, request.coachId],
             ['personal-trainings', 'attendance'],
         )
+        this.realtime.invalidate(f.workspaceId, ['requests'])
         const when = formatLocalDateTimeRu(option.startAt, request.timezone)
         await sendPersonalTrainingNotice(this.notifications, this.logger, {
             kind: 'personal.confirmed',

@@ -277,6 +277,7 @@ describe('ApproveSubscriptionFreezeRequestHandler', () => {
             'subscription',
             'attendance',
             'freeze-requests',
+            'requests',
         ])
         expect(notifications.notifyUser).toHaveBeenCalledTimes(1)
         expect(notifications.notifyUser.mock.calls[0][0]).toMatchObject({

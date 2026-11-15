@@ -127,6 +127,8 @@ export class RequestPersonalTrainingHandler
             [request.memberId, request.coachId],
             ['personal-trainings'],
         )
+        // «Заявки» of the club's admins (who act for the coach) update live.
+        this.realtime.invalidate(workspaceId, ['requests'])
 
         const extra = instants.length - 1
         const more =

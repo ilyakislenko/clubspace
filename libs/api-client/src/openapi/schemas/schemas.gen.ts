@@ -2869,6 +2869,16 @@ export const UpdateWorkspaceMemberAccessBodySchema = {
     ]
 } as const;
 
+export const RejectPendingMemberInputSchema = {
+    type: 'object',
+    properties: {
+        comment: {
+            type: 'string',
+            maxLength: 500
+        }
+    }
+} as const;
+
 export const UpdateWorkspaceSettingsBodySchema = {
     type: 'object',
     properties: {

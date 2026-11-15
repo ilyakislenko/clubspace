@@ -161,6 +161,11 @@ export const routeForNotification = (
         : { name: "ClubInvite" }
     case "member.joined":
       return null
+    // Applicant: the club declined the request. The inbox row (with the
+    // club's comment) is the notice; the no-club screen already reads
+    // «отклонена».
+    case "member.join_declined":
+      return null
     // An offer from a club the member is not in yet: answered on the
     // Invitations screen.
     case "member.invitation":

@@ -116,6 +116,7 @@ describe('leaveWorkspace', () => {
         expect(realtime.invalidate).toHaveBeenCalledWith('w1', [
             'members',
             'freeze-requests',
+            'requests',
         ])
         expect(realtime.leaveWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
     })

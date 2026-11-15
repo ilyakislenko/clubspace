@@ -274,7 +274,7 @@ export class InviteWorkspaceMemberHandler
             },
         })
 
-        this.realtime.invalidate(workspaceId, ['members'])
+        this.realtime.invalidate(workspaceId, ['members', 'requests'])
         // Every outcome leaves them ACTIVE: open sockets start getting events.
         this.realtime.joinWorkspaceRoom([userId], workspaceId)
 

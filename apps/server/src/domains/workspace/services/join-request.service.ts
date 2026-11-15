@@ -127,8 +127,8 @@ export class JoinRequestService {
             throw err
         }
 
-        // Admins' pending list updates live.
-        this.realtime.invalidate(p.workspace.id, ['members'])
+        // Admins' pending list and «Заявки» update live.
+        this.realtime.invalidate(p.workspace.id, ['members', 'requests'])
         if (status === 'ACTIVE') {
             this.realtime.joinWorkspaceRoom([p.userId], p.workspace.id)
         }
@@ -159,7 +159,7 @@ export class JoinRequestService {
         if (count === 0) {
             return (await this.findExisting(userId, ws)) ?? waiting
         }
-        this.realtime.invalidate(ws.id, ['members'])
+        this.realtime.invalidate(ws.id, ['members', 'requests'])
         this.realtime.joinWorkspaceRoom([userId], ws.id)
         return {
             kind: 'created',
@@ -224,6 +224,30 @@ export class JoinRequestService {
             )
         } catch (error) {
             this.warn('approval e-mail', error)
+        }
+    }
+
+    // The applicant was turned down: an inbox entry (a push where a device is
+    // registered) with the staff comment, no e-mail — the app already reads
+    // «отклонена» on the no-club screen. Never throws: the decision stands.
+    async notifyDeclined(p: {
+        userId: string
+        workspaceId: string
+        workspaceName: string
+        membershipId: string
+        comment: string | null
+    }): Promise<void> {
+        try {
+            await this.notifications.notifyUser({
+                userId: p.userId,
+                kind: 'member.join_declined',
+                refId: p.membershipId,
+                topic: `Заявка в клуб «${p.workspaceName}» отклонена`,
+                message: p.comment || 'Если это ошибка — свяжитесь с клубом.',
+                metadata: { workspaceId: p.workspaceId },
+            })
+        } catch (error) {
+            this.warn('decline inbox entry', error)
         }
     }
 
@@ -359,7 +383,7 @@ export class JoinRequestService {
                         // '#' when ADMIN_URL is not configured: the e-mail's text
                         // still tells the owner where to look.
                         adminUrl: environment.adminUrl
-                            ? `${environment.adminUrl}/workspace/${p.ws.id}/users`
+                            ? `${environment.adminUrl}/workspace/${p.ws.id}/users/requests`
                             : '#',
                     },
                 },

@@ -17,6 +17,7 @@ const EXEMPT_PREFIXES = [
 ]
 const EXEMPT_KINDS: Record<string, true> = {
     'member.approved': true,
+    'member.join_declined': true,
     'member.invitation': true,
     'dropin.cancelled': true,
     'exception.notify': true,

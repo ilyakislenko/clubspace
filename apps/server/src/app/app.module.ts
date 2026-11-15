@@ -28,6 +28,8 @@ import { HandleYookassaWebhookHandler } from '../features/online-payments/handle
 import { GetPaymentJournalEntryHandler } from '../features/payment-journal/get-payment-journal-entry.handler'
 import { ListPaymentJournalHandler } from '../features/payment-journal/list-payment-journal.handler'
 import { PaymentJournalController } from '../features/payment-journal/payment-journal.controller'
+import { ListOpenRequestsHandler } from '../features/requests/list-open-requests.handler'
+import { RequestsController } from '../features/requests/requests.controller'
 import { MyPaymentsController } from '../features/online-payments/my-payments.controller'
 import { PaymentSettingsController } from '../features/online-payments/payment-settings.controller'
 import { PaymentWebhooksController } from '../features/online-payments/payment-webhooks.controller'
@@ -876,6 +878,7 @@ const controllers: ModuleMetadata['controllers'] = [
     PaymentSettingsController,
     PaymentsController,
     PaymentJournalController,
+    RequestsController,
     RefundsController,
     MyPaymentsController,
     PaymentWebhooksController,
@@ -1224,6 +1227,7 @@ const handlers: ModuleMetadata['providers'] = [
     CheckPaymentConnectionHandler,
     ListPaymentJournalHandler,
     GetPaymentJournalEntryHandler,
+    ListOpenRequestsHandler,
     CreateRefundHandler,
     DeleteRefundHandler,
     GetOnlinePurchaseOptionsHandler,

@@ -21,6 +21,7 @@ const DEMO_RESOURCES = [
     'members',
     'payments',
     'ranks',
+    'requests',
     'schedule',
     'subscription',
 ]

@@ -20,7 +20,10 @@ import {
     revenueWindowStart,
     summarizeAwaiting,
 } from '../../../domains/metrics/revenue'
-import { defineTool } from '../mcp-tool'
+import { countOpenRequests, type RequestCounts } from '../../../domains/requests/open-requests'
+import { appFeatureSelect, toAppFeatureFlags } from '../../../domains/workspace/feature-flags'
+import { ownGroupsWhere } from '../../../shared/services/rbac.service'
+import { defineTool, type McpToolContext } from '../mcp-tool'
 import { groupRef, planRef, scopedStudentIds } from './tool-helpers'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -137,6 +140,44 @@ export const clubDirectoryTool = defineTool({
     },
 })
 
+// «Заявки» waiting on the token's creator: the inbox's rule (domains/requests)
+// with the viewer built from AiAccess — admin scope sees the club, a
+// direction manager their groups' members and their own personal requests.
+const countClubRequests = async (ctx: McpToolContext): Promise<RequestCounts> => {
+    const { prisma, access, scope, now } = ctx
+    const workspace = await prisma.workspace.findUniqueOrThrow({
+        where: { id: scope.workspaceId },
+        select: appFeatureSelect,
+    })
+    const sections = toAppFeatureFlags(workspace, now)
+    return countOpenRequests(
+        prisma,
+        {
+            workspaceId: scope.workspaceId,
+            userId: access.userId,
+            clubWide: scope.isAdmin,
+            clubAdmin: access.isClubAdmin,
+            // rbac.ownGroupMemberIds: students of the groups they coach or
+            // whose direction they run.
+            ownGroupMemberIds: async () =>
+                (
+                    await prisma.groupMember.findMany({
+                        where: {
+                            group: {
+                                workspaceId: scope.workspaceId,
+                                ...ownGroupsWhere(access.userId),
+                            },
+                        },
+                        distinct: ['userId'],
+                        select: { userId: true },
+                    })
+                ).map((m) => m.userId),
+            sections: { subscription: sections.subscription, videos: sections.videos },
+        },
+        now,
+    )
+}
+
 export const clubOverviewTool = defineTool({
     name: 'club_overview',
     title: 'Сводка по клубу',
@@ -145,6 +186,7 @@ export const clubOverviewTool = defineTool({
         'открывали приложение за 30 дней; новые за 30 дней; с действующим абонементом), посещаемость за 7 и 30 дней, ' +
         'сколько учеников в зоне риска оттока, ближайшие события и аттестации. ' +
         'Для токена администратора — ещё выручка за 30 дней и текущий месяц и сумма неоплаченных абонементов. ' +
+        'Ещё — сколько заявок ждёт решения (вступление, заморозка, персональные, разборы видео): те, что владелец токена может решить сам, как во вкладке «Заявки». ' +
         'Хорошая отправная точка для вопросов «как дела в клубе».',
     input: z.object({}),
     run: async (ctx) => {
@@ -256,6 +298,8 @@ export const clubOverviewTool = defineTool({
             }
         }
 
+        const { join, freeze, personal, video } = await countClubRequests(ctx)
+
         return {
             rows: 1,
             data: {
@@ -274,6 +318,7 @@ export const clubOverviewTool = defineTool({
                 },
                 atRisk: summarizeRisk(risk),
                 upcoming: { events7d, gradings },
+                requests: { join, freeze, personal, video },
                 money,
             },
         }

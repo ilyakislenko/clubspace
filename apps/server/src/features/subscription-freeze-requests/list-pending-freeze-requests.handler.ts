@@ -1,8 +1,8 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
-import { Prisma, PrismaService } from '../../infrastructure/prisma'
-import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
+import { freezeRequestScopeWhere } from '../../domains/requests/open-requests'
+import { PrismaService } from '../../infrastructure/prisma'
+import { RbacService } from '../../shared/services/rbac.service'
 import { displayName } from '../attendance/schemas'
 import {
     ListPendingFreezeRequestsFeature,
@@ -32,34 +32,17 @@ export class ListPendingFreezeRequestsHandler
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
-        const now = new Date()
-        const where = {
-            workspaceId: f.workspaceId,
-            status: 'PENDING',
-            // Still a current abonement of an active member.
-            subscription: {
-                ...currentSubscriptionWhere(now),
-                workspaceMember: { status: 'ACTIVE' },
+        // The inbox's freeze rule (domains/requests), without the section
+        // gate: a request filed before «Абонемент» went off is still decided
+        // here.
+        const where = freezeRequestScopeWhere(
+            {
+                workspaceId: f.workspaceId,
+                userId: ctx.userId,
+                clubWide: this.rbac.canWriteAllGroups(ctx),
             },
-            // A coach sees what they may decide (canWriteMember): members of
-            // groups they coach or whose direction they run, never their own
-            // request.
-            ...(this.rbac.canWriteAllGroups(ctx)
-                ? {}
-                : {
-                      userId: { not: ctx.userId },
-                      user: {
-                          groupMemberships: {
-                              some: {
-                                  group: {
-                                      workspaceId: f.workspaceId,
-                                      ...ownGroupsWhere(ctx.userId),
-                                  },
-                              },
-                          },
-                      },
-                  }),
-        } satisfies Prisma.SubscriptionFreezeRequestWhereInput
+            new Date(),
+        )
         const [rows, total] = await Promise.all([
             this.prisma.subscriptionFreezeRequest.findMany({
                 where,

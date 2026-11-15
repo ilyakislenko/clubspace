@@ -4,25 +4,30 @@ const none: DecisionCounts = {
   call: null,
   renew: null,
   awaiting: null,
-  join: null,
-  freeze: null,
+  requests: null,
   video: null,
 }
 
 describe("«Нужно решение»", () => {
   it("shows a row only while its count is above zero, in a fixed order", () => {
     expect(
-      openDecisions({ ...none, video: 2, call: 14, renew: 0, join: 1 }),
+      openDecisions({ ...none, video: 2, call: 14, renew: 0, requests: 3 }),
     ).toEqual([
       { key: "call", count: 14 },
-      { key: "join", count: 1 },
+      { key: "requests", count: 3 },
       { key: "video", count: 2 },
     ])
   })
 
+  it("has one «Заявки» row in place of the join and freeze rows, after «Ожидают оплаты»", () => {
+    expect(
+      openDecisions({ ...none, awaiting: 1, requests: 4 }).map((r) => r.key),
+    ).toEqual(["awaiting", "requests"])
+  })
+
   it("has no rows for a role without those lists or when nothing waits", () => {
     expect(openDecisions(none)).toEqual([])
-    expect(openDecisions({ ...none, call: 0, freeze: 0 })).toEqual([])
+    expect(openDecisions({ ...none, call: 0, requests: 0 })).toEqual([])
   })
 })
 
