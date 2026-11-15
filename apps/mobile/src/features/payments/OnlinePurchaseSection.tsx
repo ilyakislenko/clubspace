@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 
 import {
   createPayment,
+  getCheckoutQuote,
   getOnlinePurchaseOptions,
+  type CheckoutQuote,
   type MyPayment,
   type OnlinePlan,
   type OnlinePurchaseOptions,
@@ -21,14 +23,22 @@ import {
 } from "../subscription/AbonementScopeChips"
 import { toneColor } from "../subscription/subscription-state"
 import {
+  offerPrice,
+  onlinePlanOffer,
   PENDING_TEXT,
+  PROMO_DEFERRED_NOTE,
   paymentStatusLine,
-  planPriceText,
   planTermsText,
+  promoQuotePlan,
   renewalNote,
 } from "./payment-helpers"
+import { OfferPriceText } from "./OfferPriceText"
 import { openPaymentPage } from "./open-payment-page"
+import { PromoCodeField } from "./PromoCodeField"
 import { usePaymentPolling } from "./usePaymentPolling"
+
+// A promo code as applied: the server's quote per tariff (by id).
+type AppliedPromo = { code: string; quotes: Record<string, CheckoutQuote> }
 
 type Props = {
   workspaceId: string
@@ -74,6 +84,15 @@ export function OnlinePurchaseSection({
   )
   const [outcome, setOutcome] = useState<MyPayment | null>(null)
   const [buyingId, setBuyingId] = useState<string | null>(null)
+  const [promo, setPromo] = useState<AppliedPromo | null>(null)
+  const [promoNote, setPromoNote] = useState<string | null>(null)
+  const [quoting, setQuoting] = useState(false)
+  // More tariffs than «Применить» quotes at once: the rest are quoted on
+  // their own «Оплатить».
+  const [promoDeferred, setPromoDeferred] = useState(false)
+  // Bumped by every apply / edit: a quote that comes back after the code
+  // changed is dropped.
+  const promoRun = useRef(0)
 
   const load = useCallback(async () => {
     try {
@@ -109,13 +128,85 @@ export function OnlinePurchaseSection({
     onSettled: handleSettled,
   })
 
+  const applyPromo = async (code: string) => {
+    if (!options) return
+    const run = ++promoRun.current
+    const { batches, deferred } = promoQuotePlan(options.plans.map((p) => p.id))
+    setQuoting(true)
+    setPromo(null)
+    setPromoNote(null)
+    setPromoDeferred(false)
+    try {
+      const quotes: Record<string, CheckoutQuote> = {}
+      for (const batch of batches) {
+        const got = await Promise.all(
+          batch.map((planId) =>
+            getCheckoutQuote({ workspaceId, planId, promoCode: code }),
+          ),
+        )
+        if (run !== promoRun.current) return
+        batch.forEach((planId, i) => {
+          quotes[planId] = got[i]
+        })
+      }
+      setPromo({ code, quotes })
+      setPromoDeferred(deferred)
+      // One reason for every quoted tariff («не найден», «закончился») goes
+      // under the field; reasons that differ stay on their cards.
+      const list = Object.values(quotes)
+      const notes = new Set(list.map((q) => q.promoCodeNote))
+      const applied = list.some((q) => q.discount?.code)
+      const [only] = [...notes]
+      setPromoNote(!applied && notes.size === 1 ? only : null)
+    } catch (e) {
+      if (run !== promoRun.current) return
+      setPromoNote(errorMessage(e, "Не удалось проверить промокод"))
+    } finally {
+      if (run === promoRun.current) setQuoting(false)
+    }
+  }
+
+  const editPromo = () => {
+    promoRun.current++
+    setQuoting(false)
+    setPromo(null)
+    setPromoNote(null)
+    setPromoDeferred(false)
+  }
+
+  // A tariff past the ones «Применить» quoted: its first «Оплатить» quotes
+  // it with the code and shows the price; the next tap pays that price.
+  const quoteOne = async (plan: OnlinePlan, code: string) => {
+    const run = promoRun.current
+    setBuyingId(plan.id)
+    try {
+      const quote = await getCheckoutQuote({
+        workspaceId,
+        planId: plan.id,
+        promoCode: code,
+      })
+      if (run !== promoRun.current) return
+      setPromo((p) => p && { ...p, quotes: { ...p.quotes, [plan.id]: quote } })
+    } catch (e) {
+      showToast(errorMessage(e, "Не удалось проверить промокод"), "error")
+    } finally {
+      setBuyingId(null)
+    }
+  }
+
   const pay = async (plan: OnlinePlan) => {
     if (buyingId) return
+    if (promo && !promo.quotes[plan.id]) return quoteOne(plan, promo.code)
     setBuyingId(plan.id)
+    // Sent only where the quote shows it: a code the server can't use on
+    // this tariff would be refused.
+    const promoCode = promo?.quotes[plan.id]?.discount?.code
+      ? promo.code
+      : undefined
     try {
       const { payment, confirmationUrl } = await createPayment({
         workspaceId,
-        data: { planId: plan.id },
+        data: { planId: plan.id, ...(promoCode ? { promoCode } : {}) },
       })
       setOutcome(null)
       setTrackedId(payment.id)
@@ -225,45 +316,76 @@ export function OnlinePurchaseSection({
           {options.blockedReason && (
             <Text style={styles.blocked}>{options.blockedReason}</Text>
           )}
-          {options.plans.map((plan) => (
-            <View key={plan.id} style={styles.card}>
-              <View style={styles.planHead}>
-                <Text style={styles.planName}>{plan.name}</Text>
-                <Text style={styles.price}>{planPriceText(plan)}</Text>
+          {options.plans.map((plan) => {
+            const quote = promo?.quotes[plan.id]
+            const offer = quote
+              ? offerPrice({
+                  listPrice: quote.listPrice,
+                  amount: quote.amount,
+                  currency: quote.currency,
+                  discount: quote.discount,
+                })
+              : onlinePlanOffer(plan)
+            // Why the code left this tariff's price as is, when the reason
+            // isn't already under the field.
+            const cardNote = promoNote === null ? quote?.promoCodeNote : null
+            return (
+              <View key={plan.id} style={styles.card}>
+                <View style={styles.planHead}>
+                  <Text style={styles.planName}>{plan.name}</Text>
+                  <OfferPriceText offer={offer} style={styles.price} />
+                </View>
+                {offer.note && (
+                  <Text style={styles.discount}>{offer.note}</Text>
+                )}
+                {cardNote && <Text style={styles.promoNote}>{cardNote}</Text>}
+                {/* The server offers only tariffs of the member's directions
+                    plus club-wide ones; the chips say which is which. */}
+                <AbonementScopeChips
+                  directions={plan.directions}
+                  showClubWide={hasScoped(options.plans)}
+                />
+                <Text style={styles.meta}>{planTermsText(plan)}</Text>
+                {plan.description ? (
+                  <Text style={styles.description}>{plan.description}</Text>
+                ) : null}
+                {!options.blockedReason && (
+                  <Pressable
+                    onPress={() => void pay(plan)}
+                    disabled={buyingId !== null}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Оплатить ${plan.name}`}
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      pressed && styles.btnPressed,
+                      buyingId !== null &&
+                        buyingId !== plan.id &&
+                        styles.btnDisabled,
+                    ]}
+                  >
+                    {buyingId === plan.id ? (
+                      <ActivityIndicator color={theme.colors.accentText} />
+                    ) : (
+                      <Text style={styles.primaryBtnText}>
+                        Оплатить {offer.amount}
+                      </Text>
+                    )}
+                  </Pressable>
+                )}
               </View>
-              {/* The server offers only tariffs of the member's directions
-                  plus club-wide ones; the chips say which is which. */}
-              <AbonementScopeChips
-                directions={plan.directions}
-                showClubWide={hasScoped(options.plans)}
-              />
-              <Text style={styles.meta}>{planTermsText(plan)}</Text>
-              {plan.description ? (
-                <Text style={styles.description}>{plan.description}</Text>
-              ) : null}
-              {!options.blockedReason && (
-                <Pressable
-                  onPress={() => void pay(plan)}
-                  disabled={buyingId !== null}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Оплатить ${plan.name}`}
-                  style={({ pressed }) => [
-                    styles.primaryBtn,
-                    pressed && styles.btnPressed,
-                    buyingId !== null && buyingId !== plan.id && styles.btnDisabled,
-                  ]}
-                >
-                  {buyingId === plan.id ? (
-                    <ActivityIndicator color={theme.colors.accentText} />
-                  ) : (
-                    <Text style={styles.primaryBtnText}>
-                      Оплатить {planPriceText(plan)}
-                    </Text>
-                  )}
-                </Pressable>
-              )}
-            </View>
-          ))}
+            )
+          })}
+          {!options.blockedReason && options.plans.length > 0 && (
+            <PromoCodeField
+              busy={quoting}
+              note={promoNote}
+              onApply={(code) => void applyPromo(code)}
+              onEdit={editPromo}
+            />
+          )}
+          {promoDeferred && (
+            <Text style={styles.meta}>{PROMO_DEFERRED_NOTE}</Text>
+          )}
           <Text style={styles.hint}>
             Оплата проходит на защищённой странице платёжного сервиса, деньги
             поступают клубу.
@@ -310,6 +432,9 @@ const makeStyles = (theme: Theme) =>
     },
     price: { color: theme.colors.accent, fontSize: 16, fontWeight: "700" },
     meta: { color: theme.colors.muted, fontSize: 13 },
+    discount: { color: theme.colors.success, fontSize: 13, fontWeight: "600" },
+    // The warning tone, as under the promo code field.
+    promoNote: { color: theme.colors.accent, fontSize: 13 },
     description: { color: theme.colors.text, fontSize: 13 },
     danger: { color: theme.colors.danger, fontSize: 13 },
     blocked: { color: theme.colors.accent, fontSize: 14, fontWeight: "600" },

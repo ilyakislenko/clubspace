@@ -284,6 +284,13 @@ export class EventRegistrationService {
             amount: number
             currency: string
             now: Date
+            // The checkout's price facts, copied from its Payment
+            // (docs/design/2026-11-15-discounts.md §3.3); an online sale has
+            // no pricedById.
+            listPrice?: number | null
+            discountId?: string | null
+            discountName?: string | null
+            discountAmount?: number
         },
     ): Promise<{ eventId: string; title: string } | { refused: string }> {
         const registration = await tx.eventRegistration.findUnique({
@@ -323,6 +330,11 @@ export class EventRegistrationService {
                 currency: p.currency,
                 paymentMethod: 'ONLINE',
                 markedPaidById: null,
+                listPrice: p.listPrice ?? null,
+                discountId: p.discountId ?? null,
+                discountName: p.discountName ?? null,
+                discountAmount: p.discountAmount ?? 0,
+                pricedById: null,
             },
         })
         if (marked.count === 0) {

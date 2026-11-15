@@ -217,7 +217,7 @@ export const memberProfileTool = defineTool({
     description:
         'Всё об одном ученике по его ref (m_…): группы, абонементы (действующие и последние), посещаемость за 30/90 дней, ' +
         'первый и последний визит, ранги по лестницам, ближайшие аттестации, признаки риска оттока. ' +
-        'Для токена администратора — суммы абонементов и долг. Заметки тренеров и медицинские сведения не выдаются.',
+        'Для токена администратора — суммы абонементов, название скидки (discountName) и долг. Заметки тренеров и медицинские сведения не выдаются.',
     input: z.object({
         member: z.string().trim().min(3).max(20).describe('ref участника (m_…) из других ответов'),
     }),
@@ -271,6 +271,7 @@ export const memberProfileTool = defineTool({
                                 classesTotal: true,
                                 isPaid: true,
                                 amountPaid: true,
+                                discountName: true,
                                 currency: true,
                                 createdAt: true,
                                 plan: { select: { id: true, name: true } },
@@ -357,7 +358,9 @@ export const memberProfileTool = defineTool({
                     frozenOrFreezePlanned: s.freezes.length > 0,
                     directions: s.directions.map((d) => d.direction.name),
                     isPaid: s.isPaid,
-                    ...(scope.seesMoney ? { amount: s.amountPaid, currency: s.currency } : {}),
+                    ...(scope.seesMoney
+                        ? { amount: s.amountPaid, currency: s.currency, discountName: s.discountName }
+                        : {}),
                 })),
                 attendance: {
                     visits30d,

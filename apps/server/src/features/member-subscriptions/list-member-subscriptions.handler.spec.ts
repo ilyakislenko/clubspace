@@ -12,6 +12,12 @@ const subRow = (over: Record<string, unknown> = {}) => ({
     endDate: new Date('2999-01-01T00:00:00Z'),
     amountPaid: 5000,
     currency: 'RUB',
+    refundedAmount: 0,
+    listPrice: null,
+    discountId: null,
+    discountName: null,
+    discountAmount: 0,
+    pricedById: null,
     classesTotal: null,
     classesRemaining: null,
     source: 'MANUAL',
@@ -80,6 +86,11 @@ const build = (
             ),
         },
         subscriptionFreeze: { findMany: jest.fn().mockResolvedValue(freezes) },
+        user: {
+            findMany: jest.fn().mockResolvedValue([
+                { id: 'coach-1', firstname: 'Пётр', lastname: 'Петров', email: 'p@x' },
+            ]),
+        },
     }
     return prisma
 }
@@ -106,6 +117,27 @@ describe('ListMemberSubscriptionsHandler', () => {
         const prisma = build([])
         prisma.workspaceMember.findFirst.mockResolvedValue(null)
         await expect(run(prisma)).rejects.toThrow(/Участник не найден/)
+    })
+
+    it('shows the price facts of each sale and who priced it', async () => {
+        const prisma = build([
+            subRow({ amountPaid: 3600, listPrice: 5000, discountId: 'd1', discountName: 'Семейная', discountAmount: 500, pricedById: 'coach-1' }),
+            subRow({ id: 's0', status: 'EXPIRED', amountPaid: 4000, listPrice: 4000, pricedById: 'gone' }),
+            subRow({ id: 'old', status: 'EXPIRED', amountPaid: 4000 }),
+        ])
+        const out = await run(prisma)
+        expect(first(out)).toMatchObject({
+            listPrice: 5000,
+            discountName: 'Семейная',
+            discountAmount: 500,
+            oneOffDiscount: 900,
+            pricedBy: { userId: 'coach-1', name: 'Пётр Петров' },
+        })
+        const byId = new Map(out.history.map((s) => [s.id, s]))
+        expect(byId.get('s0')).toMatchObject({ oneOffDiscount: 0, pricedBy: { userId: 'gone', name: 'Бывший сотрудник' } })
+        // Sold before discounts existed: no price, nothing shown.
+        expect(byId.get('old')).toMatchObject({ listPrice: null, oneOffDiscount: 0, pricedBy: null })
+        expect(prisma.user.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['coach-1', 'gone'] } })
     })
 
     it('lists every current abonement with its own request and renewal day', async () => {

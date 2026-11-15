@@ -13,6 +13,8 @@ const MODELS = [
     'subscriptionFreeze',
     'payment',
     'subscription',
+    'eventRegistration',
+    'discount',
     'rankGradingCandidate',
     'rankPromotion',
     'videoFavorite',
@@ -58,8 +60,17 @@ describe('wipeDemoWorkspace', () => {
         expect(order[0]).toBe('refund')
         expect(order.indexOf('subscription')).toBeLessThan(order.indexOf('workspace'))
         expect(order.indexOf('rankPromotion')).toBeLessThan(order.indexOf('workspace'))
+        // A used discount is Restrict-referenced by its sales: after them.
+        expect(order.indexOf('discount')).toBeGreaterThan(order.indexOf('subscription'))
+        expect(order.indexOf('discount')).toBeGreaterThan(order.indexOf('payment'))
+        expect(order.indexOf('discount')).toBeGreaterThan(order.indexOf('eventRegistration'))
+        expect(tx.eventRegistration.deleteMany).toHaveBeenCalledWith({
+            where: { workspaceId: 'w-demo', discountId: { not: null } },
+        })
         expect(tx.workspace.delete).toHaveBeenCalledWith({ where: { id: 'w-demo' } })
-        for (const m of MODELS.filter((x) => !['videoTag', 'consentRecord', 'guardianship'].includes(x))) {
+        for (const m of MODELS.filter(
+            (x) => !['videoTag', 'consentRecord', 'guardianship', 'eventRegistration'].includes(x),
+        )) {
             expect(tx[m].deleteMany).toHaveBeenCalledWith({ where: { workspaceId: 'w-demo' } })
         }
         expect(tx.videoTag.deleteMany).toHaveBeenCalledWith({ where: { video: { workspaceId: 'w-demo' } } })

@@ -9,8 +9,13 @@ export const AssignSubscriptionInputSchema = z.object({
     // первой тренировки» tariff, to the first visit. An explicit date makes a
     // dated abonement either way. endDate is derived as startDate + plan.durationDays.
     startDate: z.iso.date().optional(),
-    // Override the recorded amount (e.g. a discount or comped abonement).
-    // Defaults to the plan price.
+    // A club discount picked from listSaleDiscounts. Never applied by the
+    // server on its own: omitted = the tariff price.
+    discountId: z.string().uuid().optional(),
+    // The agreed / received amount when it differs from the price (a cash
+    // part-payment, a comped abonement). Defaults to the price with the
+    // discount. Recorded with the list price and who set it, so a reduction
+    // shows as a one-off discount.
     amountPaid: z.number().int().min(0).max(10_000_000).optional(),
     // false = sold, payment to be marked later. Defaults to paid.
     paid: z.boolean().optional(),

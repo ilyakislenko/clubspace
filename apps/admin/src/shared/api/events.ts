@@ -57,7 +57,6 @@ export const deleteEvent = async (params: {
 // Who registered for an event with a price or a limit of places, and who paid.
 export type EventRegistrations = ApiTypes.EventRegistrationsOutputOutput
 export type EventRegistrant = EventRegistrations["data"][number]
-export type EventPaymentMethod = ApiTypes.MarkEventRegistrationPaidInput["method"]
 
 export const listEventRegistrations = async (params: {
   workspaceId: string
@@ -69,10 +68,12 @@ export const listEventRegistrations = async (params: {
   })
 }
 
+// The amount typed (a one-off reduction is recorded with who marked it) and
+// the discount picked; both optional — the ticket's price by default.
 export const markEventRegistrationPaid = async (params: {
   workspaceId: string
   registrationId: string
-  method: EventPaymentMethod
+  data: ApiTypes.MarkEventRegistrationPaidInput
 }): Promise<EventRegistrant> => {
   return await getApiClient().request<
     EventRegistrant,
@@ -80,7 +81,7 @@ export const markEventRegistrationPaid = async (params: {
   >({
     method: "post",
     url: `/workspaces/${params.workspaceId}/event-registrations/${params.registrationId}/payment`,
-    data: { method: params.method },
+    data: params.data,
   })
 }
 

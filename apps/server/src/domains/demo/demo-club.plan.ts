@@ -14,8 +14,10 @@ import type { Prisma } from '../../infrastructure/prisma'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
 import { pseudonymFor } from '../ai-assistant/pseudonym'
+import { priceSale } from '../discounts/discount-rules'
 import { FIRST_VISIT_AUTO_START_DAYS } from '../subscriptions/first-visit-start'
 import { addDaysYmd, diffDaysYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
+import { isSubscriptionUsable } from '../subscriptions/subscription-status'
 import { defaultFeatureColumnsFor } from '../workspace/feature-flags'
 import {
     DEMO_CLUB_KEY,
@@ -164,6 +166,8 @@ export type DemoClubPlan = {
     events: Prisma.WorkspaceEventCreateManyInput[]
     // Places taken and the waitlist of a paid / limited event (a master class).
     eventRegistrations: Prisma.EventRegistrationCreateManyInput[]
+    // «Скидки»: before the sales that name them (Restrict).
+    discounts: Prisma.DiscountCreateManyInput[]
     subscriptions: Prisma.SubscriptionCreateManyInput[]
     // «Возвраты»: after the sales they return money for; each one's sum is
     // already in its sale's refundedAmount (the sale itself stays paid).
@@ -358,6 +362,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         gradings: [],
         gradingCandidates: [],
         events: [],
+        discounts: [],
         eventRegistrations: [],
         subscriptions: [],
         refunds: [],
@@ -1538,9 +1543,126 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         reason: 'Пропустил две недели по болезни — вернули часть',
     }
 
+    // ---- discounts ---------------------------------------------------------------
+    // «Скидки» (docs/design/2026-11-15-discounts.md §9): the family discount
+    // that applies itself, a staff-only student one and the renewal promo the
+    // «абонемент заканчивается» announcement names. A handful of sales carry
+    // them, plus one admin one-off and one head-coach cash part-payment, so
+    // «Кто давал скидки» and the journal's «Со скидкой» have rows. Every sale
+    // records the tariff price it was sold against and who priced it.
+    const discountId = (k: 'family' | 'student' | 'renew') => demoUuid(`discount:${k}`)
+    const familyFromYmd = ago(150)
+    const discountRow = (
+        k: 'family' | 'student' | 'renew',
+        name: string,
+        value: number,
+        createdYmd: string,
+        over: Partial<Prisma.DiscountCreateManyInput> = {},
+    ): Prisma.DiscountCreateManyInput => ({
+        id: discountId(k),
+        workspaceId,
+        name,
+        kind: 'PERCENT',
+        value,
+        allPlans: true,
+        createdById: ownerId,
+        createdAt: at(createdYmd, '11:00'),
+        updatedAt: at(createdYmd, '11:00'),
+        ...over,
+    })
+    plan.discounts.push(
+        discountRow('family', 'Семейная', 10, familyFromYmd, { isFamily: true }),
+        discountRow('student', 'Студенческая', 15, ago(120)),
+        discountRow('renew', 'Продление −5%', 5, ago(10), { code: 'ПРОДЛИ5', oncePerMember: true }),
+    )
+    // What a sale's row records beyond the tariff price: the named discount
+    // (§1 priceSale: percent, half-up), or a typed lower amount (one-off), and
+    // who priced it (the seller; the marker of a paid sale).
+    type SalePrice = {
+        amountPaid: number
+        discount: { id: string; name: string; amount: number } | null
+        pricedBy: StaffKey
+        markedBy?: StaffKey
+        method?: 'CASH'
+    }
+    const salePrices = new Map<string, SalePrice>()
+    const named = (s: Sub, k: 'family' | 'student', name: string, value: number) => {
+        const priced = priceSale({
+            listPrice: s.tariff.price,
+            currency: 'RUB',
+            discount: { id: discountId(k), name, kind: 'PERCENT', value, currency: null },
+        })
+        salePrices.set(s.id, {
+            amountPaid: priced.amount,
+            discount: { id: discountId(k), name, amount: priced.discountAmount },
+            pricedBy: demoPaymentMarker(s.id),
+        })
+    }
+    // Миша and Аня: each sale since the family discount exists that
+    // listSaleDiscounts would have offered «Семейная» on (domains/discounts/
+    // family.ts): a confirmed guardianship links them (Елена confirms each
+    // child on its first day, so a sibling counts once both are confirmed),
+    // and that relative — still a member — held a current abonement at the
+    // sale, by the same rule as currentSubscriptionWhere (isSubscriptionUsable:
+    // ACTIVE and not past its end; one waiting for its first visit has none).
+    const confirmedAt = (p: Person) => (p === parent ? null : at(p.joinYmd, '19:00'))
+    const holdsCurrentAt = (p: Person, t: Date) =>
+        p.status !== 'LEFT' &&
+        p.subs.some(
+            (x) =>
+                x.soldAt <= t &&
+                isSubscriptionUsable({ status: x.status, endDate: x.pending ? null : x.endAt }, t),
+        )
+    for (const kid of [misha, anya]) {
+        for (const s of kid.subs) {
+            if (s.tariff.price <= 0 || s.soldAt < at(familyFromYmd, '11:00') || s.soldAt > now) continue
+            const linked = (p: Person) =>
+                [kid, p].every((x) => (confirmedAt(x)?.getTime() ?? 0) <= s.soldAt.getTime())
+            const eligible = [parent, misha, anya].some(
+                (p) => p !== kid && linked(p) && holdsCurrentAt(p, s.soldAt),
+            )
+            if (eligible) named(s, 'family', 'Семейная', 10)
+        }
+    }
+    // Recent paid adult sales nobody else's story touches, newest first.
+    const plainSales = members
+        .filter((p) => !fixedPeople.has(p) && !storied.has(p) && p.kind === 'adult')
+        .flatMap((p) => p.subs.map((s) => ({ p, s })))
+        .filter(({ s }) => s.isPaid && s.tariff.price >= 2000 && s !== refund?.s && s.soldAt <= now)
+        .sort((a, b) => b.s.soldAt.getTime() - a.s.soldAt.getTime() || a.p.idx - b.p.idx)
+    // The head coach took part of the price in cash at the reception; the
+    // administrator knocked 500 ₽ off another — both recorded as one-offs.
+    const [coachCash, adminOneOff] = plainSales
+    if (coachCash) {
+        salePrices.set(coachCash.s.id, {
+            amountPaid: coachCash.s.tariff.price - 1000,
+            discount: null,
+            pricedBy: 'savelyev',
+            markedBy: 'savelyev',
+            method: 'CASH',
+        })
+    }
+    if (adminOneOff) {
+        salePrices.set(adminOneOff.s.id, {
+            amountPaid: adminOneOff.s.tariff.price - 500,
+            discount: null,
+            pricedBy: 'admin',
+            markedBy: 'admin',
+        })
+    }
+    // «Студенческая»: every 6th of the other recent sales since it exists, five.
+    plainSales
+        .slice(2)
+        .filter(({ s }) => s.soldAt >= at(ago(120), '11:00'))
+        .filter((_, i) => i % 6 === 0)
+        .slice(0, 5)
+        .forEach(({ s }) => named(s, 'student', 'Студенческая', 15))
+
     // ---- subscriptions as rows -------------------------------------------------
     for (const p of persons) {
         for (const s of p.subs) {
+            const price = salePrices.get(s.id)
+            const markedBy = price?.markedBy ?? demoPaymentMarker(s.id)
             plan.subscriptions.push({
                 id: s.id,
                 workspaceId,
@@ -1550,13 +1672,19 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 endDate: s.pending ? null : s.endAt,
                 startsOnFirstVisit: s.tariff.startsOnFirstVisit ?? false,
                 durationDays: s.tariff.days,
-                amountPaid: s.tariff.price,
+                amountPaid: price?.amountPaid ?? s.tariff.price,
+                listPrice: s.tariff.price,
+                discountId: price?.discount?.id ?? null,
+                discountName: price?.discount?.name ?? null,
+                discountAmount: price?.discount?.amount ?? 0,
+                pricedById: staffId(price?.pricedBy ?? demoPaymentMarker(s.id)),
                 refundedAmount: s === refund?.s ? refund.amount : 0,
                 currency: 'RUB',
                 isPaid: s.isPaid,
                 paidAt: s.isPaid ? s.soldAt : null,
-                paymentMethod: s.isPaid && s.tariff.price > 0 ? demoPaymentMethod(s.id) : null,
-                markedPaidById: s.isPaid ? staffId(demoPaymentMarker(s.id)) : null,
+                paymentMethod:
+                    s.isPaid && s.tariff.price > 0 ? (price?.method ?? demoPaymentMethod(s.id)) : null,
+                markedPaidById: s.isPaid ? staffId(markedBy) : null,
                 classesTotal: s.tariff.classes,
                 classesRemaining: s.remaining,
                 // Those who left keep the abonements with no member.
@@ -2161,7 +2289,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     }
     announce('owner', 'Тайский бокс теперь и в Северске', 'Группа «Тайский бокс Взрослые» в СК «Центр тайского бокса», ул. Транспортная, 32. Персональные тренировки — по записи в приложении.', 20, { pinned: true })
     announce('admin', 'Заморозка — в приложении', 'Заявку на заморозку абонемента можно отправить прямо в приложении: Профиль → «Мой абонемент». Рассмотрим в течение дня. Продлить абонемент можно у тренера или на ресепшене.', 6)
-    announce('admin', 'Ваш абонемент скоро закончится', 'Продлите абонемент до конца недели — и следующая неделя тренировок пройдёт без перерыва. Скидка 5% при продлении в день окончания.', 2, { expiring: true })
+    announce('admin', 'Ваш абонемент скоро закончится', 'Продлите абонемент до конца недели — и следующая неделя тренировок пройдёт без перерыва. Промокод ПРОДЛИ5 даёт скидку 5% на продление: введите его при оплате в приложении или назовите на ресепшене.', 2, { expiring: true })
     // Only the adult BJJ groups: the kids (Миша) never see the adults' grading,
     // so it can stay pinned on top of the adults' home.
     announce('reshetyuk', `Аттестация взрослых на синие пояса — ${nextGradingYmd.split('-').reverse().slice(0, 2).join('.')}`, 'Кто допущен и сколько тренировок осталось до готовности — в «Прогресс» → «Мой ранг». Готовность считается по посещениям.', 3, {
@@ -2284,15 +2412,51 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             metadata,
             createdAt,
         })
-    persons
+    // The latest sales, and the two one-offs whatever their date, as the sale
+    // handler records them: the actor is who priced it (§3.4).
+    const soldRecently = persons
         .flatMap((p) => p.subs.filter((s) => s.soldAt <= now).map((s) => ({ p, s })))
         .sort((a, b) => b.s.soldAt.getTime() - a.s.soldAt.getTime())
         .slice(0, 6)
-        .forEach(({ p, s }) =>
-            audit('member.assignSubscription', 'member', p.id, 'admin', s.soldAt, {
-                planName: s.tariff.name,
-            }),
-        )
+    for (const sale of [coachCash, adminOneOff]) {
+        if (sale && !soldRecently.some((x) => x.s === sale.s)) soldRecently.push(sale)
+    }
+    soldRecently.forEach(({ p, s }) => {
+        const price = salePrices.get(s.id)
+        const amount = price?.amountPaid ?? s.tariff.price
+        const oneOff = s.tariff.price - (price?.discount?.amount ?? 0) - amount
+        audit('member.assignSubscription', 'member', p.id, price?.pricedBy ?? 'admin', s.soldAt, {
+            subscriptionId: s.id,
+            planName: s.tariff.name,
+            amount,
+            paid: s.isPaid,
+            currency: 'RUB',
+            listPrice: s.tariff.price,
+            discountId: price?.discount?.id ?? null,
+            discountName: price?.discount?.name ?? null,
+            discountAmount: price?.discount?.amount ?? 0,
+            ...(oneOff > 0 ? { oneOff } : {}),
+        })
+    })
+    // As the discount handler snapshots a new one.
+    plan.discounts.forEach((d) =>
+        audit('discount.create', 'discount', d.id as string, 'owner', d.createdAt as Date, {
+            name: d.name,
+            kind: d.kind,
+            value: d.value,
+            currency: null,
+            code: d.code ?? null,
+            isFamily: d.isFamily ?? false,
+            allPlans: true,
+            plans: [],
+            events: false,
+            startsOn: null,
+            endsOn: null,
+            maxUses: null,
+            oncePerMember: d.oncePerMember ?? false,
+            isActive: true,
+        }),
+    )
     audit('event.create', 'event', demoUuid('event:club-meetup'), 'owner', at(ago(1), '11:00'), {
         title: 'Клубная встреча: итоги сезона',
     })

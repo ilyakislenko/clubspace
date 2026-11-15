@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { saleDiscount } from '../../domains/discounts/discount-rules'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { SubscriptionService } from '../../domains/subscriptions/services/subscription.service'
 import { ForbiddenError } from '../../shared/errors/shared.errors'
@@ -48,10 +49,11 @@ export class MarkSubscriptionPaidHandler
             userId: f.userId,
             subscriptionId: f.subscriptionId,
             amount: f.payload.amount,
+            discountId: f.payload.discountId,
             paymentMethod: f.payload.method,
             markedById: f.invokerUserId,
         })
-
+        const { oneOff } = saleDiscount(subscription)
         await this.audit.record({
             action: 'member.markSubscriptionPaid',
             targetType: 'member',
@@ -64,6 +66,11 @@ export class MarkSubscriptionPaidHandler
                 amount: subscription.amountPaid,
                 currency: subscription.currency,
                 method: subscription.paymentMethod,
+                listPrice: subscription.listPrice,
+                discountId: subscription.discountId,
+                discountName: subscription.discountName,
+                discountAmount: subscription.discountAmount,
+                ...(oneOff > 0 ? { oneOff } : {}),
             },
         })
 

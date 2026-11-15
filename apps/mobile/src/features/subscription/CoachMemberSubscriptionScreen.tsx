@@ -28,6 +28,10 @@ import {
   type MemberSubscriptions,
   type Plan,
 } from "../../shared/api/member-subscriptions"
+import {
+  listSaleDiscounts,
+  type SaleDiscountOption,
+} from "../../shared/api/sale-discounts"
 import { useAuth } from "../../shared/auth-context"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import { subscribeInvalidation } from "../../shared/cache/cache-events"
@@ -48,6 +52,12 @@ import { formatMoney, formatRuDay } from "../../shared/format-ru"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
+import {
+  discountedPriceText,
+  oneOffLine,
+  saleOptionLabel,
+  saleOptionsForPlan,
+} from "../payments/payment-helpers"
 import { AbonementScopeChips, hasScoped } from "./AbonementScopeChips"
 import {
   canSellAbonement,
@@ -81,6 +91,12 @@ import {
 type Props = NativeStackScreenProps<RootStackParamList, "MemberSubscription">
 
 type Mode = "pay" | "assign" | "freeze" | "approve" | "decline" | null
+
+// A club discount priced for the sale in an open form.
+type SaleChoice = {
+  option: SaleDiscountOption
+  item: SaleDiscountOption["items"][number]
+}
 
 const MAX_AMOUNT = 10_000_000
 const MAX_FREEZE_DAYS = 90
@@ -124,6 +140,8 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
 
   const [data, setData] = useState<MemberSubscriptions | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
+  // The club discounts this student may get at a sale (manager only).
+  const [saleOptions, setSaleOptions] = useState<SaleDiscountOption[]>([])
   const [error, setError] = useState<string | null>(null)
   // 403: the caller may not read this student at all (not an error to retry).
   const [forbidden, setForbidden] = useState(false)
@@ -143,6 +161,8 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   const [planId, setPlanId] = useState<string | null>(null)
   const [amountText, setAmountText] = useState("")
   const [paid, setPaid] = useState(true)
+  // The club discount picked in the open sell / pay form; null = none.
+  const [discountId, setDiscountId] = useState<string | null>(null)
   // How a payment at the club was taken: kept across the forms of this
   // screen, starting from the last pick on this device.
   const [method, setMethod] = useState<ClubPaymentMethod>("CASH")
@@ -157,12 +177,17 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
     if (!workspaceId) return
     try {
       const subs = await listMemberSubscriptions({ workspaceId, userId })
-      // Tariffs are only needed to sell, which only a manager may do.
-      const tariffs = subs.permissions.canManage
-        ? (await listPlans({ workspaceId })).data
-        : []
+      // Tariffs and discounts are only needed to sell or mark a payment,
+      // which only a manager may do.
+      const [tariffs, discounts] = subs.permissions.canManage
+        ? await Promise.all([
+            listPlans({ workspaceId }).then((r) => r.data),
+            listSaleDiscounts({ workspaceId, userId }).then((r) => r.options),
+          ])
+        : [[], []]
       setData(subs)
       setPlans(tariffs)
+      setSaleOptions(discounts)
       setError(null)
       setForbidden(false)
     } catch (e) {
@@ -227,8 +252,18 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
 
   const debts = data ? pastDebts(data) : []
 
+  // A sale without a club discount and with its list price may get one at
+  // payment, repriced by the server from that list price (family first).
+  const payChoicesOf = (target: MemberSubscription) =>
+    target.discountId === null && target.listPrice !== null
+      ? saleOptionsForPlan(saleOptions, target.planId, target.listPrice)
+      : []
+
+  // Nothing preselected: the price was agreed at the sale; the coach may
+  // still pick a discount here.
   const openPay = (target: MemberSubscription) => {
     setPayFor(target)
+    setDiscountId(null)
     setPayText(String(target.amountPaid))
     setMode("pay")
   }
@@ -236,9 +271,21 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   const openAssign = (renewFrom: string | null) => {
     setRenewFromYmd(renewFrom)
     setPlanId(null)
+    setDiscountId(null)
     setAmountText("")
     setPaid(true)
     setMode("assign")
+  }
+
+  // A tariff picked in the sell form: the family discount preselected when
+  // the student qualifies, the amount prefilled with its price.
+  const pickPlan = (p: Plan) => {
+    const family = saleOptionsForPlan(saleOptions, p.id).find(
+      (c) => c.option.isFamily,
+    )
+    setPlanId(p.id)
+    setDiscountId(family?.option.discountId ?? null)
+    setAmountText(String(family?.item.amount ?? p.price))
   }
 
   const openMode = (
@@ -335,7 +382,11 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
           workspaceId: workspace.workspaceId,
           userId,
           subscriptionId: payFor.id,
-          data: { amount: payAmount, method },
+          data: {
+            amount: payAmount,
+            method,
+            ...(discountId ? { discountId } : {}),
+          },
         }).then(() => savePaymentMethod(method)),
       "Оплата отмечена",
       "Не удалось отметить оплату",
@@ -352,6 +403,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
           data: {
             planId,
             amountPaid: sellAmount,
+            ...(discountId ? { discountId } : {}),
             paid,
             ...(paid ? { paymentMethod: method } : {}),
             // A renewal starts the day the renewed abonement ends.
@@ -436,6 +488,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
     const frozenNow =
       openFreeze !== null && freezePhase(openFreeze, now) === "current"
     const payment = paymentLine(a)
+    const discount = discountedPriceText(a)
     return (
       <View key={a.id} style={styles.card}>
         <Text style={styles.planName}>{a.planName}</Text>
@@ -463,7 +516,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
         <Text
           style={[styles.meta, { color: toneColor(theme.colors, payment.tone) }]}
         >
-          {payment.text}
+          {discount ? `${payment.text} · ${discount}` : payment.text}
         </Text>
       </View>
     )
@@ -575,6 +628,73 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
       <Text style={styles.label}>Абонемент: {planName}</Text>
     ) : null
 
+  // «Скидка»: «Без скидки» and the club discounts priced for this sale, shown
+  // only when there are any. The family one comes first (preselected at a sale).
+  const discountPicker = (
+    choices: SaleChoice[],
+    onPick: (choice: SaleChoice | null) => void,
+  ) =>
+    choices.length === 0 ? null : (
+      <>
+        <Text style={styles.label}>Скидка</Text>
+        <View
+          style={styles.row}
+          accessibilityRole="radiogroup"
+          accessibilityLabel="Скидка"
+        >
+          {[null, ...choices].map((c) => {
+            const id = c?.option.discountId ?? null
+            const on = discountId === id
+            return (
+              <Pressable
+                key={id ?? "none"}
+                onPress={() => onPick(c)}
+                disabled={busy}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: on }}
+                style={[styles.methodChip, on && styles.methodChipOn]}
+              >
+                <Text style={on ? styles.primaryText : styles.secondaryText}>
+                  {c ? saleOptionLabel(c.option, c.item) : "Без скидки"}
+                </Text>
+              </Pressable>
+            )
+          })}
+        </View>
+        {choices.some((c) => c.option.isFamily) && (
+          <Text style={styles.hint}>
+            У члена семьи есть действующий абонемент
+          </Text>
+        )}
+      </>
+    )
+
+  // The open forms' prices: a typed amount below the tariff's (or the picked
+  // discount's) price shows the one-off line.
+  const sellPlan = plans.find((p) => p.id === planId) ?? null
+  const sellChoices = sellPlan ? saleOptionsForPlan(saleOptions, sellPlan.id) : []
+  const sellChoice =
+    sellChoices.find((c) => c.option.discountId === discountId) ?? null
+  const sellOneOff = sellPlan
+    ? oneOffLine(
+        sellChoice?.item.amount ?? sellPlan.price,
+        sellAmount,
+        sellPlan.currency,
+      )
+    : null
+  const payChoices = payFor ? payChoicesOf(payFor) : []
+  const payChoice =
+    payChoices.find((c) => c.option.discountId === discountId) ?? null
+  // Without a new discount: the sale's list price less its own discount (a
+  // sale from before prices were kept has none to compare with).
+  const payPrice =
+    payChoice?.item.amount ??
+    (payFor?.listPrice != null ? payFor.listPrice - payFor.discountAmount : null)
+  const payOneOff =
+    payFor && payPrice !== null
+      ? oneOffLine(payPrice, payAmount, payFor.currency)
+      : null
+
   const actionsPanel = !data ? null : !canManage ? (
     <Text style={styles.hint}>
       Этот ученик не из ваших групп — управлять его абонементом может{" "}
@@ -599,6 +719,10 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
       {shownMode === "pay" && payFor && (
         <View style={styles.form}>
           {formTitle(payFor.planName)}
+          {discountPicker(payChoices, (c) => {
+            setDiscountId(c?.option.discountId ?? null)
+            setPayText(String(c?.item.amount ?? payFor.amountPaid))
+          })}
           <Text style={styles.label}>
             Получено, {payFor.currency === "RUB" ? "₽" : payFor.currency}
           </Text>
@@ -614,6 +738,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
           {payAmount === null && (
             <Text style={styles.invalid}>Введите сумму от 0 до 10 000 000</Text>
           )}
+          {payOneOff && <Text style={styles.hint}>{payOneOff}</Text>}
           <Text style={styles.label}>Способ оплаты</Text>
           {methodPicker}
           <View style={styles.row}>
@@ -645,10 +770,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
               {formPlans.map((p) => (
                 <Pressable
                   key={p.id}
-                  onPress={() => {
-                    setPlanId(p.id)
-                    setAmountText(String(p.price))
-                  }}
+                  onPress={() => pickPlan(p)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: planId === p.id }}
                   style={[styles.plan, planId === p.id && styles.planOn]}
@@ -666,8 +788,12 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
               ))}
             </ResponsiveGrid>
           )}
-          {planId !== null && (
+          {sellPlan !== null && (
             <>
+              {discountPicker(sellChoices, (c) => {
+                setDiscountId(c?.option.discountId ?? null)
+                setAmountText(String(c?.item.amount ?? sellPlan.price))
+              })}
               <Text style={styles.label}>Сумма</Text>
               <TextInput
                 value={amountText}
@@ -683,6 +809,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
                   Введите сумму от 0 до 10 000 000
                 </Text>
               )}
+              {sellOneOff && <Text style={styles.hint}>{sellOneOff}</Text>}
               <View style={styles.switchRow}>
                 <Text style={styles.label}>Оплата получена</Text>
                 <Switch
@@ -703,7 +830,7 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
               busy ? "Оформляю…" : "Оформить",
               submitAssign,
               "primary",
-              planId === null || sellAmount === null,
+              sellPlan === null || sellAmount === null,
             )}
             {closeButton}
           </View>

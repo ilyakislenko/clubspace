@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { saleDiscount } from '../../../domains/discounts/discount-rules'
 import { ymdToDbDate } from '../../../domains/subscriptions/freeze-dates'
 import type { Prisma } from '../../../infrastructure/prisma'
 import { localDateInTz, wallClockToUtc } from '../../attendance/attendance-utils'
@@ -29,7 +30,7 @@ import {
     type AbonementState,
     groupRevenue,
 } from '../mcp-aggregates'
-import { capResult, defineTool, McpToolError, pageInput, paginate } from '../mcp-tool'
+import { capResult, defineTool, McpToolError, type McpToolContext, pageInput, paginate } from '../mcp-tool'
 import { assertDirectionArg, clubDate, planRef, uuidArg } from './tool-helpers'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -39,6 +40,80 @@ const RENEWAL_REASON_LABELS = {
     low_classes: 'Осталось одно занятие',
     access_expiring: 'Срок абонемента / доступа заканчивается в ближайшие 7 дней или закончился недавно',
 } as const
+
+// The sale's price facts (docs/design/2026-11-15-discounts.md §1).
+const salePriceSelect = {
+    listPrice: true,
+    discountName: true,
+    discountAmount: true,
+    pricedById: true,
+} as const
+
+type PricedSaleRow = {
+    currency: string
+    amountPaid: number | null
+    listPrice: number | null
+    discountName: string | null
+    discountAmount: number
+    pricedById: string | null
+}
+
+// `discounts_given` over some sales in the currency (saleDiscount): the total,
+// the named part by discount name and the one-off rest by who set the price.
+const summarizeDiscounts = async (
+    ctx: McpToolContext,
+    currency: string | null,
+    sales: PricedSaleRow[],
+) => {
+    let total = 0
+    let count = 0
+    let oneOffAmount = 0
+    const byDiscount = new Map<string, { name: string; count: number; amount: number }>()
+    const byStaff = new Map<string, { count: number; amount: number }>()
+    for (const s of sales) {
+        if (s.currency !== currency) continue
+        const d = saleDiscount(s)
+        if (d.total <= 0) continue
+        total += d.total
+        count += 1
+        if (d.named > 0 && s.discountName) {
+            const b = byDiscount.get(s.discountName) ?? { name: s.discountName, count: 0, amount: 0 }
+            b.count += 1
+            b.amount += d.named
+            byDiscount.set(s.discountName, b)
+        }
+        if (d.oneOff > 0) {
+            oneOffAmount += d.oneOff
+            if (s.pricedById) {
+                const b = byStaff.get(s.pricedById) ?? { count: 0, amount: 0 }
+                b.count += 1
+                b.amount += d.oneOff
+                byStaff.set(s.pricedById, b)
+            }
+        }
+    }
+    const staff = byStaff.size
+        ? await ctx.prisma.user.findMany({
+              where: { id: { in: [...byStaff.keys()] } },
+              select: { id: true, firstname: true, lastname: true },
+          })
+        : []
+    return {
+        total,
+        count,
+        byDiscount: [...byDiscount.values()].sort((a, b) => b.amount - a.amount),
+        oneOff: {
+            amount: oneOffAmount,
+            byStaff: [...byStaff.entries()]
+                .map(([id, b]) => ({
+                    // A former member's row may be gone: still one pseudonym.
+                    ...ctx.people.staff(staff.find((u) => u.id === id) ?? { id, firstname: null, lastname: null }),
+                    ...b,
+                }))
+                .sort((a, b) => b.amount - a.amount),
+        },
+    }
+}
 
 export const revenueReportTool = defineTool({
     name: 'revenue_report',
@@ -51,6 +126,8 @@ export const revenueReportTool = defineTool({
         'bySource — разбивка «абонементы / события». ' +
         'Абонемент на несколько направлений делится между ними поровну (и возврат по нему так же); билет относится к направлению события; продажи без направления — отдельной строкой. ' +
         'В разбивке по тарифам событие — отдельная строка (kind: event). ' +
+        'discounts — скидки за тот же период: сколько не дополучено от цены по тарифу (или события) у продаж, где цена записана; в выручку уже не входят. ' +
+        'byDiscount — по названной скидке, oneOff — разовые (сумму вписал сотрудник), byStaff — кто их дал. ' +
         'Только для токена администратора.',
     adminOnly: true,
     input: z.object({
@@ -89,6 +166,7 @@ export const revenueReportTool = defineTool({
                     paidAt: true,
                     createdAt: true,
                     planId: true,
+                    ...salePriceSelect,
                     plan: { select: { name: true } },
                     directions: { select: { direction: { select: { id: true, name: true } } } },
                 },
@@ -103,6 +181,7 @@ export const revenueReportTool = defineTool({
                 },
                 select: {
                     ...ticketRevenueSelect,
+                    ...salePriceSelect,
                     event: {
                         select: {
                             title: true,
@@ -189,6 +268,10 @@ export const revenueReportTool = defineTool({
             },
             refundRows,
         )
+        const discounts = await summarizeDiscounts(ctx, currency, [
+            ...rows,
+            ...tickets.map((t) => ({ ...t, currency: t.currency ?? t.event.currency })),
+        ])
         // Received, refunded and net (revenue) over some sales and their
         // refunds, in the currency.
         const totals = (sales: typeof flat, refunded: typeof refundRows) => {
@@ -220,6 +303,7 @@ export const revenueReportTool = defineTool({
                     abonements: totals(abonementRows, refundRows.filter((r) => !r.ticket)),
                     events: totals(ticketRows, refundRows.filter((r) => r.ticket)),
                 },
+                discounts,
                 // By tariff: each item's key is the tariff id, or the event id
                 // for an event's tickets.
                 items:
@@ -355,7 +439,7 @@ export const abonementStatesTool = defineTool({
         'Абонементы учеников по состояниям: frozen — заморожен, awaiting_first_visit — ждёт первой тренировки, ' +
         'out_of_classes — занятия закончились, expiring_soon — кончается в 7 дней, active — действует, ended — закончился за последние 30 дней. ' +
         'В ответе сводка по состояниям и тарифам и постраничный список (фильтр state). ' +
-        'Суммы (amount — оплачено, refunded — возвращено) — только для токена администратора.',
+        'Суммы (amount — оплачено, refunded — возвращено, discountName — название скидки, с которой продан) — только для токена администратора.',
     input: z.object({
         state: z.enum(ABONEMENT_STATES).optional().describe('Только абонементы в этом состоянии'),
         planId: uuidArg('Только этот тариф (id из club_directory)').optional(),
@@ -402,6 +486,7 @@ export const abonementStatesTool = defineTool({
                 isPaid: true,
                 amountPaid: true,
                 refundedAmount: true,
+                discountName: true,
                 currency: true,
                 plan: { select: { id: true, name: true } },
                 directions: { select: { direction: { select: { name: true } } } },
@@ -455,7 +540,13 @@ export const abonementStatesTool = defineTool({
             isPaid: row.isPaid,
             // `amount` stays what was paid; `refunded` is what went back.
             ...(scope.seesMoney
-                ? { amount: row.amountPaid, refunded: row.refundedAmount, currency: row.currency }
+                ? {
+                      amount: row.amountPaid,
+                      refunded: row.refundedAmount,
+                      currency: row.currency,
+                      // The named discount the sale was priced with (null: none).
+                      discountName: row.discountName,
+                  }
                 : {}),
         }))
         return {

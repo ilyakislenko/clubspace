@@ -115,6 +115,81 @@ describe('coach abonements', () => {
         expect(audit.metadata).toMatchObject({ paid: false })
     })
 
+    // E3: the amount rule is unchanged (any coaching role may type it), and
+    // every sale records the tariff price and who set the amount.
+    it('accepts a coach’s typed amount and records the list price and who priced it', async () => {
+        const { workspace, studentA, plan, coachActor, ownerActor } = await setup()
+        const coach = await ctx.prisma.user.findFirstOrThrow({
+            where: { email: coachActor.email },
+            select: { id: true },
+        })
+
+        const sold = await assign(coachActor.auth, workspace.id, studentA.id, {
+            planId: plan.id,
+            paid: false,
+            amountPaid: 350000,
+        })
+        expect(sold.status).toBe(201)
+        expect(sold.body.subscription).toMatchObject({
+            amountPaid: 350000,
+            listPrice: 400000,
+            discountAmount: 0,
+            oneOffDiscount: 50000,
+        })
+        const row = await ctx.prisma.subscription.findUniqueOrThrow({
+            where: { id: sold.body.subscription.id },
+        })
+        expect(row).toMatchObject({ listPrice: 400000, pricedById: coach.id, discountId: null })
+
+        // A plain confirm by the owner keeps the coach as who priced it…
+        const confirmed = await ctx
+            .http()
+            .post(
+                `/workspaces/${workspace.id}/members/${studentA.id}/subscriptions/${row.id}/payment`,
+            )
+            .set(...ownerActor.auth)
+            .send({})
+        expect(confirmed.status).toBe(201)
+        const list = await ctx
+            .http()
+            .get(`/workspaces/${workspace.id}/members/${studentA.id}/subscriptions`)
+            .set(...ownerActor.auth)
+        expect(list.body.history[0]).toMatchObject({
+            oneOffDiscount: 50000,
+            pricedBy: { userId: coach.id },
+        })
+        const audit = await ctx.prisma.auditEvent.findFirstOrThrow({
+            where: { action: 'member.assignSubscription' },
+        })
+        expect(audit.actorId).toBe(coach.id)
+        expect(audit.metadata).toMatchObject({ listPrice: 400000, oneOff: 50000 })
+    })
+
+    it('a changed amount at mark-paid makes the marker who priced it', async () => {
+        const { workspace, studentA, plan, coachActor, ownerActor } = await setup()
+        const sold = await assign(ownerActor.auth, workspace.id, studentA.id, {
+            planId: plan.id,
+            paid: false,
+        })
+        const coach = await ctx.prisma.user.findFirstOrThrow({
+            where: { email: coachActor.email },
+            select: { id: true },
+        })
+        const paid = await ctx
+            .http()
+            .post(
+                `/workspaces/${workspace.id}/members/${studentA.id}/subscriptions/${sold.body.subscription.id}/payment`,
+            )
+            .set(...coachActor.auth)
+            .send({ amount: 300000 })
+        expect(paid.status).toBe(201)
+        expect(paid.body.subscription).toMatchObject({ amountPaid: 300000, oneOffDiscount: 100000 })
+        const row = await ctx.prisma.subscription.findUniqueOrThrow({
+            where: { id: sold.body.subscription.id },
+        })
+        expect(row.pricedById).toBe(coach.id)
+    })
+
     it('refuses a member of another group', async () => {
         const { workspace, studentB, plan, coachActor } = await setup()
 

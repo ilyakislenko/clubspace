@@ -17,6 +17,7 @@ import {
 } from "../../shared/lib/analytics"
 import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
+import { pluralRu } from "../../shared/lib/plural-ru"
 import {
   CLUB_PAYMENT_METHODS,
   PAYMENT_METHOD_LABEL,
@@ -40,6 +41,12 @@ export type JournalState = {
   // «Показывать»: null = payments and refunds.
   kind: Exclude<JournalKind, "all"> | null
   markedById: string | null
+  // «Скидка»: rows with any discount (named or one-off), or one discount's.
+  // One select, so at most one of the two is set.
+  discounted: boolean
+  discountId: string | null
+  // «Дал скидку»: rows whose price this staff member set.
+  pricedById: string | null
   scope: AnalyticsFilter
   q: string
   // The open row: `sub:<uuid>` / `reg:<uuid>` / `ref:<uuid>`.
@@ -52,6 +59,9 @@ export const EMPTY_JOURNAL_STATE: JournalState = {
   method: null,
   kind: null,
   markedById: null,
+  discounted: false,
+  discountId: null,
+  pricedById: null,
   scope: EMPTY_ANALYTICS_FILTER,
   q: "",
   entry: null,
@@ -102,12 +112,16 @@ export const parseJournalSearch = (search: string): JournalState => {
   const entry = p.get("entry")
   const scope = { ...EMPTY_ANALYTICS_FILTER }
   for (const key of SCOPE_KEYS) scope[key] = idOrNull(p.get(key)) ?? ANALYTICS_ALL
+  const discountId = idOrNull(p.get("discountId"))
   return {
     from: datesOk ? from : null,
     to: datesOk ? to : null,
     method: isMethod(method) ? method : null,
     kind: kindOrNull(p.get("kind")),
     markedById: idOrNull(p.get("markedById")),
+    discounted: discountId === null && p.get("discounted") === "1",
+    discountId,
+    pricedById: idOrNull(p.get("pricedById")),
     scope,
     q: (p.get("q") ?? "").slice(0, JOURNAL_Q_MAX),
     entry: entry && ENTRY_RE.test(entry) ? entry : null,
@@ -125,6 +139,9 @@ export const journalSearch = (s: JournalState): string => {
   if (s.method) p.set("method", s.method)
   if (s.kind) p.set("kind", s.kind)
   if (s.markedById) p.set("markedById", s.markedById)
+  if (s.discounted) p.set("discounted", "1")
+  if (s.discountId) p.set("discountId", s.discountId)
+  if (s.pricedById) p.set("pricedById", s.pricedById)
   for (const key of SCOPE_KEYS) if (s.scope[key] !== ANALYTICS_ALL) p.set(key, s.scope[key])
   const q = s.q.trim()
   if (q) p.set("q", q)
@@ -140,13 +157,20 @@ export const journalFilters = (s: JournalState): PaymentJournalFilters => ({
   method: s.method ?? undefined,
   kind: s.kind ?? undefined,
   markedById: s.markedById ?? undefined,
+  discounted: s.discounted || undefined,
+  discountId: s.discountId ?? undefined,
+  pricedById: s.pricedById ?? undefined,
   ...analyticsScope(s.scope),
   q: s.q.trim() || undefined,
 })
 
 // Filters behind the «Фильтры» button (the panel), for its count.
 export const panelFilterCount = (s: JournalState): number =>
-  (s.markedById ? 1 : 0) + (s.kind ? 1 : 0) + SCOPE_KEYS.filter((k) => s.scope[k] !== ANALYTICS_ALL).length
+  (s.markedById ? 1 : 0) +
+  (s.kind ? 1 : 0) +
+  (s.discounted || s.discountId ? 1 : 0) +
+  (s.pricedById ? 1 : 0) +
+  SCOPE_KEYS.filter((k) => s.scope[k] !== ANALYTICS_ALL).length
 
 // Anything narrowing the rows besides the period.
 export const isFiltered = (s: JournalState): boolean =>
@@ -265,6 +289,56 @@ export const refundedNote = (
   e.kind === "payment" && e.refundedAmount > 0
     ? `возвращено ${formatAmount(e.refundedAmount, e.currency)}`
     : null
+
+type EntryDiscount = Pick<
+  PaymentJournalEntry,
+  "kind" | "discountName" | "discountAmount" | "oneOffDiscount" | "pricedBy" | "currency"
+>
+
+// Under a discounted payment's amount: «скидка «Семейная» −400 ₽» /
+// «Разовая скидка 1 000 ₽ · Петров» / «скидка «ВЕСНА» −500 ₽ и разовая
+// 200 ₽ · Петров». The name is whoever set the price.
+export const entryDiscountNote = (e: EntryDiscount): string | null => {
+  if (e.kind !== "payment") return null
+  const named =
+    e.discountName !== null && e.discountAmount > 0
+      ? `скидка «${e.discountName}» −${formatAmount(e.discountAmount, e.currency)}`
+      : null
+  const oneOff = e.oneOffDiscount > 0 ? formatAmount(e.oneOffDiscount, e.currency) : null
+  const who = e.pricedBy ? ` · ${e.pricedBy.name}` : ""
+  if (named && oneOff) return `${named} и разовая ${oneOff}${who}`
+  if (oneOff) return `Разовая скидка ${oneOff}${who}`
+  return named
+}
+
+// The entry panel's price facts, only when the sale recorded its list price:
+// «Цена по тарифу» · «Скидка» · «Разовая скидка» · «Получено».
+export const entryPriceFacts = (
+  e: EntryDiscount & Pick<PaymentJournalEntry, "listPrice" | "amount" | "source">,
+): { label: string; value: string }[] => {
+  if (e.kind !== "payment" || e.listPrice === null) return []
+  return [
+    {
+      label: e.source === "abonement" ? "Цена по тарифу" : "Цена билета",
+      value: formatAmount(e.listPrice, e.currency),
+    },
+    e.discountName !== null && e.discountAmount > 0
+      ? {
+          label: "Скидка",
+          value: `«${e.discountName}» −${formatAmount(e.discountAmount, e.currency)}`,
+        }
+      : null,
+    e.oneOffDiscount > 0
+      ? {
+          label: "Разовая скидка",
+          value: [formatAmount(e.oneOffDiscount, e.currency), e.pricedBy?.name]
+            .filter(Boolean)
+            .join(" · "),
+        }
+      : null,
+    { label: "Получено", value: formatAmount(e.amount, e.currency) },
+  ].filter((f): f is { label: string; value: string } => f !== null)
+}
 
 // ---- Refund form ----
 
@@ -398,6 +472,17 @@ export const methodsLine = (t: PaymentJournalTotals): string | null => {
     return [`${methodLabel(method)} ${signedAmount(m.received - m.refunded, t.currency)}`]
   })
   return parts.length > 0 ? parts.join(" · ") : null
+}
+
+// Line 3, only when > 0: «Скидки: 12 400 ₽ по 31 оплате, из них разовые
+// 3 400 ₽». Not part of «итого»: revenue is already after discounts.
+export const discountsLine = (t: PaymentJournalTotals): string | null => {
+  const d = t.discounted
+  if (d.amount <= 0) return null
+  const base = `Скидки: ${formatAmount(d.amount, t.currency)} по ${d.count} ${pluralRu(d.count, "оплате", "оплатам", "оплатам")}`
+  return d.oneOffAmount > 0
+    ? `${base}, из них разовые ${formatAmount(d.oneOffAmount, t.currency)}`
+    : base
 }
 
 export const unappliedTitle = (total: number): string =>

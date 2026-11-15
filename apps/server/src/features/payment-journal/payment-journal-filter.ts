@@ -1,13 +1,15 @@
 import { resolveAnalyticsScope } from '../../domains/analytics/analytics-scope'
 import { type JournalFilter, resolveJournalPeriod } from '../../domains/payments/journal'
 import type { PrismaService } from '../../infrastructure/prisma'
+import { NotFoundError } from '../../shared/errors/shared.errors'
 import type { RbacService } from '../../shared/services/rbac.service'
 import type { PaymentJournalFilter } from './schemas'
 
 // The journal view the request asks for, as the list and the CSV read it:
 // the period in the club's time zone (no dates = the `revenue_30d` window)
-// and the analytics scope (an id from another club is a 404). `from`/`to` are
-// the club-local days the view covers, `tz` the club's time zone.
+// and the analytics scope (an id from another club is a 404, a discount's
+// too). `from`/`to` are the club-local days the view covers, `tz` the club's
+// time zone.
 export const resolvePaymentJournalFilter = async (
     prisma: PrismaService,
     rbac: RbacService,
@@ -27,6 +29,13 @@ export const resolvePaymentJournalFilter = async (
         groupId: payload.groupId,
         coachId: payload.coachId,
     })
+    if (payload.discountId) {
+        const discount = await prisma.discount.findFirst({
+            where: { id: payload.discountId, workspaceId: caller.workspaceId },
+            select: { id: true },
+        })
+        if (!discount) throw new NotFoundError({ message: 'Скидка не найдена' })
+    }
     return {
         filter: {
             workspaceId: caller.workspaceId,
@@ -36,6 +45,9 @@ export const resolvePaymentJournalFilter = async (
             markedById: payload.markedById,
             scope,
             q: payload.q || undefined,
+            discounted: payload.discounted,
+            discountId: payload.discountId,
+            pricedById: payload.pricedById,
         },
         from: period.from,
         tz,

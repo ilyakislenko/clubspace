@@ -19,6 +19,7 @@ import {
 } from "@clubspace/ui-kit/ui"
 
 import { AnalyticsFilters } from "../../app/(dashboard)/workspace/[workspaceId]/analytics/analytics-toolbar"
+import { listDiscounts, type Discount } from "../../shared/api/discounts"
 import { downloadExport } from "../../shared/api/exports"
 import { listAllStaffMembers, type WorkspaceMember } from "../../shared/api/members"
 import {
@@ -41,13 +42,12 @@ import {
   JOURNAL_KINDS,
   JOURNAL_METHODS,
   JOURNAL_Q_MAX,
-  JOURNAL_PERIODS,
   KIND_LABEL,
-  PERIOD_LABEL,
   clubToday,
-  customRangeError,
+  discountsLine,
   emptyText,
   entryAmount,
+  entryDiscountNote,
   entryWhat,
   formatEntryAt,
   journalFilters,
@@ -56,15 +56,13 @@ import {
   methodsLine,
   panelFilterCount,
   parseJournalSearch,
-  periodOf,
-  presetRange,
   refundedNote,
   summaryLine,
   unappliedTitle,
-  type JournalPeriod,
   type JournalState,
 } from "./journal-view"
 import { PaymentEntrySheet } from "./PaymentEntrySheet"
+import { PeriodPicker } from "./PeriodPicker"
 
 const PER_PAGE = 50
 // The server's page cap: a refresh reloads everything already shown.
@@ -73,6 +71,8 @@ const MAX_PER_PAGE = 200
 const REFRESH_MS = 5_000
 const ALL = "all"
 const NOBODY = "all"
+// «Скидка»: any discount (named or one-off).
+const DISCOUNTED = "discounted"
 
 // Rows already shown are not repeated when the pages shift between requests.
 const appendNew = (shown: PaymentJournalEntry[], next: PaymentJournalEntry[]) => {
@@ -100,8 +100,7 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [qInput, setQInput] = useState("")
-  const [customOpen, setCustomOpen] = useState(false)
-  const [draft, setDraft] = useState({ from: "", to: "" })
+  const [discounts, setDiscounts] = useState<Discount[] | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [staff, setStaff] = useState<WorkspaceMember[] | null>(null)
   const [openUnapplied, setOpenUnapplied] = useState<PaymentJournalUnapplied | null>(null)
@@ -112,8 +111,6 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
     const parsed = parseJournalSearch(window.location.search)
     setState(parsed)
     setQInput(parsed.q)
-    // A linked custom range shows its dates in the inputs.
-    if (parsed.from && parsed.to) setDraft({ from: parsed.from, to: parsed.to })
   }, [])
 
   useEffect(() => {
@@ -203,6 +200,12 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
         .then(setStaff)
         .catch(() => setStaff([]))
     }
+    // «Скидка» lists every discount by name, archived ones too.
+    if (discounts === null) {
+      void listDiscounts({ workspaceId, archived: true })
+        .then((r) => setDiscounts(r.data))
+        .catch(() => setDiscounts([]))
+    }
   }
 
   const exportCsv = async () => {
@@ -220,77 +223,17 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
   if (!state || !timezone) return <JournalSkeleton />
 
   const today = clubToday(timezone)
-  const period: JournalPeriod = customOpen ? "custom" : periodOf(state, today)
   const filterCount = panelFilterCount(state)
-  const customError =
-    period === "custom" && (draft.from || draft.to) ? customRangeError(draft.from, draft.to) : null
-
-  const pickPeriod = (next: JournalPeriod) => {
-    if (next === "custom") {
-      // The inputs show only dates the list is using: the current range, or
-      // empty until both are picked.
-      setDraft({ from: state.from ?? "", to: state.to ?? "" })
-      setCustomOpen(true)
-      return
-    }
-    setCustomOpen(false)
-    const range = presetRange(next, today)
-    update({ from: range?.from ?? null, to: range?.to ?? null })
-  }
-
-  const setDraftDate = (patch: Partial<typeof draft>) => {
-    const next = { ...draft, ...patch }
-    setDraft(next)
-    if (!customRangeError(next.from, next.to)) update({ from: next.from, to: next.to })
-  }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="w-44">
-          <Select value={period} onValueChange={(v) => pickPeriod(v as JournalPeriod)}>
-            <SelectTrigger aria-label="Период">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {JOURNAL_PERIODS.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {PERIOD_LABEL[p]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {period === "custom" && (
-          <>
-            <div className="space-y-1">
-              <Label htmlFor="journal-from" className="text-xs text-muted-foreground">
-                С
-              </Label>
-              <Input
-                id="journal-from"
-                type="date"
-                value={draft.from}
-                max={draft.to || today}
-                onChange={(e) => setDraftDate({ from: e.target.value })}
-                className="h-9 w-[160px]"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="journal-to" className="text-xs text-muted-foreground">
-                По
-              </Label>
-              <Input
-                id="journal-to"
-                type="date"
-                value={draft.to}
-                min={draft.from || undefined}
-                onChange={(e) => setDraftDate({ to: e.target.value })}
-                className="h-9 w-[160px]"
-              />
-            </div>
-          </>
-        )}
+        <PeriodPicker
+          id="journal"
+          value={state}
+          today={today}
+          onChange={(range) => update(range)}
+        />
         <div className="w-44">
           <Select
             value={state.method ?? ALL}
@@ -331,7 +274,6 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
           {exporting ? "Готовим…" : "Скачать CSV"}
         </Button>
       </div>
-      {customError && <p className="text-sm text-destructive">{customError}</p>}
 
       {error && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -344,6 +286,7 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
           {page.totals.map((t) => {
             const line = summaryLine(t)
             const methods = methodsLine(t)
+            const given = discountsLine(t)
             return (
               <div key={t.currency} className="space-y-0.5">
                 <p className="text-sm">
@@ -351,6 +294,7 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
                   <span className="text-base font-semibold tabular-nums">{line.net}</span>
                 </p>
                 {methods && <p className="text-sm text-muted-foreground">{methods}</p>}
+                {given && <p className="text-sm text-muted-foreground">{given}</p>}
               </div>
             )
           })}
@@ -411,6 +355,7 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
             <tbody className="divide-y divide-border">
               {rows.map((e) => {
                 const refunded = refundedNote(e)
+                const discount = entryDiscountNote(e)
                 return (
                   <tr
                     key={e.id}
@@ -441,6 +386,11 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
                         {entryAmount(e)}
                       </div>
                       {refunded && <div className="text-xs text-muted-foreground">{refunded}</div>}
+                      {discount && (
+                        <div className="ml-auto max-w-64 whitespace-normal text-xs text-muted-foreground">
+                          {discount}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )
@@ -503,6 +453,54 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
             </div>
           </div>
           <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Скидка</Label>
+            <div className="w-48">
+              <Select
+                value={state.discountId ?? (state.discounted ? DISCOUNTED : ALL)}
+                onValueChange={(v) =>
+                  update({
+                    discounted: v === DISCOUNTED,
+                    discountId: v === ALL || v === DISCOUNTED ? null : v,
+                  })
+                }
+              >
+                <SelectTrigger aria-label="Скидка">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Все оплаты</SelectItem>
+                  <SelectItem value={DISCOUNTED}>Со скидкой</SelectItem>
+                  {(discounts ?? []).map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.isActive ? d.name : `${d.name} · в архиве`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Дал скидку</Label>
+            <div className="w-48">
+              <Select
+                value={state.pricedById ?? NOBODY}
+                onValueChange={(v) => update({ pricedById: v === NOBODY ? null : v })}
+              >
+                <SelectTrigger aria-label="Дал скидку">
+                  <SelectValue placeholder="Дал скидку" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NOBODY}>Все сотрудники</SelectItem>
+                  {(staff ?? []).map((m) => (
+                    <SelectItem key={m.userId} value={m.userId}>
+                      {formatMemberLabel(m)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Показывать</Label>
             <div className="w-48">
               <Select
@@ -529,7 +527,16 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
               type="button"
               variant="ghost"
               className="self-start"
-              onClick={() => update({ scope: EMPTY_ANALYTICS_FILTER, markedById: null, kind: null })}
+              onClick={() =>
+                update({
+                  scope: EMPTY_ANALYTICS_FILTER,
+                  markedById: null,
+                  kind: null,
+                  discounted: false,
+                  discountId: null,
+                  pricedById: null,
+                })
+              }
             >
               Сбросить фильтры
             </Button>

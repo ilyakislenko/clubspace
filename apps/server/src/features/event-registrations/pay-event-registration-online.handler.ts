@@ -12,7 +12,9 @@ import {
     ModuleNotEntitledError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { localDateInTz } from '../attendance/attendance-utils'
 import { PENDING_REUSE_MS } from '../online-payments/load-buyer'
+import { priceOnlineItem } from '../online-payments/price-online-item'
 import { serializeMyPayment } from '../online-payments/schemas'
 import { startProviderPayment } from '../online-payments/start-provider-payment'
 import {
@@ -22,9 +24,11 @@ import {
 
 // The member pays their event ticket online through the club's provider (a
 // guardian for a child via X-Act-As): only a held place (BOOKED), unpaid, of
-// a paid event, in a club with a connected provider. The amount is the
-// event's price on the server. A repeated tap returns the pending payment.
-// The ticket is marked paid only by the webhook
+// a paid event, in a club with a connected provider. The price is the event's
+// on the server, priced by priceOnlineItem (the family discount when it
+// covers events, a promo code) — exactly the quote or refused. A repeated tap
+// returns the pending payment at the same price. The ticket is marked paid
+// only by the webhook
 // (PaymentActivationService → EventRegistrationService.markPaidOnlineInTx).
 @Feature(PayEventRegistrationOnlineFeature)
 export class PayEventRegistrationOnlineHandler
@@ -49,6 +53,7 @@ export class PayEventRegistrationOnlineHandler
                 where: { id: f.workspaceId },
                 select: {
                     name: true,
+                    timezone: true,
                     ...moduleEntitlementSelect('ONLINE_PAYMENTS'),
                 },
             }),
@@ -63,7 +68,7 @@ export class PayEventRegistrationOnlineHandler
                 },
                 include: {
                     event: {
-                        select: { title: true, price: true, currency: true },
+                        select: { id: true, title: true, price: true, currency: true },
                     },
                 },
             }),
@@ -104,7 +109,9 @@ export class PayEventRegistrationOnlineHandler
         }
 
         // A repeated tap (or a member back from the provider's page without
-        // paying) gets the same payment instead of a second one.
+        // paying) gets the same payment instead of a second one — at the same
+        // price; a code added since makes a new one.
+        const now = new Date()
         const recent = await this.prisma.payment.findFirst({
             where: {
                 workspaceId: f.workspaceId,
@@ -112,11 +119,25 @@ export class PayEventRegistrationOnlineHandler
                 provider: settings.provider,
                 status: 'PENDING',
                 confirmationUrl: { not: null },
-                createdAt: { gte: new Date(Date.now() - PENDING_REUSE_MS) },
+                createdAt: { gte: new Date(now.getTime() - PENDING_REUSE_MS) },
             },
             orderBy: { createdAt: 'desc' },
         })
-        if (recent?.confirmationUrl) {
+        const price = await priceOnlineItem(this.prisma, {
+            workspaceId: f.workspaceId,
+            userId: f.invokerUserId,
+            item: { planId: null, eventId: event.id, listPrice: event.price, currency: event.currency },
+            promoCode: f.payload.promoCode,
+            now,
+            today: localDateInTz(now, workspace.timezone),
+            excludePaymentId: recent?.id,
+        })
+        if (price.refusal) throw new BadRequestError({ message: price.refusal })
+        if (
+            recent?.confirmationUrl &&
+            recent.amount === price.amount &&
+            recent.discountId === price.discountId
+        ) {
             return {
                 payment: serializeMyPayment(recent),
                 confirmationUrl: recent.confirmationUrl,
@@ -149,7 +170,11 @@ export class PayEventRegistrationOnlineHandler
                 planId: null,
                 eventRegistrationId: registration.id,
                 planName: event.title,
-                amount: event.price,
+                amount: price.amount,
+                listPrice: price.listPrice,
+                discountId: price.discountId,
+                discountName: price.discountName,
+                discountAmount: price.discountAmount,
                 currency: event.currency,
                 description: `Билет «${event.title}» — ${workspace.name}`,
                 itemName: `Билет «${event.title}»`,

@@ -11,6 +11,7 @@ import {
 import { scopeMatchesAny } from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
+import { localDateInTz } from '../attendance/attendance-utils'
 import {
     GetOnlinePurchaseOptionsFeature,
     GetOnlinePurchaseOptionsFeatureResponse,
@@ -20,6 +21,7 @@ import {
     PENDING_VISIBLE_MS,
     purchasablePlanWhere,
 } from './load-buyer'
+import { priceOnlineItem } from './price-online-item'
 import { serializeMyPayment } from './schemas'
 
 const NOTHING: GetOnlinePurchaseOptionsFeatureResponse = {
@@ -140,11 +142,28 @@ export class GetOnlinePurchaseOptionsHandler
                 .map((s) => (s.kind === 'renewal' ? s.fromYmd : null)),
         )
         const [onlyRenewal] = [...renewals]
+        // Each card's price as the checkout would charge it without a code
+        // (the family discount when it applies) — the same priceOnlineItem.
+        const today = localDateInTz(now, workspace.timezone)
+        const prices = await Promise.all(
+            plans.map((p) =>
+                priceOnlineItem(this.prisma, {
+                    workspaceId: f.workspaceId,
+                    userId: f.userId,
+                    item: { planId: p.id, eventId: null, listPrice: p.price, currency: p.currency },
+                    promoCode: undefined,
+                    now,
+                    today,
+                }),
+            ),
+        )
         return {
             available: true,
             provider: settings.provider,
-            plans: plans.map(({ directions, ...p }) => ({
+            plans: plans.map(({ directions, ...p }, i) => ({
                 ...p,
+                amount: prices[i].amount,
+                discountName: prices[i].discountName,
                 directions: directions.map((d) => d.direction),
             })),
             blockedReason:

@@ -45,7 +45,21 @@ type PaymentRow = {
     amount: number
     currency: string
     status: string
+    // The checkout's price facts, copied onto the sale (no re-check: the
+    // member paid the quoted price; docs/design/2026-11-15-discounts.md §3.3).
+    listPrice: number | null
+    discountId: string | null
+    discountName: string | null
+    discountAmount: number
 }
+
+// The sale's price facts as the activation copies them and audits them.
+const priceFacts = (payment: PaymentRow) => ({
+    listPrice: payment.listPrice,
+    discountId: payment.discountId,
+    discountName: payment.discountName,
+    discountAmount: payment.discountAmount,
+})
 
 // Applies the provider's (verified) view of a payment to our Payment row. The
 // webhooks of both providers end here, so a success is handled identically:
@@ -136,6 +150,7 @@ export class PaymentActivationService {
                 registrationId: payment.eventRegistrationId,
                 amount: payment.amount,
                 currency: payment.currency,
+                ...priceFacts(payment),
                 now,
             })
             if ('refused' in marked) {
@@ -166,6 +181,7 @@ export class PaymentActivationService {
                 planName: payment.planName,
                 amount: payment.amount,
                 currency: payment.currency,
+                ...priceFacts(payment),
                 ...(refused ? { activationError: refused } : {}),
             },
         })
@@ -251,6 +267,8 @@ export class PaymentActivationService {
                         start.kind === 'renewal' ? start.startDate : undefined,
                     now,
                     amountPaid: payment.amount,
+                    ...priceFacts(payment),
+                    pricedById: null,
                     paid: true,
                     source: 'GATEWAY',
                     provider: payment.provider.toLowerCase(),
@@ -289,6 +307,7 @@ export class PaymentActivationService {
                 planName: granted.planName,
                 amount: payment.amount,
                 currency: payment.currency,
+                ...priceFacts(payment),
                 subscriptionId: granted.subscriptionId,
                 accessUntil: granted.accessUntil
                     ? granted.accessUntil.toISOString()

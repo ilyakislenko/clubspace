@@ -10,6 +10,9 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { loadPricedByNames } from '../../domains/discounts/priced-by'
+import { priceSale, saleDiscount } from '../../domains/discounts/discount-rules'
+import { priceStaffSale } from '../../domains/discounts/discounts'
 import {
     MarkEventRegistrationPaidFeature,
     MarkEventRegistrationPaidFeatureResponse,
@@ -20,10 +23,12 @@ const userSelect = {
     user: { select: { firstname: true, lastname: true, email: true } },
 } as const
 
-// Staff mark a ticket paid at the club (cash / transfer) at the event's price:
-// it counts towards the club's revenue from now. Like events themselves, any
-// coach may (never their own ticket); a direction manager only for their
-// directions' events. Undoing it is admin-only (unmark).
+// Staff mark a ticket paid at the club (cash / transfer) at the event's price,
+// a club discount's price or a typed amount (recorded as a one-off discount
+// with who set it — the abonement rule): it counts towards the club's revenue
+// from now. Like events themselves, any coach may (never their own ticket); a
+// direction manager only for their directions' events. Undoing it is
+// admin-only (unmark).
 @Feature(MarkEventRegistrationPaidFeature)
 export class MarkEventRegistrationPaidHandler
     implements
@@ -57,6 +62,7 @@ export class MarkEventRegistrationPaidHandler
                         price: true,
                         currency: true,
                         directionId: true,
+                        workspace: { select: { timezone: true } },
                     },
                 },
             },
@@ -98,25 +104,60 @@ export class MarkEventRegistrationPaidHandler
         // already paid online stays ONLINE; on BOOKED: a cancel landing in
         // between is not marked paid. An online payment still pending does
         // not block this: if it succeeds later, the webhook finds the ticket
-        // paid and leaves that payment for staff to refund.
-        const marked = await this.registrations.withEventLock(event.id, (tx) =>
-            tx.eventRegistration.updateMany({
-                where: { id: registration.id, isPaid: false, status: 'BOOKED' },
-                data: {
-                    isPaid: true,
-                    paidAt: new Date(),
-                    amountPaid: event.price,
-                    currency: event.currency,
-                    paymentMethod: f.payload.method,
-                    markedPaidById: f.invokerUserId,
-                },
-            }),
+        // paid and leaves that payment for staff to refund. A discount is
+        // priced (and its uses counted) under its own lock in the same
+        // transaction.
+        const now = new Date()
+        const price = event.price
+        const { marked, priced, amount } = await this.registrations.withEventLock(
+            event.id,
+            async (tx) => {
+                const priced = f.payload.discountId
+                    ? await priceStaffSale(tx, {
+                          workspaceId: f.workspaceId,
+                          discountId: f.payload.discountId,
+                          userId: registration.userId,
+                          item: {
+                              planId: null,
+                              eventId: event.id,
+                              listPrice: price,
+                              currency: event.currency,
+                          },
+                          now,
+                          timezone: event.workspace.timezone,
+                      })
+                    : priceSale({ listPrice: price, currency: event.currency, discount: null })
+                const amount = f.payload.amount ?? priced.amount
+                const marked = await tx.eventRegistration.updateMany({
+                    where: { id: registration.id, isPaid: false, status: 'BOOKED' },
+                    data: {
+                        isPaid: true,
+                        paidAt: now,
+                        amountPaid: amount,
+                        currency: event.currency,
+                        paymentMethod: f.payload.method,
+                        markedPaidById: f.invokerUserId,
+                        listPrice: price,
+                        discountId: priced.discountId,
+                        discountName: priced.discountName,
+                        discountAmount: priced.discountAmount,
+                        pricedById: f.invokerUserId,
+                    },
+                })
+                return { marked, priced, amount }
+            },
         )
         const row = await this.prisma.eventRegistration.findUniqueOrThrow({
             where: { id: registration.id },
             include: userSelect,
         })
+        const pricedBy = await loadPricedByNames(this.prisma, [row])
         if (marked.count === 1) {
+            const { oneOff } = saleDiscount({
+                listPrice: price,
+                amountPaid: amount,
+                discountAmount: priced.discountAmount,
+            })
             await this.audit.record({
                 action: 'event.markRegistrationPaid',
                 targetType: 'event',
@@ -129,12 +170,17 @@ export class MarkEventRegistrationPaidHandler
                     amount: row.amountPaid,
                     currency: row.currency,
                     method: row.paymentMethod,
+                    listPrice: price,
+                    discountId: priced.discountId,
+                    discountName: priced.discountName,
+                    discountAmount: priced.discountAmount,
+                    ...(oneOff > 0 ? { oneOff } : {}),
                 },
             })
             this.registrations.invalidate(f.workspaceId)
             // A new row in «Платежи».
             this.realtime.invalidate(f.workspaceId, ['payments'])
         }
-        return serializeRegistrant(row, null)
+        return serializeRegistrant(row, null, pricedBy)
     }
 }

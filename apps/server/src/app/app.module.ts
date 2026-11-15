@@ -20,6 +20,7 @@ import { RefundService } from '../domains/payments/services/refund.service'
 import { CheckPaymentConnectionHandler } from '../features/online-payments/check-payment-connection.handler'
 import { CreatePaymentHandler } from '../features/online-payments/create-payment.handler'
 import { DeletePaymentSettingsHandler } from '../features/online-payments/delete-payment-settings.handler'
+import { GetCheckoutQuoteHandler } from '../features/online-payments/get-checkout-quote.handler'
 import { GetMyPaymentHandler } from '../features/online-payments/get-my-payment.handler'
 import { GetOnlinePurchaseOptionsHandler } from '../features/online-payments/get-online-purchase-options.handler'
 import { GetPaymentSettingsHandler } from '../features/online-payments/get-payment-settings.handler'
@@ -37,6 +38,13 @@ import { PaymentsController } from '../features/online-payments/payments.control
 import { CreateRefundHandler } from '../features/refunds/create-refund.handler'
 import { DeleteRefundHandler } from '../features/refunds/delete-refund.handler'
 import { RefundsController } from '../features/refunds/refunds.controller'
+import { CreateDiscountHandler } from '../features/discounts/create-discount.handler'
+import { DeleteDiscountHandler } from '../features/discounts/delete-discount.handler'
+import { DiscountsController } from '../features/discounts/discounts.controller'
+import { ListDiscountsHandler } from '../features/discounts/list-discounts.handler'
+import { UpdateDiscountHandler } from '../features/discounts/update-discount.handler'
+import { ListSaleDiscountsHandler } from '../features/sale-discounts/list-sale-discounts.handler'
+import { SaleDiscountsController } from '../features/sale-discounts/sale-discounts.controller'
 import { UpdatePaymentSettingsHandler } from '../features/online-payments/update-payment-settings.handler'
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod'
 import { z } from 'zod'
@@ -880,6 +888,8 @@ const controllers: ModuleMetadata['controllers'] = [
     PaymentJournalController,
     RequestsController,
     RefundsController,
+    DiscountsController,
+    SaleDiscountsController,
     MyPaymentsController,
     PaymentWebhooksController,
     // ИИ-ассистент (docs/mcp.md): tokens in the admin, the MCP endpoint.
@@ -1230,7 +1240,13 @@ const handlers: ModuleMetadata['providers'] = [
     ListOpenRequestsHandler,
     CreateRefundHandler,
     DeleteRefundHandler,
+    ListDiscountsHandler,
+    CreateDiscountHandler,
+    UpdateDiscountHandler,
+    DeleteDiscountHandler,
+    ListSaleDiscountsHandler,
     GetOnlinePurchaseOptionsHandler,
+    GetCheckoutQuoteHandler,
     CreatePaymentHandler,
     GetMyPaymentHandler,
     HandleYookassaWebhookHandler,

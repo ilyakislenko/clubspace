@@ -74,6 +74,13 @@ export class UnmarkEventRegistrationPaidHandler
                 currency: null,
                 paymentMethod: null,
                 markedPaidById: null,
+                // A ticket is priced when marked paid: the price facts go
+                // with the mark (an unpaid ticket holds no discount use).
+                listPrice: null,
+                discountId: null,
+                discountName: null,
+                discountAmount: 0,
+                pricedById: null,
             },
         })
         const row = await this.prisma.eventRegistration.findUniqueOrThrow({

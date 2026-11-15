@@ -8,6 +8,7 @@ import {
   CreateAnnouncementInputSchema,
   CreateClubLogoUploadInputSchema,
   CreateDirectionInputSchema,
+  CreateDiscountInputSchema,
   CreateEventInputSchema,
   CreateGroupBodySchema,
   CreateGymBodySchema,
@@ -24,12 +25,14 @@ import {
   ProposePersonalTrainingTimeInputSchema,
   RejectPendingMemberInputSchema,
   MarkSubscriptionPaidInputSchema,
+  MarkEventRegistrationPaidInputSchema,
   SetClassCapacityInputSchema,
   UpdateAchievementInputSchema,
   UpdateAnnouncementInputSchema,
   UpdateClubAboutInputSchema,
   UpdateClubPublicProfileInputSchema,
   UpdateDirectionInputSchema,
+  UpdateDiscountInputSchema,
   UpdateEventInputSchema,
   UpdateGroupBodySchema,
   UpdateGymBodySchema,
@@ -139,6 +142,7 @@ const ABOUT_CONTACT = [UpdateClubAboutInputSchema.properties.contacts.items] as 
 const ABOUT_LINK = [UpdateClubAboutInputSchema.properties.links.items] as const
 // The direct freeze and approving a member's request share FreezeForm.
 const FREEZE = [FreezeSubscriptionInputSchema, ApproveSubscriptionFreezeRequestInputSchema] as const
+const DISCOUNT = [CreateDiscountInputSchema, UpdateDiscountInputSchema] as const
 
 export const FORM_LIMITS = {
   plan: {
@@ -238,6 +242,17 @@ export const FORM_LIMITS = {
     saleAmount: int([AssignSubscriptionInputSchema] as const, "amountPaid"),
     // «Отметить оплату» later.
     paidAmount: int([MarkSubscriptionPaidInputSchema] as const, "amount"),
+    // «Отметить оплату» of an event ticket.
+    ticketAmount: int([MarkEventRegistrationPaidInputSchema] as const, "amount"),
+  },
+  // «Абонементы → Скидки». The percent's 1–100 is a `superRefine` the
+  // contract can't carry (CreateDiscountInput), so the form keeps it.
+  discount: {
+    name: text(DISCOUNT, "name"),
+    value: int(DISCOUNT, "value"),
+    code: text(DISCOUNT, "code"),
+    planIds: items(DISCOUNT, "planIds"),
+    maxUses: int(DISCOUNT, "maxUses"),
   },
   refund: {
     // Also capped by what is left of the sale (RefundForm), as the server does.

@@ -72,6 +72,166 @@ export const CreateAiTokenInputSchema = {
     ]
 } as const;
 
+export const UpdateDiscountInputSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 100
+        },
+        kind: {
+            type: 'string',
+            enum: [
+                'PERCENT',
+                'FIXED'
+            ]
+        },
+        value: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 10000000
+        },
+        currency: {
+            type: 'string',
+            minLength: 3,
+            maxLength: 3,
+            nullable: true
+        },
+        code: {
+            type: 'string',
+            maxLength: 32,
+            nullable: true
+        },
+        isFamily: {
+            type: 'boolean'
+        },
+        allPlans: {
+            type: 'boolean'
+        },
+        planIds: {
+            maxItems: 100,
+            type: 'array',
+            items: {
+                type: 'string',
+                format: 'uuid',
+                pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+            }
+        },
+        events: {
+            type: 'boolean'
+        },
+        startsOn: {
+            type: 'string',
+            format: 'date',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$',
+            nullable: true
+        },
+        endsOn: {
+            type: 'string',
+            format: 'date',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$',
+            nullable: true
+        },
+        maxUses: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 100000,
+            nullable: true
+        },
+        oncePerMember: {
+            type: 'boolean'
+        },
+        isActive: {
+            type: 'boolean'
+        },
+        expectedUpdatedAt: {
+            description: 'The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE',
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    }
+} as const;
+
+export const CreateDiscountInputSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 100
+        },
+        kind: {
+            type: 'string',
+            enum: [
+                'PERCENT',
+                'FIXED'
+            ]
+        },
+        value: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 10000000
+        },
+        currency: {
+            type: 'string',
+            minLength: 3,
+            maxLength: 3,
+            nullable: true
+        },
+        code: {
+            type: 'string',
+            maxLength: 32,
+            nullable: true
+        },
+        isFamily: {
+            type: 'boolean'
+        },
+        allPlans: {
+            type: 'boolean'
+        },
+        planIds: {
+            maxItems: 100,
+            type: 'array',
+            items: {
+                type: 'string',
+                format: 'uuid',
+                pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+            }
+        },
+        events: {
+            type: 'boolean'
+        },
+        startsOn: {
+            type: 'string',
+            format: 'date',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$',
+            nullable: true
+        },
+        endsOn: {
+            type: 'string',
+            format: 'date',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$',
+            nullable: true
+        },
+        maxUses: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 100000,
+            nullable: true
+        },
+        oncePerMember: {
+            type: 'boolean'
+        }
+    },
+    required: [
+        'name',
+        'kind',
+        'value'
+    ]
+} as const;
+
 export const CreateRefundInputSchema = {
     type: 'object',
     properties: {
@@ -124,6 +284,10 @@ export const CreatePaymentInputSchema = {
             type: 'string',
             format: 'uuid',
             pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        promoCode: {
+            type: 'string',
+            maxLength: 40
         }
     },
     required: [
@@ -1148,6 +1312,11 @@ export const MarkSubscriptionPaidInputSchema = {
             minimum: 0,
             maximum: 10000000
         },
+        discountId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
         method: {
             type: 'string',
             enum: [
@@ -1171,6 +1340,11 @@ export const AssignSubscriptionInputSchema = {
             type: 'string',
             format: 'date',
             pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$'
+        },
+        discountId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
         },
         amountPaid: {
             type: 'integer',
@@ -1514,11 +1688,31 @@ export const MarkEventRegistrationPaidInputSchema = {
                 'TRANSFER',
                 'CARD'
             ]
+        },
+        discountId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        amount: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 10000000
         }
     },
     required: [
         'method'
     ]
+} as const;
+
+export const PayEventRegistrationOnlineInputSchema = {
+    type: 'object',
+    properties: {
+        promoCode: {
+            type: 'string',
+            maxLength: 40
+        }
+    }
 } as const;
 
 export const BookClassInputSchema = {

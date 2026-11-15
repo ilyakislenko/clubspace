@@ -303,6 +303,70 @@ describe('buildDemoClubPlan', () => {
         }
     })
 
+    it('has the three demo discounts, a few sales priced with them and two staff one-offs', () => {
+        const check = (p: DemoClubPlan) => {
+            expect(p.discounts.map((d) => [d.name, d.code ?? null, d.isFamily ?? false, d.value])).toEqual([
+                ['Семейная', null, true, 10],
+                ['Студенческая', null, false, 15],
+                ['Продление −5%', 'ПРОДЛИ5', false, 5],
+            ])
+            expect(p.discounts.find((d) => d.code)?.oncePerMember).toBe(true)
+            // Every sale records the tariff price it was sold against, and who priced it.
+            const price = new Map(p.plans.map((t) => [t.id as string, t.price as number]))
+            expect(p.subscriptions.every((s) => s.listPrice === price.get(s.planId as string) && !!s.pricedById)).toBe(true)
+            const named = (name: string) => p.subscriptions.filter((s) => s.discountName === name)
+            // «Семейная»: only Елена's children, priced by §1 (half-up percent).
+            const kids = new Set(
+                p.guardianships.filter((g) => g.guardianId === p.accountUserIds.parent).map((g) => g.dependentId),
+            )
+            expect(named('Семейная').length).toBeGreaterThan(0)
+            expect(named('Семейная').every((s) => kids.has(s.userId as string))).toBe(true)
+            // Each one is a sale listSaleDiscounts would have offered it on: at
+            // the sale, another of the family (Елена or the sibling) held an
+            // abonement matching currentSubscriptionWhere — a member's, ACTIVE,
+            // not past its end.
+            const family = new Set([...kids, p.accountUserIds.parent])
+            const currentAt = (t: Date) => (x: (typeof p.subscriptions)[number]) =>
+                x.workspaceMemberId != null &&
+                x.status === 'ACTIVE' &&
+                (x.endDate == null || (x.endDate as Date) > t) &&
+                (x.createdAt as Date) <= t
+            for (const s of named('Семейная')) {
+                const t = s.createdAt as Date
+                expect(
+                    p.subscriptions.some((x) => x.userId !== s.userId && family.has(x.userId as string) && currentAt(t)(x)),
+                ).toBe(true)
+            }
+            expect(named('Студенческая').length).toBeGreaterThanOrEqual(1)
+            expect(named('Студенческая').length).toBeLessThanOrEqual(5)
+            for (const s of [...named('Семейная'), ...named('Студенческая')]) {
+                const pct = s.discountName === 'Семейная' ? 10 : 15
+                expect(s.discountAmount).toBe(Math.round(((s.listPrice as number) * pct) / 100))
+                expect(s.amountPaid).toBe((s.listPrice as number) - (s.discountAmount as number))
+            }
+            // One-offs: the head coach's cash part-payment and an admin's 500 ₽.
+            const oneOffs = p.subscriptions.filter((s) => !s.discountId && (s.amountPaid as number) < (s.listPrice as number))
+            expect(oneOffs).toHaveLength(2)
+            const coachId = p.accountUserIds.coach
+            const coachCash = oneOffs.find((s) => s.pricedById === coachId)!
+            expect(coachCash).toMatchObject({ isPaid: true, paymentMethod: 'CASH', markedPaidById: coachId })
+            expect((coachCash.listPrice as number) - (coachCash.amountPaid as number)).toBe(1000)
+            const adminOneOff = oneOffs.find((s) => s.pricedById === p.accountUserIds.admin)!
+            expect((adminOneOff.listPrice as number) - (adminOneOff.amountPaid as number)).toBe(500)
+            // Audited like a live sale: the head coach is the actor, the one-off in the metadata.
+            const audit = p.auditEvents.find(
+                (e) => e.action === 'member.assignSubscription' && e.actorId === coachId,
+            )
+            expect(audit?.metadata).toMatchObject({ listPrice: coachCash.listPrice, oneOff: 1000 })
+            expect(p.auditEvents.filter((e) => e.action === 'discount.create')).toHaveLength(3)
+            // The «абонемент заканчивается» promise is the promo code the product honours.
+            expect(p.announcements.some((a) => (a.body as string).includes('ПРОДЛИ5'))).toBe(true)
+            expect(p.announcements.some((a) => (a.body as string).includes('в день окончания'))).toBe(false)
+        }
+        check(plan)
+        for (const days of [9, 17, 26]) check(build(new Date(NOW.getTime() + days * 86_400_000)))
+    })
+
     it('gives adults and parents their own placeholder phone, children none', () => {
         const phones = plan.users.flatMap((u) => (u.phone ? [u.phone] : []))
         expect(new Set(phones).size).toBe(phones.length)

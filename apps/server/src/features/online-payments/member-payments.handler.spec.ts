@@ -11,6 +11,8 @@ import { encryptPaymentSecret } from '../../domains/payments/payment-credentials
 import { PaymentGatewayError } from '../../domains/payments/payment-gateway.types'
 import { CreatePaymentFeature } from './create-payment.feature'
 import { CreatePaymentHandler } from './create-payment.handler'
+import { GetCheckoutQuoteFeature } from './get-checkout-quote.feature'
+import { GetCheckoutQuoteHandler } from './get-checkout-quote.handler'
 import { GetMyPaymentFeature } from './get-my-payment.feature'
 import { GetMyPaymentHandler } from './get-my-payment.handler'
 import { GetOnlinePurchaseOptionsFeature } from './get-online-purchase-options.feature'
@@ -60,6 +62,10 @@ const paymentRow = (over: Record<string, unknown> = {}) => ({
     confirmationUrl: null,
     amount: 4500,
     currency: 'RUB',
+    listPrice: 4500,
+    discountId: null,
+    discountName: null,
+    discountAmount: 0,
     status: 'PENDING',
     idempotenceKey: 'idem-1',
     activationError: null,
@@ -70,6 +76,28 @@ const paymentRow = (over: Record<string, unknown> = {}) => ({
     ...over,
 })
 
+// A discount row as discountRuleSelect reads it.
+const discount = (over: Record<string, unknown> = {}) => ({
+    id: 'd-promo',
+    name: 'Весна',
+    kind: 'PERCENT',
+    value: 10,
+    currency: null,
+    code: 'ВЕСНА',
+    isFamily: false,
+    allPlans: true,
+    events: false,
+    startsOn: null,
+    endsOn: null,
+    maxUses: null,
+    oncePerMember: false,
+    isActive: true,
+    plans: [],
+    ...over,
+})
+const family = (value = 10) =>
+    discount({ id: 'd-family', name: 'Семейная', code: null, isFamily: true, value })
+
 const prismaFor = (opts: {
     workspace?: Record<string, unknown> | null
     member?: Record<string, unknown> | null
@@ -79,6 +107,14 @@ const prismaFor = (opts: {
     recent?: Record<string, unknown> | null
     // Directions the member trains in (their groups').
     memberDirections?: string[]
+    // The club's active family discount, and whether a relative holds a
+    // current abonement (the buyer qualifies).
+    family?: Record<string, unknown> | null
+    familyEligible?: boolean
+    // Active discounts with a code.
+    promos?: Array<Record<string, unknown>>
+    // Uses of a discount (sales + open checkouts), per count call.
+    uses?: number
 } = {}) => ({
     workspace: {
         findUnique: jest
@@ -118,7 +154,27 @@ const prismaFor = (opts: {
         findFirst: jest.fn().mockResolvedValue(opts.recent ?? null),
         create: jest.fn(async ({ data }) => paymentRow(data)),
         update: jest.fn(async ({ data }) => paymentRow(data)),
+        count: jest.fn().mockResolvedValue(0),
     },
+    discount: {
+        findFirst: jest.fn(async ({ where }: { where: { isFamily?: boolean; code?: string } }) =>
+            where.isFamily
+                ? (opts.family ?? null)
+                : ((opts.promos ?? []).find((d) => d.code === where.code) ?? null),
+        ),
+    },
+    guardianship: {
+        findMany: jest
+            .fn()
+            .mockResolvedValue(
+                opts.familyEligible ? [{ guardianId: 'parent-1', dependentId: 'u-1' }] : [],
+            ),
+    },
+    subscription: {
+        findFirst: jest.fn().mockResolvedValue(opts.familyEligible ? { id: 'sibling-sub' } : null),
+        count: jest.fn().mockResolvedValue(opts.uses ?? 0),
+    },
+    eventRegistration: { count: jest.fn().mockResolvedValue(0) },
 })
 
 const liveClassPack = {
@@ -149,10 +205,117 @@ describe('createPayment', () => {
         prisma: ReturnType<typeof prismaFor>,
         gateway = gatewayOk(),
         userId = 'u-1',
+        promoCode?: string,
     ) =>
         new CreatePaymentHandler(prisma as never, gateway as never).execute(
-            new CreatePaymentFeature({ planId: 'plan-1' }, 'ws-1', userId),
+            new CreatePaymentFeature({ planId: 'plan-1', promoCode }, 'ws-1', userId),
         )
+
+    it('charges the promo price and stores the price facts on the payment', async () => {
+        const prisma = prismaFor({ promos: [discount()] })
+        const gateway = gatewayOk()
+        await run(prisma, gateway, 'u-1', ' весна ')
+        expect(prisma.payment.create.mock.calls[0][0].data).toMatchObject({
+            amount: 4050,
+            listPrice: 4500,
+            discountId: 'd-promo',
+            discountName: 'Весна',
+            discountAmount: 450,
+        })
+        expect(gateway.createPayment.mock.calls[0][1]).toMatchObject({ amount: 4050 })
+    })
+
+    it('charges the family price by itself; a tie with a code goes to family', async () => {
+        const prisma = prismaFor({ family: family(10), familyEligible: true, promos: [discount()] })
+        await run(prisma, gatewayOk(), 'u-1', 'ВЕСНА')
+        expect(prisma.payment.create.mock.calls[0][0].data).toMatchObject({
+            amount: 4050,
+            discountId: 'd-family',
+            discountName: 'Семейная',
+        })
+        const bigger = prismaFor({
+            family: family(10),
+            familyEligible: true,
+            promos: [discount({ value: 20 })],
+        })
+        await run(bigger, gatewayOk(), 'u-1', 'ВЕСНА')
+        expect(bigger.payment.create.mock.calls[0][0].data).toMatchObject({
+            amount: 3600,
+            discountId: 'd-promo',
+        })
+    })
+
+    it('refuses a code it cannot apply, never charging another price', async () => {
+        const cases: Array<[ReturnType<typeof prismaFor>, string, string]> = [
+            [prismaFor(), 'НЕТТАКОГО', 'Промокод не найден'],
+            [prismaFor(), '!!', 'Промокод не найден'],
+            [
+                prismaFor({ promos: [discount({ endsOn: new Date('2020-01-01T00:00:00Z') })] }),
+                'ВЕСНА',
+                'Срок действия промокода закончился',
+            ],
+            [
+                prismaFor({ promos: [discount({ allPlans: false, plans: [{ planId: 'other' }] })] }),
+                'ВЕСНА',
+                'Промокод не действует на этот тариф',
+            ],
+            [
+                prismaFor({ promos: [discount({ oncePerMember: true })], uses: 1 }),
+                'ВЕСНА',
+                'Вы уже использовали этот промокод',
+            ],
+            [
+                prismaFor({ promos: [discount({ maxUses: 3 })], uses: 3 }),
+                'ВЕСНА',
+                'Промокоды по этой акции закончились',
+            ],
+            [
+                prismaFor({ promos: [discount({ value: 100 })] }),
+                'ВЕСНА',
+                'С промокодом выходит 0 ₽ — оформите покупку в клубе',
+            ],
+        ]
+        for (const [prisma, code, message] of cases) {
+            const gateway = gatewayOk()
+            await expect(run(prisma, gateway, 'u-1', code)).rejects.toMatchObject({
+                statusCode: 400,
+                message,
+            })
+            expect(prisma.payment.create).not.toHaveBeenCalled()
+            expect(gateway.createPayment).not.toHaveBeenCalled()
+        }
+    })
+
+    it('counts open checkouts against a code, except the member’s own reused one', async () => {
+        const recent = paymentRow({
+            id: 'pay-0',
+            providerPaymentId: 'yk-0',
+            confirmationUrl: 'https://yoomoney.ru/checkout/yk-0',
+            amount: 4050,
+            discountId: 'd-promo',
+        })
+        const prisma = prismaFor({ promos: [discount({ oncePerMember: true })], recent })
+        const out = await run(prisma, gatewayOk(), 'u-1', 'ВЕСНА')
+        expect(out.confirmationUrl).toBe('https://yoomoney.ru/checkout/yk-0')
+        expect(prisma.payment.count.mock.calls[0][0].where).toMatchObject({
+            discountId: 'd-promo',
+            status: 'PENDING',
+            userId: 'u-1',
+            NOT: { id: 'pay-0' },
+        })
+    })
+
+    it('makes a new payment when the price changed since the pending one', async () => {
+        const recent = paymentRow({
+            providerPaymentId: 'yk-0',
+            confirmationUrl: 'https://yoomoney.ru/checkout/yk-0',
+        })
+        const prisma = prismaFor({ recent, promos: [discount()] })
+        const gateway = gatewayOk()
+        const out = await run(prisma, gateway, 'u-1', 'ВЕСНА')
+        expect(out.confirmationUrl).toBe('https://yoomoney.ru/checkout/yk-1')
+        expect(prisma.payment.create.mock.calls[0][0].data).toMatchObject({ amount: 4050 })
+    })
 
     it('creates the provider payment and returns its confirmation URL', async () => {
         const prisma = prismaFor()
@@ -318,11 +481,18 @@ describe('getOnlinePurchaseOptions', () => {
         expect(out).toEqual({
             available: true,
             provider: 'YOOKASSA',
-            plans: [{ ...plan, directions: [] }],
+            plans: [{ ...plan, amount: 4500, discountName: null, directions: [] }],
             blockedReason: null,
             renewalFrom: null,
             pendingPayment: null,
         })
+    })
+
+    it('prices each card with the family discount when the member qualifies', async () => {
+        const out = await run(prismaFor({ family: family(10), familyEligible: true }))
+        expect(out.plans[0]).toMatchObject({ price: 4500, amount: 4050, discountName: 'Семейная' })
+        const notEligible = await run(prismaFor({ family: family(10), familyEligible: false }))
+        expect(notEligible.plans[0]).toMatchObject({ amount: 4500, discountName: null })
     })
 
     it('is empty for the owner, a disabled section and a club without a provider', async () => {
@@ -405,6 +575,91 @@ describe('getOnlinePurchaseOptions', () => {
             }),
         )
         expect(out.renewalFrom).toBe('2099-03-10')
+    })
+})
+
+describe('getCheckoutQuote', () => {
+    const quote = (
+        prisma: ReturnType<typeof prismaFor> & { eventRegistration?: Record<string, jest.Mock> },
+        payload: { planId?: string; registrationId?: string; promoCode?: string },
+        userId = 'u-1',
+    ) =>
+        new GetCheckoutQuoteHandler(prisma as never).execute(
+            new GetCheckoutQuoteFeature(payload, 'ws-1', userId),
+        )
+
+    it('quotes a tariff with a code, and answers every refusal as a note', async () => {
+        const ok = await quote(prismaFor({ promos: [discount({ endsOn: new Date('2099-03-31T00:00:00Z') })] }), {
+            planId: 'plan-1',
+            promoCode: 'весна',
+        })
+        expect(ok).toEqual({
+            listPrice: 4500,
+            amount: 4050,
+            currency: 'RUB',
+            discount: { name: 'Весна', code: 'ВЕСНА', isFamily: false, endsOn: '2099-03-31' },
+            promoCodeNote: null,
+        })
+        const unknown = await quote(prismaFor(), { planId: 'plan-1', promoCode: 'ЛЕТО' })
+        expect(unknown).toMatchObject({ amount: 4500, discount: null, promoCodeNote: 'Промокод не найден' })
+        const used = await quote(prismaFor({ promos: [discount({ oncePerMember: true })], uses: 1 }), {
+            planId: 'plan-1',
+            promoCode: 'ВЕСНА',
+        })
+        expect(used.promoCodeNote).toBe('Вы уже использовали этот промокод')
+    })
+
+    it('keeps the family price when it saves more, with the note', async () => {
+        const out = await quote(
+            prismaFor({ family: family(20), familyEligible: true, promos: [discount()] }),
+            { planId: 'plan-1', promoCode: 'ВЕСНА' },
+        )
+        expect(out).toMatchObject({
+            amount: 3600,
+            discount: { name: 'Семейная', isFamily: true, code: null },
+            promoCodeNote: 'Семейная скидка выгоднее — она уже учтена',
+        })
+    })
+
+    it('refuses what the checkout refuses: the owner, a non-member, a tariff not sold online', async () => {
+        await expect(quote(prismaFor(), { planId: 'plan-1' }, 'owner-1')).rejects.toMatchObject({ statusCode: 400 })
+        await expect(quote(prismaFor({ member: null }), { planId: 'plan-1' })).rejects.toMatchObject({
+            statusCode: 404,
+        })
+        await expect(quote(prismaFor({ plan: null }), { planId: 'plan-1' })).rejects.toMatchObject({
+            statusCode: 404,
+        })
+        await expect(
+            quote(prismaFor({ workspace: workspace({ subscriptionEnabled: false }) }), { planId: 'plan-1' }),
+        ).rejects.toMatchObject({ statusCode: 403 })
+    })
+
+    it('quotes the member’s own ticket of a paid event; a free one or someone else’s is refused', async () => {
+        const withTicket = (event: Record<string, unknown> | null) => {
+            const prisma = prismaFor({ promos: [discount({ events: true })] })
+            return Object.assign(prisma, {
+                eventRegistration: {
+                    ...prisma.eventRegistration,
+                    findFirst: jest.fn().mockResolvedValue(
+                        event && { id: 'reg-1', event, workspace: { timezone: 'Europe/Moscow' } },
+                    ),
+                },
+            })
+        }
+        const prisma = withTicket({ id: 'ev-1', price: 1500, currency: 'RUB' })
+        const out = await quote(prisma, { registrationId: 'reg-1', promoCode: 'ВЕСНА' })
+        expect(out).toMatchObject({ listPrice: 1500, amount: 1350, discount: { name: 'Весна' } })
+        expect(prisma.eventRegistration.findFirst.mock.calls[0][0].where).toEqual({
+            id: 'reg-1',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+        })
+        await expect(
+            quote(withTicket({ id: 'ev-1', price: 0, currency: 'RUB' }), { registrationId: 'reg-1' }),
+        ).rejects.toMatchObject({ statusCode: 400 })
+        await expect(quote(withTicket(null), { registrationId: 'reg-1' })).rejects.toMatchObject({
+            statusCode: 404,
+        })
     })
 })
 

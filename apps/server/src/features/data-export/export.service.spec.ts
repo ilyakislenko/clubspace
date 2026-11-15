@@ -157,8 +157,8 @@ describe('ExportService.membersCsv — current abonements', () => {
 
 type ExportPrisma = {
     workspace: { findUnique: jest.Mock }
-    subscription: { findMany: jest.Mock }
-    eventRegistration: { findMany: jest.Mock }
+    subscription: { findMany: jest.Mock; fields: { listPrice: string } }
+    eventRegistration: { findMany: jest.Mock; fields: { listPrice: string } }
     refund: { findMany: jest.Mock }
     user: { findMany: jest.Mock }
     workspaceMember: { findMany: jest.Mock }
@@ -186,6 +186,11 @@ describe('ExportService.paymentsCsv', () => {
         user: person,
         workspaceMember: { userId: 'u1', user: person },
         payment: null,
+        listPrice: null,
+        discountId: null,
+        discountName: null,
+        discountAmount: 0,
+        pricedById: null,
         ...over,
     })
     const ticket = (id: string, paidAt: string) => ({
@@ -201,6 +206,11 @@ describe('ExportService.paymentsCsv', () => {
         event: { title: 'Мастер-класс', currency: 'RUB' },
         user: { firstname: 'Анна', lastname: null, email: null },
         payments: [],
+        listPrice: null,
+        discountId: null,
+        discountName: null,
+        discountAmount: 0,
+        pricedById: null,
     })
     const refund = (id: string, refundedAt: string) => ({
         id,
@@ -219,8 +229,14 @@ describe('ExportService.paymentsCsv', () => {
     })
     const prisma = (o: { subs?: unknown[]; tickets?: unknown[]; refunds?: unknown[]; tz?: string } = {}): ExportPrisma => ({
         workspace: { findUnique: jest.fn().mockResolvedValue({ timezone: o.tz ?? 'UTC' }) },
-        subscription: { findMany: jest.fn().mockResolvedValue(o.subs ?? []) },
-        eventRegistration: { findMany: jest.fn().mockResolvedValue(o.tickets ?? []) },
+        subscription: {
+            findMany: jest.fn().mockResolvedValue(o.subs ?? []),
+            fields: { listPrice: 'Subscription.listPrice' },
+        },
+        eventRegistration: {
+            findMany: jest.fn().mockResolvedValue(o.tickets ?? []),
+            fields: { listPrice: 'EventRegistration.listPrice' },
+        },
         refund: { findMany: jest.fn().mockResolvedValue(o.refunds ?? []) },
         user: {
             findMany: jest.fn().mockResolvedValue([{ id: 'staff-1', firstname: 'Ольга', lastname: 'Админ', email: null }]),
@@ -233,8 +249,23 @@ describe('ExportService.paymentsCsv', () => {
     it('prints every row of the journal view, newest payment first, in the journal’s columns', async () => {
         const p = prisma({
             subs: [
-                sub('s2', '2026-11-03T10:00:00Z', { paymentMethod: null, markedPaidById: null, classesTotal: null, plan: { name: 'Разовое' } }),
-                sub('s1', '2026-11-01T10:00:00Z'),
+                // Sold 1 000 under the price, nothing named: a one-off by the admin.
+                sub('s2', '2026-11-03T10:00:00Z', {
+                    paymentMethod: null,
+                    markedPaidById: null,
+                    classesTotal: null,
+                    plan: { name: 'Разовое' },
+                    listPrice: 6000,
+                    pricedById: 'staff-1',
+                }),
+                // «Семейная» 500 and a further 500 typed off.
+                sub('s1', '2026-11-01T10:00:00Z', {
+                    listPrice: 6000,
+                    discountId: 'd1',
+                    discountName: 'Семейная',
+                    discountAmount: 500,
+                    pricedById: 'staff-1',
+                }),
             ],
             tickets: [ticket('r1', '2026-11-02T10:00:00Z')],
             refunds: [refund('f1', '2026-11-04T10:00:00Z')],
@@ -242,15 +273,15 @@ describe('ExportService.paymentsCsv', () => {
         const { csv } = await exportWith(p).paymentsCsv(ADMIN, { from: '2026-11-01', to: '2026-11-30' })
         const lines = csv.split(/\r?\n/)
         expect(lines[0]).toContain(
-            'Дата;Вид;Участник;Email;Тариф / событие;Сумма;Валюта;Способ оплаты;Отметил / вернул;Причина возврата;Источник;Занятий в пакете',
+            'Дата;Вид;Участник;Email;Тариф / событие;Сумма;Цена по тарифу;Скидка;Название скидки;Дал скидку;Валюта;Способ оплаты;Отметил / вернул;Причина возврата;Источник;Занятий в пакете',
         )
         expect(lines.filter((l) => l.startsWith('2026-'))).toEqual([
-            // A refund is negative, with who refunded and why.
-            '2026-11-04;Возврат;Иван Петров;ivan@x;8 занятий;-1000;RUB;Наличные;Ольга Админ;Пропустил две недели;Абонемент;',
-            '2026-11-03;Оплата;Иван Петров;ivan@x;Разовое;5000;RUB;;;;Абонемент;',
-            // A ticket without its own currency is in the event's.
-            '2026-11-02;Оплата;Анна;;Мастер-класс;1500;RUB;Перевод;;;Событие;',
-            '2026-11-01;Оплата;Иван Петров;ivan@x;8 занятий;5000;RUB;Наличные;Ольга Админ;;Абонемент;8',
+            // A refund is negative, with who refunded and why; no discount of its own.
+            '2026-11-04;Возврат;Иван Петров;ivan@x;8 занятий;-1000;;;;;RUB;Наличные;Ольга Админ;Пропустил две недели;Абонемент;',
+            '2026-11-03;Оплата;Иван Петров;ivan@x;Разовое;5000;6000;1000;Разовая;Ольга Админ;RUB;;;;Абонемент;',
+            // A ticket without its own currency is in the event's; recorded before discounts.
+            '2026-11-02;Оплата;Анна;;Мастер-класс;1500;;;;;RUB;Перевод;;;Событие;',
+            '2026-11-01;Оплата;Иван Петров;ivan@x;8 занятий;5000;6000;1000;Семейная + разовая;Ольга Админ;RUB;Наличные;Ольга Админ;;Абонемент;8',
         ])
     })
 

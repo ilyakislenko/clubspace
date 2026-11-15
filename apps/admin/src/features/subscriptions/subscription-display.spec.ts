@@ -8,6 +8,7 @@ import {
   paymentEntryHref,
   canUndoPaymentMark,
   paymentLabel,
+  saleDiscountText,
   periodLabel,
   ticketEntryHref,
 } from "./subscription-display"
@@ -91,6 +92,9 @@ describe("formatAmount", () => {
   })
 })
 
+// A sale from before discounts, or one without.
+const NO_DISCOUNT = { discountName: null, oneOffDiscount: 0 }
+
 describe("paymentLabel", () => {
   it("flags an unpaid abonement with its agreed price", () => {
     expect(
@@ -102,6 +106,7 @@ describe("paymentLabel", () => {
           amountPaid: 5000,
           refundedAmount: 0,
           currency: "RUB",
+          ...NO_DISCOUNT,
         }),
       ),
     ).toBe("Ожидает оплаты: 5 000 ₽")
@@ -117,6 +122,7 @@ describe("paymentLabel", () => {
           amountPaid: 5000,
           refundedAmount: 0,
           currency: "RUB",
+          ...NO_DISCOUNT,
         }),
       ),
     ).toBe("Оплачено 5 000 ₽ · 22.10.2026")
@@ -132,6 +138,7 @@ describe("paymentLabel", () => {
           amountPaid: 4000,
           refundedAmount: 0,
           currency: "RUB",
+          ...NO_DISCOUNT,
         }),
       ),
     ).toBe("Оплачено 4 000 ₽")
@@ -147,6 +154,7 @@ describe("paymentLabel", () => {
           amountPaid: 5000,
           refundedAmount: 0,
           currency: "RUB",
+          ...NO_DISCOUNT,
         }),
       ),
     ).toBe("Оплачено 5 000 ₽ · Карта в клубе · 22.10.2026")
@@ -159,9 +167,41 @@ describe("paymentLabel", () => {
           amountPaid: 4000,
           refundedAmount: 0,
           currency: "RUB",
+          ...NO_DISCOUNT,
         }),
       ),
     ).toBe("Оплачено 4 000 ₽ · Онлайн")
+  })
+
+  it("appends the named discount and the one-off part with who set the price", () => {
+    const sale = {
+      isPaid: true,
+      paidAt: null,
+      paymentMethod: "CASH" as const,
+      amountPaid: 2600,
+      refundedAmount: 0,
+      currency: "RUB",
+    }
+    expect(plain(paymentLabel({ ...sale, discountName: "Семейная", oneOffDiscount: 0 }))).toBe(
+      "Оплачено 2 600 ₽ · Наличные · скидка «Семейная»",
+    )
+    expect(
+      plain(
+        paymentLabel({
+          ...sale,
+          discountName: "Семейная",
+          oneOffDiscount: 1000,
+          pricedBy: { name: "Петров" },
+        }),
+      ),
+    ).toBe("Оплачено 2 600 ₽ · Наличные · скидка «Семейная» · разовая скидка 1 000 ₽ · Петров")
+    expect(
+      plain(paymentLabel({ ...sale, isPaid: false, discountName: null, oneOffDiscount: 500 })),
+    ).toBe("Ожидает оплаты: 2 600 ₽ · разовая скидка 500 ₽")
+  })
+
+  it("says nothing of discounts when there were none", () => {
+    expect(saleDiscountText({ ...NO_DISCOUNT, currency: "RUB" })).toBeNull()
   })
 })
 
@@ -183,6 +223,7 @@ describe("refunds on the card", () => {
           amountPaid: 4000,
           refundedAmount: 1000,
           currency: "RUB",
+          ...NO_DISCOUNT,
         }),
       ),
     ).toBe("Оплачено 4 000 ₽ · Наличные · 22.10.2026 · возвращено 1 000 ₽")

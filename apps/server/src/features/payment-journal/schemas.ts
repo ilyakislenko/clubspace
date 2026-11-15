@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { FORMER_STAFF_NAME } from '../../domains/discounts/priced-by'
 import {
     JOURNAL_KINDS,
     JOURNAL_METHODS,
@@ -8,6 +9,7 @@ import {
     type UnappliedPaymentRow,
 } from '../../domains/payments/journal'
 import { PaymentMethodSchema } from '../../shared/utils/payment-method'
+import { strictBoolean } from '../../shared/utils/strict-boolean'
 import { displayName } from '../attendance/schemas'
 import { AnalyticsFilterSchema } from '../club-analytics/schemas'
 import { PaymentProviderSchema, PaymentStatusSchema } from '../online-payments/schemas'
@@ -26,6 +28,13 @@ export const PaymentJournalFilterSchema = AnalyticsFilterSchema.extend({
     // Who marked the payment paid.
     markedById: z.string().uuid().optional(),
     q: z.string().trim().max(100).optional(),
+    // «Со скидкой»: payments with a total discount > 0, named or one-off
+    // (docs/design/2026-11-15-discounts.md §3.5).
+    discounted: strictBoolean().optional(),
+    // One discount of the club, archived included (a foreign id is a 404).
+    discountId: z.string().uuid().optional(),
+    // «Дал скидку»: payments whose price this staff member set.
+    pricedById: z.string().uuid().optional(),
 })
 export type PaymentJournalFilter = z.infer<typeof PaymentJournalFilterSchema>
 
@@ -80,6 +89,17 @@ export const PaymentJournalEntrySchema = z.object({
     refundOf: z
         .object({ id: z.string(), at: z.iso.datetime(), amount: z.number().int() })
         .nullable(),
+    // Payment rows: the tariff / event price the sale was made against (null:
+    // recorded before discounts, imported — no discount shown) and its
+    // discount: the named one (snapshot name, its part) and the one-off rest
+    // (listPrice − named − amount). Refund rows: null / 0.
+    listPrice: z.number().int().nullable(),
+    discountName: z.string().nullable(),
+    discountAmount: z.number().int(),
+    oneOffDiscount: z.number().int(),
+    // Who set the price — only when a one-off part exists or staff applied
+    // the named discount (null online).
+    pricedBy: PersonRefSchema.nullable(),
 })
 export type PaymentJournalEntry = z.infer<typeof PaymentJournalEntrySchema>
 
@@ -97,6 +117,13 @@ export const PaymentJournalTotalSchema = z.object({
             count: z.number().int(),
         }),
     ),
+    // Over the view's payment rows: how many carry a discount, Σ the total
+    // discount and its one-off part. Not part of `net` (revenue).
+    discounted: z.object({
+        count: z.number().int(),
+        amount: z.number().int(),
+        oneOffAmount: z.number().int(),
+    }),
 })
 
 // Paid online, but the abonement / place could not be granted.
@@ -154,6 +181,14 @@ export const serializePaymentJournalEntry = (
     refundOf: row.refundOf
         ? { id: row.refundOf.id, at: row.refundOf.at.toISOString(), amount: row.refundOf.amount }
         : null,
+    listPrice: row.listPrice,
+    discountName: row.discount.named > 0 ? row.discountName : null,
+    discountAmount: row.discount.named,
+    oneOffDiscount: row.discount.oneOff,
+    pricedBy:
+        row.pricedById && row.discount.total > 0
+            ? { userId: row.pricedById, name: people.names.get(row.pricedById) ?? FORMER_STAFF_NAME }
+            : null,
 })
 
 export const serializePaymentJournalUnapplied = (

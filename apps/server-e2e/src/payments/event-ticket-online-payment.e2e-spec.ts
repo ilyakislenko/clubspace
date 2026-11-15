@@ -208,7 +208,8 @@ describe('event ticket paid online', () => {
         const rows = await csvTicketRows(c)
         expect(rows).toHaveLength(1)
         expect(rows[0]).toContain(`;Оплата;`)
-        expect(rows[0]).toContain(`;${m.user.email};Мастер-класс: dancehall;1500;RUB;Онлайн;;;Событие;`)
+        // Sold at the event's price: the list price, no discount.
+        expect(rows[0]).toContain(`;${m.user.email};Мастер-класс: dancehall;1500;1500;;;;RUB;Онлайн;;;Событие;`)
 
         // Staff marking it again does not sell it twice; the mark stays ONLINE.
         await ctx
@@ -260,7 +261,7 @@ describe('event ticket paid online', () => {
         const after = await csvTicketRows(c)
         expect(after).toHaveLength(2)
         expect(after[0]).toContain(';Возврат;')
-        expect(after[0]).toContain(';Мастер-класс: dancehall;-1500;RUB;Онлайн;')
+        expect(after[0]).toContain(';Мастер-класс: dancehall;-1500;;;;;RUB;Онлайн;')
         expect(after[1]).toContain(';Оплата;')
         // The member hears why.
         const notices = await ctx.prisma.notification.findMany({ where: { userId: m.user.id } })

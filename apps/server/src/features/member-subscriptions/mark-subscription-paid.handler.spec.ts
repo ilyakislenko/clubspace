@@ -18,6 +18,12 @@ const paidRow = (over: Record<string, unknown> = {}) => ({
     startsOnFirstVisit: false,
     amountPaid: 4500,
     currency: 'RUB',
+    refundedAmount: 0,
+    listPrice: null,
+    discountId: null,
+    discountName: null,
+    discountAmount: 0,
+    pricedById: null,
     isPaid: true,
     paidAt: new Date('2026-10-24T09:00:00Z'),
     classesTotal: null,
@@ -118,6 +124,7 @@ describe('MarkSubscriptionPaidHandler', () => {
             userId: 'u1',
             subscriptionId: 's1',
             amount: undefined,
+            discountId: undefined,
             // The caller is the journal's «Отметил».
             markedById: 'inv',
         })
@@ -142,6 +149,28 @@ describe('MarkSubscriptionPaidHandler', () => {
         expect(subscriptions.markPaid.mock.calls[0][0].amount).toBe(4500)
     })
 
+    it('passes a picked discount through to the service (which prices it in its transaction)', async () => {
+        const { handler, subscriptions } = build()
+        await handler.execute(
+            new MarkSubscriptionPaidFeature({ discountId: 'd1' }, 'w1', 'u1', 's1', 'inv', 'coach', false),
+        )
+        expect(subscriptions.markPaid.mock.calls[0][0].discountId).toBe('d1')
+    })
+
+    it('a coach typing a lower amount is accepted, as today, and audited as a one-off discount by them', async () => {
+        const { handler, audit, subscriptions } = build()
+        subscriptions.markPaid.mockResolvedValue(
+            paidRow({ amountPaid: 4000, listPrice: 5000, pricedById: 'inv' }),
+        )
+        const out = await handler.execute(feature(4000, 'coach'))
+        expect(subscriptions.markPaid.mock.calls[0][0].amount).toBe(4000)
+        expect(audit.record.mock.calls[0][0]).toMatchObject({
+            actorId: 'inv',
+            metadata: { amount: 4000, listPrice: 5000, oneOff: 1000 },
+        })
+        expect(out.subscription).toMatchObject({ listPrice: 5000, oneOffDiscount: 1000 })
+    })
+
     it('audits the payment with the abonement and method, refreshes members, abonements and «Платежи»', async () => {
         const { handler, audit, realtime, subscriptions } = build()
         subscriptions.markPaid.mockResolvedValue(paidRow({ paymentMethod: 'CASH' }))
@@ -158,6 +187,10 @@ describe('MarkSubscriptionPaidHandler', () => {
                 amount: 4500,
                 currency: 'RUB',
                 method: 'CASH',
+                listPrice: null,
+                discountId: null,
+                discountName: null,
+                discountAmount: 0,
             },
         })
         expect(realtime.invalidate).toHaveBeenCalledWith('w1', [

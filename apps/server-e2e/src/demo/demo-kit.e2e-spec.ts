@@ -51,6 +51,7 @@ describe('demo kit', () => {
             promotions: await ctx.prisma.rankPromotion.count({ where }),
             announcements: await ctx.prisma.announcement.count({ where }),
             demoUsers: await ctx.prisma.user.count({ where: { isDemo: true } }),
+            discounts: await ctx.prisma.discount.count({ where }),
         }
     }
 
@@ -174,6 +175,32 @@ describe('demo kit', () => {
         // 30 before them (the dashboard's trend) have revenue.
         expect(stats.body.revenue.revenue30d).toBeGreaterThan(0)
         expect(stats.body.revenue.revenuePrev30d).toBeGreaterThan(0)
+        // «Скидки» (docs/design/2026-11-15-discounts.md §9): the three demo
+        // discounts with their uses, and «Кто давал скидки» with the head
+        // coach's cash part-payment and the admin's one-off.
+        const discounts = await ctx.http().get(`/workspaces/${workspaceId}/discounts`).set(...auth).expect(200)
+        const byName = new Map(
+            (discounts.body.data as { name: string; code: string | null; isFamily: boolean; uses: number }[]).map(
+                (d) => [d.name, d],
+            ),
+        )
+        expect([...byName.keys()].sort()).toEqual(['Продление −5%', 'Семейная', 'Студенческая'])
+        expect(byName.get('Семейная')).toMatchObject({ isFamily: true })
+        expect(byName.get('Семейная')!.uses).toBeGreaterThan(0)
+        expect(byName.get('Студенческая')!.uses).toBeGreaterThan(0)
+        expect(byName.get('Продление −5%')).toMatchObject({ code: 'ПРОДЛИ5', uses: 0 })
+        const coachId = (await ctx.prisma.user.findFirstOrThrow({ where: { email: 'coach@academy.demo' } })).id
+        const staff = discounts.body.byStaff as { userId: string; oneOff: { count: number; amount: number } }[]
+        expect(staff.find((s) => s.userId === coachId)?.oneOff).toEqual({ count: 1, amount: 1000 })
+        const discounted = await ctx
+            .http()
+            .get(`/workspaces/${workspaceId}/payment-journal`)
+            .query({ discounted: 'true', pricedById: coachId })
+            .set(...auth)
+            .expect(200)
+        expect(discounted.body.data).toEqual([
+            expect.objectContaining({ oneOffDiscount: 1000, pricedBy: expect.objectContaining({ userId: coachId }) }),
+        ])
         const board = await ctx.http().get(`/workspaces/${workspaceId}/leaderboard`).set(...auth).expect(200)
         expect(board.body.entries.length).toBeGreaterThan(10)
         const readiness = await ctx.http().get(`/workspaces/${workspaceId}/rank-readiness`).set(...auth).expect(200)

@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { loadPricedByNames } from '../../domains/discounts/priced-by'
 import {
     currentSubscriptionOrderBy,
     currentSubscriptionWhere,
@@ -102,10 +103,12 @@ export class ListMemberSubscriptionsHandler
             (this.rbac.canWriteAllGroups(ctx) || !isSelf) &&
             (await this.rbac.canWriteMember(ctx, f.userId))
         const tz = workspace?.timezone ?? 'UTC'
+        // Who priced each sale («разовая скидка 1 000 ₽ · Петров»).
+        const pricedBy = await loadPricedByNames(this.prisma, subs)
         return {
             memberName: displayName(member.user),
             abonements: current.map(({ freezeRequests, ...s }) => ({
-                ...serializeSubscription(s),
+                ...serializeSubscription(s, pricedBy),
                 freezeRequest: freezeRequests[0]
                     ? serializeFreezeRequest(freezeRequests[0])
                     : null,
@@ -117,7 +120,7 @@ export class ListMemberSubscriptionsHandler
                         ? localDateInTz(s.endDate, tz)
                         : null,
             })),
-            history: subs.map(serializeSubscription),
+            history: subs.map((s) => serializeSubscription(s, pricedBy)),
             freezes: freezes.map(serializeSubscriptionFreeze),
             permissions: {
                 canManage,

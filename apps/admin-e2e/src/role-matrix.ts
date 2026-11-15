@@ -43,6 +43,7 @@ const SETTINGS_SECTIONS = [
 const CLUB_ADMIN_ONLY = [
   'billing',
   'subscriptions',
+  'subscriptions/discounts',
   'subscriptions/payments',
   'settings',
   ...SETTINGS_SECTIONS,

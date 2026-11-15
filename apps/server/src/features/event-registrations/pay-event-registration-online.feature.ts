@@ -1,13 +1,23 @@
 import { z } from 'zod'
 
-import { CreatePaymentOutputSchema } from '../online-payments/create-payment.feature'
+import {
+    CreatePaymentOutputSchema,
+    PromoCodeInputSchema,
+} from '../online-payments/create-payment.feature'
+
+// The member may name a promo code; the amount is the event's price priced on
+// the server (get-checkout-quote shows it first).
+export const PayEventRegistrationOnlineInputSchema = z.object({
+    promoCode: PromoCodeInputSchema,
+})
 
 // The same answer as buying a tariff online: the pending Payment and the
-// provider's page the app opens. No input — the amount is the event's price.
+// provider's page the app opens.
 export const PayEventRegistrationOnlineOutputSchema = CreatePaymentOutputSchema
 
 export class PayEventRegistrationOnlineFeature {
     constructor(
+        readonly payload: z.infer<typeof PayEventRegistrationOnlineInputSchema>,
         readonly workspaceId: string,
         readonly registrationId: string,
         // The member the place is for (the child when a guardian acts as it).
