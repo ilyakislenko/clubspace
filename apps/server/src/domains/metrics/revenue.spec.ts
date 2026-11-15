@@ -2,9 +2,13 @@ import {
     computeRevenue,
     type DatedSubRow,
     dominantCurrency,
+    loadRefunds,
     monthlyEquivalent,
+    netRevenue,
     paidInRangeWhere,
     paidOn,
+    type RefundRow,
+    refundsInRangeWhere,
     revenueByPlan,
     revenueTrend,
     revenueTrendStart,
@@ -14,6 +18,14 @@ import {
 
 const day = (n: number) => new Date(2026, 0, n)
 const utc = (iso: string) => new Date(iso)
+// A refund of an abonement of tariff p1, by refund date.
+const refund = (amount: number, at: string, currency = 'RUB'): RefundRow => ({
+    amount,
+    currency,
+    refundedAt: new Date(at),
+    planId: 'p1',
+    planName: 'Абонемент 8',
+})
 
 describe('monthlyEquivalent', () => {
     it('normalises a 30-day term to its full amount', () => {
@@ -24,6 +36,7 @@ describe('monthlyEquivalent', () => {
                 startDate: day(1),
                 endDate: day(31),
                 isPaid: true,
+                refundedAmount: 0,
             }),
         ).toBe(5000)
     })
@@ -36,6 +49,7 @@ describe('monthlyEquivalent', () => {
                 startDate: day(1),
                 endDate: new Date(2026, 2, 2), // ~60 days later
                 isPaid: true,
+                refundedAmount: 0,
             }),
         ).toBe(3000)
     })
@@ -48,6 +62,7 @@ describe('monthlyEquivalent', () => {
                 startDate: null,
                 endDate: null,
                 isPaid: true,
+                refundedAmount: 0,
             }),
         ).toBe(0)
     })
@@ -60,6 +75,7 @@ describe('monthlyEquivalent', () => {
                 startDate: day(1),
                 endDate: day(31),
                 isPaid: false,
+                refundedAmount: 0,
             }),
         ).toBe(0)
     })
@@ -72,8 +88,21 @@ describe('monthlyEquivalent', () => {
                 startDate: day(1),
                 endDate: null,
                 isPaid: true,
+                refundedAmount: 0,
             }),
         ).toBe(0)
+    })
+
+    it('counts what is left after refunds; a full refund adds 0', () => {
+        const row = {
+            amountPaid: 5000,
+            currency: 'RUB',
+            startDate: day(1),
+            endDate: day(31),
+            isPaid: true,
+        }
+        expect(monthlyEquivalent({ ...row, refundedAmount: 2000 })).toBe(3000)
+        expect(monthlyEquivalent({ ...row, refundedAmount: 5000 })).toBe(0)
     })
 })
 
@@ -103,6 +132,7 @@ describe('computeRevenue', () => {
                     startDate: day(1),
                     endDate: day(31),
                     isPaid: true,
+                    refundedAmount: 0,
                 },
                 {
                     amountPaid: 3000,
@@ -110,6 +140,7 @@ describe('computeRevenue', () => {
                     startDate: day(1),
                     endDate: day(31),
                     isPaid: true,
+                    refundedAmount: 0,
                 },
                 // A foreign-currency row stays out of the RUB money figures.
                 {
@@ -118,26 +149,66 @@ describe('computeRevenue', () => {
                     startDate: day(1),
                     endDate: day(31),
                     isPaid: true,
+                    refundedAmount: 0,
                 },
             ],
             [
                 { amountPaid: 5000, currency: 'RUB' },
                 { amountPaid: 100, currency: 'USD' },
             ],
+            [],
         )
         expect(out).toEqual({
             revenue30d: 5000,
+            refunded30d: 0,
             mrr: 8000,
             currency: 'RUB',
         })
     })
 
     it('is all-zero / null when there are no subscriptions', () => {
-        expect(computeRevenue([], [])).toEqual({
+        expect(computeRevenue([], [], [])).toEqual({
             revenue30d: 0,
+            refunded30d: 0,
             mrr: 0,
             currency: null,
         })
+    })
+
+    // Payments journal §1: revenue = sales − refunds of sales in the window.
+    it('nets the window’s refunds off revenue30d and reports them', () => {
+        const out = computeRevenue(
+            [
+                {
+                    amountPaid: 5000,
+                    refundedAmount: 1000,
+                    currency: 'RUB',
+                    startDate: day(1),
+                    endDate: day(31),
+                    isPaid: true,
+                },
+            ],
+            [
+                { amountPaid: 5000, currency: 'RUB' },
+                { amountPaid: 3000, currency: 'RUB' },
+            ],
+            [
+                refund(1000, '2026-07-10T00:00:00Z'),
+                refund(500, '2026-07-12T00:00:00Z'),
+                // Another currency never moves the RUB figure.
+                refund(50, '2026-07-12T00:00:00Z', 'USD'),
+            ],
+        )
+        expect(out).toEqual({ revenue30d: 6500, refunded30d: 1500, mrr: 4000, currency: 'RUB' })
+    })
+
+    it('never lets a refund pick the currency', () => {
+        const out = computeRevenue(
+            [],
+            [{ amountPaid: 5000, currency: 'RUB' }],
+            [refund(100, '2026-07-10T00:00:00Z', 'USD'), refund(100, '2026-07-10T00:00:00Z', 'USD')],
+        )
+        expect(out).toMatchObject({ currency: 'RUB', revenue30d: 5000, refunded30d: 0 })
     })
 })
 
@@ -289,6 +360,100 @@ describe('revenueByPlan', () => {
 
     it('is empty with no rows', () => {
         expect(revenueByPlan([], 'RUB')).toEqual([])
+    })
+})
+
+// Payments journal §1: a refund of a sale lowers the window it was made in,
+// whenever the sale was; an unapplied payment's refund is never read.
+describe('refunds in the money figures', () => {
+    const now = utc('2026-07-15T12:00:00Z')
+    const windowStart = utc('2026-06-15T12:00:00Z')
+    const prevStart = utc('2026-05-16T12:00:00Z')
+    const sale = (amountPaid: number, iso: string) => ({
+        amountPaid,
+        currency: 'RUB',
+        createdAt: utc(iso),
+    })
+
+    it('nets revenuePrev30d by refund date: a refund now of an old sale lowers the current window', () => {
+        const sales = [sale(4000, '2026-05-20T00:00:00Z'), sale(5000, '2026-07-01T00:00:00Z')]
+        // The old sale is refunded inside the current window.
+        const refunds = [refund(1000, '2026-07-10T00:00:00Z'), refund(300, '2026-06-01T00:00:00Z')]
+        expect(netRevenue(sales, refunds, 'RUB', { gte: prevStart, lt: windowStart })).toBe(3700)
+        expect(netRevenue(sales, refunds, 'RUB', { gte: windowStart })).toBe(4000)
+        // Another currency's refund never moves the figure.
+        expect(
+            netRevenue(sales, [refund(50, '2026-07-10T00:00:00Z', 'USD')], 'RUB', { gte: windowStart }),
+        ).toBe(5000)
+    })
+
+    it('lowers the month a refund was made in on the trend', () => {
+        const out = revenueTrend(
+            [sale(5000, '2026-06-20T00:00:00Z')],
+            now,
+            'RUB',
+            'UTC',
+            6,
+            [refund(2000, '2026-07-02T00:00:00Z')],
+        )
+        const byMonth = Object.fromEntries(out.map((b) => [b.month, b.revenue]))
+        expect(byMonth['2026-06']).toBe(5000)
+        expect(byMonth['2026-07']).toBe(-2000)
+    })
+
+    it('takes a refund off its tariff without counting it as a sale', () => {
+        expect(
+            revenueByPlan(
+                [{ planId: 'p1', planName: 'Абонемент 8', amountPaid: 4000, currency: 'RUB' }],
+                'RUB',
+                [refund(1000, '2026-07-02T00:00:00Z')],
+            ),
+        ).toEqual([{ planId: 'p1', planName: 'Абонемент 8', count: 1, revenue: 3000 }])
+    })
+
+    it('nets today’s refunds off today’s revenue; with no sales, the refunds’ currency', () => {
+        expect(
+            sumRevenue([{ amountPaid: 4000, currency: 'RUB' }], [refund(1000, '2026-07-15T08:00:00Z')]),
+        ).toEqual({ amount: 3000, currency: 'RUB' })
+        expect(sumRevenue([], [refund(1000, '2026-07-15T08:00:00Z')])).toEqual({
+            amount: -1000,
+            currency: 'RUB',
+        })
+    })
+
+    it('reads refunds of sales only — never of an unapplied online payment', () => {
+        expect(refundsInRangeWhere({ gte: windowStart })).toEqual({
+            refundedAt: { gte: windowStart },
+            OR: [{ subscriptionId: { not: null } }, { eventRegistrationId: { not: null } }],
+        })
+    })
+
+    it('loads refunds keyed like their sale: the tariff of an abonement, the event of a ticket', async () => {
+        const findMany = jest.fn().mockResolvedValue([
+            {
+                amount: 1000,
+                currency: 'RUB',
+                refundedAt: utc('2026-07-10T00:00:00Z'),
+                subscription: { planId: 'p1', plan: { name: 'Абонемент 8' } },
+                eventRegistration: null,
+            },
+            {
+                amount: 500,
+                currency: 'RUB',
+                refundedAt: utc('2026-07-11T00:00:00Z'),
+                subscription: null,
+                eventRegistration: { eventId: 'e1', event: { title: 'Семинар' } },
+            },
+        ])
+        const rows = await loadRefunds({ refund: { findMany } } as never, 'w1', windowStart)
+        expect(findMany.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            ...refundsInRangeWhere({ gte: windowStart }),
+        })
+        expect(rows).toEqual([
+            refund(1000, '2026-07-10T00:00:00Z'),
+            { amount: 500, currency: 'RUB', refundedAt: utc('2026-07-11T00:00:00Z'), planId: 'e1', planName: 'Семинар' },
+        ])
     })
 })
 

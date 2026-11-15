@@ -38,13 +38,15 @@ const ticket = (eventId: string, title: string, direction: { id: string; name: s
 
 const run = async (
     args: Record<string, unknown>,
-    rows: { subs?: unknown[]; tickets?: unknown[] } = {},
+    rows: { subs?: unknown[]; tickets?: unknown[]; refunds?: unknown[] } = {},
     directionIds: string[] | null = null,
 ) => {
     const tickets = jest.fn().mockResolvedValue(rows.tickets ?? [])
+    const refunds = jest.fn().mockResolvedValue(rows.refunds ?? [])
     const prisma = {
         subscription: { findMany: jest.fn().mockResolvedValue(rows.subs ?? []) },
         eventRegistration: { findMany: tickets },
+        refund: { findMany: refunds },
     }
     const ctx = {
         prisma,
@@ -54,7 +56,7 @@ const run = async (
     } as unknown as McpToolContext
     const input = revenueReportTool.input.parse(args)
     const out = await revenueReportTool.run(ctx, input)
-    return { data: out.data as Record<string, unknown>, tickets }
+    return { data: out.data as Record<string, unknown>, tickets, refunds }
 }
 
 describe('revenue_report: event tickets', () => {
@@ -118,6 +120,95 @@ describe('revenue_report: event tickets', () => {
         expect(manager.tickets.mock.calls[0][0].where.event).toEqual({
             workspaceId: 'w1',
             directionId: { in: ['bjj'] },
+        })
+    })
+})
+
+// A refund of a sale is a negative row keyed like its sale, dated by refund
+// (payments journal §6): `total` is net, `received` and `refunded` beside it.
+describe('revenue_report: refunds', () => {
+    const abonementRefund = (amount: number, refundedAt: string) => ({
+        amount,
+        currency: 'RUB',
+        refundedAt: new Date(refundedAt),
+        subscription: {
+            planId: 'p8',
+            plan: { name: '8 занятий' },
+            directions: [{ direction: { id: 'bjj', name: 'БЖЖ' } }],
+        },
+        eventRegistration: null,
+    })
+    // A ticket sold before the period, refunded inside it.
+    const ticketRefund = {
+        amount: 500,
+        currency: 'RUB',
+        refundedAt: new Date('2026-11-12T10:00:00Z'),
+        subscription: null,
+        eventRegistration: { eventId: 'e0', event: { title: 'Старый семинар', direction: null } },
+    }
+    const rows = {
+        subs: [subscription],
+        tickets: [ticket('e1', 'Мастер-класс', null)],
+        refunds: [abonementRefund(1000, '2026-11-05T10:00:00Z'), ticketRefund],
+    }
+
+    it('reports received, refunded and a net total, per source too', async () => {
+        const { data } = await run({ groupBy: 'month' }, rows)
+        expect(data).toMatchObject({
+            received: 5500,
+            refunded: 1500,
+            total: 4000,
+            sales: 2,
+            bySource: {
+                abonements: { revenue: 3000, received: 4000, refunded: 1000, sales: 1 },
+                events: { revenue: 1000, received: 1500, refunded: 500, sales: 1 },
+            },
+        })
+        // A refund is not a sale: the month keeps its two sales.
+        expect((data.items as unknown[]).at(-1)).toEqual({
+            key: '2026-11',
+            label: '2026-11',
+            revenue: 4000,
+            sales: 2,
+        })
+    })
+
+    it('lands a refund in the month it was made, not the sale’s', async () => {
+        const { data } = await run(
+            { month: '2026-10' },
+            { subs: [], refunds: [abonementRefund(700, '2026-10-20T10:00:00Z')] },
+        )
+        expect(data).toMatchObject({ received: 0, refunded: 700, total: -700, currency: 'RUB' })
+    })
+
+    it('takes a refund off its tariff, its event and its directions', async () => {
+        const byTariff = await run({ groupBy: 'tariff' }, rows)
+        expect(byTariff.data.items).toEqual(
+            expect.arrayContaining([
+                { key: 'p8', label: '8 занятий', revenue: 3000, sales: 1, kind: 'tariff', ref: '[plan:p8]' },
+                { key: 'e1', label: 'Мастер-класс', revenue: 1500, sales: 1, kind: 'event' },
+                { key: 'e0', label: 'Старый семинар', revenue: -500, sales: 0, kind: 'event' },
+            ]),
+        )
+        const byDirection = await run({ groupBy: 'direction' }, rows)
+        expect(byDirection.data.items).toEqual([
+            { key: 'bjj', label: 'БЖЖ', revenue: 3000, sales: 1 },
+            { key: 'club', label: 'Весь клуб (продажи без направления)', revenue: 1000, sales: 1 },
+        ])
+    })
+
+    it('reads refunds of sales only (never of an unapplied payment), by refund date', async () => {
+        const { refunds } = await run({ month: '2026-10' }, {}, ['bjj'])
+        const where = refunds.mock.calls[0][0].where
+        expect(where).toMatchObject({
+            workspaceId: 'w1',
+            OR: [{ subscriptionId: { not: null } }, { eventRegistrationId: { not: null } }],
+        })
+        expect(where.refundedAt.gte).toBeInstanceOf(Date)
+        expect(where.refundedAt.lte).toBeInstanceOf(Date)
+        // A ticket's refund within the scope's events, like the tickets.
+        expect(where.AND[0].OR[1]).toEqual({
+            eventRegistration: { event: { workspaceId: 'w1', directionId: { in: ['bjj'] } } },
         })
     })
 })

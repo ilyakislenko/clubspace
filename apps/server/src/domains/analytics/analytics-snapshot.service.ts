@@ -322,6 +322,7 @@ export class AnalyticsSnapshotService {
                         paidAt: true,
                         isPaid: true,
                         amountPaid: true,
+                        refundedAmount: true,
                         currency: true,
                         classesRemaining: true,
                         durationDays: true,
@@ -452,7 +453,8 @@ export class AnalyticsSnapshotService {
                 endDate: s.endDate,
                 createdAt: s.createdAt,
                 durationDays: s.durationDays ?? s.plan.durationDays,
-                amountPaid: s.amountPaid,
+                // Net of refunds: what the club kept (payments journal §3.4).
+                amountPaid: s.amountPaid - s.refundedAmount,
                 isTrial: s.plan.isFreeTrial,
                 directionIds: scopeDirectionIds(s).sort(),
             }))
@@ -480,7 +482,7 @@ export class AnalyticsSnapshotService {
                     planName: s.plan.name,
                     isTrial: s.plan.isFreeTrial,
                     isPaid: s.isPaid,
-                    amountPaid: s.amountPaid,
+                    amountPaid: s.amountPaid - s.refundedAmount,
                     currency: s.currency,
                     createdAt: s.createdAt,
                 })),
@@ -495,9 +497,14 @@ export class AnalyticsSnapshotService {
                 b,
                 churn,
                 forecastSubs,
+                // Net amounts, so `money_at_stake` follows refunds.
                 spend: monthlySpend(
                     now,
-                    m.subscriptions.map((s) => ({ ...s, isTrial: s.plan.isFreeTrial })),
+                    m.subscriptions.map((s) => ({
+                        ...s,
+                        amountPaid: s.amountPaid - s.refundedAmount,
+                        isTrial: s.plan.isFreeTrial,
+                    })),
                 ),
                 currency: latestPaid?.currency ?? null,
                 renewals: renewalHistory(now, forecastSubs),
@@ -573,6 +580,7 @@ export class AnalyticsSnapshotService {
                 endDate: true,
                 createdAt: true,
                 amountPaid: true,
+                refundedAmount: true,
                 durationDays: true,
                 userId: true,
                 workspaceMemberId: true,
@@ -594,7 +602,7 @@ export class AnalyticsSnapshotService {
                 endDate: s.endDate,
                 createdAt: s.createdAt,
                 durationDays: s.durationDays ?? s.plan.durationDays,
-                amountPaid: s.amountPaid,
+                amountPaid: s.amountPaid - s.refundedAmount,
                 isTrial: s.plan.isFreeTrial,
                 directionIds: scopeDirectionIds(s).sort(),
             })

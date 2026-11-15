@@ -891,6 +891,9 @@ describe('unmarkPaid', () => {
         id: 's1',
         status: 'ACTIVE',
         isPaid: true,
+        refundedAmount: 0,
+        paymentMethod: 'CASH',
+        source: 'MANUAL',
         ...over,
     })
     const params = { workspaceId: 'w1', userId: 'u1', subscriptionId: 's1' }
@@ -906,11 +909,22 @@ describe('unmarkPaid', () => {
             workspaceMember: { userId: 'u1' },
         })
         expect(tx.subscription.updateMany).toHaveBeenCalledWith({
-            where: { id: 's1', isPaid: true, status: { not: 'CANCELLED' } },
+            where: { id: 's1', isPaid: true, status: { not: 'CANCELLED' }, refundedAmount: 0 },
             // Who marked it goes with the payment (the journal row leaves).
             data: { isPaid: false, paidAt: null, paymentMethod: null, markedPaidById: null },
         })
         expect(res).toEqual({ id: 's1', isPaid: false })
+    })
+
+    it.each([
+        ['a refund', { refundedAmount: 1000 }, 'По этой оплате есть возврат — сначала удалите запись о возврате'],
+        ['an online sale', { paymentMethod: 'ONLINE' }, 'Онлайн-оплату отменяют возвратом в «Платежах»'],
+        ['a checkout sale from before the method was stored', { paymentMethod: null, source: 'GATEWAY' }, 'Онлайн-оплату отменяют возвратом в «Платежах»'],
+    ])('refuses an abonement with %s', async (_, over, message) => {
+        const tx = makeTx()
+        tx.subscription.findFirst.mockResolvedValue(paid(over))
+        await expect(svcWith(tx).unmarkPaid(params)).rejects.toThrow(message)
+        expect(tx.subscription.updateMany).not.toHaveBeenCalled()
     })
 
     it('says not found for an abonement of another member', async () => {

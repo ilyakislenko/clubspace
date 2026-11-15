@@ -59,6 +59,8 @@ export const startProviderPayment = async (
             amount: p.amount,
             currency: p.currency,
             idempotenceKey: randomUUID(),
+            // Where the 54-ФЗ receipt goes; a partial refund's receipt reuses it.
+            receiptEmail: p.customerEmail.slice(0, 255),
         },
     })
 

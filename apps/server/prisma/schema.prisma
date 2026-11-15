@@ -69,6 +69,7 @@ enum SubscriptionSource {
 enum NotificationTypeEnum {
   EMAIL
   PUSH
+  // Unused (no Telegram transport); drop with owner consent (data loss on db push).
   TELEGRAM
 }
 
@@ -250,6 +251,7 @@ model Workspace {
   legalAcceptances ClubLegalAcceptance[]
   paymentSettings WorkspacePaymentSettings?
   payments        Payment[]
+  refunds                Refund[]
 
   invitations WorkspaceInvitation[]
 
@@ -333,8 +335,6 @@ model User {
   notificationPreferences NotificationPreferences?
   firebaseDevices         FirebaseDevice[]
   webPushSubscriptions    WebPushSubscription[]
-  telegramLink            TelegramLink?
-  telegramLinkTokens      TelegramLinkToken[]
   watched                 VideoWatched[]
   favorites               VideoFavorite[]
   videoBookmarks          VideoBookmark[]
@@ -383,6 +383,9 @@ model User {
   payments Payment[]
   // Every abonement bought in any club, kept after the membership is gone.
   subscriptions Subscription[] @relation("UserSubscriptions")
+  // Refunds of this person's sales, and the refunds this person (staff) made.
+  refunds        Refund[]        @relation("RefundMember")
+  refundsMade    Refund[]        @relation("RefundCreatedBy")
 
   workspaceInvitations WorkspaceInvitation[]
 
@@ -440,8 +443,7 @@ model NotificationPreferences {
 
   emailEnabled    Boolean @default(false)
   pushEnabled     Boolean @default(false)
-  // Mirror notifications to the linked Telegram chat (TelegramLink). Turned on
-  // when the chat is linked; the «Telegram» switch in the app's settings.
+  // Unused (no Telegram transport); drop with owner consent (data loss on db push).
   telegramEnabled Boolean @default(false)
 
   // Category-level opt-outs for the in-app/push channel (default on). These
@@ -457,6 +459,7 @@ model NotificationPreferences {
   reviewRemindersEnabled Boolean @default(true)
 
   email           String? @db.VarChar(255)
+  // Unused; drop with owner consent (data loss on db push).
   telegramAccount Int?
 
   createdAt DateTime @default(now())
@@ -495,39 +498,6 @@ model WebPushSubscription {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([userId])
-}
-
-// The member's chat with the user-facing Telegram bot (TELEGRAM_BOT_TOKEN), where
-// notifications are mirrored when NotificationPreferences.telegramEnabled is on.
-// Its own table, not a User column: `db push` refuses a unique column added to a
-// populated table. One chat per account, one account per chat.
-model TelegramLink {
-  userId String @id @db.Uuid
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Telegram's chat id (a private chat = the Telegram user id); up to 52 bits,
-  // kept as text so it never meets a JS number.
-  chatId String @unique @db.VarChar(32)
-
-  linkedAt DateTime @default(now())
-}
-
-// One-time tokens of the «Подключить Telegram» deep link (t.me/<bot>?start=<token>),
-// 15 minutes. Only the SHA-256 is stored; issuing a new one drops the user's
-// previous tokens.
-model TelegramLinkToken {
-  id String @id @default(uuid()) @db.Uuid
-
-  userId String @db.Uuid
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  tokenHash String    @unique @db.VarChar(64)
-  expiresAt DateTime
-  usedAt    DateTime?
-
-  createdAt DateTime @default(now())
 
   @@index([userId])
 }
@@ -1065,6 +1035,10 @@ model EventRegistration {
   paymentMethod  PaymentMethod?
   // Display only, survives the actor's removal.
   markedPaidById String?             @db.Uuid
+  // Σ of this ticket's Refund rows, written in the refund's transaction. A
+  // refund never edits the paid fields above; revenue subtracts refunds.
+  refundedAmount Int            @default(0)
+  refunds        Refund[]
 
   // Online payments for this ticket. At most one marks it paid; any other
   // that succeeds keeps an activationError for staff to refund.
@@ -2012,6 +1986,11 @@ model Subscription {
   // rows the backfill could not attribute
   // (apps/server/scripts/backfill-payment-journal.sql).
   markedPaidById String? @db.Uuid
+  // Σ of this abonement's Refund rows, written in the refund's transaction
+  // (bounded increment ≤ amountPaid). A refund never edits the paid fields;
+  // revenue subtracts refunds by refund date, mrr uses amountPaid − this.
+  refundedAmount Int            @default(0)
+  refunds        Refund[]
 
   // Class-pack balance (null for time-only tariffs). classesTotal is what the
   // tariff granted; classesRemaining is decremented on attendance check-in
@@ -3403,11 +3382,64 @@ model Payment {
   updatedAt  DateTime  @updatedAt
   paidAt     DateTime?
   refundedAt DateTime?
+  // Provider-side total refunded; status turns REFUNDED only when it reaches
+  // amount (equality CAS under the refund's idempotence key).
+  refundedAmount Int       @default(0)
+  // E-mail the 54-ФЗ receipt went to (YooKassa); a partial refund's receipt
+  // reuses it. null on payments made before it was stored.
+  receiptEmail   String?   @db.VarChar(255)
+  refunds        Refund[]
 
   @@index([workspaceId, createdAt])
   @@index([workspaceId, status, createdAt])
   @@index([userId, workspaceId, createdAt])
   @@index([eventRegistrationId])
+}
+
+// Money returned for one sale (abonement or ticket), or for an online payment
+// that never became one (activationError). Rows are history: a mistaken
+// offline record may be deleted (audited); an online refund is final.
+// Sport-agnostic: no reference to plans' kinds.
+model Refund {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // Exactly one sale, or neither (unapplied online payment: paymentId only).
+  // Restrict: a refunded sale is a financial record (only the demo wipe deletes
+  // sales — it deletes refunds first).
+  subscriptionId      String?            @db.Uuid
+  subscription        Subscription?      @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  eventRegistrationId String?            @db.Uuid
+  eventRegistration   EventRegistration? @relation(fields: [eventRegistrationId], references: [id], onDelete: Restrict)
+  // The online payment refunded through the provider (method ONLINE).
+  paymentId           String?            @db.Uuid
+  payment             Payment?           @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  // The sale's holder. Restrict like Payment.userId: account deletion
+  // de-identifies the User row, it never deletes it.
+  userId   String @db.Uuid
+  user     User   @relation("RefundMember", fields: [userId], references: [id], onDelete: Restrict)
+  // Tariff name / event title at refund time.
+  itemName String @db.VarChar(255)
+
+  // Whole currency units, like Plan.price.
+  amount   Int
+  currency String        @db.Char(3)
+  // CASH / TRANSFER / CARD = a record only; ONLINE = through the provider.
+  method   PaymentMethod
+  reason   String        @db.VarChar(500)
+
+  createdById String   @db.Uuid
+  createdBy   User     @relation("RefundCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  refundedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, refundedAt])
+  @@index([workspaceId, createdById, refundedAt])
+  @@index([subscriptionId])
+  @@index([eventRegistrationId])
+  @@index([paymentId])
 }
 
 enum GuardianRelation {

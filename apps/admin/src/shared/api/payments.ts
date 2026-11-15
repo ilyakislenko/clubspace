@@ -9,7 +9,6 @@ export type PaymentProvider = PaymentSettingsInput["provider"]
 export type PaymentSubject = NonNullable<PaymentSettingsInput["paymentSubject"]>
 export type PaymentMode = NonNullable<PaymentSettingsInput["paymentMode"]>
 export type PaymentConnectionCheck = ApiTypes.CheckPaymentConnectionOutputOutput
-export type RefundResult = ApiTypes.RefundPaymentOutputOutput
 
 const settingsUrl = (workspaceId: string) =>
   `/workspaces/${workspaceId}/payment-settings`
@@ -48,15 +47,4 @@ export const checkPaymentConnection = async (params: {
   await getApiClient().request<PaymentConnectionCheck, undefined>({
     method: "post",
     url: `${settingsUrl(params.workspaceId)}/check`,
-  })
-
-// ---- Online refund: the whole payment, back through the provider ----
-
-export const refundPayment = async (params: {
-  workspaceId: string
-  paymentId: string
-}): Promise<RefundResult> =>
-  await getApiClient().request<RefundResult, undefined>({
-    method: "post",
-    url: `/workspaces/${params.workspaceId}/payments/${params.paymentId}/refund`,
   })

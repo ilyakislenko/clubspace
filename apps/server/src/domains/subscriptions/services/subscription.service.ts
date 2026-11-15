@@ -30,6 +30,7 @@ import {
     subscriptionUsabilitySelect,
 } from '../subscription-status'
 import { CHANGED_MESSAGE } from '../freeze-dates'
+import { UNMARK_ONLINE_MESSAGE, UNMARK_REFUNDED_MESSAGE } from '../../payments/unmark-rules'
 import { releaseOpenFreezesInTx } from './subscription-freeze.service'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -373,7 +374,9 @@ export class SubscriptionService {
 
     // Undo of markPaid for a mistaken mark. Back to «Ожидает оплаты»: amountPaid
     // stays — it is the agreed price again while unpaid; the method and who
-    // marked it go with the payment.
+    // marked it go with the payment. Refused once refunded (a refund would
+    // point at an unpaid sale) and for an online sale (its Payment would lose
+    // its sale): those are undone with a refund in «Платежи».
     async unmarkPaid(params: {
         workspaceId: string
         userId: string
@@ -386,7 +389,14 @@ export class SubscriptionService {
                     workspaceId: params.workspaceId,
                     workspaceMember: { userId: params.userId },
                 },
-                select: { id: true, status: true, isPaid: true },
+                select: {
+                    id: true,
+                    status: true,
+                    isPaid: true,
+                    refundedAmount: true,
+                    paymentMethod: true,
+                    source: true,
+                },
             })
             if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
             if (sub.status === 'CANCELLED') {
@@ -395,6 +405,12 @@ export class SubscriptionService {
             if (!sub.isPaid) {
                 throw new BadRequestError({ message: 'Оплата не отмечена' })
             }
+            if (sub.refundedAmount > 0) {
+                throw new BadRequestError({ message: UNMARK_REFUNDED_MESSAGE })
+            }
+            if (sub.paymentMethod === 'ONLINE' || sub.source === 'GATEWAY') {
+                throw new BadRequestError({ message: UNMARK_ONLINE_MESSAGE })
+            }
 
             // Compare-and-set, same as markPaid.
             const res = await tx.subscription.updateMany({
@@ -402,6 +418,7 @@ export class SubscriptionService {
                     id: sub.id,
                     isPaid: true,
                     status: { not: 'CANCELLED' },
+                    refundedAmount: 0,
                 },
                 data: { isPaid: false, paidAt: null, paymentMethod: null, markedPaidById: null },
             })

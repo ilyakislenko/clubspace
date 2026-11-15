@@ -12,7 +12,7 @@ const EXPORTS: { kind: ExportKind; label: string }[] = [
   { kind: "members", label: "Участники (CSV)" },
   { kind: "renewals", label: "На продление (CSV)" },
   { kind: "attendance", label: "Посещаемость (CSV)" },
-  { kind: "payments", label: "Платежи (CSV)" },
+  { kind: "payments", label: "Платежи и возвраты (CSV)" },
 ]
 
 // «Отчёты → Выгрузка»: CSV files for Excel / Google Таблицы. The period
@@ -48,10 +48,11 @@ export function DataExportCard({ workspaceId }: { workspaceId: string }) {
     <div className="rounded-xl border border-border bg-card p-5">
       <p className="text-sm text-muted-foreground">
         Выгрузка в CSV — открывается в Excel / Google Таблицах. Участники —
-        контакты, роль, доступ и абонемент; Платежи — оплаты абонементов и
-        событий для бухгалтерии, как в «Абонементы → Платежи».
-        Период фильтрует посещаемость и платежи (без периода платежи — за
-        последние 30 дней; участники — всегда полный список).
+        контакты, роль, доступ и абонемент; Платежи и возвраты — оплаты
+        абонементов и событий и возвраты по ним (со знаком минус) для
+        бухгалтерии, как в «Абонементы → Платежи». Период фильтрует
+        посещаемость и платежи (без периода платежи — за последние 30 дней;
+        участники — всегда полный список).
       </p>
       {error && (
         <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

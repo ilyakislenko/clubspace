@@ -72,6 +72,51 @@ export const CreateAiTokenInputSchema = {
     ]
 } as const;
 
+export const CreateRefundInputSchema = {
+    type: 'object',
+    properties: {
+        target: {
+            type: 'string',
+            enum: [
+                'abonement',
+                'ticket',
+                'unapplied'
+            ]
+        },
+        targetId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        amount: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 10000000
+        },
+        method: {
+            type: 'string',
+            enum: [
+                'CASH',
+                'TRANSFER',
+                'CARD',
+                'ONLINE'
+            ]
+        },
+        reason: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 500
+        }
+    },
+    required: [
+        'target',
+        'targetId',
+        'amount',
+        'method',
+        'reason'
+    ]
+} as const;
+
 export const CreatePaymentInputSchema = {
     type: 'object',
     properties: {
@@ -2675,18 +2720,6 @@ export const DeleteAccountInputSchema = {
     },
     required: [
         'code'
-    ]
-} as const;
-
-export const UpdateMyTelegramInputSchema = {
-    type: 'object',
-    properties: {
-        enabled: {
-            type: 'boolean'
-        }
-    },
-    required: [
-        'enabled'
     ]
 } as const;
 

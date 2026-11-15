@@ -63,6 +63,8 @@ export const EventRegistrantSchema = z.object({
     paidAt: z.iso.datetime().nullable(),
     amountPaid: z.number().int().nullable(),
     currency: z.string().nullable(),
+    // Σ of this ticket's refunds; amountPaid stays what was taken.
+    refundedAmount: z.number().int(),
     paymentMethod: PaymentMethodSchema.nullable(),
     promotedAt: z.iso.datetime().nullable(),
     cancelledAt: z.iso.datetime().nullable(),
@@ -81,6 +83,7 @@ export type RegistrationRow = {
     amountPaid: number | null
     currency: string | null
     paymentMethod: PaymentMethodValue | null
+    refundedAmount: number
     promotedAt: Date | null
     cancelledAt: Date | null
     createdAt: Date
@@ -153,6 +156,7 @@ export const serializeRegistrant = (
     paidAt: r.paidAt?.toISOString() ?? null,
     amountPaid: r.amountPaid,
     currency: r.currency,
+    refundedAmount: r.refundedAmount,
     paymentMethod: r.paymentMethod,
     promotedAt: r.promotedAt?.toISOString() ?? null,
     cancelledAt: r.cancelledAt?.toISOString() ?? null,

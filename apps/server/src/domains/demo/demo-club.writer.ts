@@ -127,6 +127,8 @@ export const writeDemoClubPlan = async (
     await inChunks(plan.subscriptionDirections, (data) =>
         tx.subscriptionDirection.createMany({ data }),
     )
+    // Their sums are already in the sales' refundedAmount (same transaction).
+    await tx.refund.createMany({ data: plan.refunds })
     await inChunks(plan.sessions, (data) => tx.attendanceSession.createMany({ data }))
     await inChunks(plan.records, (data) => tx.attendanceRecord.createMany({ data }))
     // After the slots, users and subscriptions (a burn points at its pack).

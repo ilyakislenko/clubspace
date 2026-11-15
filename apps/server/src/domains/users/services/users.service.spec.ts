@@ -116,8 +116,6 @@ const buildDelete = (o: {
         tfaMethod: del(),
         firebaseDevice: del(),
         webPushSubscription: del(),
-        telegramLink: del(),
-        telegramLinkToken: del(),
         notification: del(),
         notificationPreferences: del(),
         videoFavorite: del(),
@@ -222,13 +220,6 @@ describe('UsersService.deleteAccount (soft-delete / anonymize)', () => {
             where: { userId: 'u1' },
         })
         expect(tx.videoWatched.deleteMany).toHaveBeenCalledWith({
-            where: { userId: 'u1' },
-        })
-        // The Telegram chat id and pending link tokens.
-        expect(tx.telegramLink.deleteMany).toHaveBeenCalledWith({
-            where: { userId: 'u1' },
-        })
-        expect(tx.telegramLinkToken.deleteMany).toHaveBeenCalledWith({
             where: { userId: 'u1' },
         })
         // Personal video study data (bookmarks incl. tombstones, notes and

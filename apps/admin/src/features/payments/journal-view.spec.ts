@@ -1,13 +1,16 @@
 import type {
   PaymentJournalEntry,
+  PaymentJournalEntryDetail,
   PaymentJournalTotals,
+  PaymentJournalUnapplied,
 } from "../../shared/api/payment-journal"
 import { ANALYTICS_ALL } from "../../shared/lib/analytics"
 import {
   EMPTY_JOURNAL_STATE,
-  canRefundOnline,
+  canDeleteRefund,
   clubToday,
   customRangeError,
+  defaultRefundMethod,
   emptyText,
   entryAmount,
   entryTitle,
@@ -18,13 +21,23 @@ import {
   journalSearch,
   methodLabel,
   methodsLine,
+  onlineRefundable,
   panelFilterCount,
   parseJournalSearch,
+  parseRefundAmount,
   periodOf,
   presetRange,
+  refundHint,
+  refundIdOf,
+  refundMax,
+  refundMethodLabel,
+  refundMethods,
+  refundTargetOf,
   refundedNote,
+  subjectRefundable,
   summaryLine,
   unappliedTitle,
+  type RefundSubject,
 } from "./journal-view"
 
 const ID = "7b0c2f4e-1a2b-4c3d-8e9f-0a1b2c3d4e5f"
@@ -93,6 +106,7 @@ describe("period presets", () => {
       from: undefined,
       to: undefined,
       method: undefined,
+      kind: undefined,
       markedById: undefined,
       gymId: undefined,
       directionId: undefined,
@@ -132,6 +146,7 @@ describe("URL state", () => {
       from: "2026-11-01",
       to: "2026-11-15",
       method: "CASH" as const,
+      kind: "refund" as const,
       markedById: ID2,
       scope: { gymId: ANALYTICS_ALL, directionId: ID, groupId: ANALYTICS_ALL, coachId: ANALYTICS_ALL },
       q: " Иван ",
@@ -139,7 +154,7 @@ describe("URL state", () => {
     }
     const search = journalSearch(state)
     expect(search).toBe(
-      `?from=2026-11-01&to=2026-11-15&method=CASH&markedById=${ID2}&directionId=${ID}&q=%D0%98%D0%B2%D0%B0%D0%BD&entry=sub%3A${ID}`,
+      `?from=2026-11-01&to=2026-11-15&method=CASH&kind=refund&markedById=${ID2}&directionId=${ID}&q=%D0%98%D0%B2%D0%B0%D0%BD&entry=sub%3A${ID}`,
     )
     expect(parseJournalSearch(search)).toEqual({ ...state, q: "Иван" })
   })
@@ -152,7 +167,7 @@ describe("URL state", () => {
   it("drops broken parts of a hand-edited link", () => {
     expect(
       parseJournalSearch(
-        "?from=2026-11-15&to=2026-11-01&method=CHEQUE&markedById=x&gymId=1&entry=sub:nope",
+        "?from=2026-11-15&to=2026-11-01&method=CHEQUE&kind=all&markedById=x&gymId=1&entry=sub:nope",
       ),
     ).toEqual(EMPTY_JOURNAL_STATE)
     // One date alone is no range.
@@ -173,6 +188,8 @@ describe("URL state", () => {
       scope: { ...EMPTY_JOURNAL_STATE.scope, groupId: ID },
     }
     expect(panelFilterCount(scoped)).toBe(2)
+    expect(panelFilterCount({ ...scoped, kind: "payment" })).toBe(3)
+    expect(isFiltered({ ...EMPTY_JOURNAL_STATE, kind: "refund" })).toBe(true)
     expect(emptyText(scoped)).toBe("Ничего не нашлось — измените фильтры")
     expect(isFiltered({ ...EMPTY_JOURNAL_STATE, method: "NONE" })).toBe(true)
     expect(isFiltered({ ...EMPTY_JOURNAL_STATE, q: "  " })).toBe(false)
@@ -210,19 +227,6 @@ describe("rows", () => {
     expect(refundedNote(entry({ kind: "refund", refundedAmount: 1000 }))).toBeNull()
   })
 
-  it("offers an online refund only while the provider can make it", () => {
-    const online = {
-      paymentId: ID2,
-      provider: "YOOKASSA" as const,
-      providerRef: "ab12cd",
-      status: "SUCCEEDED" as const,
-    }
-    expect(canRefundOnline(entry())).toBe(false)
-    expect(canRefundOnline(entry({ method: "ONLINE", online }))).toBe(true)
-    expect(canRefundOnline(entry({ online: { ...online, status: "REFUNDED" } }))).toBe(false)
-    expect(canRefundOnline(entry({ online, refundable: 0 }))).toBe(false)
-  })
-
   it("shows the time on the club's clock, the year only when it differs", () => {
     const now = new Date("2026-11-15T09:00:00Z")
     expect(formatEntryAt("2026-11-03T15:40:00Z", "Europe/Moscow", now)).toBe("3 нояб., 18:40")
@@ -234,23 +238,19 @@ describe("rows", () => {
 })
 
 describe("summary", () => {
-  it("leads with the net and the number of payments", () => {
+  it("spells out received, refunded and the net", () => {
     const line = summaryLine(totals())
-    expect(line.before).toBe("Итого ")
+    expect(plain(line.before)).toBe("Получено 412 000 ₽ · возвращено 0 ₽ · итого ")
     expect(plain(line.net)).toBe("412 000 ₽")
-    expect(line.after).toBe(" · 37 оплат")
-    expect(summaryLine(totals({ byMethod: [{ method: "CASH", received: 1, refunded: 0, count: 1 }] })).after).toBe(
-      " · 1 оплата",
-    )
-    expect(summaryLine(totals({ byMethod: [{ method: "CASH", received: 1, refunded: 0, count: 22 }] })).after).toBe(
-      " · 22 оплаты",
-    )
+    const refunded = summaryLine(totals({ refunded: 6000, net: 406000 }))
+    expect(plain(refunded.before)).toBe("Получено 412 000 ₽ · возвращено 6 000 ₽ · итого ")
+    expect(plain(refunded.net)).toBe("406 000 ₽")
   })
 
-  it("spells out received and refunded once there are refunds", () => {
-    const line = summaryLine(totals({ refunded: 6000, net: 406000 }))
-    expect(plain(line.before)).toBe("Получено 412 000 ₽ · возвращено 6 000 ₽ · итого ")
-    expect(plain(line.net)).toBe("406 000 ₽")
+  it("draws a negative net (refunds only) with a minus", () => {
+    expect(plain(summaryLine(totals({ received: 0, refunded: 1000, net: -1000 })).net)).toBe(
+      "−1 000 ₽",
+    )
   })
 
   it("lists the methods with money, in a fixed order, at their net", () => {
@@ -275,5 +275,120 @@ describe("summary", () => {
 
   it("titles the unapplied strip with its count", () => {
     expect(unappliedTitle(2)).toBe("Оплачено онлайн, но не зачислено · 2")
+  })
+})
+
+describe("refund form", () => {
+  const online = {
+    paymentId: ID2,
+    provider: "YOOKASSA" as const,
+    providerRef: "ab12cd",
+    status: "SUCCEEDED" as const,
+    refundable: 4000,
+  }
+  const detail = (patch: Partial<PaymentJournalEntryDetail> = {}): PaymentJournalEntryDetail => ({
+    ...entry(),
+    refunds: [],
+    memberHasCard: true,
+    fullRefundCancelsRegistration: false,
+    ...patch,
+  })
+  const sale = (patch: Partial<PaymentJournalEntryDetail> = {}): RefundSubject => ({
+    kind: "sale",
+    entry: detail(patch),
+  })
+  const unapplied: RefundSubject = {
+    kind: "unapplied",
+    payment: {
+      paymentId: ID2,
+      at: "2026-11-03T15:40:00.000Z",
+      member: { userId: ID, name: "Иван Петров", isMember: true },
+      itemName: "БЖЖ 12",
+      amount: 4000,
+      refundable: 4000,
+      currency: "RUB",
+      provider: "STRIPE",
+      activationError: "Тариф выключен",
+    } satisfies PaymentJournalUnapplied,
+  }
+
+  it("targets the sale, or the payment that never became one", () => {
+    expect(refundTargetOf(sale())).toEqual({ target: "abonement", targetId: ID })
+    expect(
+      refundTargetOf(
+        sale({ source: "ticket", subscriptionId: null, eventRegistrationId: ID2, eventId: ID }),
+      ),
+    ).toEqual({ target: "ticket", targetId: ID2 })
+    expect(refundTargetOf(unapplied)).toEqual({ target: "unapplied", targetId: ID2 })
+    // A refund row is no sale.
+    expect(refundTargetOf(sale({ kind: "refund", refundable: 0 }))).toBeNull()
+    expect(subjectRefundable(sale({ kind: "refund", refundable: 1000 }))).toBe(0)
+  })
+
+  it("offers online first only while the provider can still return money", () => {
+    expect(refundMethods(sale())).toEqual(["CASH", "TRANSFER", "CARD"])
+    expect(defaultRefundMethod(sale({ method: "TRANSFER" }))).toBe("TRANSFER")
+    expect(defaultRefundMethod(sale({ method: null }))).toBe("CASH")
+
+    const paidOnline = sale({ method: "ONLINE", online })
+    expect(refundMethods(paidOnline)).toEqual(["ONLINE", "CASH", "TRANSFER", "CARD"])
+    expect(defaultRefundMethod(paidOnline)).toBe("ONLINE")
+
+    const returned = sale({ method: "ONLINE", online: { ...online, status: "REFUNDED", refundable: 0 } })
+    expect(onlineRefundable(returned)).toBe(0)
+    expect(refundMethods(returned)).toEqual(["CASH", "TRANSFER", "CARD"])
+    expect(defaultRefundMethod(returned)).toBe("CASH")
+
+    // An unapplied payment goes back online only.
+    expect(refundMethods(unapplied)).toEqual(["ONLINE"])
+    expect(defaultRefundMethod(unapplied)).toBe("ONLINE")
+  })
+
+  it("names the provider on the online method", () => {
+    expect(refundMethodLabel("ONLINE", "YOOKASSA")).toBe("На карту через ЮKassa")
+    expect(refundMethodLabel("ONLINE", "STRIPE")).toBe("На карту через Stripe")
+    expect(refundMethodLabel("CARD", null)).toBe("Карта в клубе")
+  })
+
+  it("caps the amount at what is left, online also at the provider's side", () => {
+    const partly = sale({ method: "ONLINE", refundedAmount: 1000, refundable: 3000, online: { ...online, refundable: 2500 } })
+    expect(refundMax(partly, "CASH")).toBe(3000)
+    expect(refundMax(partly, "ONLINE")).toBe(2500)
+    expect(parseRefundAmount("3 000", partly, "CASH")).toEqual({ amount: 3000 })
+    const over = parseRefundAmount("3000", partly, "ONLINE")
+    expect("error" in over && plain(over.error)).toBe("Вернуть можно от 1 до 2 500 ₽")
+    expect("error" in parseRefundAmount("0", partly, "CASH")).toBe(true)
+    expect("error" in parseRefundAmount("10.5", partly, "CASH")).toBe(true)
+  })
+
+  it("hints only what is true", () => {
+    expect(refundHint(sale(), 4000)).toBe(
+      "Абонемент останется действующим — отменить его можно в карточке ученика",
+    )
+    const ticket = sale({
+      source: "ticket",
+      subscriptionId: null,
+      eventRegistrationId: ID2,
+      fullRefundCancelsRegistration: true,
+    })
+    expect(refundHint(ticket, 4000)).toBe(
+      "Запись на событие будет отменена, место перейдёт следующему в листе ожидания",
+    )
+    // A partial refund keeps the place; so does a past event.
+    expect(refundHint(ticket, 1000)).toBeNull()
+    expect(
+      refundHint(
+        sale({ source: "ticket", eventRegistrationId: ID2, fullRefundCancelsRegistration: false }),
+        4000,
+      ),
+    ).toBeNull()
+    expect(refundHint(unapplied, 4000)).toBeNull()
+  })
+
+  it("deletes only an offline refund's record", () => {
+    expect(canDeleteRefund(entry({ kind: "refund", method: "CASH" }))).toBe(true)
+    expect(canDeleteRefund(entry({ kind: "refund", method: "ONLINE" }))).toBe(false)
+    expect(canDeleteRefund(entry())).toBe(false)
+    expect(refundIdOf(`ref:${ID}`)).toBe(ID)
   })
 })

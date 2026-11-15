@@ -737,6 +737,70 @@ Mobile: payment text helper spec (refunded line); `notification-route` spec for 
 - **The e2e callers of the removed endpoints moved to the journal (phase A):** `online-payment`,
   `event-ticket-online-payment` (unapplied → `unapplied` strip; CSV → `payments.csv`) and
   `removed-member-history` (`payments.csv`).
+- **Mobile «возвращено N ₽» lives in `paymentLine` (phase B)** (`features/subscription/subscription-state.ts`),
+  the payment line both «Мой абонемент» and the coach's member-abonement card already render, so neither
+  screen changed. The coach screen's line 534 is the unpaid-debts list, where a refund can't exist (unmark
+  is refused once refunded). A missing `refundedAmount` (an old cache) reads as 0. `payment.refunded` opens
+  «События» for a ticket (`eventRegistrationId`), «Мой абонемент» for an abonement (`subscriptionId`),
+  nothing for an unapplied payment's refund (neither id).
+- **The summary always reads «Получено … · возвращено … · итого …» (phase B)**, replacing phase A's «Итого N ·
+  K оплат»; no count, as §4 line 1. A period of refunds only («Только возвраты») shows a negative net «−N ₽».
+- **Online refund availability is `online.refundable` (phase B)**: `payment.amount − payment.refundedAmount`
+  while `SUCCEEDED`, else 0. «На карту через …» is offered only while it is > 0, and an online amount is capped
+  at `min(refundable, online.refundable)`; offline methods are capped at the sale's `refundable`. The waitlist
+  hint comes from the server's `fullRefundCancelsRegistration` on the entry detail (ticket, live place,
+  event not started) and shows only when the typed amount equals what is left; after such a refund the
+  panel says «Запись на событие отменена».
+- **The refund form (phase B)** (`features/payments/RefundForm.tsx`): «Как вернули» is a radio list; a ref
+  guard ignores a second click/Enter while the online `confirmDialog` asks or the request runs (the server's
+  CAS stays the real guard). A 409 keeps the form, shows «Данные изменились — проверьте сумму» and reloads
+  the sale, so the cap follows. The unapplied strip opens the same form with the online method only
+  (partial allowed). `shared/api/payments.ts` lost `refundPayment` with its endpoint.
+- **Deleting an offline refund (phase B)**: the «⋯» sits on each offline refund in the sale's panel, and in
+  the header of the refund's own panel (`?entry=ref:`); deleting from there closes the panel.
+- **«Записавшиеся» (phase B)**: «возвращено N ₽» beside the paid badge. Wherever «Снять» is not offered
+  (online or refunded), club admins get «Возврат — в «Абонементы → Платежи»» deep-linking `?entry=reg:<id>`;
+  a paid cancelled place not fully refunded links «запись отменена — верните деньги» there for club admins
+  (sport leads keep the old text and «Снять» on an unrefunded offline ticket). One rule for both cards:
+  `canUndoPaymentMark` (`subscription-display.ts`).
+- **Audit (phase B)**: the `payment` category reads «Платежи» (refunds are offline too); refund metadata
+  shows «Возврат за» (абонемент / событие / онлайн-оплату без зачисления) and «Запись на событие отменена»;
+  the payments export's `kind` reads «Показывать». The «Выгрузка» card is «Платежи и возвраты (CSV)», keeping
+  its siblings' «(CSV)».
+- **Any full refund of an upcoming ticket cancels it, whatever the method (phase B).** §3.2 step 5 says
+  «a full refund», §3.2 `deleteRefund` says «an offline refund doesn't cancel»; the §11 reason (a refunded
+  place that stays booked could never be paid again) holds for cash too, so the server cancels on any
+  method. Deleting that offline record does not restore the place (it may have gone to the waitlist).
+  «Full» = the sale's `refundedAmount` reaches `amountPaid` after this refund (read under the event lock),
+  so the last of several partial refunds also cancels.
+- **The method check lives in the handler, not a zod `superRefine` (phase B)**, so «offline for an
+  unapplied payment» is a 400 with Russian text like the other refusals.
+- **Detail and journal DTO additions (phase B)**: `PaymentJournalEntryDetailOutput.fullRefundCancelsRegistration`
+  (the form's hint) and `online.refundable` (what the provider can still refund). `GET payment-journal/ref:<id>`
+  opens a sale's refund (`refunds: []`); an unapplied payment's refund is never a journal entry and comes back
+  from `POST refunds` built from the Refund row (`sale: null`).
+- **`receiptEmail` is stored once in `start-provider-payment.ts`** (shared by the abonement and ticket
+  checkouts) rather than in the two handlers.
+- **A refund notification also goes out for an unapplied payment's refund** (metadata `paymentId`, no route);
+  `payment.refunded` metadata = `{ refundId, amount, currency, subscriptionId | eventRegistrationId + eventId |
+  paymentId }`. A cancelled ticket gets one push: «Клуб «X» отменил вашу запись на «item» и вернул N ₽ — …».
+- **Unmark guard on GATEWAY rows (phase B)**: an abonement with `source = GATEWAY` counts as online even with
+  a NULL method (pre-backfill), matching the serializer's fallback.
+- **An event with a paid ticket — refunded or not — still can't be deleted (phase B)**: the paid row is the
+  money's record (Refund → EventRegistration is Restrict). The old full refund unmarked tickets and freed this.
+- **Audit target label (phase B)**: a member without e-mail (child profile) shows the name alone, not «Имя (null)».
+- **Online refunds are serialized per Payment, provider call inside the transaction (phase B, review)**,
+  replacing «equality CAS under the idempotence key» as the guard. One transaction takes
+  `pg_advisory_xact_lock(hashtext(paymentId))` plus the sale's lock (a ticket's event lock, an abonement's
+  row `FOR UPDATE`), re-reads the target and refuses with 409 when the sale's or the payment's
+  `refundedAmount` moved since the admin's read — so a double submit, even with different amounts, reaches
+  the provider once. Then the provider call (bounded by the gateway's 15 s request timeout; transaction
+  timeout 45 s), then the writes. If the writes fail after the provider's success, the server logs
+  paymentId / providerPaymentId / amount / idempotence key at error level and answers 409 «Деньги вернулись
+  участнику через платёжную систему, но запись о возврате не сохранилась — сверьте её с личным кабинетом
+  платёжной системы». Offline refunds keep the bounded increment (two that fit both land).
+- **The refunds backfill carries only still-paid abonements (phase B, review)**: a refunded abonement that
+  staff since unmarked is no sale; the `update.sh` check mirrors it so it converges to `f`.
 
 ## 12. Implementation slices
 

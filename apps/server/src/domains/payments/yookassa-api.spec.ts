@@ -150,6 +150,37 @@ describe('YooKassa request building', () => {
         expect(buildYookassaMe(creds).url).toBe('https://api.yookassa.ru/v3/me')
     })
 
+    it('a partial refund with a receipt: 54-ФЗ receipt for the refunded amount; none when receipts are off', () => {
+        const p = {
+            providerPaymentId: 'yk-1',
+            amount: 1000,
+            currency: 'RUB',
+            idempotenceKey: 'refund-pay-1-0-1000',
+            receipt: { customerEmail: 'buyer@x.ru', itemName: 'Безлимит' },
+        }
+        expect(JSON.parse(buildYookassaRefund(creds, p).body!)).toEqual({
+            payment_id: 'yk-1',
+            amount: { value: '1000.00', currency: 'RUB' },
+            receipt: {
+                customer: { email: 'buyer@x.ru' },
+                items: [
+                    {
+                        description: 'Безлимит',
+                        quantity: '1.00',
+                        amount: { value: '1000.00', currency: 'RUB' },
+                        vat_code: 11,
+                        payment_subject: 'service',
+                        payment_mode: 'full_prepayment',
+                    },
+                ],
+            },
+        })
+        const off = { ...creds, receipt: { ...creds.receipt, enabled: false } }
+        expect(JSON.parse(buildYookassaRefund(off, p).body!)).not.toHaveProperty('receipt')
+        // The platform's own refunds pass no receipt settings at all.
+        expect(JSON.parse(buildYookassaRefund({ shopId: '1', secretKey: 's' }, p).body!)).not.toHaveProperty('receipt')
+    })
+
     it('formats whole units with two decimals', () => {
         expect(formatYookassaAmount(1)).toBe('1.00')
         expect(formatYookassaAmount(12500)).toBe('12500.00')

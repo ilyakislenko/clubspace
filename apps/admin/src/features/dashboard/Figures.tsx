@@ -78,7 +78,7 @@ export function MoneyBlock({
           value={format(revenue.revenue30d)}
           note={
             change === null ? (
-              "фактически оплачено за последние 30 дней"
+              "фактически оплачено за последние 30 дней за вычетом возвратов"
             ) : (
               <span title={`Предыдущие 30 дней: ${format(revenue.revenuePrev30d)}`}>
                 <span className={change >= 0 ? "font-medium text-emerald-600" : "font-medium text-destructive"}>

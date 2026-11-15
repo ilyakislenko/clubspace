@@ -366,6 +366,7 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         events: [],
         eventRegistrations: [],
         subscriptions: [],
+        refunds: [],
         subscriptionDirections: [],
         sessions: [],
         records: [],

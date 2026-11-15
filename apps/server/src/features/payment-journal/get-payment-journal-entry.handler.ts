@@ -1,6 +1,5 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { loadJournalEntry, loadJournalPeople } from '../../domains/payments/journal'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -9,10 +8,10 @@ import {
     GetPaymentJournalEntryFeature,
     type GetPaymentJournalEntryFeatureResponse,
 } from './get-payment-journal-entry.feature'
-import { serializePaymentJournalEntry } from './schemas'
+import { loadPaymentJournalDetail } from './payment-journal-detail'
 
-// One journal row in the side panel (`?entry=sub:<id>`): the payment, its
-// holder and, from phase B, its refunds.
+// One journal row in the side panel (`?entry=sub:<id>`): the payment (or
+// refund), its holder and a payment's refunds.
 @Feature(GetPaymentJournalEntryFeature)
 export class GetPaymentJournalEntryHandler
     implements
@@ -32,10 +31,13 @@ export class GetPaymentJournalEntryHandler
             roleName: f.roleName,
             isSuperAdmin: f.isSuperAdmin,
         })
-        const row = await loadJournalEntry(this.prisma, f.workspaceId, f.entryId)
-        if (!row) throw new NotFoundError({ message: 'Платёж не найден' })
-        const people = await loadJournalPeople(this.prisma, f.workspaceId, [row])
-        const entry = serializePaymentJournalEntry(row, people)
-        return { ...entry, refunds: [], memberHasCard: entry.member.isMember }
+        const detail = await loadPaymentJournalDetail(
+            this.prisma,
+            f.workspaceId,
+            f.entryId,
+            new Date(),
+        )
+        if (!detail) throw new NotFoundError({ message: 'Платёж не найден' })
+        return detail
     }
 }

@@ -98,10 +98,12 @@ export type AuditAction =
     | 'workspace.updatePublicProfile'
     | 'workspace.rotateJoinCode'
     | 'workspace.updatePaymentSettings'
-    // Online payments: the member is the target (their purchase); the actor of
-    // a success is the member, of a refund the staff member.
+    // Money: the member is the target (their purchase); the actor of a success
+    // is the member, of a refund (any method) and of deleting an offline refund
+    // record the staff member.
     | 'payment.succeeded'
     | 'payment.refund'
+    | 'payment.refundDelete'
     // These carry the affected club's workspaceId, so they land in that club's
     // journal too — an owner can see who created and handed over their club.
     | 'workspace.create'
@@ -481,7 +483,9 @@ export class AuditService {
             const u = users.find((x) => x.id === id)
             if (!u) return null
             const name = [u.firstname, u.lastname].filter(Boolean).join(' ')
-            return name.length > 0 ? `${name} (${u.email})` : u.email
+            // A child profile has no e-mail: its name alone.
+            if (name.length === 0) return u.email
+            return u.email ? `${name} (${u.email})` : name
         }
         const videoLabel = (id: string): string | null =>
             videos.find((x) => x.id === id)?.title ?? null

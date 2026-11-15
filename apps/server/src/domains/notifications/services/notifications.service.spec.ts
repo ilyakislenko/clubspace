@@ -7,17 +7,15 @@ const build = () => {
     }
     const emailQueue = { add: jest.fn().mockResolvedValue({ id: 'job1' }) }
     const push = { enqueue: jest.fn().mockResolvedValue(undefined) }
-    const telegram = { enqueue: jest.fn().mockResolvedValue(undefined) }
     const service = new NotificationsService(
         prisma as never,
         emailQueue as never,
         push as never,
-        telegram as never,
     )
-    return { service, prisma, emailQueue, push, telegram }
+    return { service, prisma, emailQueue, push }
 }
 
-const payload = (type: 'EMAIL' | 'PUSH' | 'TELEGRAM') =>
+const payload = (type: 'EMAIL' | 'PUSH') =>
     ({
         userId: 'u1',
         identity: 'a@b.com',
@@ -61,16 +59,6 @@ describe('NotificationsService.sendNotification', () => {
         expect(push.enqueue).toHaveBeenCalledWith(['n1'])
         expect(emailQueue.add).not.toHaveBeenCalled()
     })
-
-    it('hands a TELEGRAM row to the telegram queue only', async () => {
-        const { service, emailQueue, push, telegram } = build()
-
-        expect(await service.sendNotification(payload('TELEGRAM'))).toBe('n1')
-
-        expect(telegram.enqueue).toHaveBeenCalledWith(['n1'])
-        expect(push.enqueue).not.toHaveBeenCalled()
-        expect(emailQueue.add).not.toHaveBeenCalled()
-    })
 })
 
 describe('NotificationsService.updateNotificationStatus', () => {
@@ -82,7 +70,6 @@ describe('NotificationsService.updateNotificationStatus', () => {
         }
         const service = new NotificationsService(
             prisma as never,
-            {} as never,
             {} as never,
             {} as never,
         )
@@ -137,7 +124,6 @@ describe('NotificationsService.markSeen', () => {
         }
         const service = new NotificationsService(
             prisma as never,
-            {} as never,
             {} as never,
             {} as never,
         )

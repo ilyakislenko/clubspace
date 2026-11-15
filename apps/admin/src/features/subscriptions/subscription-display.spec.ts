@@ -6,8 +6,10 @@ import {
   formatAmount,
   isPending,
   paymentEntryHref,
+  canUndoPaymentMark,
   paymentLabel,
   periodLabel,
+  ticketEntryHref,
 } from "./subscription-display"
 
 // Sold on the browser's 24 October: the latest start is 7 November.
@@ -98,6 +100,7 @@ describe("paymentLabel", () => {
           paidAt: null,
           paymentMethod: null,
           amountPaid: 5000,
+          refundedAmount: 0,
           currency: "RUB",
         }),
       ),
@@ -112,6 +115,7 @@ describe("paymentLabel", () => {
           paidAt: new Date(2026, 9, 22, 12).toISOString(),
           paymentMethod: null,
           amountPaid: 5000,
+          refundedAmount: 0,
           currency: "RUB",
         }),
       ),
@@ -126,6 +130,7 @@ describe("paymentLabel", () => {
           paidAt: null,
           paymentMethod: null,
           amountPaid: 4000,
+          refundedAmount: 0,
           currency: "RUB",
         }),
       ),
@@ -140,6 +145,7 @@ describe("paymentLabel", () => {
           paidAt: new Date(2026, 9, 22, 12).toISOString(),
           paymentMethod: "CARD",
           amountPaid: 5000,
+          refundedAmount: 0,
           currency: "RUB",
         }),
       ),
@@ -151,6 +157,7 @@ describe("paymentLabel", () => {
           paidAt: null,
           paymentMethod: "ONLINE",
           amountPaid: 4000,
+          refundedAmount: 0,
           currency: "RUB",
         }),
       ),
@@ -159,8 +166,36 @@ describe("paymentLabel", () => {
 })
 
 describe("paymentEntryHref", () => {
-  it("opens the abonement's row of the payments journal", () => {
+  it("opens the abonement's or the ticket's row of the payments journal", () => {
     expect(paymentEntryHref("w1", "s1")).toBe("/workspace/w1/subscriptions/payments?entry=sub:s1")
+    expect(ticketEntryHref("w1", "r1")).toBe("/workspace/w1/subscriptions/payments?entry=reg:r1")
+  })
+})
+
+describe("refunds on the card", () => {
+  it("adds what went back to the payment line", () => {
+    expect(
+      plain(
+        paymentLabel({
+          isPaid: true,
+          paidAt: new Date(2026, 9, 22, 12).toISOString(),
+          paymentMethod: "CASH",
+          amountPaid: 4000,
+          refundedAmount: 1000,
+          currency: "RUB",
+        }),
+      ),
+    ).toBe("Оплачено 4 000 ₽ · Наличные · 22.10.2026 · возвращено 1 000 ₽")
+  })
+
+  it("lets a payment mark be undone only while nothing went back and it wasn't online", () => {
+    expect(canUndoPaymentMark({ paymentMethod: "CASH", refundedAmount: 0 })).toBe(true)
+    expect(canUndoPaymentMark({ paymentMethod: null, refundedAmount: 0 })).toBe(true)
+    expect(canUndoPaymentMark({ paymentMethod: "CASH", refundedAmount: 500 })).toBe(false)
+    expect(canUndoPaymentMark({ paymentMethod: "ONLINE", refundedAmount: 0 })).toBe(false)
+    // Sold through the provider with no method recorded: still online.
+    expect(canUndoPaymentMark({ paymentMethod: null, refundedAmount: 0, source: "GATEWAY" })).toBe(false)
+    expect(canUndoPaymentMark({ paymentMethod: "CASH", refundedAmount: 0, source: "MANUAL" })).toBe(true)
   })
 })
 

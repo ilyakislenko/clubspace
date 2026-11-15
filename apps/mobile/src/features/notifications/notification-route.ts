@@ -139,6 +139,13 @@ export const routeForNotification = (
     // «оплачено»); an abonement's inbox row is the notice itself.
     case "payment.succeeded":
       return str(m.eventRegistrationId) ? gated("Events") : null
+    // The club returned money: a ticket's opens the events (a fully refunded
+    // upcoming place shows as cancelled), an abonement's «Мой абонемент»
+    // («возвращено N ₽»). A refund of a payment that never became a sale has
+    // neither id — the inbox row is the notice.
+    case "payment.refunded":
+      if (str(m.eventRegistrationId)) return gated("Events")
+      return str(m.subscriptionId) ? gated("MySubscription") : null
     // Staff only; the screen checks the role itself, so the route is ungated.
     case "retention.digest":
       return { name: "AtRiskMembers" }

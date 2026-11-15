@@ -9,14 +9,16 @@ import { ymdToDbDate } from '../../../domains/subscriptions/freeze-dates'
 import { localDateInTz } from '../../attendance/attendance-utils'
 import { awaitingPaymentWhere } from '../../../domains/subscriptions/renewal-rules'
 import {
+    computeRevenue,
     dominantCurrency,
-    paidInRangeWhere,
+    loadCurrentSales,
+    loadRefunds,
+    loadSales,
+    netRevenue,
     paidOn,
     revenueTrendStart,
+    revenueWindowStart,
     summarizeAwaiting,
-    ticketRevenueRow,
-    ticketRevenueSelect,
-    ticketsPaidInRangeWhere,
 } from '../../../domains/metrics/revenue'
 import { defineTool } from '../mcp-tool'
 import { groupRef, planRef, scopedStudentIds } from './tool-helpers'
@@ -223,41 +225,34 @@ export const clubOverviewTool = defineTool({
 
         let money: Record<string, unknown> | null = null
         if (scope.seesMoney) {
+            // The dashboard's `revenue_30d` (computeRevenue over the same
+            // loaders: sales − refunds of sales, its currency) and the same
+            // rule since the 1st of the club-local month.
             const monthStart = revenueTrendStart(now, tz, 1)
-            const windowStart = monthStart < since30 ? monthStart : since30
-            const [paidSubs, paidTickets, awaiting] = await Promise.all([
-                prisma.subscription.findMany({
-                    where: {
-                        workspaceId: scope.workspaceId,
-                        ...paidInRangeWhere({ gte: windowStart }),
-                    },
-                    select: { amountPaid: true, currency: true, paidAt: true, createdAt: true },
-                }),
-                // Event tickets marked paid: sales like on the dashboard.
-                prisma.eventRegistration.findMany({
-                    where: {
-                        workspaceId: scope.workspaceId,
-                        ...ticketsPaidInRangeWhere({ gte: windowStart }),
-                    },
-                    select: ticketRevenueSelect,
-                }),
+            const since = revenueWindowStart(now)
+            const windowStart = monthStart < since ? monthStart : since
+            const [current, sales, refunds, awaiting] = await Promise.all([
+                loadCurrentSales(prisma, scope.workspaceId, now),
+                loadSales(prisma, scope.workspaceId, windowStart),
+                loadRefunds(prisma, scope.workspaceId, windowStart),
                 prisma.subscription.findMany({
                     where: awaitingPaymentWhere(scope.workspaceId),
                     select: { amountPaid: true, currency: true },
                 }),
             ])
-            const paid = [...paidSubs, ...paidTickets.map(ticketRevenueRow)]
-            const currency = dominantCurrency(paid) ?? dominantCurrency(awaiting)
-            const sumSince = (from: Date) =>
-                paid
-                    .filter((r) => r.currency === currency && paidOn(r) >= from)
-                    .reduce((s, r) => s + r.amountPaid, 0)
+            const summary = computeRevenue(
+                current,
+                sales.filter((r) => paidOn(r) >= since),
+                refunds.filter((r) => r.refundedAt >= since),
+            )
+            const currency = summary.currency ?? dominantCurrency(awaiting)
             money = {
                 currency,
-                revenue30d: sumSince(since30),
-                revenueThisMonth: sumSince(monthStart),
+                revenue30d: summary.revenue30d,
+                refunded30d: summary.refunded30d,
+                revenueThisMonth: netRevenue(sales, refunds, summary.currency, { gte: monthStart }),
                 unpaid: summarizeAwaiting(awaiting, currency),
-                note: 'Суммы в целых единицах валюты; выручка — оплаченные абонементы и билеты на события по дате оплаты',
+                note: 'Суммы в целых единицах валюты; выручка — оплаченные абонементы и билеты на события по дате оплаты за вычетом возвратов по ним (по дате возврата)',
             }
         }
 

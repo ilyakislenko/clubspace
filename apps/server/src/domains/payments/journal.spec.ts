@@ -3,7 +3,9 @@ import {
     type JournalFilter,
     JOURNAL_MAX_DEPTH,
     journalSubscriptionWhere,
+    journalRefundWhere,
     journalTicketWhere,
+    fullRefundCancelsRegistration,
     loadJournalEntry,
     loadJournalPage,
     loadJournalPeople,
@@ -12,6 +14,8 @@ import {
     loadUnappliedPayments,
     mergeJournalRows,
     parseJournalEntryId,
+    refundJournalRow,
+    loadSaleRefunds,
     resolveJournalPeriod,
     subscriptionJournalRow,
     summarizeJournalTotals,
@@ -30,6 +34,7 @@ const sub = (id: string, at: string, over: Record<string, unknown> = {}) => ({
     paidAt: new Date(at),
     createdAt: new Date('2026-10-01T00:00:00Z'),
     amountPaid: 4000,
+    refundedAmount: 0,
     currency: 'RUB',
     paymentMethod: 'CASH' as const,
     markedPaidById: 'staff-1',
@@ -46,6 +51,7 @@ const ticket = (id: string, at: string, over: Record<string, unknown> = {}) => (
     paidAt: new Date(at),
     createdAt: new Date('2026-10-01T00:00:00Z'),
     amountPaid: 1500,
+    refundedAmount: 0,
     currency: 'RUB',
     paymentMethod: 'TRANSFER' as const,
     markedPaidById: 'staff-2',
@@ -57,10 +63,33 @@ const ticket = (id: string, at: string, over: Record<string, unknown> = {}) => (
     ...over,
 })
 
+const refund = (id: string, at: string, over: Record<string, unknown> = {}) => ({
+    id,
+    refundedAt: new Date(at),
+    amount: 1000,
+    currency: 'RUB',
+    method: 'CASH' as const,
+    reason: 'Пропустил две недели',
+    createdById: 'staff-1',
+    userId: 'u1',
+    itemName: 'БЖЖ 12',
+    user: person,
+    subscription: { id: 's1', paidAt: new Date('2026-11-01T10:00:00Z'), createdAt: new Date('2026-10-01T00:00:00Z'), amountPaid: 4000 },
+    eventRegistration: null,
+    payment: null,
+    ...over,
+})
+
 // A source that honours the `take` it is asked for, like the database.
 const source = <T>(rows: T[]) => jest.fn(async (args: { take?: number }) => rows.slice(0, args.take ?? rows.length))
 
-const prismaWith = (o: { subs?: unknown[]; tickets?: unknown[] } = {}) => ({
+const prismaWith = (o: { subs?: unknown[]; tickets?: unknown[]; refunds?: unknown[] } = {}) => ({
+    refund: {
+        findMany: source(o.refunds ?? []),
+        count: jest.fn().mockResolvedValue((o.refunds ?? []).length),
+        groupBy: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+    },
     subscription: {
         findMany: source(o.subs ?? []),
         count: jest.fn().mockResolvedValue((o.subs ?? []).length),
@@ -72,6 +101,7 @@ const prismaWith = (o: { subs?: unknown[]; tickets?: unknown[] } = {}) => ({
         count: jest.fn().mockResolvedValue((o.tickets ?? []).length),
         groupBy: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn().mockResolvedValue(null),
     },
     payment: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
     user: { findMany: jest.fn().mockResolvedValue([]) },
@@ -152,6 +182,19 @@ describe('where-builders', () => {
         expect(journalTicketWhere({ ...base, q: 'Иван' })).toMatchObject({ user: { AND: [expect.any(Object)] } })
     })
 
+    it('refunds of sales only (never of an unapplied payment), by refund date; their own method, the refunder', () => {
+        expect(journalRefundWhere(base)).toEqual({
+            workspaceId: 'w1',
+            refundedAt: RANGE,
+            OR: [{ subscriptionId: { not: null } }, { eventRegistrationId: { not: null } }],
+        })
+        expect(journalRefundWhere({ ...base, method: 'CARD', markedById: 'staff-1' })).toMatchObject({
+            method: 'CARD',
+            createdById: 'staff-1',
+        })
+        expect(journalRefundWhere({ ...base, q: 'Иван' })).toMatchObject({ user: { AND: [expect.any(Object)] } })
+    })
+
     it('an unapplied online payment is never read as a sale', () => {
         // Sales come from Subscription / EventRegistration only; the strip
         // reads Payment rows that succeeded but could not be granted.
@@ -169,7 +212,8 @@ describe('rows', () => {
             sub('s1', '2026-11-03T11:40:00Z', {
                 paymentMethod: 'ONLINE',
                 markedPaidById: null,
-                payment: { id: 'p1', provider: 'YOOKASSA', providerPaymentId: 'yk-00ab12cd', status: 'SUCCEEDED' },
+                payment: { id: 'p1', provider: 'YOOKASSA', providerPaymentId: 'yk-00ab12cd', status: 'SUCCEEDED', amount: 4000, refundedAmount: 0 },
+                refundedAmount: 1000,
             }),
         )
         expect(row).toMatchObject({
@@ -182,7 +226,32 @@ describe('rows', () => {
             subscriptionId: 's1',
             markedById: null,
             online: { id: 'p1' },
+            refundedAmount: 1000,
+            reason: null,
+            refundOf: null,
         })
+    })
+
+    it('a refund row: positive amount, its own method, who refunded, the reason and the sale it returns', () => {
+        expect(refundJournalRow(refund('f1', '2026-11-12T09:00:00Z'))).toMatchObject({
+            id: 'ref:f1',
+            kind: 'refund',
+            source: 'abonement',
+            amount: 1000,
+            method: 'CASH',
+            markedById: 'staff-1',
+            subscriptionId: 's1',
+            refundedAmount: 0,
+            reason: 'Пропустил две недели',
+            refundOf: { id: 'sub:s1', at: new Date('2026-11-01T10:00:00Z'), amount: 4000 },
+        })
+        const ofTicket = refundJournalRow(
+            refund('f2', '2026-11-12T09:00:00Z', {
+                subscription: null,
+                eventRegistration: { id: 'r1', eventId: 'e1', paidAt: null, createdAt: new Date('2026-11-02T00:00:00Z'), amountPaid: 1500 },
+            }),
+        )
+        expect(ofTicket).toMatchObject({ source: 'ticket', eventRegistrationId: 'r1', eventId: 'e1', refundOf: { id: 'reg:r1', amount: 1500 } })
     })
 
     it('a legacy abonement without a holder column falls back to its membership', () => {
@@ -191,7 +260,7 @@ describe('rows', () => {
     })
 
     it('a ticket row: event currency when its own is missing; online only when paid online', () => {
-        const online = { id: 'p2', provider: 'STRIPE', providerPaymentId: 'cs_1', status: 'SUCCEEDED' }
+        const online = { id: 'p2', provider: 'STRIPE', providerPaymentId: 'cs_1', status: 'SUCCEEDED', amount: 1500, refundedAmount: 0 }
         expect(
             ticketJournalRow(ticket('r1', '2026-11-03T11:40:00Z', { currency: null, amountPaid: null, payments: [online] })),
         ).toMatchObject({ id: 'reg:r1', currency: 'RUB', amount: 0, online: null, eventId: 'e1' })
@@ -240,13 +309,31 @@ describe('loadJournalPage', () => {
         ).resolves.toMatchObject({ total: 3 })
     })
 
-    it('«only refunds» has no sales to show', async () => {
-        const prisma = prismaWith({ subs, tickets })
-        expect(await loadJournalPage(prisma as never, { ...base, kind: 'refund' }, { curPage: 1, perPage: 50 })).toEqual({
-            rows: [],
-            total: 0,
+    it('refunds merge in by refund date and count in the total', async () => {
+        const prisma = prismaWith({ subs, tickets, refunds: [refund('f1', '2026-11-06T10:00:00Z')] })
+        const page = await loadJournalPage(prisma as never, base, { curPage: 1, perPage: 4 })
+        expect(page.rows.map((r) => r.id)).toEqual(['sub:s3', 'reg:r2', 'ref:f1', 'sub:s2'])
+        expect(page.total).toBe(6)
+        expect(prisma.refund.findMany.mock.calls[0][0]).toMatchObject({
+            take: 4,
+            orderBy: [{ refundedAt: 'desc' }, { id: 'desc' }],
+            where: journalRefundWhere(base),
+        })
+    })
+
+    it('«only refunds» reads refunds alone; «only payments» and «Не указан» read no refunds', async () => {
+        const refunds = [refund('f1', '2026-11-06T10:00:00Z')]
+        let prisma = prismaWith({ subs, tickets, refunds })
+        expect(await loadJournalPage(prisma as never, { ...base, kind: 'refund' }, { curPage: 1, perPage: 50 })).toMatchObject({
+            rows: [{ id: 'ref:f1' }],
+            total: 1,
         })
         expect(prisma.subscription.findMany).not.toHaveBeenCalled()
+        for (const f of [{ ...base, kind: 'payment' as const }, { ...base, method: 'NONE' as const }]) {
+            prisma = prismaWith({ subs, tickets, refunds })
+            expect((await loadJournalPage(prisma as never, f, { curPage: 1, perPage: 50 })).total).toBe(5)
+            expect(prisma.refund.findMany).not.toHaveBeenCalled()
+        }
     })
 
     it('the CSV reads every row, unpaged, in the same order', async () => {
@@ -268,11 +355,11 @@ describe('totals', () => {
     it('per currency (dominant first) and method (fixed order); NONE for nothing recorded; empty methods left out', () => {
         expect(
             summarizeJournalTotals([
-                { method: 'ONLINE', currency: 'RUB', amount: 5000, count: 1 },
-                { method: null, currency: 'RUB', amount: 800, count: 1 },
-                { method: 'CASH', currency: 'USD', amount: 50, count: 1 },
-                { method: 'CASH', currency: 'RUB', amount: 3000, count: 2 },
-                { method: 'CARD', currency: 'RUB', amount: 0, count: 0 },
+                { kind: 'payment', method: 'ONLINE', currency: 'RUB', amount: 5000, count: 1 },
+                { kind: 'payment', method: null, currency: 'RUB', amount: 800, count: 1 },
+                { kind: 'payment', method: 'CASH', currency: 'USD', amount: 50, count: 1 },
+                { kind: 'payment', method: 'CASH', currency: 'RUB', amount: 3000, count: 2 },
+                { kind: 'payment', method: 'CARD', currency: 'RUB', amount: 0, count: 0 },
             ]),
         ).toEqual([
             {
@@ -327,10 +414,37 @@ describe('totals', () => {
         expect(prisma.eventRegistration.groupBy.mock.calls[0][0].where).toEqual(journalTicketWhere(f))
     })
 
-    it('«only refunds» totals nothing in phase A', async () => {
+    it('a refund counts as refunded under its own method, never as received, nor as a payment row', () => {
+        expect(
+            summarizeJournalTotals([
+                { kind: 'payment', method: 'CASH', currency: 'RUB', amount: 4000, count: 1 },
+                { kind: 'refund', method: 'CASH', currency: 'RUB', amount: 1000, count: 1 },
+                { kind: 'refund', method: 'TRANSFER', currency: 'RUB', amount: 500, count: 1 },
+            ]),
+        ).toEqual([
+            {
+                currency: 'RUB',
+                received: 4000,
+                refunded: 1500,
+                net: 2500,
+                byMethod: [
+                    { method: 'CASH', received: 4000, refunded: 1000, count: 1 },
+                    { method: 'TRANSFER', received: 0, refunded: 500, count: 0 },
+                ],
+            },
+        ])
+    })
+
+    it('«only refunds» totals refunds alone, grouped by their method', async () => {
         const prisma = prismaWith()
-        expect(await loadJournalTotals(prisma as never, { ...base, kind: 'refund' })).toEqual([])
+        prisma.refund.groupBy.mockResolvedValue([
+            { method: 'CASH', currency: 'RUB', _sum: { amount: 1000 }, _count: { _all: 1 } },
+        ])
+        expect(await loadJournalTotals(prisma as never, { ...base, kind: 'refund' })).toEqual([
+            { currency: 'RUB', received: 0, refunded: 1000, net: -1000, byMethod: [{ method: 'CASH', received: 0, refunded: 1000, count: 0 }] },
+        ])
         expect(prisma.subscription.groupBy).not.toHaveBeenCalled()
+        expect(prisma.refund.groupBy.mock.calls[0][0]).toMatchObject({ by: ['method', 'currency'], where: journalRefundWhere(base) })
     })
 })
 
@@ -371,10 +485,11 @@ describe('unapplied payments', () => {
 describe('one entry', () => {
     const id = '0d4e8f1a-2b3c-4d5e-8f90-a1b2c3d4e5f6'
 
-    it('parses sub:/reg: ids; anything else is not an entry', () => {
+    it('parses sub:/reg:/ref: ids; anything else is not an entry', () => {
         expect(parseJournalEntryId(`sub:${id}`)).toEqual({ source: 'abonement', id })
         expect(parseJournalEntryId(`reg:${id}`)).toEqual({ source: 'ticket', id })
-        for (const bad of [`ref:${id}`, 'sub:nope', id, `sub:${id}:x`, '']) {
+        expect(parseJournalEntryId(`ref:${id}`)).toEqual({ source: 'refund', id })
+        for (const bad of [`pay:${id}`, 'sub:nope', id, `sub:${id}:x`, '']) {
             expect(parseJournalEntryId(bad)).toBeNull()
         }
     })
@@ -389,9 +504,46 @@ describe('one entry', () => {
         expect(prisma.eventRegistration.findFirst.mock.calls[0][0].where).toEqual({ id, workspaceId: 'w1', isPaid: true })
     })
 
+    it('loads a sale’s refund (never one of an unapplied payment)', async () => {
+        const prisma = prismaWith()
+        prisma.refund.findFirst.mockResolvedValue(refund(id, '2026-11-12T09:00:00Z'))
+        expect(await loadJournalEntry(prisma as never, 'w1', `ref:${id}`)).toMatchObject({ id: `ref:${id}`, kind: 'refund' })
+        expect(prisma.refund.findFirst.mock.calls[0][0].where).toEqual({
+            id,
+            workspaceId: 'w1',
+            OR: [{ subscriptionId: { not: null } }, { eventRegistrationId: { not: null } }],
+        })
+    })
+
+    it('a sale’s refunds, newest first; a refund row has none', async () => {
+        const prisma = prismaWith({ refunds: [refund('f2', '2026-11-12T09:00:00Z'), refund('f1', '2026-11-10T09:00:00Z')] })
+        const row = subscriptionJournalRow(sub('s1', '2026-11-01T10:00:00Z'))
+        expect((await loadSaleRefunds(prisma as never, 'w1', row)).map((r) => r.id)).toEqual(['ref:f2', 'ref:f1'])
+        expect(prisma.refund.findMany.mock.calls[0][0]).toMatchObject({ where: { workspaceId: 'w1', subscriptionId: 's1' } })
+        expect(await loadSaleRefunds(prisma as never, 'w1', refundJournalRow(refund('f1', '2026-11-10T09:00:00Z')))).toEqual([])
+    })
+
+    it('a full refund cancels only a live ticket of an event that has not started', async () => {
+        const prisma = prismaWith()
+        const row = ticketJournalRow(ticket('r1', '2026-11-03T00:00:00Z'))
+        const reg = (status: string, startAt: string) => ({ status, event: { startAt: new Date(startAt) } })
+        prisma.eventRegistration.findUnique.mockResolvedValueOnce(reg('BOOKED', '2026-11-20T10:00:00Z'))
+        expect(await fullRefundCancelsRegistration(prisma as never, row, NOW)).toBe(true)
+        prisma.eventRegistration.findUnique.mockResolvedValueOnce(reg('BOOKED', '2026-11-10T10:00:00Z'))
+        expect(await fullRefundCancelsRegistration(prisma as never, row, NOW)).toBe(false)
+        prisma.eventRegistration.findUnique.mockResolvedValueOnce(reg('CANCELLED', '2026-11-20T10:00:00Z'))
+        expect(await fullRefundCancelsRegistration(prisma as never, row, NOW)).toBe(false)
+        const abonement = subscriptionJournalRow(sub('s1', '2026-11-01T10:00:00Z'))
+        expect(await fullRefundCancelsRegistration(prisma as never, abonement, NOW)).toBe(false)
+        const refunded = ticketJournalRow(ticket('r1', '2026-11-03T00:00:00Z', { refundedAmount: 1500 }))
+        expect(await fullRefundCancelsRegistration(prisma as never, refunded, NOW)).toBe(false)
+        expect(prisma.eventRegistration.findUnique).toHaveBeenCalledTimes(3)
+    })
+
     it('null for a malformed id or a row that is not a sale', async () => {
         const prisma = prismaWith()
         expect(await loadJournalEntry(prisma as never, 'w1', 'ref:x')).toBeNull()
+        expect(await loadJournalEntry(prisma as never, 'w1', `ref:${id}`)).toBeNull()
         expect(prisma.subscription.findFirst).not.toHaveBeenCalled()
         expect(await loadJournalEntry(prisma as never, 'w1', `sub:${id}`)).toBeNull()
         expect(await loadJournalEntry(prisma as never, 'w1', `reg:${id}`)).toBeNull()

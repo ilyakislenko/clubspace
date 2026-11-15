@@ -28,7 +28,11 @@ import {
   CLUB_PAYMENT_METHODS,
   PAYMENT_METHOD_LABEL,
 } from "../subscriptions/payment-method"
-import { formatAmount } from "../subscriptions/subscription-display"
+import {
+  canUndoPaymentMark,
+  formatAmount,
+  ticketEntryHref,
+} from "../subscriptions/subscription-display"
 
 const statusLabel = (r: EventRegistrant): string =>
   r.status === "BOOKED"
@@ -46,10 +50,11 @@ type Props = {
 
 // Who registered for a master class (an event with a price or a limit of
 // places) and who paid — at the club (cash / a transfer, marked here) or
-// online (marked by the payment; refunded from «Платежи»). Own fetch;
-// refreshes live as members register, cancel and move up from the waitlist.
+// online (marked by the payment). Money goes back from the ticket's row in
+// «Платежи». Own fetch; refreshes live as members register, cancel and move
+// up from the waitlist.
 export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Props) {
-  // Refunds (online payments) are the club admins'.
+  // Refunds («Платежи») are the club admins'.
   const canRefund = isClubAdmin(useMyMembership(workspaceId))
   const [data, setData] = useState<EventRegistrations | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -169,7 +174,7 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
               </div>
               {paid &&
                 (r.isPaid ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
                       Оплачено
                       {r.amountPaid !== null && r.currency
@@ -179,34 +184,48 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
                         ? ` · ${PAYMENT_METHOD_LABEL[r.paymentMethod].toLowerCase()}`
                         : ""}
                     </span>
-                    {r.status === "CANCELLED" && (
+                    {r.refundedAmount > 0 && r.currency && (
                       <span className="text-xs text-muted-foreground">
-                        запись отменена — верните деньги и снимите отметку
+                        возвращено {formatAmount(r.refundedAmount, r.currency)}
                       </span>
                     )}
-                    {canUnmark &&
-                      (r.paymentMethod === "ONLINE" ? (
-                        // Paid through the club's provider: the money goes
-                        // back by a refund, which takes the mark back too.
-                        canRefund && (
-                          <Link
-                            href={`/workspace/${workspaceId}/subscriptions/payments`}
-                            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                          >
-                            Возврат — в «Абонементы → Платежи»
-                          </Link>
-                        )
-                      ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          disabled={busyId === r.id}
-                          onClick={() => void unmark(r)}
+                    {r.status === "CANCELLED" &&
+                      (r.amountPaid === null || r.refundedAmount < r.amountPaid) &&
+                      (canRefund ? (
+                        <Link
+                          href={ticketEntryHref(workspaceId, r.id)}
+                          className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                         >
-                          Снять
-                        </Button>
+                          запись отменена — верните деньги
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          запись отменена — верните деньги и снимите отметку
+                        </span>
                       ))}
+                    {canUnmark && canUndoPaymentMark(r) ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={busyId === r.id}
+                        onClick={() => void unmark(r)}
+                      >
+                        Снять
+                      </Button>
+                    ) : (
+                      // Paid online or already partly returned: the mark
+                      // stays; the money goes back from the ticket's row.
+                      canRefund &&
+                      r.status !== "CANCELLED" && (
+                        <Link
+                          href={ticketEntryHref(workspaceId, r.id)}
+                          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                        >
+                          Возврат — в «Абонементы → Платежи»
+                        </Link>
+                      )
+                    )}
                   </div>
                 ) : r.status === "BOOKED" ? (
                   // Payment is taken for a place: the waitlist pays once moved up.

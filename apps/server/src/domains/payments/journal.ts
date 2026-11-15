@@ -1,11 +1,12 @@
 // «Платежи» — the payments journal (docs/design/2026-11-15-payments-journal.md
 // §1, §3.1). Its rows are the sales revenue already counts (glossary B2
-// `revenue_30d`): paid abonements and paid event tickets, dated by payment.
-// No ledger table: each source is read where it lives, merged and sliced, so
-// the journal's «Итого» over a period is that period's revenue by
-// construction. An online Payment is the provider's side of a sale and hangs
-// off its row (`online`); a paid-but-unapplied one (activationError) is not a
-// sale and only shows in the «needs decision» strip.
+// `payments_received`): paid abonements and paid event tickets, dated by
+// payment — and the refunds of those sales (`refunds`), dated by refund. No
+// ledger table: each source is read where it lives, merged and sliced, so the
+// journal's «Итого» over a period is that period's revenue by construction.
+// An online Payment is the provider's side of a sale and hangs off its row
+// (`online`); a paid-but-unapplied one (activationError) is not a sale and
+// only shows in the «needs decision» strip (its refund is not a journal row).
 
 import { displayName } from '../../features/attendance/schemas'
 import { localDateInTz } from '../../features/attendance/attendance-utils'
@@ -17,13 +18,17 @@ import type { AnalyticsScope } from '../analytics/analytics-reports'
 import { analyticsScopeMemberWhere } from '../analytics/analytics-scope'
 import { DAY_MS } from '../subscriptions/freeze-dates'
 import { userSearchWhere } from '../users/user-search'
-import { revenueWindowStart, ticketsPaidInRangeWhere } from '../metrics/revenue'
+import {
+    refundsInRangeWhere,
+    revenueWindowStart,
+    ticketsPaidInRangeWhere,
+} from '../metrics/revenue'
 
 // A sale's method as the journal filters and totals it: the stored
 // PaymentMethod, or NONE where nothing was recorded («Не указан»).
 export const JOURNAL_METHODS = ['CASH', 'TRANSFER', 'CARD', 'ONLINE', 'NONE'] as const
 export type JournalMethod = (typeof JOURNAL_METHODS)[number]
-// Payments, refunds (phase B) or both.
+// Payments, refunds or both.
 export const JOURNAL_KINDS = ['all', 'payment', 'refund'] as const
 export type JournalKind = (typeof JOURNAL_KINDS)[number]
 
@@ -44,7 +49,7 @@ export type JournalFilter = {
     method?: JournalMethod
     kind?: JournalKind
     // Payments: who marked them paid (Subscription / EventRegistration
-    // markedPaidById).
+    // markedPaidById); refunds: who refunded (Refund.createdById).
     markedById?: string
     // The analytics scope (members of the matching groups); groupIds null =
     // the whole club, no narrowing.
@@ -127,8 +132,37 @@ export const journalTicketWhere = (f: JournalFilter): Prisma.EventRegistrationWh
     }
 }
 
+// Refunds of sales (never of an unapplied payment) in the period, by refund
+// date. `method` is the refund's own; the scope and the search go on the
+// holder, like tickets.
+export const journalRefundWhere = (f: JournalFilter): Prisma.RefundWhereInput => {
+    const user: Prisma.UserWhereInput[] = [
+        ...(scoped(f)
+            ? [
+                  {
+                      workspaceMemberships: {
+                          some: { workspaceId: f.workspaceId, ...analyticsScopeMemberWhere(f.scope) },
+                      },
+                  },
+              ]
+            : []),
+        ...(f.q ? userSearchWhere(f.q) : []),
+    ]
+    return {
+        workspaceId: f.workspaceId,
+        // The same refunds revenue subtracts (revenue.ts refundsInRangeWhere).
+        ...refundsInRangeWhere(f.range),
+        ...(f.method && f.method !== 'NONE' ? { method: f.method } : {}),
+        ...(f.markedById ? { createdById: f.markedById } : {}),
+        ...(user.length > 0 ? { user: { AND: user } } : {}),
+    }
+}
+
 // Sales are rows of every kind but «only refunds».
 const includesSales = (f: JournalFilter) => f.kind !== 'refund'
+// Refunds are rows of every kind but «only payments»; a refund always has a
+// method, so «Не указан» has none.
+const includesRefunds = (f: JournalFilter) => f.kind !== 'payment' && f.method !== 'NONE'
 
 // ---- Rows ----
 
@@ -138,6 +172,8 @@ const onlineSelect = {
     provider: true,
     providerPaymentId: true,
     status: true,
+    amount: true,
+    refundedAmount: true,
 } as const
 
 export const journalSubscriptionSelect = {
@@ -145,6 +181,7 @@ export const journalSubscriptionSelect = {
     paidAt: true,
     createdAt: true,
     amountPaid: true,
+    refundedAmount: true,
     currency: true,
     paymentMethod: true,
     markedPaidById: true,
@@ -162,6 +199,7 @@ export const journalTicketSelect = {
     paidAt: true,
     createdAt: true,
     amountPaid: true,
+    refundedAmount: true,
     currency: true,
     paymentMethod: true,
     markedPaidById: true,
@@ -170,31 +208,54 @@ export const journalTicketSelect = {
     event: { select: { title: true, currency: true } },
     user: personSelect,
     // The payment that marked it paid online (one at most; any other that
-    // succeeded carries an activationError).
+    // succeeded carries an activationError). REFUNDED: refunded in full.
     payments: {
-        where: { status: 'SUCCEEDED', activationError: null },
+        where: { status: { in: ['SUCCEEDED' as const, 'REFUNDED' as const] }, activationError: null },
         orderBy: { createdAt: 'desc' },
         take: 1,
         select: onlineSelect,
     },
 } satisfies Prisma.EventRegistrationSelect
 
+// The refunded sale as the refund row names it (`refundOf`).
+const refundedSaleSelect = { id: true, paidAt: true, createdAt: true, amountPaid: true } as const
+
+export const journalRefundSelect = {
+    id: true,
+    refundedAt: true,
+    amount: true,
+    currency: true,
+    method: true,
+    reason: true,
+    createdById: true,
+    userId: true,
+    itemName: true,
+    user: personSelect,
+    subscription: { select: refundedSaleSelect },
+    eventRegistration: { select: { ...refundedSaleSelect, eventId: true } },
+    payment: { select: onlineSelect },
+} satisfies Prisma.RefundSelect
+
 type Person = { firstname: string | null; lastname: string | null; email: string | null }
-type OnlineRow = {
+export type JournalOnline = {
     id: string
     provider: 'YOOKASSA' | 'STRIPE'
     providerPaymentId: string | null
     status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED'
+    amount: number
+    refundedAmount: number
 }
 
 // One journal row, source-independent. `id` is the public key
-// (`sub:<uuid>` / `reg:<uuid>`), `rawId` the source row's id.
+// (`sub:<uuid>` / `reg:<uuid>` / `ref:<uuid>`), `rawId` the source row's id.
 export type JournalRow = {
     id: string
     rawId: string
-    kind: 'payment'
+    kind: 'payment' | 'refund'
+    // A refund row: the refunded sale's source.
     source: 'abonement' | 'ticket'
     at: Date
+    // Positive on both kinds; a refund is drawn (and exported) as «−».
     amount: number
     currency: string
     method: PaymentMethodValue | null
@@ -204,9 +265,15 @@ export type JournalRow = {
     subscriptionId: string | null
     eventRegistrationId: string | null
     eventId: string | null
+    // Payment: who marked it paid; refund: who refunded.
     markedById: string | null
     classesTotal: number | null
-    online: OnlineRow | null
+    online: JournalOnline | null
+    // Payment rows: Σ of the sale's refunds (0 on refund rows).
+    refundedAmount: number
+    // Refund rows only.
+    reason: string | null
+    refundOf: { id: string; at: Date; amount: number } | null
 }
 
 type SubscriptionJournalRecord = {
@@ -214,6 +281,7 @@ type SubscriptionJournalRecord = {
     paidAt: Date | null
     createdAt: Date
     amountPaid: number
+    refundedAmount: number
     currency: string
     paymentMethod: PaymentMethodValue | null
     markedPaidById: string | null
@@ -222,7 +290,7 @@ type SubscriptionJournalRecord = {
     plan: { name: string }
     user: Person | null
     workspaceMember: { userId: string; user: Person } | null
-    payment: OnlineRow | null
+    payment: JournalOnline | null
 }
 
 type TicketJournalRecord = {
@@ -230,6 +298,7 @@ type TicketJournalRecord = {
     paidAt: Date | null
     createdAt: Date
     amountPaid: number | null
+    refundedAmount: number
     currency: string | null
     paymentMethod: PaymentMethodValue | null
     markedPaidById: string | null
@@ -237,7 +306,25 @@ type TicketJournalRecord = {
     eventId: string
     event: { title: string; currency: string }
     user: Person
-    payments: OnlineRow[]
+    payments: JournalOnline[]
+}
+
+type RefundedSale = { id: string; paidAt: Date | null; createdAt: Date; amountPaid: number | null }
+
+type RefundJournalRecord = {
+    id: string
+    refundedAt: Date
+    amount: number
+    currency: string
+    method: PaymentMethodValue
+    reason: string
+    createdById: string
+    userId: string
+    itemName: string
+    user: Person
+    subscription: RefundedSale | null
+    eventRegistration: (RefundedSale & { eventId: string }) | null
+    payment: JournalOnline | null
 }
 
 export const subscriptionJournalRow = (s: SubscriptionJournalRecord): JournalRow => ({
@@ -260,6 +347,9 @@ export const subscriptionJournalRow = (s: SubscriptionJournalRecord): JournalRow
     markedById: s.markedPaidById,
     classesTotal: s.classesTotal,
     online: s.payment,
+    refundedAmount: s.refundedAmount,
+    reason: null,
+    refundOf: null,
 })
 
 export const ticketJournalRow = (t: TicketJournalRecord): JournalRow => ({
@@ -281,7 +371,42 @@ export const ticketJournalRow = (t: TicketJournalRecord): JournalRow => ({
     classesTotal: null,
     // Paid at the club after an online attempt: the method decides.
     online: t.paymentMethod === 'ONLINE' ? (t.payments[0] ?? null) : null,
+    refundedAmount: t.refundedAmount,
+    reason: null,
+    refundOf: null,
 })
+
+export const refundJournalRow = (r: RefundJournalRecord): JournalRow => {
+    const sale = r.subscription ?? r.eventRegistration
+    return {
+        id: `ref:${r.id}`,
+        rawId: r.id,
+        kind: 'refund',
+        source: r.subscription ? 'abonement' : 'ticket',
+        at: r.refundedAt,
+        amount: r.amount,
+        currency: r.currency,
+        method: r.method,
+        userId: r.userId,
+        person: r.user,
+        itemName: r.itemName,
+        subscriptionId: r.subscription?.id ?? null,
+        eventRegistrationId: r.eventRegistration?.id ?? null,
+        eventId: r.eventRegistration?.eventId ?? null,
+        markedById: r.createdById,
+        classesTotal: null,
+        online: r.payment,
+        refundedAmount: 0,
+        reason: r.reason,
+        refundOf: sale
+            ? {
+                  id: r.subscription ? `sub:${sale.id}` : `reg:${sale.id}`,
+                  at: sale.paidAt ?? sale.createdAt,
+                  amount: sale.amountPaid ?? 0,
+              }
+            : null,
+    }
+}
 
 // Newest first; within one instant by id, descending — the order every
 // source is read in, so a merge of the sources' first N rows is the first N.
@@ -292,27 +417,45 @@ export const mergeJournalRows = (sources: JournalRow[][]): JournalRow[] =>
     sources.flat().sort(compareJournalRows)
 
 const journalOrderBy = [{ paidAt: 'desc' as const }, { id: 'desc' as const }]
+const refundOrderBy = [{ refundedAt: 'desc' as const }, { id: 'desc' as const }]
 
 const readSources = async (
     prisma: PrismaService,
     f: JournalFilter,
     take: number | undefined,
 ): Promise<JournalRow[][]> => {
-    const [subs, tickets] = await Promise.all([
-        prisma.subscription.findMany({
-            where: journalSubscriptionWhere(f),
-            orderBy: journalOrderBy,
-            ...(take === undefined ? {} : { take }),
-            select: journalSubscriptionSelect,
-        }),
-        prisma.eventRegistration.findMany({
-            where: journalTicketWhere(f),
-            orderBy: journalOrderBy,
-            ...(take === undefined ? {} : { take }),
-            select: journalTicketSelect,
-        }),
+    const limit: { take?: number } = take === undefined ? {} : { take }
+    const [subs, tickets, refunds] = await Promise.all([
+        includesSales(f)
+            ? prisma.subscription.findMany({
+                  where: journalSubscriptionWhere(f),
+                  orderBy: journalOrderBy,
+                  ...limit,
+                  select: journalSubscriptionSelect,
+              })
+            : [],
+        includesSales(f)
+            ? prisma.eventRegistration.findMany({
+                  where: journalTicketWhere(f),
+                  orderBy: journalOrderBy,
+                  ...limit,
+                  select: journalTicketSelect,
+              })
+            : [],
+        includesRefunds(f)
+            ? prisma.refund.findMany({
+                  where: journalRefundWhere(f),
+                  orderBy: refundOrderBy,
+                  ...limit,
+                  select: journalRefundSelect,
+              })
+            : [],
     ])
-    return [subs.map(subscriptionJournalRow), tickets.map(ticketJournalRow)]
+    return [
+        subs.map(subscriptionJournalRow),
+        tickets.map(ticketJournalRow),
+        refunds.map(refundJournalRow),
+    ]
 }
 
 // One page: each source's first curPage × perPage rows, merged, sliced.
@@ -326,15 +469,15 @@ export const loadJournalPage = async (
     if (depth > JOURNAL_MAX_DEPTH) {
         throw new BadRequestError({ message: JOURNAL_TOO_DEEP_MESSAGE })
     }
-    if (!includesSales(f)) return { rows: [], total: 0 }
-    const [sources, subCount, ticketCount] = await Promise.all([
+    const [sources, subCount, ticketCount, refundCount] = await Promise.all([
         readSources(prisma, f, depth),
-        prisma.subscription.count({ where: journalSubscriptionWhere(f) }),
-        prisma.eventRegistration.count({ where: journalTicketWhere(f) }),
+        includesSales(f) ? prisma.subscription.count({ where: journalSubscriptionWhere(f) }) : 0,
+        includesSales(f) ? prisma.eventRegistration.count({ where: journalTicketWhere(f) }) : 0,
+        includesRefunds(f) ? prisma.refund.count({ where: journalRefundWhere(f) }) : 0,
     ])
     return {
         rows: mergeJournalRows(sources).slice((page.curPage - 1) * page.perPage, depth),
-        total: subCount + ticketCount,
+        total: subCount + ticketCount + refundCount,
     }
 }
 
@@ -342,8 +485,7 @@ export const loadJournalPage = async (
 export const loadJournalRows = async (
     prisma: PrismaService,
     f: JournalFilter,
-): Promise<JournalRow[]> =>
-    includesSales(f) ? mergeJournalRows(await readSources(prisma, f, undefined)) : []
+): Promise<JournalRow[]> => mergeJournalRows(await readSources(prisma, f, undefined))
 
 // ---- People on the rows ----
 
@@ -389,6 +531,7 @@ export const loadJournalPeople = async (
 // ---- Totals ----
 
 export type JournalTotalBucket = {
+    kind: 'payment' | 'refund'
     method: PaymentMethodValue | null
     currency: string
     amount: number
@@ -410,19 +553,24 @@ export type JournalCurrencyTotal = {
     byMethod: JournalMethodTotal[]
 }
 
-// Per currency, the dominant one first (most rows; ties by first seen, as
-// revenue.ts dominantCurrency), then by method in a fixed order; methods with
-// nothing are left out.
+// Per currency, the dominant one first (most payment rows; ties by first
+// seen, as revenue.ts dominantCurrency), then by method in a fixed order;
+// methods with nothing are left out. A refund counts as refunded under its
+// own method, never as received.
 export const summarizeJournalTotals = (buckets: JournalTotalBucket[]): JournalCurrencyTotal[] => {
     const byCurrency = new Map<string, { count: number; methods: Map<JournalMethod, JournalMethodTotal> }>()
     for (const b of buckets) {
         if (b.count === 0) continue
         const cur = byCurrency.get(b.currency) ?? { count: 0, methods: new Map() }
         byCurrency.set(b.currency, cur)
-        cur.count += b.count
         const method: JournalMethod = b.method ?? 'NONE'
         const m = cur.methods.get(method) ?? { method, received: 0, refunded: 0, count: 0 }
         cur.methods.set(method, m)
+        if (b.kind === 'refund') {
+            m.refunded += b.amount
+            continue
+        }
+        cur.count += b.count
         m.received += b.amount
         m.count += b.count
     }
@@ -445,31 +593,53 @@ export const loadJournalTotals = async (
     prisma: PrismaService,
     f: JournalFilter,
 ): Promise<JournalCurrencyTotal[]> => {
-    if (!includesSales(f)) return []
     const ticketWhere = journalTicketWhere(f)
-    const [subs, tickets] = await Promise.all([
-        prisma.subscription.groupBy({
-            by: ['paymentMethod', 'currency'],
-            where: journalSubscriptionWhere(f),
-            _sum: { amountPaid: true },
-            _count: { _all: true },
-        }),
-        prisma.eventRegistration.groupBy({
-            by: ['paymentMethod', 'currency'],
-            where: ticketWhere,
-            _sum: { amountPaid: true },
-            _count: { _all: true },
-        }),
+    const [subs, tickets, refunds] = await Promise.all([
+        includesSales(f)
+            ? prisma.subscription.groupBy({
+                  by: ['paymentMethod', 'currency'],
+                  where: journalSubscriptionWhere(f),
+                  _sum: { amountPaid: true },
+                  _count: { _all: true },
+              })
+            : [],
+        includesSales(f)
+            ? prisma.eventRegistration.groupBy({
+                  by: ['paymentMethod', 'currency'],
+                  where: ticketWhere,
+                  _sum: { amountPaid: true },
+                  _count: { _all: true },
+              })
+            : [],
+        includesRefunds(f)
+            ? prisma.refund.groupBy({
+                  by: ['method', 'currency'],
+                  where: journalRefundWhere(f),
+                  _sum: { amount: true },
+                  _count: { _all: true },
+              })
+            : [],
     ])
-    const buckets: JournalTotalBucket[] = subs.map((g) => ({
+    const buckets = subs.map((g): JournalTotalBucket => ({
+        kind: 'payment',
         method: g.paymentMethod,
         currency: g.currency,
         amount: g._sum.amountPaid ?? 0,
         count: g._count._all,
     }))
+    for (const g of refunds) {
+        buckets.push({
+            kind: 'refund',
+            method: g.method,
+            currency: g.currency,
+            amount: g._sum.amount ?? 0,
+            count: g._count._all,
+        })
+    }
     for (const g of tickets) {
         if (g.currency !== null) {
             buckets.push({
+                kind: 'payment',
                 method: g.paymentMethod,
                 currency: g.currency,
                 amount: g._sum.amountPaid ?? 0,
@@ -485,6 +655,7 @@ export const loadJournalTotals = async (
         })
         for (const r of rows) {
             buckets.push({
+                kind: 'payment',
                 method: g.paymentMethod,
                 currency: r.event.currency,
                 amount: r.amountPaid ?? 0,
@@ -498,7 +669,8 @@ export const loadJournalTotals = async (
 // ---- Unapplied online payments (the «needs decision» strip) ----
 
 // Paid through the checkout, but no abonement / place could be granted. Not a
-// sale: never a row, never revenue; listed until refunded.
+// sale: never a row, never revenue; listed until refunded in full (a partial
+// refund keeps it, with less left to refund).
 export const unappliedPaymentWhere = (workspaceId: string): Prisma.PaymentWhereInput => ({
     workspaceId,
     status: 'SUCCEEDED',
@@ -513,6 +685,7 @@ export type UnappliedPaymentRow = {
     user: Person
     planName: string
     amount: number
+    refundedAmount: number
     currency: string
     provider: 'YOOKASSA' | 'STRIPE'
     activationError: string | null
@@ -537,6 +710,7 @@ export const loadUnappliedPayments = async (
                 user: personSelect,
                 planName: true,
                 amount: true,
+                refundedAmount: true,
                 currency: true,
                 provider: true,
                 activationError: true,
@@ -550,20 +724,22 @@ export const loadUnappliedPayments = async (
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-// `sub:<uuid>` / `reg:<uuid>` → the source row; anything else (including
-// phase B's `ref:`) → null.
+// `sub:<uuid>` / `reg:<uuid>` / `ref:<uuid>` → the source row; anything else
+// → null.
 export const parseJournalEntryId = (
     entryId: string,
-): { source: 'abonement' | 'ticket'; id: string } | null => {
+): { source: 'abonement' | 'ticket' | 'refund'; id: string } | null => {
     const [prefix, id, ...rest] = entryId.split(':')
     if (rest.length > 0 || !id || !UUID.test(id)) return null
     if (prefix === 'sub') return { source: 'abonement', id }
     if (prefix === 'reg') return { source: 'ticket', id }
+    if (prefix === 'ref') return { source: 'refund', id }
     return null
 }
 
-// A paid sale of this club by its journal id; null when it is not one (an
-// unpaid or foreign row is not in the journal).
+// A paid sale or a sale's refund of this club by its journal id; null when it
+// is not one (an unpaid or foreign row is not in the journal, nor is the
+// refund of an unapplied payment).
 export const loadJournalEntry = async (
     prisma: PrismaService,
     workspaceId: string,
@@ -578,9 +754,61 @@ export const loadJournalEntry = async (
         })
         return s ? subscriptionJournalRow(s) : null
     }
+    if (key.source === 'refund') {
+        const r = await prisma.refund.findFirst({
+            where: {
+                id: key.id,
+                workspaceId,
+                OR: [{ subscriptionId: { not: null } }, { eventRegistrationId: { not: null } }],
+            },
+            select: journalRefundSelect,
+        })
+        return r ? refundJournalRow(r) : null
+    }
     const t = await prisma.eventRegistration.findFirst({
         where: { id: key.id, workspaceId, isPaid: true },
         select: journalTicketSelect,
     })
     return t ? ticketJournalRow(t) : null
+}
+
+// A sale's refunds, newest first (none for a refund row).
+export const loadSaleRefunds = async (
+    prisma: PrismaService,
+    workspaceId: string,
+    row: JournalRow,
+): Promise<JournalRow[]> => {
+    if (row.kind !== 'payment') return []
+    const refunds = await prisma.refund.findMany({
+        where: {
+            workspaceId,
+            ...(row.source === 'abonement'
+                ? { subscriptionId: row.rawId }
+                : { eventRegistrationId: row.rawId }),
+        },
+        orderBy: refundOrderBy,
+        select: journalRefundSelect,
+    })
+    return refunds.map(refundJournalRow)
+}
+
+// Refunding everything still refundable on this row would cancel the
+// registration (refund.service → cancelByClubInTx): a ticket whose place is
+// live and whose event has not started.
+export const fullRefundCancelsRegistration = async (
+    prisma: PrismaService,
+    row: JournalRow,
+    now: Date,
+): Promise<boolean> => {
+    if (row.kind !== 'payment' || row.source !== 'ticket') return false
+    if (row.amount - row.refundedAmount <= 0) return false
+    const reg = await prisma.eventRegistration.findUnique({
+        where: { id: row.rawId },
+        select: { status: true, event: { select: { startAt: true } } },
+    })
+    return (
+        !!reg &&
+        (reg.status === 'BOOKED' || reg.status === 'WAITLISTED') &&
+        reg.event.startAt.getTime() > now.getTime()
+    )
 }

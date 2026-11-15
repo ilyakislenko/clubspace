@@ -72,6 +72,14 @@ type LoadedEvent = {
 
 type Promoted = { id: string; userId: string }
 
+// A place the club gave up for the member (cancelByClubInTx).
+export type ClubCancellation = {
+    event: LoadedEvent
+    registrationId: string
+    userId: string
+    promoted: Promoted[]
+}
+
 @Injectable()
 export class EventRegistrationService {
     private readonly logger = new Logger(EventRegistrationService.name)
@@ -200,9 +208,10 @@ export class EventRegistrationService {
 
     // The member gives up their place (or waitlist place); a freed place goes
     // to the waitlist at once. A ticket paid at the club stays marked paid on
-    // the cancelled row — refunding it is the club's call (staff unmark it).
-    // A ticket paid online is not cancelled by the member: the money went
-    // through the app, so the club refunds it (Платежи → «Вернуть») first.
+    // the cancelled row — refunding it is the club's call (a refund in
+    // «Платежи»). A ticket paid online is not cancelled by the member: the
+    // money went through the app, so the club refunds it (a full refund of an
+    // upcoming ticket cancels the place, cancelByClubInTx).
     async cancelOwn(p: {
         workspaceId: string
         userId: string
@@ -335,6 +344,58 @@ export class EventRegistrationService {
             await this.lock(tx, eventId)
             return fn(tx)
         })
+    }
+
+    // Takes the event's row lock inside a caller's transaction (a refund,
+    // which also holds other locks), the same lock withEventLock takes.
+    async lockEventInTx(tx: Tx, eventId: string): Promise<void> {
+        await this.lock(tx, eventId)
+    }
+
+    // A full refund of an upcoming ticket gives the place up for the member,
+    // inside the refund's transaction (domains/payments/services/refund.service):
+    // the place goes to the waitlist like cancelOwn's. Takes the event lock
+    // (a no-op when the caller holds it, withEventLock). The paid row stays the
+    // money's record. Returns null when nothing changed: the registration is no
+    // longer live or the event has started (the place is kept then).
+    async cancelByClubInTx(
+        tx: Tx,
+        p: { registrationId: string; now: Date },
+    ): Promise<ClubCancellation | null> {
+        const reg = await tx.eventRegistration.findUnique({
+            where: { id: p.registrationId },
+            select: { eventId: true },
+        })
+        if (!reg) return null
+        const row = await this.lock(tx, reg.eventId)
+        if (row.startAt.getTime() <= p.now.getTime()) return null
+        // Read under the lock: a waitlisted place may have moved up meanwhile.
+        const current = await tx.eventRegistration.findUniqueOrThrow({
+            where: { id: p.registrationId },
+            select: { id: true, eventId: true, userId: true, status: true },
+        })
+        if (!LIVE.includes(current.status)) return null
+        const freesPlace = current.status === 'BOOKED'
+        await tx.eventRegistration.update({
+            where: { id: current.id },
+            data: { status: 'CANCELLED', cancelledAt: p.now },
+        })
+        const promoted = freesPlace
+            ? await this.promoteInTx(tx, current.eventId, row, p.now)
+            : []
+        const event = await tx.workspaceEvent.findUniqueOrThrow({
+            where: { id: current.eventId },
+            select: eventSelect,
+        })
+        return { event, registrationId: current.id, userId: current.userId, promoted }
+    }
+
+    // After the refund's commit: event screens refetch and whoever got the
+    // freed place hears about it. The holder's own push is the refund's
+    // («Клуб отменил вашу запись и вернул деньги», payment.refunded).
+    async afterClubCancel(c: ClubCancellation): Promise<void> {
+        this.invalidate(c.event.workspaceId)
+        await this.notifyPromoted(c.event, c.promoted)
     }
 
     // Deletes an event together with its registrations — refused while it

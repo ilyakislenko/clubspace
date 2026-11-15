@@ -29,6 +29,7 @@ const sub = {
     paidAt: new Date('2026-11-03T11:40:00Z'),
     createdAt: new Date('2026-11-03T11:40:00Z'),
     amountPaid: 4000,
+    refundedAmount: 1000,
     currency: 'RUB',
     paymentMethod: 'CASH',
     markedPaidById: 'coach-1',
@@ -47,12 +48,36 @@ const unapplied = {
     user: { firstname: 'Ольга', lastname: null, email: null },
     planName: 'Безлимит',
     amount: 6000,
+    refundedAmount: 0,
     currency: 'RUB',
     provider: 'YOOKASSA',
     activationError: 'У участника уже есть абонемент',
 }
 
+const refund = {
+    id: 'f1',
+    refundedAt: new Date('2026-11-05T09:00:00Z'),
+    amount: 1000,
+    currency: 'RUB',
+    method: 'CASH',
+    reason: 'Пропустил две недели',
+    createdById: 'coach-1',
+    userId: 'u1',
+    itemName: 'БЖЖ 12',
+    user: person,
+    subscription: { id: 's1', paidAt: new Date('2026-11-03T11:40:00Z'), createdAt: new Date('2026-11-03T11:40:00Z'), amountPaid: 4000 },
+    eventRegistration: null,
+    payment: null,
+}
+
 const setup = () => ({
+    refund: {
+        findMany: jest.fn().mockResolvedValue([refund]),
+        count: jest.fn().mockResolvedValue(1),
+        groupBy: jest.fn().mockResolvedValue([
+            { method: 'CASH', currency: 'RUB', _sum: { amount: 1000 }, _count: { _all: 1 } },
+        ]),
+    },
     workspace: { findUnique: jest.fn().mockResolvedValue({ timezone: 'Asia/Tomsk' }) },
     subscription: {
         findMany: jest.fn().mockResolvedValue([sub]),
@@ -111,7 +136,7 @@ describe('listPaymentJournal', () => {
         ['an admin', ADMIN],
         ['the owner', OWNER],
     ])('shows the journal to %s', async (_, caller) => {
-        await expect(run(caller).out).resolves.toMatchObject({ total: 1 })
+        await expect(run(caller).out).resolves.toMatchObject({ total: 2 })
     })
 
     it('no dates = the revenue_30d window', async () => {
@@ -170,8 +195,29 @@ describe('listPaymentJournal', () => {
 
     it('maps the rows, the totals and, on page 1, the unapplied strip', async () => {
         const out = await run(ADMIN).out
-        expect(out).toMatchObject({ total: 1, curPage: 1, perPage: 50 })
+        expect(out).toMatchObject({ total: 2, curPage: 1, perPage: 50 })
+        expect(out.data.map((r) => r.id)).toEqual(['ref:f1', 'sub:s1'])
         expect(out.data[0]).toEqual({
+            id: 'ref:f1',
+            kind: 'refund',
+            source: 'abonement',
+            at: '2026-11-05T09:00:00.000Z',
+            amount: 1000,
+            currency: 'RUB',
+            method: 'CASH',
+            member: { userId: 'u1', name: 'Иван Петров', isMember: true },
+            itemName: 'БЖЖ 12',
+            subscriptionId: 's1',
+            eventRegistrationId: null,
+            eventId: null,
+            markedBy: { userId: 'coach-1', name: 'Пётр Тренер' },
+            refundedAmount: 0,
+            refundable: 0,
+            online: null,
+            reason: 'Пропустил две недели',
+            refundOf: { id: 'sub:s1', at: '2026-11-03T11:40:00.000Z', amount: 4000 },
+        })
+        expect(out.data[1]).toEqual({
             id: 'sub:s1',
             kind: 'payment',
             source: 'abonement',
@@ -185,8 +231,8 @@ describe('listPaymentJournal', () => {
             eventRegistrationId: null,
             eventId: null,
             markedBy: { userId: 'coach-1', name: 'Пётр Тренер' },
-            refundedAmount: 0,
-            refundable: 4000,
+            refundedAmount: 1000,
+            refundable: 3000,
             online: null,
             reason: null,
             refundOf: null,
@@ -195,9 +241,9 @@ describe('listPaymentJournal', () => {
             {
                 currency: 'RUB',
                 received: 4000,
-                refunded: 0,
-                net: 4000,
-                byMethod: [{ method: 'CASH', received: 4000, refunded: 0, count: 1 }],
+                refunded: 1000,
+                net: 3000,
+                byMethod: [{ method: 'CASH', received: 4000, refunded: 1000, count: 1 }],
             },
         ])
         expect(out.unapplied).toEqual({

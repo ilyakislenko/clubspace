@@ -58,6 +58,8 @@ describe("actionMetaFor", () => {
     ["export.attendance", "Выгрузка CSV: посещаемость"],
     ["export.revenue", "Выгрузка CSV: выручка"],
     ["export.payments", "Выгрузка CSV: платежи"],
+    ["payment.refund", "Возврат денег"],
+    ["payment.refundDelete", "Запись о возврате удалена"],
     ["group.slotSplit", "Расписание изменено с даты"],
     ["platform.accessClub", "Платформа открыла клуб"],
     ["workspace.create", "Клуб создан"],
@@ -218,6 +220,31 @@ describe("parseMetadata", () => {
       { key: "to", label: "По", value: "15.11.2026" },
       { key: "method", label: "Способ оплаты", value: "наличные" },
       { key: "q", label: "Поиск", value: "Иван" },
+    ])
+  })
+
+  it("spells out a refund", () => {
+    expect(
+      parseMetadata(
+        {
+          refundId: "7b0c2f4e-1a2b-4c3d-8e9f-0a1b2c3d4e5f",
+          target: "ticket",
+          targetId: "11111111-2222-4333-8444-555555555555",
+          amount: 1000,
+          currency: "RUB",
+          method: "TRANSFER",
+          reason: "Болезнь",
+          registrationCancelled: true,
+        },
+        GRAPPLING,
+      ),
+    ).toEqual([
+      { key: "target", label: "Возврат за", value: "событие" },
+      { key: "amount", label: "Сумма", value: "1\u00a0000" },
+      { key: "currency", label: "Валюта", value: "₽" },
+      { key: "method", label: "Способ оплаты", value: "перевод" },
+      { key: "reason", label: "Причина", value: "Болезнь" },
+      { key: "registrationCancelled", label: "Запись на событие отменена", value: "да" },
     ])
   })
 

@@ -54,6 +54,7 @@ const reg = (over: Record<string, unknown> = {}) => ({
     currency: null,
     paymentMethod: null,
     markedPaidById: null,
+    refundedAmount: 0,
     createdAt: new Date('2026-11-01T10:00:00Z'),
     user,
     ...over,
@@ -283,7 +284,7 @@ describe('UnmarkEventRegistrationPaidHandler', () => {
         const { out, audit, realtime } = run(p, rbac('admin'))
         expect(await out).toMatchObject({ isPaid: false, amountPaid: null })
         expect(p.eventRegistration.updateMany.mock.calls[0][0]).toEqual({
-            where: { id: 'r1', isPaid: true, paymentMethod: { not: 'ONLINE' } },
+            where: { id: 'r1', isPaid: true, refundedAmount: 0, paymentMethod: { not: 'ONLINE' } },
             data: {
                 isPaid: false,
                 paidAt: null,
@@ -304,7 +305,20 @@ describe('UnmarkEventRegistrationPaidHandler', () => {
         p.eventRegistration.findFirst.mockResolvedValue(
             reg({ isPaid: true, amountPaid: 1500, currency: 'RUB', paymentMethod: 'ONLINE', event: { id: 'e1', title: 'МК' } }),
         )
-        await expect(run(p, rbac('admin')).out).rejects.toThrow(/Платежи/)
+        await expect(run(p, rbac('admin')).out).rejects.toThrow(
+            'Онлайн-оплату отменяют возвратом в «Платежах»',
+        )
+        expect(p.eventRegistration.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('a ticket with a refund keeps its mark: the refund record goes first', async () => {
+        const p = prisma()
+        p.eventRegistration.findFirst.mockResolvedValue(
+            reg({ isPaid: true, amountPaid: 1500, currency: 'RUB', paymentMethod: 'CASH', refundedAmount: 500, event: { id: 'e1', title: 'МК' } }),
+        )
+        await expect(run(p, rbac('admin')).out).rejects.toThrow(
+            'По этой оплате есть возврат — сначала удалите запись о возврате',
+        )
         expect(p.eventRegistration.updateMany).not.toHaveBeenCalled()
     })
 })

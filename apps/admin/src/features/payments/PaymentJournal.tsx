@@ -23,6 +23,7 @@ import { downloadExport } from "../../shared/api/exports"
 import { listAllStaffMembers, type WorkspaceMember } from "../../shared/api/members"
 import {
   listPaymentJournal,
+  type JournalKind,
   type JournalMethod,
   type PaymentJournalEntry,
   type PaymentJournalPage,
@@ -37,9 +38,11 @@ import { useVocabulary } from "../../shared/lib/vocabulary"
 import { formatAmount } from "../subscriptions/subscription-display"
 import { formatMemberLabel } from "../groups/helpers"
 import {
+  JOURNAL_KINDS,
   JOURNAL_METHODS,
   JOURNAL_Q_MAX,
   JOURNAL_PERIODS,
+  KIND_LABEL,
   PERIOD_LABEL,
   clubToday,
   customRangeError,
@@ -79,8 +82,8 @@ const appendNew = (shown: PaymentJournalEntry[], next: PaymentJournalEntry[]) =>
 
 /**
  * «Абонементы → Платежи»: every payment of a period — abonements and event
- * tickets, cash, transfer, card at the club and online — newest first, with
- * the period's totals per method. The default period is the dashboard's
+ * tickets, cash, transfer, card at the club and online — and every refund of
+ * them, newest first, with the period's totals per method. The default period is the dashboard's
  * «Выручка за 30 дней» window, so the two numbers agree. The URL holds the
  * view; a row opens its details in a side panel (`?entry=`).
  */
@@ -346,7 +349,6 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
                 <p className="text-sm">
                   {line.before}
                   <span className="text-base font-semibold tabular-nums">{line.net}</span>
-                  <span className="text-muted-foreground">{line.after}</span>
                 </p>
                 {methods && <p className="text-sm text-muted-foreground">{methods}</p>}
               </div>
@@ -500,12 +502,34 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
               </Select>
             </div>
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Показывать</Label>
+            <div className="w-48">
+              <Select
+                value={state.kind ?? "all"}
+                onValueChange={(v) =>
+                  update({ kind: v === "all" ? null : (v as Exclude<JournalKind, "all">) })
+                }
+              >
+                <SelectTrigger aria-label="Показывать">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {JOURNAL_KINDS.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {KIND_LABEL[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           {filterCount > 0 && (
             <Button
               type="button"
               variant="ghost"
               className="self-start"
-              onClick={() => update({ scope: EMPTY_ANALYTICS_FILTER, markedById: null })}
+              onClick={() => update({ scope: EMPTY_ANALYTICS_FILTER, markedById: null, kind: null })}
             >
               Сбросить фильтры
             </Button>

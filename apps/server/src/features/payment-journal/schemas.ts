@@ -70,6 +70,9 @@ export const PaymentJournalEntrySchema = z.object({
             // The provider's payment id, last 6 characters.
             providerRef: z.string().nullable(),
             status: PaymentStatusSchema,
+            // What may still go back through the provider (amount − refunded
+            // while SUCCEEDED, else 0).
+            refundable: z.number().int(),
         })
         .nullable(),
     // Refund rows only.
@@ -133,18 +136,24 @@ export const serializePaymentJournalEntry = (
     markedBy: row.markedById
         ? { userId: row.markedById, name: people.names.get(row.markedById) ?? 'Сотрудник' }
         : null,
-    refundedAmount: 0,
-    refundable: row.amount,
+    refundedAmount: row.refundedAmount,
+    refundable: row.kind === 'payment' ? Math.max(0, row.amount - row.refundedAmount) : 0,
     online: row.online
         ? {
               paymentId: row.online.id,
               provider: row.online.provider,
               providerRef: row.online.providerPaymentId?.slice(-6) ?? null,
               status: row.online.status,
+              refundable:
+                  row.online.status === 'SUCCEEDED'
+                      ? Math.max(0, row.online.amount - row.online.refundedAmount)
+                      : 0,
           }
         : null,
-    reason: null,
-    refundOf: null,
+    reason: row.reason,
+    refundOf: row.refundOf
+        ? { id: row.refundOf.id, at: row.refundOf.at.toISOString(), amount: row.refundOf.amount }
+        : null,
 })
 
 export const serializePaymentJournalUnapplied = (
@@ -156,7 +165,7 @@ export const serializePaymentJournalUnapplied = (
     member: { userId: p.userId, name: displayName(p.user), isMember: people.members.has(p.userId) },
     itemName: p.planName,
     amount: p.amount,
-    refundable: p.amount,
+    refundable: Math.max(0, p.amount - p.refundedAmount),
     currency: p.currency,
     provider: p.provider,
     activationError: p.activationError,

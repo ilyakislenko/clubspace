@@ -7,9 +7,11 @@ import { z } from 'zod'
 // Each field is one glossary metric (docs/design/2026-11-08-admin-cleanup.md
 // B2), computed in domains/metrics.
 const RevenueSchema = z.object({
-    // `revenue_30d`: paid in the trailing 30 days (abonements + tickets).
+    // `revenue_30d`: paid in the trailing 30 days (abonements + tickets) minus
+    // the refunds of sales made in those days.
     revenue30d: z.number().int(),
-    // `mrr`: current paid time-boxed abonements, each normalised to 30 days.
+    // `mrr`: current paid time-boxed abonements, each net of its refunds and
+    // normalised to 30 days.
     mrr: z.number().int(),
     // `expected_revenue_30d`: renewals expected within 30 days (hourly snapshot).
     expected30d: z.number().int(),
@@ -20,8 +22,8 @@ const RevenueSchema = z.object({
         students: z.number().int(),
         amount: z.number().int(),
     }),
-    // The same sales paid 31–60 days ago, in revenue30d's currency: the
-    // dashboard's trend against the previous 30 days.
+    // The same rule (sales paid − refunds made) 31–60 days ago, in revenue30d's
+    // currency: the dashboard's trend against the previous 30 days.
     revenuePrev30d: z.number().int(),
 })
 
@@ -31,7 +33,7 @@ const TodaySchema = z.object({
     sessions: z.number().int(), // classes on today's timetable (cancelled excluded)
     checkins: z.number().int(), // `checkins_today`: students' check-ins today
     newStudents: z.number().int(), // `new_students_today`
-    revenue: z.number().int().nullable(), // `revenue_today`
+    revenue: z.number().int().nullable(), // `revenue_today` (net of today's refunds)
     currency: z.string().nullable(),
 })
 

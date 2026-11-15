@@ -106,6 +106,26 @@ describe('PaymentGatewayClient', () => {
         expect(url).toBe('https://api.stripe.com/v1/refunds')
         expect(init.headers['Idempotency-Key']).toBe('refund-pay-1')
         expect(init.body).toContain('payment_intent=pi_1')
+        // Part of the payment: Stripe gets the amount in cents.
+        expect(init.body).toContain('amount=10000')
+    })
+
+    it('a partial YooKassa refund carries the receipt the caller asks for', async () => {
+        fetchMock.mockResolvedValueOnce(respond(200, { id: 'rf_1', status: 'succeeded' }))
+        await new PaymentGatewayClient().refund(yookassa, {
+            paymentId: 'pay-1',
+            providerPaymentId: 'yk-1',
+            amount: 40,
+            currency: 'RUB',
+            idempotenceKey: 'refund-pay-1-0-40',
+            receipt: { customerEmail: 'a@b.ru', itemName: 'Безлимит' },
+        })
+        const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+        expect(body.amount).toEqual({ value: '40.00', currency: 'RUB' })
+        expect(body.receipt).toMatchObject({
+            customer: { email: 'a@b.ru' },
+            items: [{ description: 'Безлимит', amount: { value: '40.00', currency: 'RUB' } }],
+        })
     })
 
     it('refuses a Stripe refund when the session has no payment yet', async () => {

@@ -6,7 +6,8 @@ import { DEMO_ACCOUNT_EMAILS, type DemoClubIdentity } from './demo-clubs'
 // demo key AND flagged isDemo (DemoClubService checks both first).
 //
 // The workspace row cascades to almost everything; what it cannot reach goes
-// first: rows pointing at the club or its plans/levels/tags with Restrict
+// first: refunds (Restrict to their sale, holder and author — before all of
+// them), rows pointing at the club or its plans/levels/tags with Restrict
 // (subscriptions, journal, favourites, promotions and grading candidates, video
 // tags) and the club's audit trail (no foreign key at all).
 export const wipeDemoWorkspace = async (
@@ -14,6 +15,7 @@ export const wipeDemoWorkspace = async (
     workspaceId: string,
 ): Promise<void> => {
     const byClub = { where: { workspaceId } }
+    await tx.refund.deleteMany(byClub)
     await tx.attendanceRecord.deleteMany(byClub)
     await tx.subscriptionFreezeRequest.deleteMany(byClub)
     await tx.subscriptionFreeze.deleteMany(byClub)
@@ -34,9 +36,9 @@ export const wipeDemoWorkspace = async (
 // phones stay signed in across resets — only their consent evidence and
 // family links are rebuilt by the generator, and only for the club being
 // reset. People of the other demo club are never touched: whoever still has
-// an abonement or a visit (those who left it), or is the parent of someone
-// who is still a member somewhere, stays. The one reach into the other demo
-// club: this club's fixed accounts leave it (see below).
+// an abonement, a visit or a refund — got or made — (those who left it), or is
+// the parent of someone who is still a member somewhere, stays. The one reach
+// into the other demo club: this club's fixed accounts leave it (see below).
 export const deleteDemoOnlyUsers = async (
     tx: PrismaTransactionClientType,
     club: DemoClubIdentity,
@@ -48,6 +50,8 @@ export const deleteDemoOnlyUsers = async (
             workspaceMemberships: { none: {} },
             subscriptions: { none: {} },
             attendanceRecords: { none: {} },
+            refunds: { none: {} },
+            refundsMade: { none: {} },
             guardianOf: { none: { dependent: { workspaceMemberships: { some: {} } } } },
         },
         select: { id: true },

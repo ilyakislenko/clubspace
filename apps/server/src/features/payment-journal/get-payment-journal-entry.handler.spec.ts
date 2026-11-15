@@ -26,6 +26,7 @@ const subRow = {
     paidAt: new Date('2026-11-03T11:40:00Z'),
     createdAt: new Date('2026-11-01T09:00:00Z'),
     amountPaid: 5600,
+    refundedAmount: 0,
     currency: 'RUB',
     paymentMethod: 'ONLINE',
     markedPaidById: null,
@@ -34,13 +35,14 @@ const subRow = {
     plan: { name: '8 занятий' },
     user: person,
     workspaceMember: null,
-    payment: { id: 'p1', provider: 'YOOKASSA', providerPaymentId: '2f8a-00ab12cd', status: 'SUCCEEDED' },
+    payment: { id: 'p1', provider: 'YOOKASSA', providerPaymentId: '2f8a-00ab12cd', status: 'SUCCEEDED', amount: 5600, refundedAmount: 0 },
 }
 const regRow = {
     id: REG_ID,
     paidAt: new Date('2026-11-04T15:00:00Z'),
     createdAt: new Date('2026-11-01T09:00:00Z'),
     amountPaid: 1500,
+    refundedAmount: 0,
     currency: 'RUB',
     paymentMethod: 'CASH',
     markedPaidById: 'coach-1',
@@ -53,7 +55,13 @@ const regRow = {
 
 const setup = () => ({
     subscription: { findFirst: jest.fn().mockResolvedValue(subRow) },
-    eventRegistration: { findFirst: jest.fn().mockResolvedValue(regRow) },
+    eventRegistration: {
+        findFirst: jest.fn().mockResolvedValue(regRow),
+        findUnique: jest
+            .fn()
+            .mockResolvedValue({ status: 'BOOKED', event: { startAt: new Date('2099-01-01T10:00:00Z') } }),
+    },
+    refund: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     user: {
         findMany: jest.fn().mockResolvedValue([{ id: 'coach-1', firstname: 'Пётр', lastname: 'Тренер', email: null }]),
     },
@@ -86,9 +94,10 @@ describe('getPaymentJournalEntry', () => {
             method: 'ONLINE',
             member: { userId: 'u1', name: 'Иван Петров', isMember: false },
             markedBy: null,
-            online: { paymentId: 'p1', provider: 'YOOKASSA', providerRef: 'ab12cd', status: 'SUCCEEDED' },
+            online: { paymentId: 'p1', provider: 'YOOKASSA', providerRef: 'ab12cd', status: 'SUCCEEDED', refundable: 5600 },
             refunds: [],
             memberHasCard: false,
+            fullRefundCancelsRegistration: false,
         })
         expect(prisma.subscription.findFirst.mock.calls[0][0].where).toEqual({ id: SUB_ID, workspaceId: 'w1', isPaid: true })
     })
@@ -105,10 +114,68 @@ describe('getPaymentJournalEntry', () => {
             markedBy: { userId: 'coach-1', name: 'Пётр Тренер' },
             online: null,
             memberHasCard: true,
+            // A live place of an event still to come.
+            fullRefundCancelsRegistration: true,
         })
     })
 
-    it.each([['sub:not-a-uuid'], [`ref:${SUB_ID}`], [SUB_ID]])('%s is not found', async (entryId) => {
+    it('a refund row: the refund itself, its sale named, no refunds of its own', async () => {
+        const prisma = setup()
+        prisma.refund.findFirst.mockResolvedValue({
+            id: SUB_ID,
+            refundedAt: new Date('2026-11-05T09:00:00Z'),
+            amount: 1000,
+            currency: 'RUB',
+            method: 'TRANSFER',
+            reason: 'Ошибка в цене',
+            createdById: 'coach-1',
+            userId: 'u2',
+            itemName: 'Семинар по гвардам',
+            user: { firstname: 'Анна', lastname: 'Смирнова', email: null },
+            subscription: null,
+            eventRegistration: { id: REG_ID, eventId: 'e1', paidAt: new Date('2026-11-04T15:00:00Z'), createdAt: new Date('2026-11-01T09:00:00Z'), amountPaid: 1500 },
+            payment: null,
+        })
+        expect(await run(ADMIN, `ref:${SUB_ID}`, prisma).out).toMatchObject({
+            id: `ref:${SUB_ID}`,
+            kind: 'refund',
+            source: 'ticket',
+            amount: 1000,
+            reason: 'Ошибка в цене',
+            refundOf: { id: `reg:${REG_ID}`, amount: 1500 },
+            markedBy: { userId: 'coach-1', name: 'Пётр Тренер' },
+            refunds: [],
+            fullRefundCancelsRegistration: false,
+        })
+        expect(prisma.refund.findMany).not.toHaveBeenCalled()
+    })
+
+    it('a sale lists its refunds', async () => {
+        const prisma = setup()
+        prisma.refund.findMany.mockResolvedValue([
+            {
+                id: 'f1',
+                refundedAt: new Date('2026-11-05T09:00:00Z'),
+                amount: 600,
+                currency: 'RUB',
+                method: 'CASH',
+                reason: 'Часть',
+                createdById: 'coach-1',
+                userId: 'u1',
+                itemName: '8 занятий',
+                user: person,
+                subscription: { id: SUB_ID, paidAt: subRow.paidAt, createdAt: subRow.createdAt, amountPaid: 5600 },
+                eventRegistration: null,
+                payment: null,
+            },
+        ])
+        prisma.subscription.findFirst.mockResolvedValue({ ...subRow, refundedAmount: 600 })
+        const out = await run(ADMIN, `sub:${SUB_ID}`, prisma).out
+        expect(out).toMatchObject({ refundedAmount: 600, refundable: 5000, refunds: [{ id: 'ref:f1', amount: 600 }] })
+        expect(prisma.refund.findMany.mock.calls[0][0].where).toEqual({ workspaceId: 'w1', subscriptionId: SUB_ID })
+    })
+
+    it.each([['sub:not-a-uuid'], [`pay:${SUB_ID}`], [SUB_ID]])('%s is not found', async (entryId) => {
         const { prisma, out } = run(ADMIN, entryId)
         await expect(out).rejects.toBeInstanceOf(NotFoundError)
         expect(prisma.subscription.findFirst).not.toHaveBeenCalled()

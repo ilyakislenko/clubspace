@@ -1,6 +1,7 @@
 // Pure aggregation behind the ИИ-ассистент's reports, unit-tested without a
 // database. Money follows revenue.ts (paid rows only, dated by paidOn, the
-// dominant currency); dates are club-local.
+// dominant currency, net of refunds of sales dated by refundedAt); dates are
+// club-local.
 import {
     dbDateToYmd,
 } from '../../domains/subscriptions/freeze-dates'
@@ -11,6 +12,7 @@ import {
 import { localDateInTz } from '../attendance/attendance-utils'
 import {
     paidOn,
+    type RefundRow,
     revenueByPlan,
     revenueTrend,
 } from '../../domains/metrics/revenue'
@@ -27,6 +29,10 @@ export type RevenueRow = {
     directions: { id: string; name: string }[]
 }
 
+// A refund of a sale, keyed like its sale (tariff / event, the sale's
+// directions).
+export type RevenueRefundRow = RefundRow & { directions: { id: string; name: string }[] }
+
 export type RevenueGroupBy = 'month' | 'tariff' | 'direction'
 
 export type RevenueBucket = {
@@ -40,9 +46,12 @@ export const CLUB_WIDE_KEY = 'club'
 export const CLUB_WIDE_LABEL = 'Весь клуб (продажи без направления)'
 
 // Sales grouped by club-local month (every month of the window, oldest
-// first), by tariff or by direction (highest revenue first). A sale covering
-// several directions is split evenly between them (the remainder goes to the
-// first), so the direction totals add up to the club total.
+// first), by tariff or by direction (highest revenue first), net of the
+// refunds passed: a refund lowers its sale's bucket (by refund month, its
+// tariff / event, its directions) and is not a sale (`sales` counts sales
+// only). A sale covering several directions is split evenly between them (the
+// remainder goes to the first), and so is its refund, so the direction totals
+// add up to the club total.
 export const groupRevenue = (
     rows: readonly RevenueRow[],
     p: {
@@ -52,25 +61,32 @@ export const groupRevenue = (
         tz: string
         months: number
     },
+    refunds: readonly RevenueRefundRow[] = [],
 ): RevenueBucket[] => {
     const inCurrency = rows.filter((r) => !p.currency || r.currency === p.currency)
+    const refundsInCurrency = refunds.filter((r) => !p.currency || r.currency === p.currency)
     if (p.groupBy === 'month') {
         const sales = new Map<string, number>()
         for (const r of inCurrency) {
             const key = localDateInTz(paidOn(r), p.tz).slice(0, 7)
             sales.set(key, (sales.get(key) ?? 0) + 1)
         }
-        return revenueTrend([...inCurrency], p.now, p.currency, p.tz, p.months).map(
-            (m) => ({
-                key: m.month,
-                label: m.month,
-                revenue: m.revenue,
-                sales: sales.get(m.month) ?? 0,
-            }),
-        )
+        return revenueTrend(
+            [...inCurrency],
+            p.now,
+            p.currency,
+            p.tz,
+            p.months,
+            refundsInCurrency,
+        ).map((m) => ({
+            key: m.month,
+            label: m.month,
+            revenue: m.revenue,
+            sales: sales.get(m.month) ?? 0,
+        }))
     }
     if (p.groupBy === 'tariff') {
-        return revenueByPlan([...inCurrency], p.currency).map((t) => ({
+        return revenueByPlan([...inCurrency], p.currency, refundsInCurrency).map((t) => ({
             key: t.planId,
             label: t.planName,
             revenue: t.revenue,
@@ -78,21 +94,28 @@ export const groupRevenue = (
         }))
     }
     const acc = new Map<string, RevenueBucket>()
-    const add = (key: string, label: string, revenue: number) => {
+    const add = (key: string, label: string, revenue: number, sales: number) => {
         const cur = acc.get(key) ?? { key, label, revenue: 0, sales: 0 }
         cur.revenue += revenue
-        cur.sales += 1
+        cur.sales += sales
         acc.set(key, cur)
     }
-    for (const r of inCurrency) {
-        if (r.directions.length === 0) {
-            add(CLUB_WIDE_KEY, CLUB_WIDE_LABEL, r.amountPaid)
-            continue
+    const split = (
+        directions: readonly { id: string; name: string }[],
+        amount: number,
+        sales: number,
+    ) => {
+        if (directions.length === 0) {
+            add(CLUB_WIDE_KEY, CLUB_WIDE_LABEL, amount, sales)
+            return
         }
-        const share = Math.floor(r.amountPaid / r.directions.length)
-        const rest = r.amountPaid - share * r.directions.length
-        r.directions.forEach((d, i) => add(d.id, d.name, share + (i === 0 ? rest : 0)))
+        // trunc, not floor: a refund splits like its sale (remainder first).
+        const share = Math.trunc(amount / directions.length)
+        const rest = amount - share * directions.length
+        directions.forEach((d, i) => add(d.id, d.name, share + (i === 0 ? rest : 0), sales))
     }
+    for (const r of inCurrency) split(r.directions, r.amountPaid, 1)
+    for (const r of refundsInCurrency) split(r.directions, -r.amount, 0)
     return [...acc.values()].sort((a, b) => b.revenue - a.revenue)
 }
 

@@ -11,6 +11,9 @@ const EXEMPT_PREFIXES = [
     'freeze.',
     'personal.',
     'substitution.',
+    // Money: an online payment taken (payment.succeeded), money returned
+    // (payment.refunded).
+    'payment.',
 ]
 const EXEMPT_KINDS: Record<string, true> = {
     'member.approved': true,

@@ -63,6 +63,53 @@ describe('groupRevenue', () => {
         ])
         expect(buckets.reduce((s, b) => s + b.revenue, 0)).toBe(4000 + 5001 + 500)
     })
+
+    // A refund lowers its sale's bucket by refund date and is not a sale.
+    it('nets refunds of sales off each grouping, the club total staying the net', () => {
+        const refunds = [
+            {
+                amount: 1001,
+                currency: 'RUB',
+                // Refunded in November for a sale of any month.
+                refundedAt: new Date('2026-11-05T10:00:00Z'),
+                planId: 'combo',
+                planName: 'БЖЖ + ММА',
+                directions: [
+                    { id: 'bjj', name: 'БЖЖ' },
+                    { id: 'mma', name: 'ММА' },
+                ],
+            },
+            // Another currency stays out.
+            {
+                amount: 50,
+                currency: 'USD',
+                refundedAt: new Date('2026-11-05T10:00:00Z'),
+                planId: 'p8',
+                planName: '8 занятий',
+                directions: [],
+            },
+        ]
+        expect(groupRevenue(rows, { ...base, groupBy: 'month' }, refunds).at(-1)).toEqual({
+            key: '2026-11',
+            label: '2026-11',
+            revenue: 9001 - 1001,
+            sales: 2,
+        })
+        expect(
+            groupRevenue(rows, { ...base, groupBy: 'tariff' }, refunds).map((b) => [b.label, b.revenue, b.sales]),
+        ).toEqual([
+            ['8 занятий', 4000, 1],
+            ['БЖЖ + ММА', 4000, 1],
+            ['Разовое', 500, 1],
+        ])
+        const buckets = groupRevenue(rows, { ...base, groupBy: 'direction' }, refunds)
+        expect(buckets).toEqual([
+            { key: 'bjj', label: 'БЖЖ', revenue: 4000 + 2501 - 501, sales: 2 },
+            { key: 'mma', label: 'ММА', revenue: 2500 - 500, sales: 1 },
+            expect.objectContaining({ key: CLUB_WIDE_KEY, revenue: 500, sales: 1 }),
+        ])
+        expect(buckets.reduce((s, b) => s + b.revenue, 0)).toBe(4000 + 5001 + 500 - 1001)
+    })
 })
 
 describe('aggregateAttendance', () => {

@@ -1,8 +1,13 @@
 import type {
+  CreateRefundInput,
+  JournalKind,
   JournalMethod,
   PaymentJournalEntry,
+  PaymentJournalEntryDetail,
   PaymentJournalFilters,
   PaymentJournalTotals,
+  PaymentJournalUnapplied,
+  RefundMethod,
 } from "../../shared/api/payment-journal"
 import {
   ANALYTICS_ALL,
@@ -10,12 +15,19 @@ import {
   analyticsScope,
   type AnalyticsFilter,
 } from "../../shared/lib/analytics"
-import { pluralRu } from "../../shared/lib/plural-ru"
-import { PAYMENT_METHOD_LABEL } from "../subscriptions/payment-method"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
+import { parseIntInput } from "../../shared/lib/parse-int-input"
+import {
+  CLUB_PAYMENT_METHODS,
+  PAYMENT_METHOD_LABEL,
+  type ClubPaymentMethod,
+} from "../subscriptions/payment-method"
 import { formatAmount } from "../subscriptions/subscription-display"
+import { PROVIDER_LABEL } from "./payment-labels"
 
 // Pure helpers of «Абонементы → Платежи» (the payments journal): the URL
-// state, the period presets in club-local days, and the row / summary texts.
+// state, the period presets in club-local days, the row / summary texts and
+// the refund form's rules.
 
 // ---- State (the URL is the state) ----
 
@@ -25,10 +37,12 @@ export type JournalState = {
   from: string | null
   to: string | null
   method: JournalMethod | null
+  // «Показывать»: null = payments and refunds.
+  kind: Exclude<JournalKind, "all"> | null
   markedById: string | null
   scope: AnalyticsFilter
   q: string
-  // The open row: `sub:<uuid>` / `reg:<uuid>`.
+  // The open row: `sub:<uuid>` / `reg:<uuid>` / `ref:<uuid>`.
   entry: string | null
 }
 
@@ -36,6 +50,7 @@ export const EMPTY_JOURNAL_STATE: JournalState = {
   from: null,
   to: null,
   method: null,
+  kind: null,
   markedById: null,
   scope: EMPTY_ANALYTICS_FILTER,
   q: "",
@@ -57,8 +72,20 @@ const ENTRY_RE = /^(sub|reg|ref):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
 // parameters are not in the generated body schemas, so FORM_LIMITS can't carry it.
 export const JOURNAL_Q_MAX = 100
 
+// «Показывать», «Оплаты и возвраты» first (the default).
+export const JOURNAL_KINDS: readonly JournalKind[] = ["all", "payment", "refund"]
+
+export const KIND_LABEL: Record<JournalKind, string> = {
+  all: "Оплаты и возвраты",
+  payment: "Только оплаты",
+  refund: "Только возвраты",
+}
+
 const isMethod = (v: string | null): v is JournalMethod =>
   JOURNAL_METHODS.includes(v as JournalMethod)
+
+const kindOrNull = (v: string | null): JournalState["kind"] =>
+  v === "payment" || v === "refund" ? v : null
 
 const idOrNull = (v: string | null): string | null =>
   v && UUID_RE.test(v) ? v : null
@@ -79,6 +106,7 @@ export const parseJournalSearch = (search: string): JournalState => {
     from: datesOk ? from : null,
     to: datesOk ? to : null,
     method: isMethod(method) ? method : null,
+    kind: kindOrNull(p.get("kind")),
     markedById: idOrNull(p.get("markedById")),
     scope,
     q: (p.get("q") ?? "").slice(0, JOURNAL_Q_MAX),
@@ -95,6 +123,7 @@ export const journalSearch = (s: JournalState): string => {
     p.set("to", s.to)
   }
   if (s.method) p.set("method", s.method)
+  if (s.kind) p.set("kind", s.kind)
   if (s.markedById) p.set("markedById", s.markedById)
   for (const key of SCOPE_KEYS) if (s.scope[key] !== ANALYTICS_ALL) p.set(key, s.scope[key])
   const q = s.q.trim()
@@ -109,6 +138,7 @@ export const journalFilters = (s: JournalState): PaymentJournalFilters => ({
   from: s.from ?? undefined,
   to: s.to ?? undefined,
   method: s.method ?? undefined,
+  kind: s.kind ?? undefined,
   markedById: s.markedById ?? undefined,
   ...analyticsScope(s.scope),
   q: s.q.trim() || undefined,
@@ -116,7 +146,7 @@ export const journalFilters = (s: JournalState): PaymentJournalFilters => ({
 
 // Filters behind the «Фильтры» button (the panel), for its count.
 export const panelFilterCount = (s: JournalState): number =>
-  (s.markedById ? 1 : 0) + SCOPE_KEYS.filter((k) => s.scope[k] !== ANALYTICS_ALL).length
+  (s.markedById ? 1 : 0) + (s.kind ? 1 : 0) + SCOPE_KEYS.filter((k) => s.scope[k] !== ANALYTICS_ALL).length
 
 // Anything narrowing the rows besides the period.
 export const isFiltered = (s: JournalState): boolean =>
@@ -236,41 +266,136 @@ export const refundedNote = (
     ? `возвращено ${formatAmount(e.refundedAmount, e.currency)}`
     : null
 
-// An online payment the provider can still return (full refund through the
-// payment's own endpoint until partial refunds exist).
-export const canRefundOnline = (
-  e: Pick<PaymentJournalEntry, "kind" | "online" | "refundable">,
-): boolean => e.kind === "payment" && e.online?.status === "SUCCEEDED" && e.refundable > 0
+// ---- Refund form ----
 
-export const onlineRefundHint = (e: Pick<PaymentJournalEntry, "source">): string =>
-  e.source === "ticket"
-    ? "Отметка об оплате билета снимется сама, место на событии за участником останется."
-    : "Абонемент сам не отменится — решите в карточке ученика, отменять ли его."
+const REFUND = FORM_LIMITS.refund
+
+// A refund row's id on the server (`ref:<uuid>` → `<uuid>`).
+export const refundIdOf = (entryId: string): string => entryId.replace(/^ref:/, "")
+
+// An offline refund is only a record and may be deleted; an online one is final.
+export const canDeleteRefund = (e: Pick<PaymentJournalEntry, "kind" | "method">): boolean =>
+  e.kind === "refund" && e.method !== "ONLINE"
+
+// What the refund form returns money for: a sale (journal row) or an online
+// payment that never became one.
+export type RefundSubject =
+  | { kind: "sale"; entry: PaymentJournalEntryDetail }
+  | { kind: "unapplied"; payment: PaymentJournalUnapplied }
+
+// The refund's `target` / `targetId`; null for a row that can't be refunded
+// (a refund row).
+export const refundTargetOf = (
+  s: RefundSubject,
+): Pick<CreateRefundInput, "target" | "targetId"> | null => {
+  if (s.kind === "unapplied") return { target: "unapplied", targetId: s.payment.paymentId }
+  const e = s.entry
+  if (e.kind !== "payment") return null
+  if (e.source === "abonement") {
+    return e.subscriptionId ? { target: "abonement", targetId: e.subscriptionId } : null
+  }
+  return e.eventRegistrationId ? { target: "ticket", targetId: e.eventRegistrationId } : null
+}
+
+// What the provider can still send back of the sale's online payment (0 = no
+// online refund: paid offline, or already returned through the provider).
+export const onlineRefundable = (s: RefundSubject): number =>
+  s.kind === "unapplied"
+    ? s.payment.refundable
+    : s.entry.kind === "payment"
+      ? (s.entry.online?.refundable ?? 0)
+      : 0
+
+// «Вернуть деньги» shows while some of the money is still the club's.
+export const subjectRefundable = (s: RefundSubject): number =>
+  refundTargetOf(s) === null
+    ? 0
+    : s.kind === "unapplied"
+      ? s.payment.refundable
+      : s.entry.refundable
+
+// «Как вернули»: through the provider first while it can, then the club's own
+// ways. An unapplied payment goes back online only (the server refuses the rest).
+export const refundMethods = (s: RefundSubject): RefundMethod[] => {
+  const online: RefundMethod[] = onlineRefundable(s) > 0 ? ["ONLINE"] : []
+  return s.kind === "unapplied" ? online : [...online, ...CLUB_PAYMENT_METHODS]
+}
+
+const isClubMethod = (m: string | null): m is ClubPaymentMethod =>
+  CLUB_PAYMENT_METHODS.includes(m as ClubPaymentMethod)
+
+// Online when possible, else the way the sale was paid, else cash.
+export const defaultRefundMethod = (s: RefundSubject): RefundMethod =>
+  onlineRefundable(s) > 0
+    ? "ONLINE"
+    : s.kind === "sale" && isClubMethod(s.entry.method)
+      ? s.entry.method
+      : "CASH"
+
+export const refundMethodLabel = (
+  method: RefundMethod,
+  provider: keyof typeof PROVIDER_LABEL | null,
+): string =>
+  method === "ONLINE"
+    ? `На карту через ${provider ? PROVIDER_LABEL[provider] : "платёжную систему"}`
+    : PAYMENT_METHOD_LABEL[method]
+
+const subjectCurrency = (s: RefundSubject): string =>
+  s.kind === "unapplied" ? s.payment.currency : s.entry.currency
+
+// The most this method may return: what is left of the sale, and online also
+// what is left of the provider's payment.
+export const refundMax = (s: RefundSubject, method: RefundMethod): number =>
+  Math.min(
+    REFUND.amount.max,
+    subjectRefundable(s),
+    method === "ONLINE" ? onlineRefundable(s) : Number.POSITIVE_INFINITY,
+  )
+
+// The typed amount, or why it can't be sent («Вернуть можно от 1 до N ₽», the
+// server's text).
+export const parseRefundAmount = (
+  raw: string,
+  s: RefundSubject,
+  method: RefundMethod,
+): { amount: number } | { error: string } => {
+  const max = refundMax(s, method)
+  const amount = parseIntInput(raw, { min: REFUND.amount.min, max })
+  return amount === null
+    ? { error: `Вернуть можно от ${REFUND.amount.min} до ${formatAmount(max, subjectCurrency(s))}` }
+    : { amount }
+}
+
+// The one hint under the form, only when it is true.
+export const refundHint = (s: RefundSubject, amount: number | null): string | null => {
+  if (s.kind !== "sale") return null
+  if (s.entry.source === "abonement") {
+    return "Абонемент останется действующим — отменить его можно в карточке ученика"
+  }
+  return s.entry.fullRefundCancelsRegistration && amount === s.entry.refundable
+    ? "Запись на событие будет отменена, место перейдёт следующему в листе ожидания"
+    : null
+}
 
 // ---- Summary ----
 
-// Line 1 of one currency: «Получено … · возвращено … · итого N» while there
-// are refunds, else «Итого N»; split so the net can be bold.
-export const summaryLine = (
-  t: PaymentJournalTotals,
-): { before: string; net: string; after: string } => {
-  const count = t.byMethod.reduce((sum, m) => sum + m.count, 0)
-  return {
-    before:
-      t.refunded > 0
-        ? `Получено ${formatAmount(t.received, t.currency)} · возвращено ${formatAmount(t.refunded, t.currency)} · итого `
-        : "Итого ",
-    net: formatAmount(t.net, t.currency),
-    after: ` · ${count.toLocaleString("ru-RU")} ${pluralRu(count, "оплата", "оплаты", "оплат")}`,
-  }
-}
+// A total that may go below zero (a period of refunds only): «−6 000 ₽».
+const signedAmount = (amount: number, currency: string): string =>
+  `${amount < 0 ? "−" : ""}${formatAmount(Math.abs(amount), currency)}`
+
+// Line 1 of one currency: «Получено … · возвращено … · итого N», split so the
+// net can be bold.
+export const summaryLine = (t: PaymentJournalTotals): { before: string; net: string } => ({
+  before: `Получено ${formatAmount(t.received, t.currency)} · возвращено ${formatAmount(t.refunded, t.currency)} · итого `,
+  net: signedAmount(t.net, t.currency),
+})
 
 // Line 2: each method that took money, at its net, in a fixed order.
 export const methodsLine = (t: PaymentJournalTotals): string | null => {
   const parts = JOURNAL_METHODS.flatMap((method) => {
     const m = t.byMethod.find((x) => x.method === method)
     if (!m || (m.received === 0 && m.refunded === 0)) return []
-    return [`${methodLabel(method)} ${formatAmount(m.received - m.refunded, t.currency)}`]
+    return [`${methodLabel(method)} ${signedAmount(m.received - m.refunded, t.currency)}`]
   })
   return parts.length > 0 ? parts.join(" · ") : null
 }

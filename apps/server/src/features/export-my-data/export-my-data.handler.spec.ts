@@ -17,7 +17,6 @@ const profileRow = {
     language: 'RU',
     createdAt: d('2026-01-01T10:00:00Z'),
     lastSeenAt: d('2026-10-31T10:00:00Z'),
-    telegramLink: null,
 }
 
 const build = (
@@ -76,21 +75,8 @@ describe('ExportMyDataHandler', () => {
             lastSeenAt: '2026-10-31T10:00:00.000Z',
         })
         expect(out.memberships).toEqual([])
-        expect(out.telegram).toBeNull()
         expect(out.truncated).toEqual([])
         expect(out.formatVersion).toBe(1)
-    })
-
-    it('includes the linked Telegram chat', async () => {
-        const { handler } = build({}, {
-            ...profileRow,
-            telegramLink: { chatId: '123456789', linkedAt: d('2026-11-02T08:00:00Z') },
-        })
-        const out = await handler.execute(new ExportMyDataFeature('u1'))
-        expect(out.telegram).toEqual({
-            chatId: '123456789',
-            linkedAt: '2026-11-02T08:00:00.000Z',
-        })
     })
 
     it('reads only the caller’s rows in every section', async () => {

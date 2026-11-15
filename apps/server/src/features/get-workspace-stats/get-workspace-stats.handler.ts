@@ -11,7 +11,9 @@ import { loadExpectedRevenue } from '../../domains/metrics/expected-revenue'
 import {
     computeRevenue,
     loadCurrentSales,
+    loadRefunds,
     loadSales,
+    netRevenue,
     paidOn,
     revenueWindowStart,
     summarizeAwaiting,
@@ -172,11 +174,12 @@ export class GetWorkspaceStatsHandler
         if (clubAdmin) {
             const windowStart = revenueWindowStart(now)
             const prevStart = new Date(windowStart.getTime() - 30 * DAY_MS)
-            const [current, sales, awaitingRows, owing, horizons] = await Promise.all([
+            const [current, sales, refunds, awaitingRows, owing, horizons] = await Promise.all([
                 loadCurrentSales(this.prisma, workspaceId, now),
-                // 60 days of paid sales: revenue30d, the 30 days before it
-                // (the trend) and today's revenue.
+                // 60 days of paid sales and of their refunds: revenue30d, the
+                // 30 days before it (the trend) and today's revenue, all net.
                 loadSales(this.prisma, workspaceId, prevStart),
+                loadRefunds(this.prisma, workspaceId, prevStart),
                 // The receivable (same rows as the «Ожидают оплаты» list).
                 this.prisma.subscription.findMany({
                     where: awaitingPaymentWhere(workspaceId),
@@ -185,20 +188,29 @@ export class GetWorkspaceStatsHandler
                 countAwaitingPaymentMembers(this.prisma, workspaceId),
                 loadExpectedRevenue(this.prisma, workspaceId),
             ])
-            const recent30 = sales.filter((r) => paidOn(r) >= windowStart)
-            const summary = computeRevenue(current, recent30)
+            const summary = computeRevenue(
+                current,
+                sales.filter((r) => paidOn(r) >= windowStart),
+                refunds.filter((r) => r.refundedAt >= windowStart),
+            )
             revenue = {
-                ...summary,
+                revenue30d: summary.revenue30d,
+                mrr: summary.mrr,
+                currency: summary.currency,
                 expected30d: horizons[0].expected,
                 awaitingPayment: {
                     students: owing,
                     amount: summarizeAwaiting(awaitingRows, summary.currency).amount,
                 },
-                revenuePrev30d: sales
-                    .filter((r) => paidOn(r) < windowStart && r.currency === summary.currency)
-                    .reduce((sum, r) => sum + r.amountPaid, 0),
+                revenuePrev30d: netRevenue(sales, refunds, summary.currency, {
+                    gte: prevStart,
+                    lt: windowStart,
+                }),
             }
-            todayRevenue = sumRevenue(sales.filter((r) => paidOn(r) >= dayStart))
+            todayRevenue = sumRevenue(
+                sales.filter((r) => paidOn(r) >= dayStart),
+                refunds.filter((r) => r.refundedAt >= dayStart),
+            )
         }
 
         // Classes on today's timetable (not only the ones a coach already

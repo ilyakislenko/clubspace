@@ -9,14 +9,14 @@ import { PrismaService } from '../../infrastructure/prisma'
 import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
-import { paidInRangeWhere } from '../../domains/metrics/revenue'
+import { paidInRangeWhere, refundsInRangeWhere } from '../../domains/metrics/revenue'
 import { GetPlanFeature, GetPlanFeatureResponse } from './get-plan.feature'
 import { PLAN_WRITE_REFUSAL, planDtoInclude, serializePlan } from './schemas'
 
 const DAY_MS = 24 * 3600 * 1000
 
-// The tariff page: who holds it and what it earned. Club money, like editing
-// the tariff — the owner and admins only.
+// The tariff page: who holds it and what it earned (net of the refunds of its
+// abonements). Club money, like editing the tariff — the owner and admins only.
 @Feature(GetPlanFeature)
 export class GetPlanHandler
     implements IFeatureHandler<GetPlanFeature, GetPlanFeatureResponse>
@@ -48,7 +48,7 @@ export class GetPlanHandler
 
         const now = new Date()
         const since = new Date(now.getTime() - 30 * DAY_MS)
-        const [held, sold, paid] = await Promise.all([
+        const [held, sold, paid, refunded] = await Promise.all([
             this.prisma.subscription.findMany({
                 where: {
                     workspaceId: f.workspaceId,
@@ -96,6 +96,17 @@ export class GetPlanHandler
                 },
                 _sum: { amountPaid: true },
             }),
+            // Refunds of this tariff's abonements made in the window, whenever
+            // the abonement was sold (revenue = sales − refunds, by date).
+            this.prisma.refund.aggregate({
+                where: {
+                    workspaceId: f.workspaceId,
+                    currency: plan.currency,
+                    subscription: { planId: plan.id },
+                    ...refundsInRangeWhere({ gte: since }),
+                },
+                _sum: { amount: true },
+            }),
         ])
 
         return {
@@ -120,7 +131,10 @@ export class GetPlanHandler
                       ]
                     : [],
             ),
-            last30Days: { sold, revenue: paid._sum.amountPaid ?? 0 },
+            last30Days: {
+                sold,
+                revenue: (paid._sum.amountPaid ?? 0) - (refunded._sum.amount ?? 0),
+            },
         }
     }
 }

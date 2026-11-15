@@ -82,7 +82,9 @@ export class PaymentGatewayClient {
         )
     }
 
-    // A full refund. Throws PaymentGatewayError when the provider refuses.
+    // A refund of `amount` (all or part of the payment). `receipt` (YooKassa,
+    // receipts on): the 54-ФЗ refund receipt a partial refund needs. Throws
+    // PaymentGatewayError when the provider refuses.
     async refund(
         creds: GatewayCredentials,
         p: {
@@ -91,6 +93,7 @@ export class PaymentGatewayClient {
             amount: number
             currency: string
             idempotenceKey: string
+            receipt?: { customerEmail: string; itemName: string }
         },
     ): Promise<void> {
         if (creds.provider === 'YOOKASSA') {
@@ -115,6 +118,8 @@ export class PaymentGatewayClient {
             buildStripeRefund(creds.secretKey, {
                 paymentIntentId,
                 paymentId: p.paymentId,
+                amount: p.amount,
+                currency: p.currency,
                 idempotenceKey: p.idempotenceKey,
             }),
         )

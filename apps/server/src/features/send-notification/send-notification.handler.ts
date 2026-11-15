@@ -58,11 +58,7 @@ export class SendNotificationHandler
             }
 
             if (!types.length) {
-                types = [
-                    NotificationTypeEnum.EMAIL,
-                    NotificationTypeEnum.PUSH,
-                    NotificationTypeEnum.TELEGRAM,
-                ]
+                types = [NotificationTypeEnum.EMAIL, NotificationTypeEnum.PUSH]
             }
 
             const user = await this.userService.getUserById({

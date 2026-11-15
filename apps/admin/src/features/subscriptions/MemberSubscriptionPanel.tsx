@@ -44,6 +44,7 @@ import {
 } from "./payment-method"
 import { PaymentMethodPicker } from "./PaymentMethodPicker"
 import {
+  canUndoPaymentMark,
   classesLabel,
   formatAmount,
   isPending,
@@ -68,7 +69,8 @@ const fmtDate = (iso: string | null): string =>
 // history and lets staff assign a tariff (which extends the
 // member's "Доступ до"). What each button may do comes from the server's
 // `permissions`: a coach manages members of their own groups, only an admin
-// cancels, and undoing a payment stays admin-only (`canUnmarkPayment`). Refetches its
+// cancels, and undoing a payment stays admin-only (`canUnmarkPayment`) and
+// never applies to a refunded or online payment. Refetches its
 // own data so the parent page needn't know about subscriptions.
 export function MemberSubscriptionPanel({
   workspaceId,
@@ -296,7 +298,10 @@ export function MemberSubscriptionPanel({
               Отметить оплату
             </Button>
           )}
-          {canUnmarkPayment && a.isPaid && a.status !== "CANCELLED" && (
+          {canUnmarkPayment &&
+            a.isPaid &&
+            a.status !== "CANCELLED" &&
+            canUndoPaymentMark(a) && (
             <button
               type="button"
               className="text-xs text-muted-foreground underline hover:text-foreground"
@@ -503,6 +508,7 @@ export function MemberSubscriptionPanel({
                 {canUnmarkPayment &&
                   s.isPaid &&
                   s.status !== "CANCELLED" &&
+                  canUndoPaymentMark(s) &&
                   !currentIds.has(s.id) && (
                     <button
                       type="button"

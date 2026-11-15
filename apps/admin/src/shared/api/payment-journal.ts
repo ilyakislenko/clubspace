@@ -14,7 +14,18 @@ export type PaymentJournalEntryDetail = ApiTypes.PaymentJournalEntryDetailOutput
 export type PaymentJournalQuery = NonNullable<ApiTypes.ListPaymentJournalData["query"]>
 // CASH / TRANSFER / CARD / ONLINE, NONE = not recorded.
 export type JournalMethod = NonNullable<PaymentJournalQuery["method"]>
+// «Показывать»: payments and refunds (all), payments only, refunds only.
+export type JournalKind = NonNullable<PaymentJournalQuery["kind"]>
 export type OnlinePaymentStatus = NonNullable<PaymentJournalEntry["online"]>["status"]
+
+// Money returned for one sale (`abonement` / `ticket`), or for an online
+// payment that never became one (`unapplied`). CASH / TRANSFER / CARD only
+// record it; ONLINE sends it back through the provider.
+export type CreateRefundInput = ApiTypes.CreateRefundInput
+export type CreateRefundResult = ApiTypes.CreateRefundOutputOutput
+export type DeleteRefundResult = ApiTypes.DeleteRefundOutputOutput
+export type RefundTarget = CreateRefundInput["target"]
+export type RefundMethod = CreateRefundInput["method"]
 
 // The journal's filters; the CSV export takes the same ones.
 export type PaymentJournalFilters = Omit<PaymentJournalQuery, "curPage" | "perPage">
@@ -41,7 +52,7 @@ export const listPaymentJournal = async (
     },
   })
 
-// `entryId` is the row's id: `sub:<uuid>` / `reg:<uuid>`.
+// `entryId` is the row's id: `sub:<uuid>` / `reg:<uuid>` / `ref:<uuid>`.
 export const getPaymentJournalEntry = async (params: {
   workspaceId: string
   entryId: string
@@ -49,4 +60,24 @@ export const getPaymentJournalEntry = async (params: {
   await getApiClient().request<PaymentJournalEntryDetail>({
     method: "get",
     url: `/workspaces/${params.workspaceId}/payment-journal/${encodeURIComponent(params.entryId)}`,
+  })
+
+export const createRefund = async (params: {
+  workspaceId: string
+  data: CreateRefundInput
+}): Promise<CreateRefundResult> =>
+  await getApiClient().request<CreateRefundResult, CreateRefundInput>({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/refunds`,
+    data: params.data,
+  })
+
+// Only an offline record (CASH / TRANSFER / CARD); an online refund is final.
+export const deleteRefund = async (params: {
+  workspaceId: string
+  refundId: string
+}): Promise<DeleteRefundResult> =>
+  await getApiClient().request<DeleteRefundResult, undefined>({
+    method: "delete",
+    url: `/workspaces/${params.workspaceId}/refunds/${params.refundId}`,
   })

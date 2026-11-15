@@ -270,6 +270,39 @@ describe('buildDemoClubPlan', () => {
         expect(plan.subscriptions.filter((s) => !s.isPaid || s.amountPaid === 0).every((s) => s.paymentMethod === null)).toBe(true)
     })
 
+    it('has one partial cash refund of a recent abonement, in the last 30 days', () => {
+        const check = (p: DemoClubPlan, now: Date) => {
+            expect(p.refunds).toHaveLength(1)
+            const [refund] = p.refunds
+            const sale = p.subscriptions.find((s) => s.id === refund.subscriptionId)!
+            expect(refund).toMatchObject({ method: 'CASH', currency: 'RUB', userId: sale.userId, workspaceId: p.workspaceId })
+            expect(refund.eventRegistrationId ?? null).toBeNull()
+            expect(refund.paymentId ?? null).toBeNull()
+            // The sale stays as it was: paid in cash, its amount; only the refunded sum rises.
+            expect(sale).toMatchObject({ isPaid: true, paymentMethod: 'CASH' })
+            expect(refund.amount).toBeGreaterThan(0)
+            expect(refund.amount).toBeLessThan(sale.amountPaid as number)
+            // Every sale's refundedAmount is the sum of its refunds.
+            for (const s of p.subscriptions) {
+                const refunded = p.refunds.filter((r) => r.subscriptionId === s.id).reduce((sum, r) => sum + r.amount, 0)
+                expect(s.refundedAmount ?? 0).toBe(refunded)
+            }
+            const at = (refund.refundedAt as Date).getTime()
+            expect(at).toBeGreaterThanOrEqual((sale.paidAt as Date).getTime())
+            expect(at).toBeLessThanOrEqual(now.getTime())
+            expect(now.getTime() - at).toBeLessThan(30 * 86_400_000)
+            // Made at the reception by the administrator, and audited like a live one.
+            expect(refund.createdById).toBe(p.accountUserIds.admin)
+            expect(p.auditEvents.some((e) => e.action === 'payment.refund' && e.targetId === sale.userId)).toBe(true)
+        }
+        check(plan, NOW)
+        // Whatever day the demo is reset on.
+        for (const days of [9, 17, 26]) {
+            const now = new Date(NOW.getTime() + days * 86_400_000)
+            check(build(now), now)
+        }
+    })
+
     it('gives adults and parents their own placeholder phone, children none', () => {
         const phones = plan.users.flatMap((u) => (u.phone ? [u.phone] : []))
         expect(new Set(phones).size).toBe(phones.length)

@@ -400,6 +400,24 @@ describe("paymentLine", () => {
       tone: "muted",
     })
   })
+
+  it("closes with the money the club returned, and ignores none", () => {
+    expect(
+      paymentLine({
+        ...base,
+        isPaid: true,
+        paidAt: "2026-10-22T12:00:00Z",
+        paymentMethod: "CASH",
+        refundedAmount: 1000,
+      }),
+    ).toEqual({
+      text: "Оплачено: 5\u202F000\u00A0₽ · Наличные · 22 октября 2026 г. · возвращено 1\u202F000\u00A0₽",
+      tone: "muted",
+    })
+    expect(paymentLine({ ...base, refundedAmount: 0 }).text).toBe(
+      "Оплачено: 5\u202F000\u00A0₽",
+    )
+  })
 })
 
 describe("mySubscriptionState", () => {

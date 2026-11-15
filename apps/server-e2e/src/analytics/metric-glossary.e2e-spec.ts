@@ -195,6 +195,40 @@ describe('metric glossary', () => {
         expect(renew.total).toBe(stats.retention.renewalsDue)
     })
 
+    it('one refund: every revenue surface reads the same net number', async () => {
+        const { w, ownerActor } = await setup()
+        const get = (path: string) =>
+            http()
+                .get(`/workspaces/${w}${path}`)
+                .set(...ownerActor.auth)
+                .expect(200)
+                .then((r) => r.body)
+        // s1's 6 000 abonement (a 30-day term): 1 500 handed back in cash.
+        const s1Sale = await ctx.prisma.subscription.findFirstOrThrow({
+            where: { workspaceId: w, amountPaid: 6000, durationDays: 30, isPaid: true, status: 'ACTIVE' },
+        })
+        await http()
+            .post(`/workspaces/${w}/refunds`)
+            .set(...ownerActor.auth)
+            .send({ target: 'abonement', targetId: s1Sale.id, amount: 1500, method: 'CASH', reason: 'Болел' })
+            .expect(201)
+
+        const [stats, forecast, journal, plan] = await Promise.all([
+            get('/stats'),
+            get('/analytics/forecast'),
+            get('/payment-journal'),
+            get(`/plans/${s1Sale.planId}`),
+        ])
+        // revenue_30d = payments_received − refunds: 18 000 − 1 500.
+        expect(stats.revenue.revenue30d).toBe(16500)
+        expect(journal.totals[0]).toMatchObject({ received: 18000, refunded: 1500, net: 16500 })
+        // The tariff page: its sales in the window − its abonements' refunds.
+        expect(plan.last30Days.revenue).toBe(16500)
+        // mrr: s1 counts (6 000 − 1 500) × 30 / 30.
+        expect(stats.revenue.mrr).toBe(15000 - 1500)
+        expect(forecast.mrr).toBe(stats.revenue.mrr)
+    })
+
     it('keeps club money for club admins: a head coach gets the counts without it', async () => {
         const { w } = await setup()
         const lead = await addMember(ctx, { workspaceId: w, role: RolesEnum.HEAD_COACH })

@@ -14,6 +14,7 @@ import {
   CreateLevelInputSchema,
   CreatePlanInputSchema,
   CreateRankGradingInputSchema,
+  CreateRefundInputSchema,
   DeclineSubscriptionFreezeRequestInputSchema,
   FreezeSubscriptionInputSchema,
   LogAtRiskContactInputSchema,
@@ -233,6 +234,11 @@ export const FORM_LIMITS = {
     saleAmount: int([AssignSubscriptionInputSchema] as const, "amountPaid"),
     // «Отметить оплату» later.
     paidAmount: int([MarkSubscriptionPaidInputSchema] as const, "amount"),
+  },
+  refund: {
+    // Also capped by what is left of the sale (RefundForm), as the server does.
+    amount: int([CreateRefundInputSchema] as const, "amount"),
+    reason: text([CreateRefundInputSchema] as const, "reason"),
   },
   memberNotes: {
     notes: text([UpdateMemberNotesBodySchema] as const, "notes"),

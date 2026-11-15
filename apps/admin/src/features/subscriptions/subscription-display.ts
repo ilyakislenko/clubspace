@@ -55,13 +55,15 @@ type PaymentSubscription = {
   paidAt: string | null
   paymentMethod: PaymentMethod | null
   amountPaid: number
+  // Σ of the sale's refunds (0 = none).
+  refundedAmount: number
   currency: string
 }
 
-// «Оплачено 5 000 ₽ · Наличные · 22.10.2026» / «Ожидает оплаты: 5 000 ₽». A
-// payment whose method was not recorded (before it was, or imported) skips
-// it; rows from before payment tracking have no payment date, so the date
-// part is dropped too.
+// «Оплачено 5 000 ₽ · Наличные · 22.10.2026 · возвращено 1 000 ₽» /
+// «Ожидает оплаты: 5 000 ₽». A payment whose method was not recorded (before
+// it was, or imported) skips it; rows from before payment tracking have no
+// payment date, so the date part is dropped too.
 export const paymentLabel = (s: PaymentSubscription): string => {
   const amount = formatAmount(s.amountPaid, s.currency)
   if (!s.isPaid) return `Ожидает оплаты: ${amount}`
@@ -69,14 +71,31 @@ export const paymentLabel = (s: PaymentSubscription): string => {
     `Оплачено ${amount}`,
     s.paymentMethod ? PAYMENT_METHOD_LABEL[s.paymentMethod] : null,
     s.paidAt ? fmtDate(s.paidAt) : null,
+    s.refundedAmount > 0 ? `возвращено ${formatAmount(s.refundedAmount, s.currency)}` : null,
   ]
     .filter(Boolean)
     .join(" · ")
 }
 
+// «Отменить отметку оплаты» (an abonement or a ticket): not once money went
+// back (the refund would point at an unpaid sale), and never for an online
+// payment — method ONLINE or an abonement sold through the provider
+// (`source` GATEWAY); its refund goes through «Платежи». Mirrors
+// SubscriptionService.unmarkPaid / unmark-event-registration-paid (tickets
+// have no `source`).
+export const canUndoPaymentMark = (s: {
+  paymentMethod: PaymentMethod | null
+  refundedAmount: number
+  source?: string
+}): boolean => s.refundedAmount === 0 && s.paymentMethod !== "ONLINE" && s.source !== "GATEWAY"
+
 // A paid abonement's row in «Абонементы → Платежи» (club admins).
 export const paymentEntryHref = (workspaceId: string, subscriptionId: string): string =>
   `/workspace/${workspaceId}/subscriptions/payments?entry=sub:${subscriptionId}`
+
+// A paid ticket's row there.
+export const ticketEntryHref = (workspaceId: string, registrationId: string): string =>
+  `/workspace/${workspaceId}/subscriptions/payments?entry=reg:${registrationId}`
 
 // «Занятий: 3 / 12» for a class pack; null for a time-based abonement.
 export const classesLabel = (s: {
