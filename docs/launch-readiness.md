@@ -73,11 +73,15 @@
   пунктов, чистка страниц, ограничения из контракта, 409 на одновременные правки, проверка
   `ROOT_URL` при деплое, e2e админки под четырьмя ролями). Группы отдаются без составов,
   список «Кому позвонить» кешируется в Redis.
+- Бизнес-бэклог (ветки поверх чистки админки): журнал платежей и возвраты
+  (`feat/payments-journal`), «Ученики → Заявки» (`feat/requests-inbox`), скидки и промокоды
+  (`feat/discounts`), автопродление через ЮKassa (`feat/member-autopay`, выключено
+  `MEMBER_AUTOPAY_ENABLED`; перед включением — юрист для текста согласия и `/legal/autopay`,
+  тестовый магазин ЮKassa). Telegram-бот уведомлений удалён.
 - Вход по телефону/Telegram.
 - OTA-обновления (`expo-updates`), чтобы исправления не ждали релиза в сторе.
-- e2e-тесты удаления аккаунта написаны, но не запускались: Prisma требует согласия владельца
-  на `db push --accept-data-loss` для тестовой базы `clubspace_e2e`. Запуск:
-  `npx nx run @clubspace/server-e2e:e2e -- --testPathPatterns='(delete-account|consent-gate|removed-member-history|families|store-review)'`.
+- Серверные e2e прогоняются на `clubspace_e2e` (согласие владельца получено 2026-11-15):
+  73 набора, 1402 теста — зелёные. Каждый запуск с `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION`.
 - «Нестабильные» `environment.spec`, `log-at-risk-contact`, `accept-personal-training` не
   воспроизводятся (3 полных прогона + 3 параллельных — зелёные); `announcements.handler.spec`
   исправлен (часы заморожены).
