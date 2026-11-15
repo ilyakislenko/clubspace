@@ -8,6 +8,7 @@ import {
     analyticsScopeMemberWhere,
     resolveAnalyticsScope,
 } from '../../domains/analytics/analytics-scope'
+import { loadAutopayStatuses } from '../member-autopay/autopay-status'
 import {
     ListRenewalCandidatesFeature,
     ListRenewalCandidatesFeatureResponse,
@@ -50,15 +51,20 @@ export class ListRenewalCandidatesHandler
             f,
             f.payload,
         )
-        const due = await loadRenewalDue(this.prisma, f.workspaceId, new Date(), {
+        const now = new Date()
+        const due = await loadRenewalDue(this.prisma, f.workspaceId, now, {
             memberWhere: analyticsScopeMemberWhere(scope),
         })
         const curPage = f.payload.curPage ?? 1
         const perPage = f.payload.perPage ?? RENEWALS_DEFAULT_PER_PAGE
+        const page = due.slice((curPage - 1) * perPage, curPage * perPage)
+        const autopays = await loadAutopayStatuses(this.prisma, {
+            workspaceId: f.workspaceId,
+            userIds: page.map((r) => r.userId),
+            now,
+        })
         return {
-            data: due
-                .slice((curPage - 1) * perPage, curPage * perPage)
-                .map(serializeRenewalCandidate),
+            data: page.map((r) => serializeRenewalCandidate(r, autopays.get(r.userId))),
             total: due.length,
             curPage,
             perPage,

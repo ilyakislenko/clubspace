@@ -945,6 +945,114 @@ Mobile:
 - **No dependents** until child online payments exist (checkout already refuses them).
 - **Legal text** (consent lines + `/legal/autopay`) is drafted here, versioned in code, and
   owner/legal-reviewed before the env switch goes on.
+- **(implementation, slice A2)** Additions to §3.5, agreed with the client slices:
+  - `MyAutopay` also carries `termsDurationDays`, `termsClassCount`, `cancelReason`, `lastFailedOn`
+    (club-local day of the latest declined charge) and `newTerms.consentVersion` (echoed by
+    `accept-terms`). Staff `MemberAutopay` also strips `nextCharge.amount` for non-club-admins.
+    `nextCharge.on` is the retry day while declines are pending.
+  - Settings output gains `autopayOffered` (= `MEMBER_AUTOPAY_ENABLED`) so the admin hides the box
+    while the switch is off. Saving `autopayEnabled: true` is refused for Stripe and while the switch
+    is off; the cancel on settings change runs only when the saved setting was on.
+  - `accept-terms` also lifts a `TERMS_CHANGED` stop whose price came back down (no `newTerms`) on the
+    current terms, and takes the tariff's currency. A stale `consentVersion` is 400 (as checkout).
+  - The tariff box: only *ticking* `autopayAvailable` checks the club setting (a form re-sending a
+    ticked box after the club turned autopay off still saves); turning `purchasableOnline` off clears
+    `autopayAvailable` in the same write.
+  - Membership also ends by the member leaving (`my-memberships/leave-workspace.handler.ts`), so it
+    calls `cancelForUser` too (outside the §13 list; nobody else owns it).
+  - `paidByAutopay` sits on `SubscriptionOutput` (true only in `listMemberSubscriptions`, like
+    `pricedBy`); the journal detail's `cardLabel` is a top-level field.
+  - `renewals_due` gains the same `autopay` field as `abonement_states` (it is the tool where «don't
+    call» matters; same data as the «Продлить» row).
+  - `autopayAttention.since` = the agreement's last state change (`updatedAt`).
+- **(implementation, slice D)** `/legal/autopay` reuses the offer/DPA edition machinery
+  (`LegalEditionPage` kind `autopay`, `AUTOPAY_EDITIONS` in `registry.ts`, plus
+  `/legal/autopay/<version>` so the edition recorded in `consentVersion` stays reachable). Unlike the
+  offer, the version is not read from `GET /public/legal`: it is a server code constant, so the newest
+  client edition is in force and `apps/client/specs/legal-autopay.spec.tsx` fails unless it equals
+  `AUTOPAY_CONSENT_VERSION` (read from `autopay-consent.ts`). A new edition = client file + server
+  constant in one PR. The §5.3 points are written out as numbered clauses (plus the amount, retries,
+  freeze and re-enable rules from §1, so the page matches the consent lines). Also touched outside the
+  slice table: `LegalDocument.tsx` (kind + footer link), `app/sitemap.ts`, `docs/legal/README.md`
+  (document row, edition rule, lawyer question).
+- **(implementation, slice C)** Mobile:
+  - `MyAutopay` gained, agreed with A2: `termsDurationDays` / `termsClassCount` (the «было 4 000 ₽ за
+    30 дней» half of the terms-changed line), `cancelReason` (shown unless the member cancelled),
+    `lastFailedOn` («Не удалось списать {date}») and `newTerms.consentVersion` (echoed by
+    `accept-terms`).
+  - The return screen and the purchase block's outcome read the next charge from `listMyAutopays`
+    (the agreement with the payment's `planId`). `MyPayment` carries only `autopay: 'on' | 'not_saved'`,
+    so the next charge has one source (A1).
+  - A pending rise on an `ACTIVE` agreement (`newTerms` set before the charge) shows the same
+    «Подтвердить N ₽» block as `NEEDS_ACTION / TERMS_CHANGED`.
+  - The switch row always shows «Сейчас X · дальше Y». X is the promo-quoted amount once a code is
+    applied, and the quote's own `autopay` block (consent lines + version) replaces the tariff's. The
+    consent lines render verbatim as one paragraph.
+  - «Условия автоплатежа» opens with `openWebLink`, a new tab on web. It does not use the payment page's
+    same-tab redirect, which would drop the checkout the member is in the middle of.
+  - The purchase block fetches `listMyAutopays` too, for «Автоплатёж включён» on a tariff with an
+    `ACTIVE` agreement. A failed read just shows the switch (the server refuses a duplicate).
+- **(implementation, slice B)** Admin:
+  - The settings view gained `autopayOffered` (= `MEMBER_AUTOPAY_ENABLED`, agreed with A2), so the
+    settings checkbox and the tariff checkbox are hidden while the switch is off and their flags are
+    then not sent (a save keeps them). The tariff form reads the club setting itself
+    (`getPaymentSettings` when the panel opens).
+  - Besides turning the setting off, saving a provider switch or another ЮKassa `shopId` also asks
+    first when agreements are live («Перейти на Stripe?» / «Сменить магазин?» — both cancel them,
+    §3.5), and the «Отключить онлайн-оплату?» dialog names the count. The card shows one muted line
+    «Автоплатёж включён у N учеников» only when N > 0.
+  - The tariff form's disabled hint names the section by its real title, «Настройки → Оплата» (same
+    entity, same name), not «Онлайн-оплата». The confirm reads `autopayCount` from `getPlan` at save
+    time, only when the saved tariff has autopay and the save ends it or changes price up / term /
+    pack size (`autopayImpact`). Archiving from the tariffs list (`subscriptions/page.tsx`, outside
+    the slice table) asks «Автоплатёж отключится у N учеников» too. The tariff page's «Онлайн-продажа»
+    fact says «можно продлевать автоплатежом».
+  - «⋯ → Отключить автоплатёж» opens its own dialog (`confirmDialog` has no input) with the required
+    «Причина» (`FORM_LIMITS.autopayCancel.reason`) and the destructive «Отключить». The block mounts
+    only for sport leads (`isSportLead`) and re-reads whenever the panel re-reads the abonements
+    (cancelling one may end its autopay). Declines show `lastFailedOn`: «Не прошло списание 13 дек.:
+    …. Повторим 15 дек.». A pending rise on an `ACTIVE` agreement shows the same «Ждёт подтверждения
+    новой цены» line, in the warning tone.
+  - Journal rows use `entryMethodLabel` (`PaymentJournal.tsx`, outside the slice table); the entry
+    panel's «Онлайн» fact appends «Автоплатёж, карта •• 4444» (detail `cardLabel`).
+  - Plans and renewals have no `plans.ts` / `renewals.ts`: their wrappers live in
+    `shared/api/subscriptions.ts` and derive the new fields from `ApiTypes`, so only `autopay.ts` is
+    new. The vocabulary guard allows `autopay-text.ts` (an abonement's «занятия», like
+    `subscription-display.ts`) and the audit label «Занятий».
+- **(integration)** A pack with classes left is charged at S 10:00 **or at the pack's own end time if
+  that is later the same day** (`autopayDueAt`). An online grant ends at its purchase time, so a pack
+  bought after 10:00 is still live at S 10:00 with classes; `onlineGrantStart` / `grantFromPlan`
+  refuse a new pack over it, and charging then would take money for an abonement that can't be
+  granted. Found by the e2e suite failing only when run after 10:00 Moscow time.
+- **(implementation, slice A1)** Server core:
+  - The writer API is its own injectable, `MemberAutopayAgreementsService`
+    (`member-autopay-agreements.service.ts`: setup, charge outcomes, `cancel*`, `notifyTermsChanged`),
+    because `PaymentActivationService` calls it and the pass (`MemberAutopayService`: `runCharges`,
+    `runReminders`, `chargeOne`) calls the activation — one service would be a DI cycle.
+  - The pass also visits `NEEDS_ACTION` with `CHARGE_FAILED` / `GRANT_REFUSED` (a new anchor — e.g. a
+    cash renewal — resumes it) and `TERMS_CHANGED` (resumes by itself when the terms fit again).
+    `CARD_EXPIRED` waits for a new card.
+  - `MAX_CHARGES_PER_RUN` caps provider requests, not candidates: candidates are paged by id, so
+    agreements that are not due never starve the rest.
+  - «Ended more than 30 days ago» is `pickAnchor` returning null (it already drops older ones);
+    no separate `anchorLapsed`.
+  - The pack reminder is S − 3 (3 days before its latest charge day S), the term one S − 4; the copy
+    names the real day count («Через 3 дня, 14 декабря, клуб…»).
+  - `termsCheck` also treats a currency change as changed; a renewal priced at 0 ₽ is skipped.
+  - `DECLINE_REASON_RU` already had `card_expired` / `permission_revoked`; their texts are kept (the
+    admin `billing-view.ts` mirrors them).
+  - `MyPaymentOutput.autopay` is set once granted (`subscriptionId`); the return screen reads the
+    next charge from `listMyAutopays` (one source). `GET me/checkout-quote` gained the same `autopay`
+    offer with «сейчас» = the quoted (promo) amount, so the consent is exact with a code.
+  - Event-ticket checkouts in an autopay club also send `save_payment_method: false`
+    (`savePaymentMethodFor` in `start-provider-payment.ts`).
+  - The cancellation confirmation is sent even with the abonement section off (written refusal
+    confirmation); other member notices use `feature: 'subscription'`. Staff alerts go to the owner +
+    club admins one `notifyUser` per recipient (refId `…:${userId}`).
+  - A renewal `Payment.createdAt` is the pass's `now`, so the re-send window and the in-flight guard
+    read one clock.
+  - A setup checkout's `Payment` also carries `autopayId` (the agreement it created); «автоплатёж» in
+    the journal / CSV is a renewal charge: `autopayId` set and `autopayConsentVersion` null.
 
 ## 13. Implementation slices
 
@@ -979,10 +1087,15 @@ Checks for the integrator:
   than silently not saving; the `saved: false` path covers the other case.
 - **`save_payment_method: false` on shops without autopay** is sent only when the club setting is on, to
   avoid an unknown reaction from non-enabled shops.
-- **Legal text** is drafted by engineering. 376-ФЗ formally targets subscription contracts «в сети
-  Интернет». Applying it to every club is the conservative reading, but the consent and `/legal/autopay`
-  wording need the owner's (or a lawyer's) review. The ClubSpace ↔ club offer (`offer-2026-11-01.tsx`,
-  §5 covers only the platform fee) should gain a clause on member autopay in its next edition.
+- **Legal text — черновик, требует проверки юристом.** Drafted by engineering; the consent lines
+  (`autopay-consent.ts`) and the `/legal/autopay` edition `2026-11-15`
+  (`apps/client/src/features/legal/autopay/autopay-2026-11-15.tsx`) must be reviewed by the owner or a
+  lawyer before `MEMBER_AUTOPAY_ENABLED` goes on (question listed in `docs/legal/README.md`). 376-ФЗ
+  formally targets subscription contracts «в сети Интернет». Applying it to every club is the
+  conservative reading. The page says «чеки по 54-ФЗ присылает ЮKassa», true only while the club keeps
+  ЮKassa receipts on (`receiptEnabled`, default on). The ClubSpace ↔ club offer
+  (`offer-2026-11-01.tsx`, §5 covers only the platform fee) should gain a clause on member autopay in its
+  next edition.
 - **Freeze after the renewal was charged.** A freeze requested on the last day, after the charge, leaves
   two overlapping abonements (the existing manual-renewal behaviour, `subscription-freeze.service.ts:276-304`).
   It is rare with a one-day lead; staff resolve it as today.

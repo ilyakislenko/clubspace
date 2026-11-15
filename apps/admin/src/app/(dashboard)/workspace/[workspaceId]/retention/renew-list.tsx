@@ -32,6 +32,10 @@ import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { DirectionScopeChips } from "../../../../../features/directions/DirectionScopePicker"
 import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
+import {
+  attentionText,
+  renewalAutopayLine,
+} from "../../../../../features/subscriptions/autopay-text"
 import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
 import { AnalyticsFilters } from "../analytics/analytics-toolbar"
 
@@ -206,6 +210,37 @@ export function RenewList({ workspaceId }: { workspaceId: string }) {
         onChange={setFilter}
       />
 
+      {!loading && awaiting && awaiting.autopayAttention.total > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium">
+            Автоплатёж не прошёл{" "}
+            <span className="text-muted-foreground">
+              · {awaiting.autopayAttention.total}{" "}
+              {pluralRu(awaiting.autopayAttention.total, "ученик", "ученика", "учеников")}
+            </span>
+          </h2>
+          <ul className="divide-y divide-border rounded-lg border border-border">
+            {awaiting.autopayAttention.data.map((a) => {
+              const text = attentionText(a)
+              return (
+                <li key={a.autopayId}>
+                  <Link
+                    href={`/workspace/${workspaceId}/users/${a.member.userId}`}
+                    className="block px-3 py-2 transition hover:bg-muted"
+                  >
+                    <div className="truncate text-sm font-medium">{a.member.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {a.planName} · <span className="text-destructive">{text.reason}</span> ·{" "}
+                      {text.next}
+                    </div>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+
       {!loading && awaiting && awaiting.total > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-medium">
@@ -281,6 +316,8 @@ export function RenewList({ workspaceId }: { workspaceId: string }) {
             <tbody className="divide-y divide-border">
               {rows.map((c) => {
                 const balance = abonementText(c)
+                // Covered by autopay: nobody needs to call.
+                const autopayLine = renewalAutopayLine(c.autopay)
                 return (
                   <tr key={c.userId} className="align-top">
                     <td className="p-3">
@@ -308,6 +345,9 @@ export function RenewList({ workspaceId }: { workspaceId: string }) {
                         <DirectionScopeChips directions={c.directions} />
                         {balance && <span>{balance}</span>}
                       </div>
+                      {autopayLine && (
+                        <div className="mt-0.5 text-xs text-muted-foreground">{autopayLine}</div>
+                      )}
                     </td>
                     <td className="whitespace-nowrap p-3">
                       {c.phone ? (

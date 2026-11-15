@@ -19,6 +19,7 @@ const planRow = (directions: Array<typeof BJJ>) => ({
     startsOnFirstVisit: true,
     isActive: true,
     purchasableOnline: true,
+    autopayAvailable: true,
     directions: directions.map((direction) => ({ direction })),
     updatedAt: new Date('2026-11-14T10:00:00.000Z'),
 })
@@ -55,6 +56,8 @@ const make = (opts: { plan: object | null; userId?: string; role?: string }) => 
         },
         // Refunds of this tariff's abonements made in the window.
         refund: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 2000 } }) },
+        // Live autopay agreements on the tariff.
+        memberAutopay: { count: jest.fn().mockResolvedValue(3) },
     }
     const run = (planId = PLAN) =>
         new GetPlanHandler(prisma as never, new RbacService(prisma as never)).execute(
@@ -80,6 +83,13 @@ describe('GetPlanHandler', () => {
         ])
         // Sales in the window − refunds of its abonements in the window.
         expect(out.last30Days).toEqual({ sold: 4, revenue: 13000 })
+        expect(out.plan.autopayAvailable).toBe(true)
+        expect(out.autopayCount).toBe(3)
+        expect(prisma.memberAutopay.count.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            planId: PLAN,
+            status: { in: ['ACTIVE', 'NEEDS_ACTION'] },
+        })
         // Current abonements of members only; revenue in the tariff's currency.
         const held = prisma.subscription.findMany.mock.calls[0][0].where
         expect(held).toMatchObject({ workspaceId: 'w1', planId: PLAN, status: 'ACTIVE' })

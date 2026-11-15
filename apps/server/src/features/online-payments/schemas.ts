@@ -43,6 +43,10 @@ export const MyPaymentOutputSchema = z.object({
     createdAt: z.iso.datetime(),
     paidAt: z.iso.datetime().nullable(),
     refundedAt: z.iso.datetime().nullable(),
+    // A granted checkout where the member ticked «Продлевать автоматически»:
+    // 'on' = the agreement is set up, 'not_saved' = the provider did not save
+    // the card (no agreement). null otherwise (pending, not granted, no tick).
+    autopay: z.enum(['on', 'not_saved']).nullable(),
 })
 export type MyPaymentOutput = z.infer<typeof MyPaymentOutputSchema>
 
@@ -60,6 +64,8 @@ type PaymentRow = {
     createdAt: Date
     paidAt: Date | null
     refundedAt: Date | null
+    autopayId: string | null
+    autopayConsentVersion: string | null
 }
 
 export const serializeMyPayment = (p: PaymentRow): MyPaymentOutput => ({
@@ -76,7 +82,24 @@ export const serializeMyPayment = (p: PaymentRow): MyPaymentOutput => ({
     createdAt: p.createdAt.toISOString(),
     paidAt: p.paidAt ? p.paidAt.toISOString() : null,
     refundedAt: p.refundedAt ? p.refundedAt.toISOString() : null,
+    autopay:
+        p.autopayConsentVersion === null || p.subscriptionId === null
+            ? null
+            : p.autopayId
+              ? 'on'
+              : 'not_saved',
 })
+
+// The autopay offer next to a tariff the member may renew automatically
+// (docs/design/2026-11-15-member-autopay.md §3.3): what each renewal charges
+// and the consent the app renders verbatim under «Продлевать автоматически».
+export const AutopayOfferOutputSchema = z.object({
+    renewalAmount: z.number().int(),
+    // Sent back as autopayConsentVersion with the checkout.
+    consentVersion: z.string(),
+    consentLines: z.array(z.string()),
+})
+export type AutopayOfferOutput = z.infer<typeof AutopayOfferOutputSchema>
 
 export const PaymentSettingsOutputSchema = z.object({
     // A provider is connected (credentials saved). Secrets are never returned.
@@ -98,6 +121,17 @@ export const PaymentSettingsOutputSchema = z.object({
     webhookUrls: z.object({ yookassa: z.string(), stripe: z.string() }),
     // Active tariffs flagged «можно купить онлайн».
     onlinePlanCount: z.number().int(),
+    // Member autopay (docs/design/2026-11-15-member-autopay.md §3.5). The
+    // global switch MEMBER_AUTOPAY_ENABLED is on: the admin may offer it.
+    autopayOffered: z.boolean(),
+    // The club offers autopay to members (YooKassa only).
+    autopayEnabled: z.boolean(),
+    // YooKassa's last refusal of an autopay setup; cleared by saving
+    // autopayEnabled = true.
+    autopayLastError: z.string().nullable(),
+    autopayLastErrorAt: z.iso.datetime().nullable(),
+    // Live (not cancelled) agreements: who loses autopay if it is turned off.
+    autopayLiveCount: z.number().int(),
 })
 export type PaymentSettingsOutput = z.infer<typeof PaymentSettingsOutputSchema>
 
@@ -137,8 +171,12 @@ export const serializePaymentSettings = (
         paymentSubject: string
         paymentMode: string
         verifiedAt: Date | null
+        autopayEnabled: boolean
+        autopayLastError: string | null
+        autopayLastErrorAt: Date | null
     } | null,
     onlinePlanCount: number,
+    autopayLiveCount: number,
 ): PaymentSettingsOutput => ({
     connected: !!row,
     provider: row?.provider ?? null,
@@ -154,4 +192,9 @@ export const serializePaymentSettings = (
     verifiedAt: row?.verifiedAt ? row.verifiedAt.toISOString() : null,
     webhookUrls: paymentWebhookUrls(workspaceId),
     onlinePlanCount,
+    autopayOffered: environment.memberAutopay.enabled,
+    autopayEnabled: row?.autopayEnabled ?? false,
+    autopayLastError: row?.autopayLastError ?? null,
+    autopayLastErrorAt: row?.autopayLastErrorAt ? row.autopayLastErrorAt.toISOString() : null,
+    autopayLiveCount,
 })

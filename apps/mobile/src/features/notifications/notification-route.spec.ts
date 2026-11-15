@@ -28,6 +28,10 @@ describe("routeForNotification", () => {
     [{ kind: "subscription.payment_due" }, "MySubscription"],
     [{ kind: "freeze.approved" }, "MySubscription"],
     [{ kind: "freeze.declined" }, "MySubscription"],
+    [{ kind: "subscription.autopay_reminder" }, "MySubscription"],
+    [{ kind: "subscription.autopay_failed" }, "MySubscription"],
+    [{ kind: "subscription.autopay_terms_changed" }, "MySubscription"],
+    [{ kind: "subscription.autopay_cancelled" }, "MySubscription"],
     [{ kind: "event.reminder" }, "Events"],
     [{ kind: "payment.succeeded", eventRegistrationId: "reg-1" }, "Events"],
     [{ kind: "payment.refunded", eventRegistrationId: "reg-1" }, "Events"],
@@ -54,6 +58,15 @@ describe("routeForNotification", () => {
   it("freeze.approved / freeze.declined open nothing while the abonement section is off", () => {
     expect(routeForNotification({ kind: "freeze.approved" }, off)).toBeNull()
     expect(routeForNotification({ kind: "freeze.declined" }, off)).toBeNull()
+  })
+
+  it("autopay notices open nothing while the abonement section is off; the staff alert never opens a screen", () => {
+    expect(
+      routeForNotification({ kind: "subscription.autopay_failed" }, off),
+    ).toBeNull()
+    expect(
+      routeForNotification({ kind: "subscription.autopay_staff_alert" }, on),
+    ).toBeNull()
   })
 
   it("payment.refunded opens nothing without a sale, or while its section is off", () => {

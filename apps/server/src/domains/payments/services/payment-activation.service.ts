@@ -17,6 +17,13 @@ import {
     onlineGrantStart,
     sameScopeAbonements,
 } from '../online-grant-start'
+import { formatRuDate } from '../../../shared/utils/format-ru-date'
+import { formatMoney } from '../../analytics/money'
+import { autopayNextChargeOn } from '../../autopay/autopay-rules'
+import {
+    type AutopaySetup,
+    MemberAutopayAgreementsService,
+} from '../../autopay/member-autopay-agreements.service'
 import {
     type GatewayPayment,
     toMinorUnits,
@@ -51,6 +58,14 @@ type PaymentRow = {
     discountId: string | null
     discountName: string | null
     discountAmount: number
+    // Member autopay: the agreement a renewal charge belongs to (set on a
+    // setup checkout only by its activation), and the consent version a
+    // setup checkout recorded.
+    autopayId: string | null
+    autopayConsentVersion: string | null
+    idempotenceKey: string
+    receiptEmail: string | null
+    createdAt: Date
 }
 
 // The sale's price facts as the activation copies them and audits them.
@@ -77,6 +92,7 @@ export class PaymentActivationService {
         private readonly notifications: NotificationProducerService,
         private readonly realtime: RealtimeEmitter,
         private readonly eventRegistrations: EventRegistrationService,
+        private readonly autopay: MemberAutopayAgreementsService,
     ) {}
 
     async applyProviderStatus(p: {
@@ -99,14 +115,18 @@ export class PaymentActivationService {
         const now = p.now ?? new Date()
 
         if (p.gateway.status === 'CANCELED') {
+            const failureReason = p.gateway.cancellationReason?.slice(0, 500) ?? null
             const res = await this.prisma.payment.updateMany({
                 where: { id: payment.id, status: 'PENDING' },
-                data: { status: 'CANCELED' },
+                data: { status: 'CANCELED', failureReason },
             })
-            if (res.count === 1) {
-                this.realtime.invalidate(payment.workspaceId, ['payments'])
+            if (res.count !== 1) return 'unchanged'
+            this.realtime.invalidate(payment.workspaceId, ['payments'])
+            // A renewal charge (not a setup checkout) counts as a decline.
+            if (payment.autopayId && !payment.autopayConsentVersion) {
+                await this.autopay.onChargeDeclined(payment, failureReason, now)
             }
-            return res.count === 1 ? 'canceled' : 'unchanged'
+            return 'canceled'
         }
         if (p.gateway.status !== 'SUCCEEDED') return 'unchanged'
 
@@ -127,7 +147,7 @@ export class PaymentActivationService {
                   { ...payment, eventRegistrationId: payment.eventRegistrationId },
                   now,
               )
-            : this.activate(payment, now)
+            : this.activate(payment, p.gateway, now)
     }
 
     // An event ticket: the claim and the «paid ONLINE» mark commit together.
@@ -203,12 +223,24 @@ export class PaymentActivationService {
 
     private async activate(
         payment: PaymentRow,
+        gateway: GatewayPayment,
         now: Date,
     ): Promise<ProviderStatusOutcome> {
+        // A renewal charge of an agreement; a setup checkout has the consent.
+        const isRenewal = !!payment.autopayId && !payment.autopayConsentVersion
+        const isSetup = !!payment.autopayConsentVersion
         let granted: {
             subscriptionId: string
             planName: string
             accessUntil: Date | null
+            timezone: string
+            sub: {
+                startDate: Date | null
+                endDate: Date | null
+                classesTotal: number | null
+                classesRemaining: number | null
+            }
+            setup: AutopaySetup | null
         } | null
         try {
             granted = await this.prisma.$transaction(async (tx) => {
@@ -278,10 +310,25 @@ export class PaymentActivationService {
                     where: { id: payment.id },
                     data: { subscriptionId: result.subscription.id },
                 })
+                // Member autopay, committed with the grant: the setup creates
+                // (or re-arms) the agreement, a renewal resets its attempts.
+                const setup = isSetup
+                    ? await this.autopay.setUpFromPaymentInTx(
+                          tx,
+                          payment,
+                          gateway,
+                          result.subscription,
+                          now,
+                      )
+                    : null
+                if (isRenewal) await this.autopay.onChargeSucceededInTx(tx, payment, now)
                 return {
                     subscriptionId: result.subscription.id,
                     planName: result.subscription.plan.name,
                     accessUntil: result.accessUntil,
+                    timezone: member.workspace.timezone,
+                    sub: result.subscription,
+                    setup,
                 }
             })
         } catch (err) {
@@ -312,18 +359,60 @@ export class PaymentActivationService {
                 accessUntil: granted.accessUntil
                     ? granted.accessUntil.toISOString()
                     : null,
+                ...(isRenewal ? { autopayId: payment.autopayId, autopay: 'charge' } : {}),
+                ...(granted.setup ? { autopayId: granted.setup.autopayId, autopay: 'setup' } : {}),
             },
         })
+        if (granted.setup) await this.autopay.announceSetUp(payment, granted.setup)
         this.realtime.invalidate(payment.workspaceId, [
             'members',
             'subscription',
             'payments',
         ])
         await this.notifyMember(payment, {
-            topic: 'Оплата прошла',
-            message: `Абонемент «${granted.planName}» оформлен. Спасибо!`,
+            topic: isRenewal ? 'Автоплатёж прошёл' : 'Оплата прошла',
+            message: this.grantedText(payment, granted, isSetup, isRenewal),
         })
         return 'activated'
+    }
+
+    // The member's push after a grant (docs/design/2026-11-15-member-autopay.md
+    // §3.6): a plain sale, a setup (saved or not), or a renewal charge.
+    private grantedText(
+        payment: PaymentRow,
+        granted: {
+            planName: string
+            timezone: string
+            sub: {
+                startDate: Date | null
+                endDate: Date | null
+                classesTotal: number | null
+                classesRemaining: number | null
+            }
+            setup: AutopaySetup | null
+        },
+        isSetup: boolean,
+        isRenewal: boolean,
+    ): string {
+        const tz = granted.timezone
+        if (isRenewal) {
+            const until = granted.sub.endDate
+                ? ` Действует до ${formatRuDate(granted.sub.endDate, tz)}.`
+                : ''
+            return `Автоплатёж: списали ${formatMoney(payment.amount, payment.currency)} за абонемент «${granted.planName}».${until}`
+        }
+        if (!isSetup) return `Абонемент «${granted.planName}» оформлен. Спасибо!`
+        if (!granted.setup) {
+            return `Абонемент «${granted.planName}» оформлен. Автоплатёж не подключился — платёжная система не сохранила карту.`
+        }
+        const next = autopayNextChargeOn(granted.sub, tz, null)
+        const day = next ? formatRuDate(new Date(`${next.on}T00:00:00Z`), 'UTC') : null
+        const when = !day
+            ? 'после начала абонемента'
+            : next?.kind === 'pack'
+              ? `когда закончатся занятия, не позже ${day}`
+              : day
+        return `Абонемент «${granted.planName}» оформлен. Автоплатёж включён: следующее списание — ${when}, ${formatMoney(granted.setup.termsAmount, granted.setup.currency)}.`
     }
 
     // The money is in but the grant was refused: keep the payment SUCCEEDED
@@ -359,9 +448,17 @@ export class PaymentActivationService {
                 amount: payment.amount,
                 currency: payment.currency,
                 activationError: reason,
+                ...(payment.autopayId && !payment.autopayConsentVersion
+                    ? { autopayId: payment.autopayId, autopay: 'charge' }
+                    : {}),
             },
         })
         this.realtime.invalidate(payment.workspaceId, ['payments'])
+        // A renewal charge that could not be granted stops its agreement and
+        // alerts staff; a setup that isn't granted makes no agreement.
+        if (payment.autopayId && !payment.autopayConsentVersion) {
+            await this.autopay.onGrantRefused(payment, reason)
+        }
         await this.notifyMember(payment, {
             topic: 'Оплата получена',
             message: `Оплата за «${payment.planName}» получена. Абонемент оформит администратор клуба — мы ему сообщили.`,

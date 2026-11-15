@@ -22,6 +22,7 @@ import {
   type MySubscription,
   type Subscription,
 } from "../../shared/api/subscriptions"
+import type { MyAutopay } from "../../shared/api/autopay"
 import { formatPhone } from "../../shared/format-ru"
 import { dialPhone } from "../../shared/open-link"
 import { useAuth } from "../../shared/auth-context"
@@ -36,6 +37,8 @@ import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-
 import { OnlinePurchaseSection } from "../payments/OnlinePurchaseSection"
 import { memberDiscountText } from "../payments/payment-helpers"
 import { AbonementScopeChips, hasScoped } from "./AbonementScopeChips"
+import { hasLiveAutopay } from "./autopay-text"
+import { AutopayCard } from "./AutopayCard"
 import { FreezeRequestSection } from "./FreezeRequestSection"
 import {
   currentAbonements,
@@ -91,12 +94,20 @@ export function MySubscriptionScreen() {
     ),
   )
   const focused = useIsFocused()
-  // Pull-to-refresh re-reads the online purchase options too.
+  // Pull-to-refresh re-reads the online purchase options and the autopay
+  // card too; so does a payment (the new agreement), a cancel or accepted
+  // terms (the switch in «Оплатить онлайн» depends on the agreement).
   const [paymentsReload, setPaymentsReload] = useState(0)
-  const handleRefresh = () => {
+  const reloadPayments = useCallback(() => setPaymentsReload((n) => n + 1), [])
+  const handleRefresh = useCallback(() => {
     refetch()
-    setPaymentsReload((n) => n + 1)
-  }
+    reloadPayments()
+  }, [refetch, reloadPayments])
+  const [autopayLive, setAutopayLive] = useState(false)
+  const handleAutopaysLoaded = useCallback(
+    (list: MyAutopay[]) => setAutopayLive(hasLiveAutopay(list)),
+    [],
+  )
 
   if (!workspace) return null
 
@@ -170,14 +181,24 @@ export function MySubscriptionScreen() {
           </View>
         ))}
 
-        {/* Paying for a child's abonement isn't offered yet. */}
+        {/* Paying for a child's abonement isn't offered yet, nor autopay. */}
+        {!actingAs && (
+          <AutopayCard
+            key={`autopay:${workspace.workspaceId}`}
+            workspaceId={workspace.workspaceId}
+            reloadKey={paymentsReload}
+            abonements={abonements}
+            onLoaded={handleAutopaysLoaded}
+            onChanged={reloadPayments}
+          />
+        )}
         {!actingAs && (
           <OnlinePurchaseSection
             key={workspace.workspaceId}
             workspaceId={workspace.workspaceId}
             active={focused}
             reloadKey={paymentsReload}
-            onPaid={refetch}
+            onPaid={handleRefresh}
           />
         )}
 
@@ -200,6 +221,7 @@ export function MySubscriptionScreen() {
           {hasFreezeAsk
             ? `По вопросам оплаты и продления обращайтесь к ${vocabulary.coach.dat} вашей группы или администратору клуба.`
             : `По вопросам оплаты, продления и заморозки обращайтесь к ${vocabulary.coach.dat} вашей группы или администратору клуба.`}
+          {autopayLive && !actingAs ? " Отключить автоплатёж можно здесь же." : ""}
         </Text>
 
         {data && data.history.length > 0 && (

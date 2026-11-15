@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { autopayOffered } from '../../domains/autopay/autopay-offer'
 import { isWorkspaceEntitled } from '../../domains/billing/module-entitlement'
 import { directionRefSelect } from '../../domains/directions/direction-ref'
 import { loadMemberDirectionIds } from '../../domains/directions/direction-scope'
@@ -22,6 +23,7 @@ import {
     purchasablePlanWhere,
 } from './load-buyer'
 import { priceOnlineItem } from './price-online-item'
+import { autopayOfferView, autopayTermsUrl } from './autopay-offer-view'
 import { serializeMyPayment } from './schemas'
 
 const NOTHING: GetOnlinePurchaseOptionsFeatureResponse = {
@@ -31,6 +33,7 @@ const NOTHING: GetOnlinePurchaseOptionsFeatureResponse = {
     blockedReason: null,
     renewalFrom: null,
     pendingPayment: null,
+    autopayTermsUrl: null,
 }
 
 // What the member's «Оплатить онлайн» block shows. Read on every subscription
@@ -63,7 +66,7 @@ export class GetOnlinePurchaseOptionsHandler
         const [settings, allPlans, pending, memberDirections] = await Promise.all([
             this.prisma.workspacePaymentSettings.findUnique({
                 where: { workspaceId: f.workspaceId },
-                select: { provider: true },
+                select: { provider: true, autopayEnabled: true },
             }),
             this.prisma.plan.findMany({
                 where: purchasablePlanWhere(f.workspaceId),
@@ -76,6 +79,7 @@ export class GetOnlinePurchaseOptionsHandler
                     currency: true,
                     durationDays: true,
                     classCount: true,
+                    autopayAvailable: true,
                     directions: {
                         select: {
                             directionId: true,
@@ -157,14 +161,36 @@ export class GetOnlinePurchaseOptionsHandler
                 }),
             ),
         )
+        // «Продлевать автоматически»: where the club and the tariff allow it
+        // and the member has no ACTIVE agreement on it. The renewal price is
+        // the price without a code (automatic discounts only) — `prices`.
+        const activeAutopay = new Set(
+            (
+                await this.prisma.memberAutopay.findMany({
+                    where: { workspaceId: f.workspaceId, userId: f.userId, status: 'ACTIVE' },
+                    select: { planId: true },
+                })
+            ).map((a) => a.planId),
+        )
+        const offers = plans.map((p, i) =>
+            autopayOffered(settings, p) && !activeAutopay.has(p.id) && !prices[i].refusal
+                ? autopayOfferView({
+                      clubName: workspace.name,
+                      plan: p,
+                      amountNow: prices[i].amount,
+                      renewalAmount: prices[i].amount,
+                  })
+                : null,
+        )
         return {
             available: true,
             provider: settings.provider,
-            plans: plans.map(({ directions, ...p }, i) => ({
+            plans: plans.map(({ directions, autopayAvailable: _offered, ...p }, i) => ({
                 ...p,
                 amount: prices[i].amount,
                 discountName: prices[i].discountName,
                 directions: directions.map((d) => d.direction),
+                autopay: offers[i],
             })),
             blockedReason:
                 allBlocked && firstBlocked?.kind === 'blocked'
@@ -173,6 +199,7 @@ export class GetOnlinePurchaseOptionsHandler
             renewalFrom:
                 !allBlocked && renewals.size === 1 && onlyRenewal ? onlyRenewal : null,
             pendingPayment: pending ? serializeMyPayment(pending) : null,
+            autopayTermsUrl: offers.some((o) => o !== null) ? autopayTermsUrl() : null,
         }
     }
 }

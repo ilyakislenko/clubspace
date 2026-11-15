@@ -44,6 +44,20 @@ const row = (over: Record<string, unknown> = {}) => ({
     ...over,
 })
 
+// An agreement whose charge failed («Автоплатёж не прошёл»).
+const attention = (over: Record<string, unknown> = {}) => ({
+    id: 'a1',
+    userId: 'u3',
+    planName: 'Безлимит',
+    status: 'NEEDS_ACTION',
+    needsActionReason: 'CHARGE_FAILED',
+    lastError: 'недостаточно средств',
+    nextAttemptAt: null,
+    updatedAt: new Date('2026-11-10T07:00:00Z'),
+    user: { firstname: 'Анна', lastname: 'Смирнова', email: 'a@x.ru' },
+    ...over,
+})
+
 const run = (
     rows: unknown[],
     o: {
@@ -51,6 +65,7 @@ const run = (
         total?: number
         members?: number
         payload?: ListAwaitingPaymentInput
+        autopays?: unknown[]
     } = {},
 ) => {
     const prisma = {
@@ -61,6 +76,11 @@ const run = (
         workspaceMember: {
             count: jest.fn().mockResolvedValue(o.members ?? rows.length),
         },
+        memberAutopay: {
+            findMany: jest.fn().mockResolvedValue(o.autopays ?? []),
+            count: jest.fn().mockResolvedValue((o.autopays ?? []).length),
+        },
+        workspace: { findUnique: jest.fn().mockResolvedValue({ timezone: 'Europe/Moscow' }) },
     }
     const handler = new ListAwaitingPaymentHandler(prisma as never, {} as never)
     return {
@@ -85,6 +105,7 @@ describe('listAwaitingPayment', () => {
         const { prisma, result } = run([], { roleName: 'coach' })
         await expect(result).rejects.toThrow(ForbiddenError)
         expect(prisma.subscription.findMany).not.toHaveBeenCalled()
+        expect(prisma.memberAutopay.findMany).not.toHaveBeenCalled()
     })
 
     it('asks only for unpaid, live-or-expired rows of this club, oldest start first, one page', async () => {
@@ -147,6 +168,10 @@ describe('listAwaitingPayment', () => {
         expect(
             prisma.workspaceMember.count.mock.calls[0][0].where.AND[2],
         ).toEqual(inGroup)
+        // «Автоплатёж не прошёл» follows the same filter, among current members.
+        expect(prisma.memberAutopay.findMany.mock.calls[0][0].where.user).toEqual({
+            workspaceMemberships: { some: { workspaceId: 'w1', ...inGroup } },
+        })
     })
 
     it('maps rows; a not-started abonement has a null startDate', async () => {
@@ -197,5 +222,71 @@ describe('listAwaitingPayment', () => {
     it('drops a row whose member is gone', async () => {
         const { result } = run([row({ workspaceMember: null })])
         expect((await result).data).toEqual([])
+    })
+
+    // docs/design/2026-11-15-member-autopay.md §3.5: stopped agreements and
+    // active ones with declines pending, oldest first, capped; no amount and
+    // never part of the receivable.
+    describe('autopayAttention', () => {
+        it('lists failed autopay beside the debts, without amounts or counting them as debts', async () => {
+            const { prisma, result } = run([row()], {
+                total: 1,
+                members: 1,
+                autopays: [
+                    attention(),
+                    attention({
+                        id: 'a2',
+                        userId: 'u4',
+                        status: 'ACTIVE',
+                        needsActionReason: null,
+                        lastError: 'банк отклонил платёж',
+                        // 10:00 Moscow on 16 Nov.
+                        nextAttemptAt: new Date('2026-11-16T07:00:00Z'),
+                        user: { firstname: null, lastname: null, email: 'b@x.ru' },
+                    }),
+                ],
+            })
+            const out = await result
+            expect(out.total).toBe(1)
+            expect(out.members).toBe(1)
+            expect(out.autopayAttention).toEqual({
+                total: 2,
+                data: [
+                    {
+                        autopayId: 'a1',
+                        member: { userId: 'u3', name: 'Анна Смирнова' },
+                        planName: 'Безлимит',
+                        reason: 'CHARGE_FAILED',
+                        lastError: 'недостаточно средств',
+                        nextAttemptOn: null,
+                        since: '2026-11-10T07:00:00.000Z',
+                    },
+                    {
+                        autopayId: 'a2',
+                        member: { userId: 'u4', name: 'b@x.ru' },
+                        planName: 'Безлимит',
+                        reason: null,
+                        lastError: 'банк отклонил платёж',
+                        nextAttemptOn: '2026-11-16',
+                        since: '2026-11-10T07:00:00.000Z',
+                    },
+                ],
+            })
+            expect(JSON.stringify(out.autopayAttention)).not.toMatch(/amount/i)
+            const args = prisma.memberAutopay.findMany.mock.calls[0][0]
+            expect(args.where).toMatchObject({
+                workspaceId: 'w1',
+                OR: [{ status: 'NEEDS_ACTION' }, { status: 'ACTIVE', failedAttempts: { gt: 0 } }],
+                user: { workspaceMemberships: { some: { workspaceId: 'w1' } } },
+            })
+            expect(args.orderBy).toEqual([{ updatedAt: 'asc' }, { id: 'asc' }])
+            expect(args.take).toBe(50)
+            expect(prisma.memberAutopay.count).toHaveBeenCalledWith({ where: args.where })
+        })
+
+        it('is empty when no charge failed', async () => {
+            const { result } = run([])
+            expect((await result).autopayAttention).toEqual({ total: 0, data: [] })
+        })
     })
 })

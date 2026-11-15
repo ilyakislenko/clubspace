@@ -140,6 +140,29 @@ describe('ListMemberSubscriptionsHandler', () => {
         expect(prisma.user.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['coach-1', 'gone'] } })
     })
 
+    // docs/design/2026-11-15-member-autopay.md §4: «Онлайн · автоплатёж».
+    it('tells an abonement renewed by the member’s autopay from their own online purchases', async () => {
+        const charge = { autopayId: 'a1', autopayConsentVersion: null }
+        // The setup checkout is linked to the agreement it created, but the
+        // member paid it themselves.
+        const setup = { autopayId: 'a1', autopayConsentVersion: '2026-11-15' }
+        const prisma = build([
+            subRow({ source: 'GATEWAY', isPaid: true, paymentMethod: 'ONLINE', payment: charge }),
+            subRow({ id: 'setup', status: 'EXPIRED', source: 'GATEWAY', payment: setup }),
+            subRow({ id: 's0', status: 'EXPIRED', source: 'GATEWAY', payment: { autopayId: null, autopayConsentVersion: null } }),
+            subRow({ id: 'cash', status: 'EXPIRED', payment: null }),
+        ])
+        const out = await run(prisma)
+        expect(first(out)).toMatchObject({ paidByAutopay: true, paymentMethod: 'ONLINE' })
+        const byId = new Map(out.history.map((s) => [s.id, s.paidByAutopay]))
+        expect(Object.fromEntries(byId)).toEqual({ s1: true, setup: false, s0: false, cash: false })
+        for (const [args] of prisma.subscription.findMany.mock.calls) {
+            expect(args.include.payment).toEqual({
+                select: { autopayId: true, autopayConsentVersion: true },
+            })
+        }
+    })
+
     it('lists every current abonement with its own request and renewal day', async () => {
         const bjj = subRow({
             id: 's1',

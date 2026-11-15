@@ -89,11 +89,14 @@ const member = (o: {
               ]),
 });
 
-const prismaFor = (members: unknown[]) => ({
+const prismaFor = (members: unknown[], autopays: unknown[] = [], abonements: unknown[] = []) => ({
     workspace: {
-        findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner' }),
+        findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner', timezone: 'Europe/Moscow' }),
     },
     workspaceMember: { findMany: jest.fn().mockResolvedValue(members) },
+    // Live autopay agreements and the abonements their next charge is read from.
+    memberAutopay: { findMany: jest.fn().mockResolvedValue(autopays) },
+    subscription: { findMany: jest.fn().mockResolvedValue(abonements) },
 });
 
 const run = (
@@ -248,6 +251,7 @@ describe('listRenewalCandidates', () => {
                 planName: 'БЖЖ 12',
                 endDate: end.toISOString(),
                 directions: [BJJ],
+                autopay: null,
             },
         ]);
     });
@@ -446,6 +450,89 @@ describe('listRenewalCandidates paging and filters', () => {
         const out = await run(many, prismaFor(many), { curPage: 2, perPage: 2 });
         expect(out).toMatchObject({ total: 3, curPage: 2, perPage: 2 });
         expect(out.data.map((c) => c.userId)).toEqual(['c']);
+    });
+
+    // docs/design/2026-11-15-member-autopay.md §3.5: a row renewed by autopay
+    // says so (staff don't call), and when it charges next; the agreement must
+    // renew the same scope.
+    it('marks a row renewed by autopay with its next charge day, for the page only', async () => {
+        const end = new Date('2026-12-14T21:00:00Z'); // 15 Dec 00:00 Moscow
+        (resolveAnalyticsScope as jest.Mock).mockResolvedValue({ scope: CLUB });
+        const due = [
+            member({
+                userId: 'auto',
+                accessUntil: end,
+                subscriptions: [abonement({ endDate: new Date(Date.now() + 2 * DAY), directions: [BJJ] })],
+            }),
+            member({
+                userId: 'stopped',
+                accessUntil: new Date(Date.now() + 3 * DAY),
+                subscriptions: [abonement({ endDate: new Date(Date.now() + 3 * DAY) })],
+            }),
+            member({
+                userId: 'otherScope',
+                accessUntil: new Date(Date.now() + 4 * DAY),
+                subscriptions: [abonement({ endDate: new Date(Date.now() + 4 * DAY), directions: [THAI] })],
+            }),
+        ];
+        const autopays = [
+            {
+                id: 'a1',
+                userId: 'auto',
+                planId: 'p1',
+                status: 'ACTIVE',
+                failedAttempts: 0,
+                nextAttemptAt: null,
+                plan: { directions: [{ directionId: BJJ.id }] },
+            },
+            {
+                id: 'a2',
+                userId: 'stopped',
+                planId: 'p1',
+                status: 'NEEDS_ACTION',
+                failedAttempts: 4,
+                nextAttemptAt: null,
+                plan: { directions: [] },
+            },
+            {
+                id: 'a3',
+                userId: 'otherScope',
+                planId: 'p2',
+                status: 'ACTIVE',
+                failedAttempts: 0,
+                nextAttemptAt: null,
+                plan: { directions: [{ directionId: BJJ.id }] },
+            },
+        ];
+        // The anchor of a1: its BJJ abonement ending 15 Dec (Moscow) → S − 1.
+        const anchor = {
+            id: 's-auto',
+            status: 'ACTIVE',
+            startDate: new Date('2026-11-15T21:00:00Z'),
+            endDate: end,
+            classesTotal: null,
+            classesRemaining: null,
+            durationDays: 30,
+            createdAt: new Date('2026-11-15T09:00:00Z'),
+            updatedAt: new Date('2026-11-15T09:00:00Z'),
+            directions: [{ directionId: BJJ.id }],
+            consumedRecords: [],
+            workspaceMember: { userId: 'auto' },
+        };
+        const prisma = prismaFor(due, autopays, [anchor]);
+        const out = await run(due, prisma, { perPage: 3 });
+        const byId = Object.fromEntries(out.data.map((c) => [c.userId, c.autopay]));
+        expect(byId).toEqual({
+            auto: { status: 'ACTIVE', nextChargeOn: '2026-12-14' },
+            stopped: { status: 'NEEDS_ACTION', nextChargeOn: null },
+            otherScope: null,
+        });
+        const args = prisma.memberAutopay.findMany.mock.calls[0][0];
+        expect(args.where).toEqual({
+            workspaceId: 'w1',
+            userId: { in: ['auto', 'stopped', 'otherScope'] },
+            status: { in: ['ACTIVE', 'NEEDS_ACTION'] },
+        });
     });
 
     it('narrows a filtered list to the students of the matching groups', async () => {

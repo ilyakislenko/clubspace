@@ -2,7 +2,7 @@ import type { AiAccess } from '../../../domains/ai-assistant/ai-access'
 import { McpScope } from '../mcp-scope'
 import type { McpToolContext } from '../mcp-tool'
 import { McpPeople } from '../mcp-people'
-import { revenueReportTool } from './money-tools'
+import { abonementStatesTool, revenueReportTool } from './money-tools'
 
 const NOW = new Date('2026-11-15T12:00:00Z')
 
@@ -247,6 +247,78 @@ describe('revenue_report: refunds', () => {
         // A ticket's refund within the scope's events, like the tickets.
         expect(where.AND[0].OR[1]).toEqual({
             eventRegistration: { event: { workspaceId: 'w1', directionId: { in: ['bjj'] } } },
+        })
+    })
+})
+
+// docs/design/2026-11-15-member-autopay.md §6: per abonement, whether the
+// member renews it by autopay, so the AI doesn't suggest calling them.
+describe('abonement_states: autopay', () => {
+    it('says on / needs_action for the abonement an agreement renews, null otherwise', async () => {
+        const held = (id: string, userId: string, directionIds: string[]) => ({
+            status: 'ACTIVE',
+            startDate: new Date('2026-11-01T00:00:00Z'),
+            endDate: new Date('2026-12-01T00:00:00Z'),
+            classesRemaining: null,
+            classesTotal: null,
+            isPaid: true,
+            amountPaid: 4000,
+            refundedAmount: 0,
+            discountName: null,
+            currency: 'RUB',
+            plan: { id: `plan-${id}`, name: 'Безлимит' },
+            directions: directionIds.map((d) => ({ directionId: d, direction: { name: d } })),
+            freezes: [],
+            workspaceMember: {
+                user: { id: userId, firstname: 'И', lastname: 'П', email: `${userId}@x.ru`, phone: null },
+            },
+        })
+        const subscriptions = jest
+            .fn()
+            // The states list, then the abonements the next charge is read from.
+            .mockResolvedValueOnce([
+                held('1', 'on', ['bjj']),
+                held('2', 'stopped', []),
+                held('3', 'none', ['bjj']),
+                held('4', 'on', ['thai']),
+            ])
+            .mockResolvedValueOnce([])
+        const agreement = (id: string, userId: string, status: string, directionIds: string[]) => ({
+            id,
+            userId,
+            planId: 'p',
+            status,
+            failedAttempts: 0,
+            nextAttemptAt: null,
+            plan: { directions: directionIds.map((directionId) => ({ directionId })) },
+        })
+        const prisma = {
+            subscription: { findMany: subscriptions },
+            memberAutopay: {
+                findMany: jest
+                    .fn()
+                    .mockResolvedValue([
+                        agreement('a1', 'on', 'ACTIVE', ['bjj']),
+                        agreement('a2', 'stopped', 'NEEDS_ACTION', []),
+                    ]),
+            },
+            workspace: { findUnique: jest.fn().mockResolvedValue({ timezone: 'Europe/Moscow' }) },
+        }
+        const ctx = {
+            prisma,
+            people: new McpPeople('secret', 'w1', 'PERSONAL'),
+            access: access(null),
+            scope: new McpScope(access(null)),
+            now: NOW,
+        } as unknown as McpToolContext
+        const out = await abonementStatesTool.run(ctx, abonementStatesTool.input.parse({}))
+        // The tool's capped result, as the spec reads it.
+        const data = out.data as { items: Array<{ autopay: unknown }> }
+        expect(data.items.map((i) => i.autopay)).toEqual(['on', 'needs_action', null, null])
+        expect(prisma.memberAutopay.findMany.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            userId: { in: ['on', 'stopped', 'none'] },
+            status: { in: ['ACTIVE', 'NEEDS_ACTION'] },
         })
     })
 })

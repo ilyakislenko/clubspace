@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Switch, Text, View } from "react-native"
 
+import { listMyAutopays, type MyAutopay } from "../../shared/api/autopay"
 import {
   createPayment,
   getCheckoutQuote,
@@ -15,6 +16,7 @@ import { Pressable } from "../../shared/components/Pressable"
 import { useToast, type ToastVariant } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
 import { formatMoney } from "../../shared/format-ru"
+import { openWebLink } from "../../shared/open-link"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import {
@@ -23,10 +25,13 @@ import {
 } from "../subscription/AbonementScopeChips"
 import { toneColor } from "../subscription/subscription-state"
 import {
+  autopayPriceLine,
+  checkoutInput,
   offerPrice,
   onlinePlanOffer,
   PENDING_TEXT,
   PROMO_DEFERRED_NOTE,
+  paymentAutopayLine,
   paymentStatusLine,
   planTermsText,
   promoQuotePlan,
@@ -60,8 +65,10 @@ const toastVariant = (p: MyPayment): ToastVariant =>
       : "default"
 
 /**
- * «Оплатить онлайн»: the club's online tariffs with a pay button each, the
- * pending payment while the provider's webhook is awaited, and the outcome.
+ * «Оплатить онлайн»: the club's online tariffs with a pay button each (and,
+ * where the club offers it, the opt-in «Продлевать автоматически» switch with
+ * the server's consent text), the pending payment while the provider's
+ * webhook is awaited, and the outcome.
  * Hidden entirely when the club takes no online payments and nothing is
  * pending. Shown on the abonement screen and on the expired-access lock
  * screen (the endpoints stay open to an expired member).
@@ -93,11 +100,21 @@ export function OnlinePurchaseSection({
   // Bumped by every apply / edit: a quote that comes back after the code
   // changed is dropped.
   const promoRun = useRef(0)
+  // The member's agreements: a tariff already on autopay says so instead of
+  // the switch, and a settled checkout names the next charge.
+  const [autopays, setAutopays] = useState<MyAutopay[]>([])
+  // «Продлевать автоматически» per tariff — never pre-ticked (consent).
+  const [autopayOn, setAutopayOn] = useState<Record<string, boolean>>({})
 
   const load = useCallback(async () => {
     try {
-      const next = await getOnlinePurchaseOptions({ workspaceId })
+      const [next, agreements] = await Promise.all([
+        getOnlinePurchaseOptions({ workspaceId }),
+        // The autopay card reports its own errors; here it only words lines.
+        listMyAutopays({ workspaceId }).catch(() => null),
+      ])
       setOptions(next)
+      if (agreements) setAutopays(agreements)
       setError(null)
       const pendingId = next.pendingPayment?.id
       if (pendingId) setTrackedId((current) => current ?? pendingId)
@@ -203,10 +220,19 @@ export function OnlinePurchaseSection({
     const promoCode = promo?.quotes[plan.id]?.discount?.code
       ? promo.code
       : undefined
+    // The consent version of the text the member saw: the quote's (priced
+    // with the code) once quoted, else the tariff's.
+    const quoted = promo?.quotes[plan.id]
+    const consent = quoted ? quoted.autopay : plan.autopay
     try {
       const { payment, confirmationUrl } = await createPayment({
         workspaceId,
-        data: { planId: plan.id, ...(promoCode ? { promoCode } : {}) },
+        data: checkoutInput({
+          planId: plan.id,
+          promoCode,
+          autopayConsentVersion:
+            autopayOn[plan.id] && consent ? consent.consentVersion : null,
+        }),
       })
       setOutcome(null)
       setTrackedId(payment.id)
@@ -240,7 +266,18 @@ export function OnlinePurchaseSection({
 
   if (!options.available && !pending && !outcome) return null
 
+  const termsUrl = options.autopayTermsUrl
   const outcomeLine = outcome ? paymentStatusLine(outcome) : null
+  const outcomeAutopay =
+    outcome?.status === "SUCCEEDED"
+      ? paymentAutopayLine(
+          outcome.autopay,
+          autopays.find(
+            (a) => a.status === "ACTIVE" && a.planId === outcome.planId,
+          )?.nextCharge ?? null,
+          outcome.currency,
+        )
+      : null
 
   return (
     <View style={styles.root}>
@@ -302,6 +339,16 @@ export function OnlinePurchaseSection({
           >
             {outcomeLine.text}
           </Text>
+          {outcomeAutopay && (
+            <Text
+              style={[
+                styles.autopayOutcome,
+                { color: toneColor(theme.colors, outcomeAutopay.tone) },
+              ]}
+            >
+              {outcomeAutopay.text}
+            </Text>
+          )}
           {outcome.status === "CANCELED" && options.available && (
             <Text style={styles.meta}>Можно попробовать ещё раз.</Text>
           )}
@@ -329,6 +376,13 @@ export function OnlinePurchaseSection({
             // Why the code left this tariff's price as is, when the reason
             // isn't already under the field.
             const cardNote = promoNote === null ? quote?.promoCodeNote : null
+            // The quote's consent is priced with the code («сейчас»); the
+            // renewal price is the same either way.
+            const consent = quote ? quote.autopay : plan.autopay
+            const autopayActive = autopays.some(
+              (a) => a.status === "ACTIVE" && a.planId === plan.id,
+            )
+            const switchedOn = !!autopayOn[plan.id] && !!consent
             return (
               <View key={plan.id} style={styles.card}>
                 <View style={styles.planHead}>
@@ -349,6 +403,57 @@ export function OnlinePurchaseSection({
                 {plan.description ? (
                   <Text style={styles.description}>{plan.description}</Text>
                 ) : null}
+                {!options.blockedReason && autopayActive && (
+                  <Text style={styles.autopayOn}>Автоплатёж включён</Text>
+                )}
+                {!options.blockedReason && !autopayActive && consent && (
+                  <View style={styles.autopay}>
+                    <View style={styles.autopayRow}>
+                      <View style={styles.autopayLabel}>
+                        <Text style={styles.autopayTitle}>
+                          Продлевать автоматически
+                        </Text>
+                        <Text style={styles.meta}>
+                          {autopayPriceLine(
+                            quote?.amount ?? plan.amount,
+                            consent.renewalAmount,
+                            plan.currency,
+                          )}
+                        </Text>
+                      </View>
+                      <Switch
+                        accessibilityLabel={`Продлевать автоматически: ${plan.name}`}
+                        value={switchedOn}
+                        disabled={buyingId !== null}
+                        onValueChange={(v) =>
+                          setAutopayOn((s) => ({ ...s, [plan.id]: v }))
+                        }
+                        trackColor={{
+                          true: theme.colors.accent,
+                          false: theme.colors.border,
+                        }}
+                      />
+                    </View>
+                    {switchedOn && (
+                      <>
+                        {/* The server's consent text, verbatim (its version
+                            is what the checkout records). */}
+                        <Text style={styles.consent}>
+                          {consent.consentLines.join(" ")}
+                        </Text>
+                        {termsUrl && (
+                          <Text
+                            accessibilityRole="link"
+                            style={styles.link}
+                            onPress={() => openWebLink(termsUrl)}
+                          >
+                            Условия автоплатежа
+                          </Text>
+                        )}
+                      </>
+                    )}
+                  </View>
+                )}
                 {!options.blockedReason && (
                   <Pressable
                     onPress={() => void pay(plan)}
@@ -439,6 +544,24 @@ const makeStyles = (theme: Theme) =>
     danger: { color: theme.colors.danger, fontSize: 13 },
     blocked: { color: theme.colors.accent, fontSize: 14, fontWeight: "600" },
     hint: { color: theme.colors.muted, fontSize: 12 },
+    autopay: {
+      marginTop: theme.spacing(2),
+      paddingTop: theme.spacing(2),
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+      gap: theme.spacing(1),
+    },
+    autopayRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(3),
+    },
+    autopayLabel: { flex: 1, gap: 2 },
+    autopayTitle: { color: theme.colors.text, fontSize: 14, fontWeight: "600" },
+    autopayOn: { color: theme.colors.success, fontSize: 13, fontWeight: "600" },
+    autopayOutcome: { fontSize: 14, fontWeight: "600" },
+    consent: { color: theme.colors.muted, fontSize: 12, lineHeight: 17 },
+    link: { color: theme.colors.accent, fontSize: 12, fontWeight: "600" },
     primaryBtn: {
       marginTop: theme.spacing(2),
       backgroundColor: theme.colors.accent,

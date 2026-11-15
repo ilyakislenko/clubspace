@@ -28,7 +28,9 @@ import { readModuleNotEntitled } from "../billing/billing-view"
 import { writeToClipboard } from "../../shared/lib/clipboard"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
+import { pluralRu } from "../../shared/lib/plural-ru"
 import { confirmDialog } from "../../shared/ui/confirm-dialog"
+import { formatAutopayInstant } from "../subscriptions/autopay-text"
 import {
   PAYMENT_MODE_LABEL,
   PAYMENT_SUBJECT_LABEL,
@@ -75,6 +77,7 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
   const [paymentSubject, setPaymentSubject] = useState<PaymentSubject>("service")
   const [paymentMode, setPaymentMode] =
     useState<PaymentMode>("full_prepayment")
+  const [autopayEnabled, setAutopayEnabled] = useState(false)
 
   const [saving, setSaving] = useState(false)
   const [checking, setChecking] = useState(false)
@@ -94,6 +97,7 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
     setVatCode(s.vatCode)
     setPaymentSubject(s.paymentSubject)
     setPaymentMode(s.paymentMode)
+    setAutopayEnabled(s.autopayEnabled)
   }, [])
 
   useEffect(() => {
@@ -163,6 +167,12 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
     ? settings.webhookUrls.yookassa
     : settings.webhookUrls.stripe
   const help = WEBHOOK_HELP[provider]
+  // Member autopay: ЮKassa only, behind the platform's switch. The checkbox
+  // shows for a club connected to ЮKassa that stays on it in this form.
+  const autopayShown =
+    settings.autopayOffered && connected && settings.provider === "YOOKASSA" && isYookassa
+  const autopayLive = settings.autopayLiveCount
+  const livePeople = `${autopayLive} ${pluralRu(autopayLive, "ученика", "учеников", "учеников")}`
 
   const canSave =
     !saving &&
@@ -174,6 +184,7 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
     e.preventDefault()
     if (!canSave) return
     const data: PaymentSettingsInput = { provider }
+    if (autopayShown) data.autopayEnabled = autopayEnabled
     if (secretKey.trim()) data.secretKey = secretKey.trim()
     if (isYookassa) {
       data.shopId = shopId.trim()
@@ -183,6 +194,33 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
       data.paymentMode = paymentMode
     } else if (webhookSecret.trim()) {
       data.webhookSecret = webhookSecret.trim()
+    }
+    // Live agreements end when autopay goes off, the provider changes or the
+    // shop does (the saved cards belong to it): say so before saving.
+    if (autopayLive > 0 && settings.autopayEnabled) {
+      const turnedOff = autopayShown && !autopayEnabled
+      const shopChanged = isYookassa && settings.shopId !== null && shopId.trim() !== settings.shopId
+      const consequence = `Им придёт уведомление, деньги больше не будут списываться.`
+      const question = turnedOff
+        ? {
+            title: "Отключить автоплатежи?",
+            description: `Автоплатёж отключится у ${livePeople}. ${consequence}`,
+            confirmLabel: "Отключить",
+          }
+        : !isYookassa
+          ? {
+              title: `Перейти на ${PROVIDER_LABEL[provider]}?`,
+              description: `Автоплатёж отключится у ${livePeople}: автоплатежи работают только с ЮKassa. ${consequence}`,
+              confirmLabel: "Перейти",
+            }
+          : shopChanged
+            ? {
+                title: "Сменить магазин?",
+                description: `Автоплатёж отключится у ${livePeople}: их карты сохранены в прежнем магазине ЮKassa. ${consequence}`,
+                confirmLabel: "Сменить",
+              }
+            : null
+      if (question && !(await confirmDialog({ ...question, destructive: true }))) return
     }
     setSaving(true)
     setNotice(null)
@@ -220,8 +258,11 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
     if (
       !(await confirmDialog({
         title: "Отключить онлайн-оплату?",
-        description:
-          "Участники не смогут оплачивать абонементы и билеты на события в приложении, сохранённые ключи будут удалены.",
+        description: `Участники не смогут оплачивать абонементы и билеты на события в приложении, сохранённые ключи будут удалены.${
+          settings.autopayEnabled && autopayLive > 0
+            ? ` Автоплатёж отключится у ${livePeople}.`
+            : ""
+        }`,
         confirmLabel: "Отключить",
         destructive: true,
       }))
@@ -443,6 +484,43 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
               </div>
             )}
           </div>
+        )}
+
+        {autopayShown && (
+          <div className="space-y-2 rounded-lg border border-border p-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={autopayEnabled}
+                onChange={(e) => setAutopayEnabled(e.target.checked)}
+              />
+              Автоплатежи для учеников
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Ученик сможет включить автопродление при оплате тарифа в приложении. Сначала
+              попросите менеджера ЮKassa подключить автоплатежи в вашем магазине и добавьте условия
+              автоплатежа в вашу оферту для учеников.
+            </p>
+            {settings.autopayEnabled && autopayLive > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Автоплатёж включён у {livePeople}
+              </p>
+            )}
+            {settings.autopayLastError && (
+              <p className="text-xs text-destructive">
+                ЮKassa отказала в подключении автоплатежа
+                {settings.autopayLastErrorAt
+                  ? ` ${formatAutopayInstant(settings.autopayLastErrorAt)}`
+                  : ""}
+                : {settings.autopayLastError.replace(/\.$/, "")}. Проверьте у менеджера ЮKassa, что
+                автоплатежи
+                включены.
+              </p>
+            )}
+          </div>
+        )}
+        {settings.autopayOffered && connected && settings.provider === "STRIPE" && !isYookassa && (
+          <p className="text-xs text-muted-foreground">Автоплатежи доступны только с ЮKassa</p>
         )}
 
         <div className="flex flex-wrap gap-2">

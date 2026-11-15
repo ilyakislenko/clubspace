@@ -427,6 +427,14 @@ export const actionMetaFor = (
     tone: "blue",
   },
   "discount.delete": { label: "Скидка удалена", icon: Trash2, tone: "red" },
+  "autopay.enabled": { label: "Автоплатёж включён", icon: CreditCard, tone: "green" },
+  "autopay.cancelled": { label: "Автоплатёж отключён", icon: CreditCard, tone: "amber" },
+  "autopay.termsAccepted": {
+    label: "Новые условия автоплатежа приняты",
+    icon: CreditCard,
+    tone: "indigo",
+  },
+  "autopay.chargeFailed": { label: "Автоплатёж не прошёл", icon: CreditCard, tone: "red" },
   "workspace.rotateJoinCode": {
     label: "Код клуба сменён",
     icon: RefreshCw,
@@ -806,6 +814,20 @@ export const META_KEY_LABEL: Record<string, string> = {
   secretKeyChanged: "Секретный ключ изменён",
   webhookSecretChanged: "Секрет вебхука изменён",
   disconnected: "Отключено",
+  // Member autopay (autopay.* events, payment.succeeded, the payment
+  // settings); `reason`, `planName`, `amount` and `currency` share the labels
+  // above, an accepted change is `from` → `to` of amount / days / classes.
+  autopayEnabled: "Автоплатежи для учеников",
+  autopay: "Автоплатёж",
+  source: "Кто отключил",
+  termsAmount: "Сумма автоплатежа",
+  cardLast4: "Карта, последние цифры",
+  consentVersion: "Редакция условий автоплатежа",
+  durationDays: "Дней",
+  classCount: "Занятий",
+  attempt: "Попытка",
+  nextAttemptAt: "Следующая попытка",
+  needsActionReason: "Остановлен",
   currency: "Валюта",
   fileName: "Файл",
   rows: "Строк",
@@ -933,6 +955,9 @@ const FIELD_LABEL: Record<string, string> = {
   endsOn: "действует до",
   maxUses: "не больше раз",
   oncePerMember: "один раз на ученика",
+  // A tariff and the payment settings (member autopay).
+  autopayAvailable: "продление автоплатежом",
+  autopayEnabled: "автоплатежи для учеников",
 }
 
 // Course edits naming a video or a chapter. The server resolves most of them
@@ -985,6 +1010,17 @@ const ENUM_LABEL: Record<string, Record<string, string>> = {
     abonement: "абонемент",
     ticket: "событие",
     unapplied: "онлайн-оплату без зачисления",
+  },
+  // Who switched a member's autopay off (autopay.cancelled).
+  source: { MEMBER: "ученик", STAFF: "сотрудник клуба", SYSTEM: "автоматически" },
+  // payment.succeeded of an autopay checkout or renewal charge.
+  autopay: { setup: "подключён при оплате", charge: "списание" },
+  // Why a member's autopay stopped (autopay.chargeFailed).
+  needsActionReason: {
+    CHARGE_FAILED: "четыре отказа подряд",
+    CARD_EXPIRED: "срок действия карты истёк",
+    TERMS_CHANGED: "условия тарифа изменились",
+    GRANT_REFUSED: "абонемент не оформлен",
   },
   provider: PROVIDER_LABEL,
   previousProvider: PROVIDER_LABEL,
@@ -1179,6 +1215,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   platform: "Платформа",
   payment: "Платежи",
   discount: "Скидки",
+  autopay: "Автоплатежи",
   ai: "ИИ-ассистент",
 }
 

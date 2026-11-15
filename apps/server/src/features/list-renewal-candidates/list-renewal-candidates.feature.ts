@@ -49,6 +49,15 @@ export const RenewalCandidateSchema = z.object({
     planName: z.string().nullable(),
     endDate: z.iso.datetime().nullable(),
     directions: z.array(DirectionRefSchema),
+    // The member's autopay renews this abonement (status, next charge day;
+    // null day = stopped, waits for the member): staff don't call someone
+    // covered by it. null = no live agreement for it.
+    autopay: z
+        .object({
+            status: z.enum(['ACTIVE', 'NEEDS_ACTION']),
+            nextChargeOn: z.iso.date().nullable(),
+        })
+        .nullable(),
 })
 
 export const ListRenewalCandidatesOutputSchema = z.object({

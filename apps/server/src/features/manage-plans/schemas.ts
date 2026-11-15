@@ -6,7 +6,7 @@ import {
     DirectionRefSchema,
 } from '../../domains/directions/direction-ref'
 import type { Prisma, PrismaService } from '../../infrastructure/prisma'
-import { NotFoundError } from '../../shared/errors/shared.errors'
+import { BadRequestError, NotFoundError } from '../../shared/errors/shared.errors'
 
 export const PlanOutputSchema = z.object({
     id: z.string().uuid(),
@@ -24,6 +24,10 @@ export const PlanOutputSchema = z.object({
     isActive: z.boolean(),
     // Members can buy it in the app («Оплатить онлайн»).
     purchasableOnline: z.boolean(),
+    // Members may opt in to renew it automatically when paying online
+    // (docs/design/2026-11-15-member-autopay.md §3.5). Needs purchasableOnline
+    // and the club's autopay setting.
+    autopayAvailable: z.boolean(),
     // Directions an abonement of this tariff may be spent on (snapshotted
     // into each sale). Empty = club-wide.
     directions: z.array(DirectionRefSchema),
@@ -49,6 +53,7 @@ export const serializePlan = (p: {
     startsOnFirstVisit: boolean
     isActive: boolean
     purchasableOnline: boolean
+    autopayAvailable: boolean
     directions: ReadonlyArray<{ direction: DirectionRef }>
     updatedAt: Date
 }): PlanOutput => ({
@@ -64,6 +69,7 @@ export const serializePlan = (p: {
     startsOnFirstVisit: p.startsOnFirstVisit,
     isActive: p.isActive,
     purchasableOnline: p.purchasableOnline,
+    autopayAvailable: p.autopayAvailable,
     directions: p.directions.map((d) => d.direction),
     updatedAt: p.updatedAt.toISOString(),
 })
@@ -104,3 +110,25 @@ export const ONLINE_FREE_PLAN_MESSAGE =
     'Бесплатный тариф нельзя продавать онлайн'
 export const canSellOnline = (p: { price: number; isFreeTrial: boolean }) =>
     p.price > 0 && !p.isFreeTrial
+
+// Autopay renews an online sale, so it needs one (canSellOnline included),
+// and the club must offer autopay: YooKassa with the setting on.
+export const AUTOPAY_NEEDS_ONLINE_MESSAGE =
+    'Продлевать автоплатежом можно только тариф, который покупают онлайн'
+export const AUTOPAY_CLUB_OFF_MESSAGE =
+    'Включите автоплатежи в разделе «Онлайн-оплата»'
+export const assertClubOffersAutopay = async (
+    prisma: Pick<PrismaService, 'workspacePaymentSettings'>,
+    workspaceId: string,
+): Promise<void> => {
+    const settings = await prisma.workspacePaymentSettings.findUnique({
+        where: { workspaceId },
+        select: { provider: true, autopayEnabled: true },
+    })
+    if (settings?.provider !== 'YOOKASSA' || !settings.autopayEnabled) {
+        throw new BadRequestError({ message: AUTOPAY_CLUB_OFF_MESSAGE })
+    }
+}
+
+// Why live agreements on this tariff stop when it no longer renews by autopay.
+export const PLAN_AUTOPAY_OFF_REASON = 'клуб больше не продлевает этот тариф автоматически'

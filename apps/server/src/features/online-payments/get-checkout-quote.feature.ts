@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { AutopayOfferOutputSchema } from './schemas'
+
 // What the member will pay before the provider's page opens
 // (docs/design/2026-11-15-discounts.md §3.3, ЗоЗПП ст. 10): a tariff or one of
 // their event tickets, exactly one, with an optional promo code.
@@ -39,6 +41,11 @@ export const CheckoutQuoteOutputSchema = z.object({
     // скидка выгоднее — она уже учтена», …); null without a code or when it
     // applied. Every note but the family one refuses the checkout with it.
     promoCodeNote: z.string().nullable(),
+    // A tariff that may renew automatically: the offer with the consent's
+    // «сейчас» = `amount` (a promo code included) and «дальше» = the renewal
+    // price (automatic discounts only). null for a ticket or where autopay
+    // isn't offered (docs/design/2026-11-15-member-autopay.md §3.3).
+    autopay: AutopayOfferOutputSchema.nullable(),
 })
 
 export class GetCheckoutQuoteFeature {

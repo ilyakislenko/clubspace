@@ -201,6 +201,10 @@ const onlineSelect = {
     status: true,
     amount: true,
     refundedAmount: true,
+    // The agreement it set up (with the consent version) or charged
+    // (without): docs/design/2026-11-15-member-autopay.md §2.2.
+    autopayId: true,
+    autopayConsentVersion: true,
 } as const
 // The sale's price facts (docs/design/2026-11-15-discounts.md §1).
 const salePriceSelect = {
@@ -281,7 +285,16 @@ export type JournalOnline = {
     status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED'
     amount: number
     refundedAmount: number
+    autopayId: string | null
+    autopayConsentVersion: string | null
 }
+
+// A renewal charged by the member's autopay agreement («Онлайн · автоплатёж»).
+// The setup checkout is linked to the agreement too, but it is the member's
+// own purchase: it carries the consent version they ticked.
+export const isAutopayCharge = (
+    p: Pick<JournalOnline, 'autopayId' | 'autopayConsentVersion'> | null | undefined,
+): boolean => !!p?.autopayId && p.autopayConsentVersion === null
 
 // One journal row, source-independent. `id` is the public key
 // (`sub:<uuid>` / `reg:<uuid>` / `ref:<uuid>`), `rawId` the source row's id.

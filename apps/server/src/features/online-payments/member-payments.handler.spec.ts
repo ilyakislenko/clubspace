@@ -4,9 +4,13 @@ jest.mock('../../environments/environment', () => ({
         rootUrl: 'https://api.example.com/',
         appUrl: 'https://app.example.com',
         billing: { enabled: true },
+        memberAutopay: { enabled: true },
     },
 }))
 
+import { AUTOPAY_CONSENT_VERSION } from '../../domains/autopay/autopay-consent'
+import { formatMoney } from '../../domains/analytics/money'
+import { environment } from '../../environments/environment'
 import { encryptPaymentSecret } from '../../domains/payments/payment-credentials'
 import { PaymentGatewayError } from '../../domains/payments/payment-gateway.types'
 import { CreatePaymentFeature } from './create-payment.feature'
@@ -39,6 +43,7 @@ const settings = {
     vatCode: 1,
     paymentSubject: 'service',
     paymentMode: 'full_prepayment',
+    autopayEnabled: false,
 }
 const plan = {
     id: 'plan-1',
@@ -73,6 +78,8 @@ const paymentRow = (over: Record<string, unknown> = {}) => ({
     updatedAt: new Date('2026-11-01T09:00:00Z'),
     paidAt: null,
     refundedAt: null,
+    autopayId: null,
+    autopayConsentVersion: null,
     ...over,
 })
 
@@ -115,6 +122,8 @@ const prismaFor = (opts: {
     promos?: Array<Record<string, unknown>>
     // Uses of a discount (sales + open checkouts), per count call.
     uses?: number
+    // The member's autopay agreements ({ planId, status }).
+    autopays?: Array<{ planId: string; status: string }>
 } = {}) => ({
     workspace: {
         findUnique: jest
@@ -132,6 +141,7 @@ const prismaFor = (opts: {
         findUnique: jest
             .fn()
             .mockResolvedValue(opts.settings === undefined ? settings : opts.settings),
+        update: jest.fn().mockResolvedValue({}),
     },
     plan: {
         findFirst: jest.fn().mockResolvedValue(opts.plan === undefined ? plan : opts.plan),
@@ -175,6 +185,17 @@ const prismaFor = (opts: {
         count: jest.fn().mockResolvedValue(opts.uses ?? 0),
     },
     eventRegistration: { count: jest.fn().mockResolvedValue(0) },
+    memberAutopay: {
+        findMany: jest.fn(async ({ where }: { where: { status?: string } }) =>
+            (opts.autopays ?? []).filter((a) => !where.status || a.status === where.status),
+        ),
+        findFirst: jest.fn(
+            async ({ where }: { where: { planId?: string; status?: string } }) =>
+                (opts.autopays ?? []).find(
+                    (a) => a.planId === where.planId && a.status === where.status,
+                ) ?? null,
+        ),
+    },
 })
 
 const liveClassPack = {
@@ -207,7 +228,7 @@ describe('createPayment', () => {
         userId = 'u-1',
         promoCode?: string,
     ) =>
-        new CreatePaymentHandler(prisma as never, gateway as never).execute(
+        new CreatePaymentHandler(prisma as never, gateway as never, {} as never).execute(
             new CreatePaymentFeature({ planId: 'plan-1', promoCode }, 'ws-1', userId),
         )
 
@@ -468,6 +489,157 @@ describe('createPayment', () => {
         const gateway = { createPayment: jest.fn().mockRejectedValue(new Error('bug')) }
         await expect(run(prismaFor(), gateway)).rejects.toThrow('bug')
     })
+
+    describe('with «Продлевать автоматически»', () => {
+        const autopayClub = { ...settings, autopayEnabled: true }
+        const renewable = { ...plan, autopayAvailable: true }
+        const notices = () => ({ staffAlert: jest.fn().mockResolvedValue(undefined) })
+        const buy = (
+            prisma: ReturnType<typeof prismaFor>,
+            gateway = gatewayOk(),
+            payload: { autopay?: boolean; autopayConsentVersion?: string } = {
+                autopay: true,
+                autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+            },
+            n = notices(),
+        ) =>
+            new CreatePaymentHandler(prisma as never, gateway as never, n as never).execute(
+                new CreatePaymentFeature(
+                    { planId: 'plan-1', autopay: false, ...payload },
+                    'ws-1',
+                    'u-1',
+                ),
+            )
+        afterEach(() => {
+            ;(environment as { memberAutopay: { enabled: boolean } }).memberAutopay.enabled = true
+        })
+
+        it('records the consent version and asks YooKassa to save the card', async () => {
+            const prisma = prismaFor({ settings: autopayClub, plan: renewable })
+            const gateway = gatewayOk()
+            const out = await buy(prisma, gateway)
+            expect(prisma.payment.create.mock.calls[0][0].data).toMatchObject({
+                autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+            })
+            expect(gateway.createPayment.mock.calls[0][1]).toMatchObject({ savePaymentMethod: true })
+            expect(out.payment.autopay).toBeNull()
+        })
+
+        it('refuses where autopay is not offered, on stale terms and over an ACTIVE agreement', async () => {
+            const cases: Array<[ReturnType<typeof prismaFor>, string, Record<string, unknown>?]> = [
+                [
+                    prismaFor({ settings: { ...autopayClub, provider: 'STRIPE' }, plan: renewable }),
+                    'Автоплатёж для этого тарифа недоступен',
+                ],
+                [prismaFor({ settings, plan: renewable }), 'Автоплатёж для этого тарифа недоступен'],
+                [prismaFor({ settings: autopayClub, plan }), 'Автоплатёж для этого тарифа недоступен'],
+                [
+                    prismaFor({ settings: autopayClub, plan: renewable }),
+                    'Условия автоплатежа обновились — обновите экран',
+                    { autopay: true, autopayConsentVersion: '2020-01-01' },
+                ],
+                [
+                    prismaFor({
+                        settings: autopayClub,
+                        plan: renewable,
+                        autopays: [{ planId: 'plan-1', status: 'ACTIVE' }],
+                    }),
+                    'Автоплатёж по этому тарифу уже включён',
+                ],
+            ]
+            for (const [prisma, message, payload] of cases) {
+                const gateway = gatewayOk()
+                await expect(buy(prisma, gateway, payload)).rejects.toMatchObject({
+                    statusCode: 400,
+                    message,
+                })
+                expect(prisma.payment.create).not.toHaveBeenCalled()
+                expect(gateway.createPayment).not.toHaveBeenCalled()
+            }
+        })
+
+        it('refuses while the global switch is off', async () => {
+            ;(environment as { memberAutopay: { enabled: boolean } }).memberAutopay.enabled = false
+            await expect(
+                buy(prismaFor({ settings: autopayClub, plan: renewable })),
+            ).rejects.toMatchObject({ statusCode: 400, message: 'Автоплатёж для этого тарифа недоступен' })
+        })
+
+        it('lets a NEEDS_ACTION agreement be re-armed by paying with the switch on', async () => {
+            const prisma = prismaFor({
+                settings: autopayClub,
+                plan: renewable,
+                autopays: [{ planId: 'plan-1', status: 'NEEDS_ACTION' }],
+            })
+            const gateway = gatewayOk()
+            await buy(prisma, gateway)
+            expect(gateway.createPayment).toHaveBeenCalled()
+        })
+
+        it('reuses a pending payment only for the same choice', async () => {
+            const prisma = prismaFor({ settings: autopayClub, plan: renewable })
+            await buy(prisma)
+            expect(prisma.payment.findFirst.mock.calls[0][0].where).toMatchObject({
+                autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+            })
+            const oneOff = prismaFor({ settings: autopayClub, plan: renewable })
+            await buy(oneOff, gatewayOk(), {})
+            expect(oneOff.payment.findFirst.mock.calls[0][0].where).toMatchObject({
+                autopayConsentVersion: null,
+            })
+        })
+
+        it('sends save_payment_method false on a one-off payment in an autopay club, omits it elsewhere', async () => {
+            const inClub = gatewayOk()
+            await buy(prismaFor({ settings: autopayClub, plan: renewable }), inClub, {})
+            expect(inClub.createPayment.mock.calls[0][1].savePaymentMethod).toBe(false)
+            const plain = gatewayOk()
+            await buy(prismaFor(), plain, {})
+            expect(plain.createPayment.mock.calls[0][1].savePaymentMethod).toBeUndefined()
+            const stripe = gatewayOk()
+            await buy(
+                prismaFor({ settings: { ...autopayClub, provider: 'STRIPE' } }),
+                stripe,
+                {},
+            )
+            expect(stripe.createPayment.mock.calls[0][1].savePaymentMethod).toBeUndefined()
+        })
+
+        it('records a YooKassa refusal of the setup, alerts the admins and answers 400', async () => {
+            const prisma = prismaFor({ settings: autopayClub, plan: renewable })
+            const gateway = {
+                createPayment: jest
+                    .fn()
+                    .mockRejectedValue(
+                        new PaymentGatewayError('x', 403, 'Recurring payments are not enabled'),
+                    ),
+            }
+            const n = notices()
+            await expect(buy(prisma, gateway, undefined, n)).rejects.toMatchObject({
+                statusCode: 400,
+                message: 'Не удалось подключить автоплатёж — оплатите без него или обратитесь в клуб',
+            })
+            expect(prisma.workspacePaymentSettings.update.mock.calls[0][0]).toMatchObject({
+                where: { workspaceId: 'ws-1' },
+                data: { autopayLastError: 'Recurring payments are not enabled' },
+            })
+            expect(n.staffAlert.mock.calls[0][0]).toMatchObject({
+                workspaceId: 'ws-1',
+                message: expect.stringContaining('ЮKassa отказала в подключении автоплатежа'),
+            })
+        })
+
+        it('treats a provider outage on a setup as an ordinary failure', async () => {
+            const prisma = prismaFor({ settings: autopayClub, plan: renewable })
+            const gateway = {
+                createPayment: jest.fn().mockRejectedValue(new PaymentGatewayError('x', 503, null)),
+            }
+            await expect(buy(prisma, gateway)).rejects.toMatchObject({
+                message: expect.stringContaining('Не удалось создать платёж'),
+            })
+            expect(prisma.workspacePaymentSettings.update).not.toHaveBeenCalled()
+        })
+    })
 })
 
 describe('getOnlinePurchaseOptions', () => {
@@ -481,10 +653,11 @@ describe('getOnlinePurchaseOptions', () => {
         expect(out).toEqual({
             available: true,
             provider: 'YOOKASSA',
-            plans: [{ ...plan, amount: 4500, discountName: null, directions: [] }],
             blockedReason: null,
             renewalFrom: null,
             pendingPayment: null,
+            autopayTermsUrl: null,
+            plans: [{ ...plan, amount: 4500, discountName: null, directions: [], autopay: null }],
         })
     })
 
@@ -576,6 +749,70 @@ describe('getOnlinePurchaseOptions', () => {
         )
         expect(out.renewalFrom).toBe('2099-03-10')
     })
+
+    describe('autopay offer', () => {
+        const autopayClub = { ...settings, autopayEnabled: true }
+        const renewable = { ...plan, autopayAvailable: true }
+        afterEach(() => {
+            ;(environment as { memberAutopay: { enabled: boolean } }).memberAutopay.enabled = true
+        })
+
+        it('offers the switch with the consent and the terms page where club and tariff allow it', async () => {
+            const out = await run(
+                prismaFor({ settings: autopayClub, plans: [renewable], family: family(10), familyEligible: true }),
+            )
+            expect(out.plans[0].autopay).toEqual({
+                renewalAmount: 4050,
+                consentVersion: AUTOPAY_CONSENT_VERSION,
+                consentLines: expect.arrayContaining([
+                    `Сейчас спишем ${formatMoney(4050, 'RUB')}.`,
+                    `Дальше клуб «Клуб» будет списывать ${formatMoney(4050, 'RUB')} с этой карты за каждый следующий абонемент «Безлимит»: за день до окончания срока.`,
+                    'За 3 дня до списания пришлём напоминание.',
+                ]),
+            })
+            expect(out.plans[0]).not.toHaveProperty('autopayAvailable')
+            expect(out.autopayTermsUrl).toBe('https://app.example.com/legal/autopay')
+        })
+
+        it('words a pack’s timing by classes or term', async () => {
+            const out = await run(
+                prismaFor({ settings: autopayClub, plans: [{ ...renewable, classCount: 12 }] }),
+            )
+            expect(out.plans[0].autopay?.consentLines[1]).toContain(
+                'когда закончатся занятия или срок',
+            )
+        })
+
+        it('is null with an ACTIVE agreement, a tariff or club without it, Stripe, or the switch off', async () => {
+            const active = await run(
+                prismaFor({
+                    settings: autopayClub,
+                    plans: [renewable],
+                    autopays: [{ planId: 'plan-1', status: 'ACTIVE' }],
+                }),
+            )
+            expect(active.plans[0].autopay).toBeNull()
+            expect(active.autopayTermsUrl).toBeNull()
+            const needsAction = await run(
+                prismaFor({
+                    settings: autopayClub,
+                    plans: [renewable],
+                    autopays: [{ planId: 'plan-1', status: 'NEEDS_ACTION' }],
+                }),
+            )
+            expect(needsAction.plans[0].autopay).not.toBeNull()
+            expect((await run(prismaFor({ settings: autopayClub }))).plans[0].autopay).toBeNull()
+            expect((await run(prismaFor({ plans: [renewable] }))).plans[0].autopay).toBeNull()
+            const stripe = await run(
+                prismaFor({ settings: { ...autopayClub, provider: 'STRIPE' }, plans: [renewable] }),
+            )
+            expect(stripe.plans[0].autopay).toBeNull()
+            ;(environment as { memberAutopay: { enabled: boolean } }).memberAutopay.enabled = false
+            const off = await run(prismaFor({ settings: autopayClub, plans: [renewable] }))
+            expect(off.plans[0].autopay).toBeNull()
+            expect(off.autopayTermsUrl).toBeNull()
+        })
+    })
 })
 
 describe('getCheckoutQuote', () => {
@@ -599,6 +836,7 @@ describe('getCheckoutQuote', () => {
             currency: 'RUB',
             discount: { name: 'Весна', code: 'ВЕСНА', isFamily: false, endsOn: '2099-03-31' },
             promoCodeNote: null,
+            autopay: null,
         })
         const unknown = await quote(prismaFor(), { planId: 'plan-1', promoCode: 'ЛЕТО' })
         expect(unknown).toMatchObject({ amount: 4500, discount: null, promoCodeNote: 'Промокод не найден' })
@@ -661,6 +899,32 @@ describe('getCheckoutQuote', () => {
             statusCode: 404,
         })
     })
+
+    it('carries the autopay offer at the quoted price: «сейчас» with the code, «дальше» without', async () => {
+        const out = await quote(
+            prismaFor({
+                settings: { ...settings, autopayEnabled: true },
+                plan: { ...plan, autopayAvailable: true },
+                promos: [discount()],
+            }),
+            { planId: 'plan-1', promoCode: 'ВЕСНА' },
+        )
+        expect(out.autopay).toMatchObject({
+            renewalAmount: 4500,
+            consentVersion: AUTOPAY_CONSENT_VERSION,
+        })
+        expect(out.autopay?.consentLines[0]).toBe(`Сейчас спишем ${formatMoney(4050, 'RUB')}.`)
+        expect(out.autopay?.consentLines[1]).toContain(formatMoney(4500, 'RUB'))
+        const active = await quote(
+            prismaFor({
+                settings: { ...settings, autopayEnabled: true },
+                plan: { ...plan, autopayAvailable: true },
+                autopays: [{ planId: 'plan-1', status: 'ACTIVE' }],
+            }),
+            { planId: 'plan-1' },
+        )
+        expect(active.autopay).toBeNull()
+    })
 })
 
 describe('getMyPayment', () => {
@@ -684,5 +948,22 @@ describe('getMyPayment', () => {
                 new GetMyPaymentFeature('ws-1', 'pay-1', 'u-2'),
             ),
         ).rejects.toMatchObject({ statusCode: 404 })
+    })
+
+    it('says whether a granted autopay checkout set the agreement up', async () => {
+        const read = (over: Record<string, unknown>) =>
+            new GetMyPaymentHandler({
+                payment: { findFirst: jest.fn().mockResolvedValue(paymentRow(over)) },
+            } as never).execute(new GetMyPaymentFeature('ws-1', 'pay-1', 'u-1'))
+        const granted = {
+            status: 'SUCCEEDED',
+            paidAt: new Date(),
+            subscriptionId: 'sub-1',
+            autopayConsentVersion: AUTOPAY_CONSENT_VERSION,
+        }
+        expect((await read({ ...granted, autopayId: 'ap-1' })).autopay).toBe('on')
+        expect((await read(granted)).autopay).toBe('not_saved')
+        expect((await read({ ...granted, subscriptionId: null })).autopay).toBeNull()
+        expect((await read({ ...granted, autopayConsentVersion: null })).autopay).toBeNull()
     })
 })

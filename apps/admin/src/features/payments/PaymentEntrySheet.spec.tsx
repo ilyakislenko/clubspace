@@ -56,6 +56,7 @@ const detail = (over: Partial<PaymentJournalEntryDetail> = {}): PaymentJournalEn
   refunds: [],
   memberHasCard: true,
   fullRefundCancelsRegistration: false,
+  cardLabel: null,
   ...over,
 })
 
@@ -77,6 +78,7 @@ const ONLINE = {
   providerRef: "ab12cd",
   status: "SUCCEEDED" as const,
   refundable: 4000,
+  autopay: false,
 }
 
 const renderSheet = (props: {

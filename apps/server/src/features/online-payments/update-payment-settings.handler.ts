@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { MemberAutopayAgreementsService } from '../../domains/autopay/member-autopay-agreements.service'
 import { ModuleEntitlementService } from '../../domains/billing/services/module-entitlement.service'
 import {
     encryptPaymentSecret,
@@ -31,6 +32,7 @@ export class UpdatePaymentSettingsHandler
         private readonly rbac: RbacService,
         private readonly audit: AuditService,
         private readonly modules: ModuleEntitlementService,
+        private readonly autopay: MemberAutopayAgreementsService,
     ) {}
 
     async execute(f: UpdatePaymentSettingsFeature) {
@@ -69,6 +71,18 @@ export class UpdatePaymentSettingsHandler
                 message: 'Укажите секрет подписи вебхука Stripe (whsec_…)',
             })
         }
+        // Member autopay is YooKassa-only and behind the global switch
+        // (docs/design/2026-11-15-member-autopay.md §3.5, §10). Another
+        // provider turns it off.
+        if (p.autopayEnabled && p.provider !== 'YOOKASSA') {
+            throw new BadRequestError({ message: 'Автоплатежи доступны только с ЮKassa' })
+        }
+        if (p.autopayEnabled && !environment.memberAutopay.enabled) {
+            throw new BadRequestError({ message: 'Автоплатежи учеников пока недоступны' })
+        }
+        const autopayEnabled =
+            p.provider === 'YOOKASSA' &&
+            (p.autopayEnabled ?? (sameProvider ? saved?.autopayEnabled : false) ?? false)
 
         const key = environment.encryptionKey
         const credentialsChanged =
@@ -104,6 +118,9 @@ export class UpdatePaymentSettingsHandler
                 p.paymentMode ?? saved?.paymentMode ?? DEFAULT_RECEIPT.paymentMode,
             // New keys are unproven until the next connection check.
             ...(credentialsChanged ? { verifiedAt: null } : {}),
+            autopayEnabled,
+            // A fresh confirmation clears YooKassa's last refusal.
+            ...(p.autopayEnabled ? { autopayLastError: null, autopayLastErrorAt: null } : {}),
         }
 
         if (saved) {
@@ -123,6 +140,21 @@ export class UpdatePaymentSettingsHandler
             })
         }
 
+        // Tokens belong to one shop of one provider: turning autopay off or
+        // moving to another shop stops every live agreement (SYSTEM, with
+        // notices). Agreements exist only while the setting is on; the hourly
+        // pass re-checks the same as a safety net.
+        if (saved?.autopayEnabled) {
+            const reason = !sameProvider
+                ? 'клуб сменил платёжную систему'
+                : shopId !== saved.shopId
+                  ? 'клуб сменил магазин ЮKassa'
+                  : !autopayEnabled
+                    ? 'клуб отключил автоплатежи'
+                    : null
+            if (reason) await this.autopay.cancelForWorkspace(f.workspaceId, reason)
+        }
+
         await this.audit.record({
             action: 'workspace.updatePaymentSettings',
             targetType: 'workspace',
@@ -139,6 +171,7 @@ export class UpdatePaymentSettingsHandler
                 vatCode: data.vatCode,
                 paymentSubject: data.paymentSubject,
                 paymentMode: data.paymentMode,
+                autopayEnabled,
             },
         })
 

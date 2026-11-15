@@ -1,6 +1,9 @@
 import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { AUTOPAY_CONSENT_VERSION } from '../../domains/autopay/autopay-consent'
+import { AutopayNotificationsService } from '../../domains/autopay/autopay-notifications'
+import { autopayOffered } from '../../domains/autopay/autopay-offer'
 import { isWorkspaceEntitled } from '../../domains/billing/module-entitlement'
 import {
     onlineGrantStart,
@@ -30,8 +33,10 @@ import { priceOnlineItem } from './price-online-item'
 import { serializeMyPayment } from './schemas'
 import { startProviderPayment } from './start-provider-payment'
 
-// The member buys a tariff online (startProviderPayment). The abonement is
-// created only by the webhook, never here.
+// The member buys a tariff online (startProviderPayment), optionally ticking
+// «Продлевать автоматически» on a tariff the club renews by autopay
+// (docs/design/2026-11-15-member-autopay.md §3.3). The abonement — and the
+// autopay agreement — are created only by the activation, never here.
 @Feature(CreatePaymentFeature)
 export class CreatePaymentHandler
     implements IFeatureHandler<CreatePaymentFeature, CreatePaymentFeatureResponse>
@@ -41,6 +46,7 @@ export class CreatePaymentHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly gateway: PaymentGatewayClient,
+        private readonly autopayNotices: AutopayNotificationsService,
     ) {}
 
     async execute(f: CreatePaymentFeature): Promise<CreatePaymentFeatureResponse> {
@@ -67,6 +73,7 @@ export class CreatePaymentHandler
                 name: true,
                 price: true,
                 currency: true,
+                autopayAvailable: true,
                 directions: { select: { directionId: true } },
             },
         })
@@ -75,6 +82,9 @@ export class CreatePaymentHandler
                 message: 'Этот тариф нельзя купить онлайн',
             })
         }
+        const autopay = f.payload.autopay
+        if (autopay) await this.assertAutopayAllowed(f, settings, plan)
+
         const now = new Date()
         const start = onlineGrantStart(
             sameScopeAbonements(member.subscriptions, scopeDirectionIds(plan)),
@@ -88,8 +98,9 @@ export class CreatePaymentHandler
 
         // A repeated tap (or a member who came back from the provider's page
         // without paying) gets the same payment instead of a second one — at
-        // the same price: a member who adds a code gets a new payment, and the
-        // old one lapses. Its own use of a promo is not counted against it.
+        // the same price and with the same autopay choice: a member who adds a
+        // code or flips the switch gets a new payment, and the old one lapses.
+        // Its own use of a promo is not counted against it.
         const recent = await this.prisma.payment.findFirst({
             where: {
                 workspaceId: f.workspaceId,
@@ -98,6 +109,7 @@ export class CreatePaymentHandler
                 provider: settings.provider,
                 status: 'PENDING',
                 confirmationUrl: { not: null },
+                autopayConsentVersion: autopay ? AUTOPAY_CONSENT_VERSION : null,
                 createdAt: { gte: new Date(now.getTime() - PENDING_REUSE_MS) },
             },
             orderBy: { createdAt: 'desc' },
@@ -137,7 +149,12 @@ export class CreatePaymentHandler
             })
         }
         return startProviderPayment(
-            { prisma: this.prisma, gateway: this.gateway, logger: this.logger },
+            {
+                prisma: this.prisma,
+                gateway: this.gateway,
+                logger: this.logger,
+                autopayNotices: this.autopayNotices,
+            },
             {
                 settings,
                 workspaceId: f.workspaceId,
@@ -154,7 +171,42 @@ export class CreatePaymentHandler
                 description: `Абонемент «${plan.name}» — ${workspace.name}`,
                 itemName: `Абонемент «${plan.name}»`,
                 customerEmail: user.email,
+                autopayConsentVersion: autopay ? AUTOPAY_CONSENT_VERSION : null,
             },
         )
+    }
+
+    // The switch is honoured only where it was offered, on the consent text
+    // the server serves now, and never twice: an ACTIVE agreement on this
+    // tariff refuses; a NEEDS_ACTION one is re-armed by paying with a new card.
+    private async assertAutopayAllowed(
+        f: CreatePaymentFeature,
+        settings: { provider: string; autopayEnabled: boolean },
+        plan: { id: string; autopayAvailable: boolean },
+    ) {
+        if (!autopayOffered(settings, plan)) {
+            throw new BadRequestError({
+                message: 'Автоплатёж для этого тарифа недоступен',
+            })
+        }
+        if (f.payload.autopayConsentVersion !== AUTOPAY_CONSENT_VERSION) {
+            throw new BadRequestError({
+                message: 'Условия автоплатежа обновились — обновите экран',
+            })
+        }
+        const active = await this.prisma.memberAutopay.findFirst({
+            where: {
+                workspaceId: f.workspaceId,
+                userId: f.userId,
+                planId: plan.id,
+                status: 'ACTIVE',
+            },
+            select: { id: true },
+        })
+        if (active) {
+            throw new BadRequestError({
+                message: 'Автоплатёж по этому тарифу уже включён',
+            })
+        }
     }
 }

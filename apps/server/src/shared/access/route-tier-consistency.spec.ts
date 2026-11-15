@@ -36,6 +36,10 @@ const RULE_B_EXCEPTIONS: Record<string, AdminTier> = {
 // needs; do not let it spread.
 const EXPECTED_ALLOW_EXPIRED_ACCESS = [
     'club-about/club-about.controller.ts getClubAbout',
+    // Refusing autopay must work after access ran out (376-ФЗ,
+    // docs/design/2026-11-15-member-autopay.md §3.5): the list and the cancel.
+    'member-autopay/my-autopays.controller.ts listMyAutopays',
+    'member-autopay/my-autopays.controller.ts cancelMyAutopay',
     // «Оплатить онлайн» on the lock screen: paying is how access comes back.
     'online-payments/my-payments.controller.ts getOnlinePurchaseOptions',
     'online-payments/my-payments.controller.ts getCheckoutQuote',
@@ -253,11 +257,11 @@ const EXPECTED_CLUB_ADMIN_FEATURES = [
 
 describe('route tier consistency', () => {
     it('scans enough routes to be meaningful', () => {
-        expect(routes.length).toBeGreaterThanOrEqual(199) // real count (+ club-about GET/PUT, + 11 rank-grading/readiness/progress routes, + 5 freeze-request routes)
+        expect(routes.length).toBeGreaterThanOrEqual(204) // real count (+ club-about GET/PUT, + 11 rank-grading/readiness/progress routes, + 5 freeze-request routes, + 5 autopay routes)
         // real counts: 46 money/system routes assert CLUB_ADMINS (+ 3 AI-token
-        // and the role list gated otherwise); 17 roster/ops routes SPORT_LEADS
+        // and the role list gated otherwise); 19 roster/ops routes SPORT_LEADS
         expect(routes.filter((r) => r.check === 'CLUB_ADMINS').length).toBeGreaterThanOrEqual(46)
-        expect(routes.filter((r) => r.check === 'SPORT_LEADS').length).toBeGreaterThanOrEqual(17)
+        expect(routes.filter((r) => r.check === 'SPORT_LEADS').length).toBeGreaterThanOrEqual(19)
     })
 
     it('money and system routes are exactly the pinned CLUB_ADMINS set', () => {
@@ -276,6 +280,23 @@ describe('route tier consistency', () => {
         expect(handlerByFeature.has('GetCheckoutQuoteFeature')).toBe(true)
         expect(routeOf('GetCheckoutQuoteFeature')).toBeDefined()
         expect(routeOf('GetCheckoutQuoteFeature')?.tier).toBeNull()
+    })
+
+    // Member autopay (docs/design/2026-11-15-member-autopay.md §3.5): the
+    // member's own routes carry no @Roles; staff read and cancel (at the
+    // member's request) are the sport side.
+    it('autopay routes keep their tiers', () => {
+        const tierOf = (feature: string) => routes.find((r) => r.feature === feature)?.tier
+        for (const feature of [
+            'ListMyAutopaysFeature',
+            'CancelMyAutopayFeature',
+            'AcceptMyAutopayTermsFeature',
+        ]) {
+            expect(routes.some((r) => r.feature === feature)).toBe(true)
+            expect(tierOf(feature)).toBeNull()
+        }
+        expect(tierOf('ListMemberAutopaysFeature')).toBe('SPORT_LEADS')
+        expect(tierOf('CancelMemberAutopayFeature')).toBe('SPORT_LEADS')
     })
 
     it('no route uses a removed tier name', () => {

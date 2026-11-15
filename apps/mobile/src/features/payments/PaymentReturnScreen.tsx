@@ -1,10 +1,11 @@
 import { useIsFocused } from "@react-navigation/native"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import type { RootStackParamList } from "../../app/navigation"
+import { listMyAutopays, type MyAutopay } from "../../shared/api/autopay"
 import type { MyPayment } from "../../shared/api/payments"
 import { useAuth } from "../../shared/auth-context"
 import { CenteredColumn, READABLE_WIDTH } from "../../shared/components/CenteredColumn"
@@ -14,7 +15,7 @@ import { formatMoney } from "../../shared/format-ru"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { toneColor } from "../subscription/subscription-state"
-import { paymentStatusLine } from "./payment-helpers"
+import { paymentAutopayLine, paymentStatusLine } from "./payment-helpers"
 import { usePaymentPolling } from "./usePaymentPolling"
 
 type Props = NativeStackScreenProps<RootStackParamList, "PaymentReturn">
@@ -46,11 +47,38 @@ export function PaymentReturnScreen({ route, navigation }: Props) {
     onSettled: handleSettled,
   })
 
+  // A checkout with autopay that went through: the agreement's next charge
+  // (one source — the agreement list) for «следующее списание …».
+  const workspaceId = workspace?.workspaceId ?? null
+  const autopayOn = payment?.status === "SUCCEEDED" && payment.autopay === "on"
+  const [nextCharge, setNextCharge] = useState<MyAutopay["nextCharge"]>(null)
+  useEffect(() => {
+    if (!workspaceId || !autopayOn || !payment?.planId) return
+    const planId = payment.planId
+    let live = true
+    listMyAutopays({ workspaceId })
+      .then((list) => {
+        const agreement = list.find(
+          (a) => a.status === "ACTIVE" && a.planId === planId,
+        )
+        if (live) setNextCharge(agreement?.nextCharge ?? null)
+      })
+      // The line still says autopay is on, just without the day.
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [workspaceId, autopayOn, payment?.planId])
+
   if (!workspace) return null
 
   const line = payment ? paymentStatusLine(payment) : null
   const pending = payment?.status === "PENDING"
   const ticket = !!payment?.eventRegistrationId
+  const autopayLine =
+    payment?.status === "SUCCEEDED"
+      ? paymentAutopayLine(payment.autopay, nextCharge, payment.currency)
+      : null
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -79,6 +107,16 @@ export function PaymentReturnScreen({ route, navigation }: Props) {
                 {ticket ? `Билет «${payment.planName}»` : payment.planName} ·{" "}
                 {formatMoney(payment.amount, payment.currency)}
               </Text>
+              {autopayLine && (
+                <Text
+                  style={[
+                    styles.autopay,
+                    { color: toneColor(theme.colors, autopayLine.tone) },
+                  ]}
+                >
+                  {autopayLine.text}
+                </Text>
+              )}
               {pending && (
                 <Text style={styles.meta}>
                   {timedOut
@@ -151,6 +189,7 @@ const makeStyles = (theme: Theme) =>
     },
     status: { flex: 1, fontSize: 16, fontWeight: "700" },
     meta: { color: theme.colors.muted, fontSize: 13 },
+    autopay: { fontSize: 14, fontWeight: "600" },
     primaryBtn: {
       backgroundColor: theme.colors.accent,
       paddingVertical: theme.spacing(4),

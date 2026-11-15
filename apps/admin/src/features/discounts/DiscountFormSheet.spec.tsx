@@ -30,6 +30,7 @@ const plan = (over: Partial<Plan> = {}): Plan => ({
   startsOnFirstVisit: false,
   isActive: true,
   purchasableOnline: false,
+  autopayAvailable: false,
   directions: [],
   updatedAt: "2026-11-14T10:00:00.000Z",
   ...over,

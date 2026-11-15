@@ -27,6 +27,9 @@ const ALLOWED: Record<string, true | readonly string[]> = {
   "features/subscriptions/MemberSubscriptionPanel.tsx": true,
   "features/subscriptions/PlanFormSheet.tsx": true,
   "features/subscriptions/subscription-display.ts": true,
+  "features/subscriptions/autopay-text.ts": true,
+  // An autopay's agreed pack size (autopay.termsAccepted «было → стало»).
+  "features/audit/audit-meta.ts": ["Занятий"],
   "features/settings/app-sections.ts": [
     "Остаток занятий и статус абонемента.",
     "другой группы. Занятие списывается с абонемента, только когда гостя отметят на",

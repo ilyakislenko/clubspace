@@ -104,6 +104,13 @@ export type AuditAction =
     | 'payment.succeeded'
     | 'payment.refund'
     | 'payment.refundDelete'
+    // Member autopay (docs/design/2026-11-15-member-autopay.md): the member is
+    // the target; the actor is the member (enabled, own cancel, terms), the
+    // staff member (cancel on request) or null (the system).
+    | 'autopay.enabled'
+    | 'autopay.cancelled'
+    | 'autopay.termsAccepted'
+    | 'autopay.chargeFailed'
     // Club discounts (docs/design/2026-11-15-discounts.md §3.4): update carries
     // `{ name, changes: { field: { from, to } } }`, the others a snapshot.
     | 'discount.create'

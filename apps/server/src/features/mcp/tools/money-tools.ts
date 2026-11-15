@@ -23,6 +23,7 @@ import {
     type ListAwaitingPaymentFeatureResponse,
 } from '../../list-awaiting-payment/list-awaiting-payment.feature'
 import { serializeRenewalCandidate } from '../../list-renewal-candidates/schemas'
+import { type AutopayStatus, autopayForScope, loadAutopayStatuses } from '../../member-autopay/autopay-status'
 import {
     ABONEMENT_STATE_LABELS,
     ABONEMENT_STATES,
@@ -34,6 +35,12 @@ import { capResult, defineTool, McpToolError, type McpToolContext, pageInput, pa
 import { assertDirectionArg, clubDate, planRef, uuidArg } from './tool-helpers'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+// The member's autopay renewing an abonement (docs/design/2026-11-15-member-autopay.md
+// §6): 'on' — renews by itself, don't call; 'needs_action' — stopped, the
+// member must pay or confirm; null — none.
+const autopayState = (a: Pick<AutopayStatus, 'status'> | null) =>
+    a === null ? null : a.status === 'ACTIVE' ? ('on' as const) : ('needs_action' as const)
 
 const RENEWAL_REASON_LABELS = {
     out_of_classes: 'Закончились занятия',
@@ -326,6 +333,7 @@ export const renewalsDueTool = defineTool({
         'Ученики, которым пора продлить абонемент (как список «Продлить» в админке): ' +
         'out_of_classes — занятия закончились, low_classes — осталось одно, access_expiring — срок кончается в ближайшие 7 дней или закончился не больше 30 дней назад и не продлён. ' +
         'ends — дата конца срока, daysLeft — сколько дней до неё (отрицательное — срок закончился столько дней назад). ' +
+        'autopay: on — продлится автоплатежом (звонить не нужно), needs_action — автоплатёж остановлен, ждёт ученика. ' +
         'Самые срочные первыми. Только для токена администратора.',
     adminOnly: true,
     input: z.object({
@@ -341,11 +349,14 @@ export const renewalsDueTool = defineTool({
             return { ends, daysLeft: ends === null ? null : Math.round((Date.parse(ends) - today) / DAY_MS) }
         }
         const due = await loadRenewalDue(ctx.prisma, access.workspaceId, now)
-        const listed = due
-            .map(serializeRenewalCandidate)
-            .filter((c) => !args.reason || c.reason === args.reason)
+        const listed = due.filter((r) => !args.reason || r.need.reason === args.reason)
         const page = paginate(listed, args.offset, args.limit)
-        const items = page.items.map((c) => ({
+        const autopays = await loadAutopayStatuses(ctx.prisma, {
+            workspaceId: access.workspaceId,
+            userIds: page.items.map((r) => r.userId),
+            now,
+        })
+        const items = page.items.map((r) => serializeRenewalCandidate(r, autopays.get(r.userId))).map((c) => ({
             member: people.member({
                 id: c.userId,
                 firstname: c.firstname,
@@ -364,6 +375,7 @@ export const renewalsDueTool = defineTool({
             classesRemaining: c.classesRemaining,
             classesTotal: c.classesTotal,
             directions: c.directions.map((d) => d.name),
+            autopay: autopayState(c.autopay),
         }))
         return {
             rows: items.length,
@@ -439,6 +451,7 @@ export const abonementStatesTool = defineTool({
         'Абонементы учеников по состояниям: frozen — заморожен, awaiting_first_visit — ждёт первой тренировки, ' +
         'out_of_classes — занятия закончились, expiring_soon — кончается в 7 дней, active — действует, ended — закончился за последние 30 дней. ' +
         'В ответе сводка по состояниям и тарифам и постраничный список (фильтр state). ' +
+        'autopay: on — ученик продлевает этот абонемент автоплатежом (звонить не нужно), needs_action — автоплатёж остановлен, ждёт ученика, null — автоплатежа нет. ' +
         'Суммы (amount — оплачено, refunded — возвращено, discountName — название скидки, с которой продан) — только для токена администратора.',
     input: z.object({
         state: z.enum(ABONEMENT_STATES).optional().describe('Только абонементы в этом состоянии'),
@@ -489,7 +502,7 @@ export const abonementStatesTool = defineTool({
                 discountName: true,
                 currency: true,
                 plan: { select: { id: true, name: true } },
-                directions: { select: { direction: { select: { name: true } } } },
+                directions: { select: { directionId: true, direction: { select: { name: true } } } },
                 freezes: {
                     where: { untilDate: { gte: ymdToDbDate(todayYmd) } },
                     select: { fromDate: true, untilDate: true },
@@ -526,6 +539,13 @@ export const abonementStatesTool = defineTool({
 
         const listed = withState.filter((x) => !args.state || x.state === args.state)
         const page = paginate(listed, args.offset, args.limit)
+        const autopays = await loadAutopayStatuses(prisma, {
+            workspaceId: scope.workspaceId,
+            userIds: [
+                ...new Set(page.items.flatMap(({ row }) => (row.workspaceMember ? [row.workspaceMember.user.id] : []))),
+            ],
+            now,
+        })
         const items = page.items.map(({ row, state }) => ({
             member: row.workspaceMember ? people.member(row.workspaceMember.user) : null,
             tariff: row.plan.name,
@@ -538,6 +558,14 @@ export const abonementStatesTool = defineTool({
             classesTotal: row.classesTotal,
             directions: row.directions.map((d) => d.direction.name),
             isPaid: row.isPaid,
+            autopay: row.workspaceMember
+                ? autopayState(
+                      autopayForScope(
+                          autopays.get(row.workspaceMember.user.id),
+                          row.directions.map((d) => d.directionId),
+                      ),
+                  )
+                : null,
             // `amount` stays what was paid; `refunded` is what went back.
             ...(scope.seesMoney
                 ? {

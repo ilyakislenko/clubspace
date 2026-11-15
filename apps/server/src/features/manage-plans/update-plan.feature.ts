@@ -15,6 +15,10 @@ export const UpdatePlanInputSchema = z
         startsOnFirstVisit: z.boolean().optional(),
         isActive: z.boolean().optional(),
         purchasableOnline: z.boolean().optional(),
+        // Needs purchasableOnline and the club's autopay setting (400
+        // otherwise); turning it (or online sale, or the tariff) off cancels
+        // the live agreements.
+        autopayAvailable: z.boolean().optional(),
         // Replaces the whole scope. Abonements already sold keep the scope
         // they were sold with (snapshot).
         directionIds: z.array(z.string().uuid()).max(50).optional(),

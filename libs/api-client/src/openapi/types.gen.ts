@@ -4852,6 +4852,7 @@ export type EventTicketCheckoutOutputOutput = {
         createdAt: string;
         paidAt: string | null;
         refundedAt: string | null;
+        autopay: 'on' | 'not_saved' | null;
     };
     confirmationUrl: string;
 };
@@ -5560,6 +5561,7 @@ export type CreatePlanInput = {
     startsOnFirstVisit?: boolean;
     isActive?: boolean;
     purchasableOnline?: boolean;
+    autopayAvailable?: boolean;
     directionIds?: Array<string>;
 };
 
@@ -5576,6 +5578,7 @@ export type PlanOutputDtoOutput = {
     startsOnFirstVisit: boolean;
     isActive: boolean;
     purchasableOnline: boolean;
+    autopayAvailable: boolean;
     directions: Array<{
         id: string;
         name: string;
@@ -5599,6 +5602,7 @@ export type ListPlansOutputOutput = {
         startsOnFirstVisit: boolean;
         isActive: boolean;
         purchasableOnline: boolean;
+        autopayAvailable: boolean;
         directions: Array<{
             id: string;
             name: string;
@@ -5623,6 +5627,7 @@ export type GetPlanOutputOutput = {
         startsOnFirstVisit: boolean;
         isActive: boolean;
         purchasableOnline: boolean;
+        autopayAvailable: boolean;
         directions: Array<{
             id: string;
             name: string;
@@ -5649,6 +5654,7 @@ export type GetPlanOutputOutput = {
         sold: number;
         revenue: number;
     };
+    autopayCount: number;
 };
 
 export type UpdatePlanInput = {
@@ -5662,6 +5668,7 @@ export type UpdatePlanInput = {
     startsOnFirstVisit?: boolean;
     isActive?: boolean;
     purchasableOnline?: boolean;
+    autopayAvailable?: boolean;
     directionIds?: Array<string>;
     /**
      * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
@@ -5682,6 +5689,7 @@ export type UpdatePlanOutputOutput = {
     startsOnFirstVisit: boolean;
     isActive: boolean;
     purchasableOnline: boolean;
+    autopayAvailable: boolean;
     directions: Array<{
         id: string;
         name: string;
@@ -5724,6 +5732,10 @@ export type ListRenewalCandidatesOutputOutput = {
             color: string | null;
             icon: string | null;
         }>;
+        autopay: {
+            status: 'ACTIVE' | 'NEEDS_ACTION';
+            nextChargeOn: string | null;
+        } | null;
     }>;
     total: number;
     curPage: number;
@@ -5747,6 +5759,21 @@ export type AwaitingPaymentOutputOutput = {
     members: number;
     curPage: number;
     perPage: number;
+    autopayAttention: {
+        total: number;
+        data: Array<{
+            autopayId: string;
+            member: {
+                userId: string;
+                name: string;
+            };
+            planName: string;
+            reason: 'CHARGE_FAILED' | 'CARD_EXPIRED' | 'TERMS_CHANGED' | 'GRANT_REFUSED' | null;
+            lastError: string | null;
+            nextAttemptOn: string | null;
+            since: string;
+        }>;
+    };
 };
 
 export type AssignSubscriptionInput = {
@@ -5783,6 +5810,7 @@ export type AssignSubscriptionOutputOutput = {
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        paidByAutopay: boolean;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -5823,6 +5851,7 @@ export type MemberSubscriptionsOutputOutput = {
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        paidByAutopay: boolean;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -5873,6 +5902,7 @@ export type MemberSubscriptionsOutputOutput = {
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        paidByAutopay: boolean;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -5925,6 +5955,7 @@ export type CancelSubscriptionOutputOutput = {
     isPaid: boolean;
     paidAt: string | null;
     paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+    paidByAutopay: boolean;
     classesTotal: number | null;
     classesRemaining: number | null;
     source: string;
@@ -5968,6 +5999,7 @@ export type MarkSubscriptionPaidOutputOutput = {
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        paidByAutopay: boolean;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -6006,6 +6038,7 @@ export type UnmarkSubscriptionPaidOutputOutput = {
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        paidByAutopay: boolean;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -6060,6 +6093,7 @@ export type FreezeSubscriptionOutputOutput = {
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        paidByAutopay: boolean;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -6110,6 +6144,7 @@ export type EndSubscriptionFreezeOutputOutput = {
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        paidByAutopay: boolean;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -6149,6 +6184,7 @@ export type MySubscriptionOutputOutput = {
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        paidByAutopay: boolean;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -6214,6 +6250,7 @@ export type MySubscriptionOutputOutput = {
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        paidByAutopay: boolean;
         classesTotal: number | null;
         classesRemaining: number | null;
         source: string;
@@ -7554,6 +7591,155 @@ export type MyRankProgressOutputOutput = {
     }>;
 };
 
+export type ListMyAutopaysOutputOutput = {
+    data: Array<{
+        id: string;
+        planId: string | null;
+        planName: string;
+        status: 'ACTIVE' | 'NEEDS_ACTION' | 'CANCELLED';
+        needsActionReason: 'CHARGE_FAILED' | 'CARD_EXPIRED' | 'TERMS_CHANGED' | 'GRANT_REFUSED' | null;
+        cardLabel: string;
+        termsAmount: number;
+        currency: string;
+        termsDurationDays: number;
+        termsClassCount: number | null;
+        nextCharge: {
+            on: string;
+            amount: number;
+            kind: 'term' | 'pack';
+        } | null;
+        lastError: string | null;
+        lastFailedOn: string | null;
+        nextAttemptOn: string | null;
+        newTerms: {
+            amount: number;
+            durationDays: number;
+            classCount: number | null;
+            consentVersion: string;
+        } | null;
+        consentedAt: string;
+        cancelledAt: string | null;
+        cancelSource: 'MEMBER' | 'STAFF' | 'SYSTEM' | null;
+        cancelReason: string | null;
+    }>;
+};
+
+export type MyAutopayOutputOutput = {
+    id: string;
+    planId: string | null;
+    planName: string;
+    status: 'ACTIVE' | 'NEEDS_ACTION' | 'CANCELLED';
+    needsActionReason: 'CHARGE_FAILED' | 'CARD_EXPIRED' | 'TERMS_CHANGED' | 'GRANT_REFUSED' | null;
+    cardLabel: string;
+    termsAmount: number;
+    currency: string;
+    termsDurationDays: number;
+    termsClassCount: number | null;
+    nextCharge: {
+        on: string;
+        amount: number;
+        kind: 'term' | 'pack';
+    } | null;
+    lastError: string | null;
+    lastFailedOn: string | null;
+    nextAttemptOn: string | null;
+    newTerms: {
+        amount: number;
+        durationDays: number;
+        classCount: number | null;
+        consentVersion: string;
+    } | null;
+    consentedAt: string;
+    cancelledAt: string | null;
+    cancelSource: 'MEMBER' | 'STAFF' | 'SYSTEM' | null;
+    cancelReason: string | null;
+};
+
+export type AcceptMyAutopayTermsInput = {
+    amount: number;
+    durationDays: number;
+    classCount: number | null;
+    consentVersion: string;
+};
+
+export type ListMemberAutopaysOutputOutput = {
+    data: Array<{
+        id: string;
+        planId: string | null;
+        planName: string;
+        status: 'ACTIVE' | 'NEEDS_ACTION' | 'CANCELLED';
+        needsActionReason: 'CHARGE_FAILED' | 'CARD_EXPIRED' | 'TERMS_CHANGED' | 'GRANT_REFUSED' | null;
+        cardLabel: string | null;
+        termsAmount: number | null;
+        currency: string;
+        termsDurationDays: number;
+        termsClassCount: number | null;
+        nextCharge: {
+            on: string;
+            amount: number | null;
+            kind: 'term' | 'pack';
+        } | null;
+        lastError: string | null;
+        lastFailedOn: string | null;
+        nextAttemptOn: string | null;
+        newTerms: {
+            amount: number | null;
+            durationDays: number;
+            classCount: number | null;
+            consentVersion: string;
+        } | null;
+        consentedAt: string;
+        cancelledAt: string | null;
+        cancelSource: 'MEMBER' | 'STAFF' | 'SYSTEM' | null;
+        cancelReason: string | null;
+        cancelledBy: {
+            userId: string;
+            name: string;
+        } | null;
+        createdAt: string;
+    }>;
+};
+
+export type CancelMemberAutopayInput = {
+    reason: string;
+};
+
+export type MemberAutopayOutputOutput = {
+    id: string;
+    planId: string | null;
+    planName: string;
+    status: 'ACTIVE' | 'NEEDS_ACTION' | 'CANCELLED';
+    needsActionReason: 'CHARGE_FAILED' | 'CARD_EXPIRED' | 'TERMS_CHANGED' | 'GRANT_REFUSED' | null;
+    cardLabel: string | null;
+    termsAmount: number | null;
+    currency: string;
+    termsDurationDays: number;
+    termsClassCount: number | null;
+    nextCharge: {
+        on: string;
+        amount: number | null;
+        kind: 'term' | 'pack';
+    } | null;
+    lastError: string | null;
+    lastFailedOn: string | null;
+    nextAttemptOn: string | null;
+    newTerms: {
+        amount: number | null;
+        durationDays: number;
+        classCount: number | null;
+        consentVersion: string;
+    } | null;
+    consentedAt: string;
+    cancelledAt: string | null;
+    cancelSource: 'MEMBER' | 'STAFF' | 'SYSTEM' | null;
+    cancelReason: string | null;
+    cancelledBy: {
+        userId: string;
+        name: string;
+    } | null;
+    createdAt: string;
+};
+
 export type RequestSubscriptionFreezeInput = {
     fromDate: string;
     days: number;
@@ -8152,6 +8338,11 @@ export type PaymentSettingsOutputOutput = {
         stripe: string;
     };
     onlinePlanCount: number;
+    autopayOffered: boolean;
+    autopayEnabled: boolean;
+    autopayLastError: string | null;
+    autopayLastErrorAt: string | null;
+    autopayLiveCount: number;
 };
 
 export type UpdatePaymentSettingsInput = {
@@ -8163,6 +8354,7 @@ export type UpdatePaymentSettingsInput = {
     vatCode?: number;
     paymentSubject?: 'service' | 'another';
     paymentMode?: 'full_prepayment' | 'full_payment' | 'advance';
+    autopayEnabled?: boolean;
 };
 
 export type CheckPaymentConnectionOutputOutput = {
@@ -8176,6 +8368,8 @@ export type CheckPaymentConnectionOutputOutput = {
 export type CreatePaymentInput = {
     planId: string;
     promoCode?: string;
+    autopay?: boolean;
+    autopayConsentVersion?: string;
 };
 
 export type CreatePaymentOutputOutput = {
@@ -8193,6 +8387,7 @@ export type CreatePaymentOutputOutput = {
         createdAt: string;
         paidAt: string | null;
         refundedAt: string | null;
+        autopay: 'on' | 'not_saved' | null;
     };
     confirmationUrl: string;
 };
@@ -8227,6 +8422,7 @@ export type ListPaymentJournalOutputOutput = {
             providerRef: string | null;
             status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
             refundable: number;
+            autopay: boolean;
         } | null;
         reason: string | null;
         refundOf: {
@@ -8312,6 +8508,7 @@ export type PaymentJournalEntryDetailOutputOutput = {
         providerRef: string | null;
         status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
         refundable: number;
+        autopay: boolean;
     } | null;
     reason: string | null;
     refundOf: {
@@ -8356,6 +8553,7 @@ export type PaymentJournalEntryDetailOutputOutput = {
             providerRef: string | null;
             status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
             refundable: number;
+            autopay: boolean;
         } | null;
         reason: string | null;
         refundOf: {
@@ -8374,6 +8572,7 @@ export type PaymentJournalEntryDetailOutputOutput = {
     }>;
     memberHasCard: boolean;
     fullRefundCancelsRegistration: boolean;
+    cardLabel: string | null;
 };
 
 export type ListOpenRequestsOutputOutput = {
@@ -8482,6 +8681,7 @@ export type CreateRefundOutputOutput = {
             providerRef: string | null;
             status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
             refundable: number;
+            autopay: boolean;
         } | null;
         reason: string | null;
         refundOf: {
@@ -8527,6 +8727,7 @@ export type CreateRefundOutputOutput = {
             providerRef: string | null;
             status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
             refundable: number;
+            autopay: boolean;
         } | null;
         reason: string | null;
         refundOf: {
@@ -8571,6 +8772,7 @@ export type CreateRefundOutputOutput = {
                 providerRef: string | null;
                 status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
                 refundable: number;
+                autopay: boolean;
             } | null;
             reason: string | null;
             refundOf: {
@@ -8589,6 +8791,7 @@ export type CreateRefundOutputOutput = {
         }>;
         memberHasCard: boolean;
         fullRefundCancelsRegistration: boolean;
+        cardLabel: string | null;
     } | null;
 };
 
@@ -8778,6 +8981,11 @@ export type OnlinePurchaseOptionsOutputOutput = {
             color: string | null;
             icon: string | null;
         }>;
+        autopay: {
+            renewalAmount: number;
+            consentVersion: string;
+            consentLines: Array<string>;
+        } | null;
     }>;
     blockedReason: string | null;
     renewalFrom: string | null;
@@ -8795,7 +9003,9 @@ export type OnlinePurchaseOptionsOutputOutput = {
         createdAt: string;
         paidAt: string | null;
         refundedAt: string | null;
+        autopay: 'on' | 'not_saved' | null;
     } | null;
+    autopayTermsUrl: string | null;
 };
 
 export type CheckoutQuoteOutputOutput = {
@@ -8809,6 +9019,11 @@ export type CheckoutQuoteOutputOutput = {
         endsOn: string | null;
     } | null;
     promoCodeNote: string | null;
+    autopay: {
+        renewalAmount: number;
+        consentVersion: string;
+        consentLines: Array<string>;
+    } | null;
 };
 
 export type MyPaymentOutputOutput = {
@@ -8825,6 +9040,7 @@ export type MyPaymentOutputOutput = {
     createdAt: string;
     paidAt: string | null;
     refundedAt: string | null;
+    autopay: 'on' | 'not_saved' | null;
 };
 
 export type PaymentWebhookOutputOutput = {
@@ -14199,6 +14415,85 @@ export type GetMyRankProgressResponses = {
 };
 
 export type GetMyRankProgressResponse = GetMyRankProgressResponses[keyof GetMyRankProgressResponses];
+
+export type ListMyAutopaysData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/autopays';
+};
+
+export type ListMyAutopaysResponses = {
+    default: ListMyAutopaysOutputOutput;
+};
+
+export type ListMyAutopaysResponse = ListMyAutopaysResponses[keyof ListMyAutopaysResponses];
+
+export type CancelMyAutopayData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        autopayId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/autopays/{autopayId}/cancel';
+};
+
+export type CancelMyAutopayResponses = {
+    default: MyAutopayOutputOutput;
+};
+
+export type CancelMyAutopayResponse = CancelMyAutopayResponses[keyof CancelMyAutopayResponses];
+
+export type AcceptMyAutopayTermsData = {
+    body: AcceptMyAutopayTermsInput;
+    path: {
+        workspaceId: string;
+        autopayId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/autopays/{autopayId}/accept-terms';
+};
+
+export type AcceptMyAutopayTermsResponses = {
+    default: MyAutopayOutputOutput;
+};
+
+export type AcceptMyAutopayTermsResponse = AcceptMyAutopayTermsResponses[keyof AcceptMyAutopayTermsResponses];
+
+export type ListMemberAutopaysData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/autopays';
+};
+
+export type ListMemberAutopaysResponses = {
+    default: ListMemberAutopaysOutputOutput;
+};
+
+export type ListMemberAutopaysResponse = ListMemberAutopaysResponses[keyof ListMemberAutopaysResponses];
+
+export type CancelMemberAutopayData = {
+    body: CancelMemberAutopayInput;
+    path: {
+        workspaceId: string;
+        autopayId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/autopays/{autopayId}/cancel';
+};
+
+export type CancelMemberAutopayResponses = {
+    default: MemberAutopayOutputOutput;
+};
+
+export type CancelMemberAutopayResponse = CancelMemberAutopayResponses[keyof CancelMemberAutopayResponses];
 
 export type RequestSubscriptionFreezeData = {
     body: RequestSubscriptionFreezeInput;

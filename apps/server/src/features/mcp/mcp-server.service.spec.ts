@@ -63,6 +63,8 @@ const setup = (opts: Opts = {}) => {
         group: { findMany: jest.fn().mockResolvedValue([]) },
         plan: { findMany: jest.fn().mockResolvedValue([]) },
         rankLadder: { findMany: jest.fn().mockResolvedValue([]) },
+        // Nobody on autopay (renewals_due / abonement_states read it).
+        memberAutopay: { findMany: jest.fn().mockResolvedValue([]) },
     }
     const redis = { eval: jest.fn().mockResolvedValue([1, 60_000, opts.blocked ? 1 : 0, opts.blocked ? 42_000 : 0]) }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }

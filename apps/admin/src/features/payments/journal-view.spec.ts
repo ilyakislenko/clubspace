@@ -23,6 +23,7 @@ import {
   journalFilters,
   journalSearch,
   methodLabel,
+  entryMethodLabel,
   methodsLine,
   onlineRefundable,
   panelFilterCount,
@@ -236,6 +237,21 @@ describe("rows", () => {
     expect(methodLabel(null)).toBe("Не указан")
   })
 
+  it("marks an autopay renewal in the method", () => {
+    const online = {
+      paymentId: ID2,
+      provider: "YOOKASSA" as const,
+      providerRef: "ab12cd",
+      status: "SUCCEEDED" as const,
+      refundable: 4000,
+    }
+    expect(entryMethodLabel(entry({ method: "ONLINE", online: { ...online, autopay: true } }))).toBe(
+      "Онлайн · автоплатёж",
+    )
+    expect(entryMethodLabel(entry({ method: "ONLINE", online: { ...online, autopay: false } }))).toBe("Онлайн")
+    expect(entryMethodLabel(entry({ method: "CASH" }))).toBe("Наличные")
+  })
+
   it("says what the money was for", () => {
     expect(entryWhat(entry())).toBe("Абонемент «БЖЖ 12»")
     expect(entryWhat(entry({ source: "ticket", itemName: "Семинар по гвардам" }))).toBe(
@@ -364,12 +380,14 @@ describe("refund form", () => {
     providerRef: "ab12cd",
     status: "SUCCEEDED" as const,
     refundable: 4000,
+    autopay: false,
   }
   const detail = (patch: Partial<PaymentJournalEntryDetail> = {}): PaymentJournalEntryDetail => ({
     ...entry(),
     refunds: [],
     memberHasCard: true,
     fullRefundCancelsRegistration: false,
+    cardLabel: null,
     ...patch,
   })
   const sale = (patch: Partial<PaymentJournalEntryDetail> = {}): RefundSubject => ({
@@ -443,6 +461,10 @@ describe("refund form", () => {
   it("hints only what is true", () => {
     expect(refundHint(sale(), 4000)).toBe(
       "Абонемент останется действующим — отменить его можно в карточке ученика",
+    )
+    // A refund leaves the autopay agreement on.
+    expect(refundHint(sale({ method: "ONLINE", online: { ...online, autopay: true } }), 4000)).toBe(
+      "Абонемент останется действующим — отменить его можно в карточке ученика. Автоплатёж останется включённым — отключить его можно в карточке ученика",
     )
     const ticket = sale({
       source: "ticket",

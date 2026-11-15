@@ -329,3 +329,55 @@ describe("discount audit", () => {
     ])
   })
 })
+
+describe("autopay audit", () => {
+  const ID = "11111111-2222-4333-8444-555555555555"
+  const rows = (meta: unknown) =>
+    parseMetadata(meta, GRAPPLING).map((r) => `${r.label}: ${r.value.replace(/\s/g, " ")}`)
+
+  it("labels the autopay actions and their family", () => {
+    const meta = actionMetaFor(GRAPPLING)
+    expect(meta["autopay.enabled"].label).toBe("Автоплатёж включён")
+    expect(meta["autopay.cancelled"].label).toBe("Автоплатёж отключён")
+    expect(meta["autopay.termsAccepted"].label).toBe("Новые условия автоплатежа приняты")
+    expect(meta["autopay.chargeFailed"].label).toBe("Автоплатёж не прошёл")
+    expect(ACTION_CATEGORY_LABELS.autopay).toBe("Автоплатежи")
+    expect(ACTION_CATEGORIES).toContain("autopay")
+  })
+
+  it("says who switched it off and why, never the ids", () => {
+    expect(
+      rows({ autopayId: ID, planName: "БЖЖ 12", source: "STAFF", reason: "Попросил по телефону" }),
+    ).toEqual(["Тариф: БЖЖ 12", "Кто отключил: сотрудник клуба", "Причина: Попросил по телефону"])
+  })
+
+  it("spells out a decline that stopped autopay", () => {
+    expect(
+      rows({
+        autopayId: ID,
+        paymentId: ID,
+        planName: "БЖЖ 12",
+        amount: 4000,
+        currency: "RUB",
+        reason: "недостаточно средств",
+        attempt: 4,
+        nextAttemptAt: null,
+        needsActionReason: "CHARGE_FAILED",
+      }),
+    ).toEqual([
+      "Тариф: БЖЖ 12",
+      "Сумма: 4 000",
+      "Валюта: ₽",
+      "Причина: недостаточно средств",
+      "Попытка: 4",
+      "Остановлен: четыре отказа подряд",
+    ])
+  })
+
+  it("names the settings and tariff switches", () => {
+    expect(rows({ autopayEnabled: true })).toEqual(["Автоплатежи для учеников: да"])
+    expect(rows({ fields: ["autopayAvailable", "purchasableOnline"] })[0]).toContain(
+      "продление автоплатежом",
+    )
+  })
+})

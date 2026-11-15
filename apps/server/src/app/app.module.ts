@@ -192,6 +192,13 @@ import {
     PlatformAutopayProcessor,
 } from '../domains/billing/platform-autopay.processor'
 import { PlatformAutopayService } from '../domains/billing/services/platform-autopay.service'
+import { AutopayNotificationsService } from '../domains/autopay/autopay-notifications'
+import { MemberAutopayAgreementsService } from '../domains/autopay/member-autopay-agreements.service'
+import {
+    MEMBER_AUTOPAY_QUEUE,
+    MemberAutopayProcessor,
+} from '../domains/autopay/member-autopay.processor'
+import { MemberAutopayService } from '../domains/autopay/member-autopay.service'
 import { PlatformPaymentsService } from '../domains/billing/services/platform-payments.service'
 import { TrialRemindersService } from '../domains/billing/services/trial-reminders.service'
 import { GetWorkspaceOnboardingController } from '../features/workspace-onboarding/get-workspace-onboarding.controller'
@@ -344,6 +351,13 @@ import { RankReadinessController } from '../features/rank-readiness/rank-readine
 import { GetRankReadinessHandler } from '../features/rank-readiness/get-rank-readiness.handler'
 import { GetMyRankProgressController } from '../features/get-my-rank-progress/get-my-rank-progress.controller'
 import { GetMyRankProgressHandler } from '../features/get-my-rank-progress/get-my-rank-progress.handler'
+import { MyAutopaysController } from '../features/member-autopay/my-autopays.controller'
+import { MemberAutopaysController } from '../features/member-autopay/member-autopays.controller'
+import { ListMyAutopaysHandler } from '../features/member-autopay/list-my-autopays.handler'
+import { CancelMyAutopayHandler } from '../features/member-autopay/cancel-my-autopay.handler'
+import { AcceptMyAutopayTermsHandler } from '../features/member-autopay/accept-my-autopay-terms.handler'
+import { ListMemberAutopaysHandler } from '../features/member-autopay/list-member-autopays.handler'
+import { CancelMemberAutopayHandler } from '../features/member-autopay/cancel-member-autopay.handler'
 import { MyFreezeRequestsController } from '../features/subscription-freeze-requests/my-freeze-requests.controller'
 import { FreezeRequestsController } from '../features/subscription-freeze-requests/freeze-requests.controller'
 import { RequestSubscriptionFreezeHandler } from '../features/subscription-freeze-requests/request-subscription-freeze.handler'
@@ -711,6 +725,7 @@ const coreModules: ModuleMetadata['imports'] = [
     }),
     BullModule.registerQueue({ name: 'video-transcode' }),
     BullModule.registerQueue({ name: PLATFORM_AUTOPAY_QUEUE }),
+    BullModule.registerQueue({ name: MEMBER_AUTOPAY_QUEUE }),
     BullModule.registerQueue({ name: CLUB_IMPORT_QUEUE }),
     BullModule.registerQueue({ name: ANALYTICS_REFRESH_QUEUE }),
     SchedulerModule,
@@ -875,6 +890,8 @@ const controllers: ModuleMetadata['controllers'] = [
     RankReadinessController,
     RankGradingsController,
     GetMyRankProgressController,
+    MyAutopaysController,
+    MemberAutopaysController,
     MyFreezeRequestsController,
     FreezeRequestsController,
     WorkspaceBillingController,
@@ -1205,6 +1222,11 @@ const handlers: ModuleMetadata['providers'] = [
     RemoveRankGradingCandidateHandler,
     RecordRankGradingResultsHandler,
     GetMyRankProgressHandler,
+    ListMyAutopaysHandler,
+    CancelMyAutopayHandler,
+    AcceptMyAutopayTermsHandler,
+    ListMemberAutopaysHandler,
+    CancelMemberAutopayHandler,
     RequestSubscriptionFreezeHandler,
     CancelSubscriptionFreezeRequestHandler,
     ListPendingFreezeRequestsHandler,
@@ -1376,6 +1398,12 @@ z.config(z.locales.ru())
       // Day-23/28 trial reminders, run by the hourly autopay pass.
       TrialRemindersService,
       PlatformAutopayProcessor,
+      // Member autopay (domains/autopay): agreements written by the payment
+      // activation, the hourly charge / reminder pass and its notices.
+      AutopayNotificationsService,
+      MemberAutopayAgreementsService,
+      MemberAutopayService,
+      MemberAutopayProcessor,
       JoinRequestService,
       StoreReviewMembershipService,
       WorkspaceInvitationService,

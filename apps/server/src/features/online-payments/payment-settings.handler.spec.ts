@@ -3,10 +3,12 @@ jest.mock('../../environments/environment', () => ({
         encryptionKey: 'unit-test-encryption-key',
         rootUrl: 'https://api.example.com/',
         appUrl: 'https://app.example.com',
+        memberAutopay: { enabled: true },
     },
 }))
 
 import { encryptPaymentSecret } from '../../domains/payments/payment-credentials'
+import { environment } from '../../environments/environment'
 import { PaymentGatewayError } from '../../domains/payments/payment-gateway.types'
 import { ModuleNotEntitledError } from '../../shared/errors/shared.errors'
 import { decrypt } from '../../shared/utils/encryption.util'
@@ -55,6 +57,9 @@ const savedRow = (over: Record<string, unknown> = {}) => ({
     paymentSubject: 'service',
     paymentMode: 'full_prepayment',
     verifiedAt: null,
+    autopayEnabled: false,
+    autopayLastError: null,
+    autopayLastErrorAt: null,
     ...over,
 })
 
@@ -78,8 +83,12 @@ const prismaWith = (row: Record<string, unknown> | null) => {
             }),
         },
         plan: { count: jest.fn().mockResolvedValue(2) },
+        memberAutopay: { count: jest.fn().mockResolvedValue(0) },
     }
 }
+
+// The autopay agreements writer: the settings only tell it to stop them.
+const agreements = () => ({ cancelForWorkspace: jest.fn().mockResolvedValue(0) })
 
 const audit = () => ({ record: jest.fn() })
 
@@ -90,12 +99,14 @@ const update = (
     payload: ConstructorParameters<typeof UpdatePaymentSettingsFeature>[0],
     caller: Caller = ADMIN,
     a = audit(),
+    ag = agreements(),
 ) =>
     new UpdatePaymentSettingsHandler(
         prisma as never,
         rbac() as never,
         a as never,
         modules() as never,
+        ag as never,
     ).execute(
         new UpdatePaymentSettingsFeature(payload, 'ws-1', caller.userId, caller.roleName, false),
     )
@@ -105,10 +116,17 @@ const read = (prisma: ReturnType<typeof prismaWith>, caller: Caller = ADMIN) =>
         new GetPaymentSettingsFeature('ws-1', caller.userId, caller.roleName, false),
     )
 
-const disconnect = (prisma: ReturnType<typeof prismaWith>, caller: Caller = ADMIN) =>
-    new DeletePaymentSettingsHandler(prisma as never, rbac() as never, audit() as never).execute(
-        new DeletePaymentSettingsFeature('ws-1', caller.userId, caller.roleName, false),
-    )
+const disconnect = (
+    prisma: ReturnType<typeof prismaWith>,
+    caller: Caller = ADMIN,
+    ag = agreements(),
+) =>
+    new DeletePaymentSettingsHandler(
+        prisma as never,
+        rbac() as never,
+        audit() as never,
+        ag as never,
+    ).execute(new DeletePaymentSettingsFeature('ws-1', caller.userId, caller.roleName, false))
 
 const check = (
     prisma: ReturnType<typeof prismaWith>,
@@ -300,6 +318,127 @@ describe('payment settings — update', () => {
     })
 })
 
+// Member autopay (docs/design/2026-11-15-member-autopay.md §3.5, §10): the
+// club confirms YooKassa enabled it; off, another shop or another provider
+// stops every live agreement.
+describe('payment settings — member autopay', () => {
+    afterEach(() => {
+        environment.memberAutopay.enabled = true
+    })
+
+    it('shows the toggle state, the last refusal and the live count', async () => {
+        const failedAt = new Date('2026-11-14T08:00:00Z')
+        const prisma = prismaWith(
+            savedRow({
+                autopayEnabled: true,
+                autopayLastError: 'Магазин не может сохранять карты',
+                autopayLastErrorAt: failedAt,
+            }),
+        )
+        prisma.memberAutopay.count.mockResolvedValue(7)
+        const out = await read(prisma)
+        expect(out).toMatchObject({
+            autopayOffered: true,
+            autopayEnabled: true,
+            autopayLastError: 'Магазин не может сохранять карты',
+            autopayLastErrorAt: failedAt.toISOString(),
+            autopayLiveCount: 7,
+        })
+        expect(prisma.memberAutopay.count.mock.calls[0][0].where).toEqual({
+            workspaceId: 'ws-1',
+            status: { in: ['ACTIVE', 'NEEDS_ACTION'] },
+        })
+        environment.memberAutopay.enabled = false
+        expect((await read(prisma)).autopayOffered).toBe(false)
+    })
+
+    it('turns it on for YooKassa, clearing the last refusal', async () => {
+        const prisma = prismaWith(
+            savedRow({ autopayLastError: 'отказ', autopayLastErrorAt: new Date() }),
+        )
+        const a = audit()
+        const ag = agreements()
+        const out = await update(prisma, { provider: 'YOOKASSA', autopayEnabled: true }, ADMIN, a, ag)
+        expect(prisma.workspacePaymentSettings.update.mock.calls[0][0].data).toMatchObject({
+            autopayEnabled: true,
+            autopayLastError: null,
+            autopayLastErrorAt: null,
+        })
+        expect(out).toMatchObject({ autopayEnabled: true, autopayLastError: null })
+        expect(a.record.mock.calls[0][0].metadata.autopayEnabled).toBe(true)
+        expect(ag.cancelForWorkspace).not.toHaveBeenCalled()
+    })
+
+    it('keeps it on when only the receipt settings are saved', async () => {
+        const prisma = prismaWith(savedRow({ autopayEnabled: true, autopayLastError: 'отказ' }))
+        const ag = agreements()
+        await update(prisma, { provider: 'YOOKASSA', vatCode: 4 }, ADMIN, audit(), ag)
+        const data = prisma.workspacePaymentSettings.update.mock.calls[0][0].data
+        expect(data.autopayEnabled).toBe(true)
+        // Only a fresh confirmation clears YooKassa's refusal.
+        expect(data).not.toHaveProperty('autopayLastError')
+        expect(ag.cancelForWorkspace).not.toHaveBeenCalled()
+    })
+
+    it('refuses it for Stripe and while the global switch is off', async () => {
+        await expect(
+            update(prismaWith(null), {
+                provider: 'STRIPE',
+                secretKey: 'sk_test_12345678',
+                webhookSecret: 'whsec_12345678',
+                autopayEnabled: true,
+            }),
+        ).rejects.toThrow('Автоплатежи доступны только с ЮKassa')
+        environment.memberAutopay.enabled = false
+        const prisma = prismaWith(savedRow())
+        await expect(update(prisma, { provider: 'YOOKASSA', autopayEnabled: true })).rejects.toThrow(
+            'Автоплатежи учеников пока недоступны',
+        )
+        expect(prisma.workspacePaymentSettings.update).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ['turned off', { provider: 'YOOKASSA' as const, autopayEnabled: false }, 'клуб отключил автоплатежи'],
+        ['another shop', { provider: 'YOOKASSA' as const, shopId: '999999' }, 'клуб сменил магазин ЮKassa'],
+        [
+            'another provider',
+            {
+                provider: 'STRIPE' as const,
+                secretKey: 'sk_live_abcdefgh',
+                webhookSecret: 'whsec_signing123',
+            },
+            'клуб сменил платёжную систему',
+        ],
+    ])('stops every live agreement when %s', async (_case, payload, reason) => {
+        const prisma = prismaWith(savedRow({ autopayEnabled: true }))
+        const ag = agreements()
+        await update(prisma, payload, ADMIN, audit(), ag)
+        expect(ag.cancelForWorkspace).toHaveBeenCalledWith('ws-1', reason)
+        if (payload.provider === 'STRIPE') {
+            expect(prisma.workspacePaymentSettings.update.mock.calls[0][0].data.autopayEnabled).toBe(
+                false,
+            )
+        }
+    })
+
+    it('cancels nothing when autopay was never on', async () => {
+        const ag = agreements()
+        await update(prismaWith(savedRow()), { provider: 'YOOKASSA', shopId: '999999' }, ADMIN, audit(), ag)
+        expect(ag.cancelForWorkspace).not.toHaveBeenCalled()
+    })
+
+    it('stops every live agreement when payments are disconnected', async () => {
+        const ag = agreements()
+        await disconnect(prismaWith(savedRow({ autopayEnabled: true })), ADMIN, ag)
+        expect(ag.cancelForWorkspace).toHaveBeenCalledWith('ws-1', 'клуб отключил онлайн-оплату')
+        const none = agreements()
+        await expect(disconnect(prismaWith(null), ADMIN, none)).rejects.toMatchObject({
+            statusCode: 404,
+        })
+        expect(none.cancelForWorkspace).not.toHaveBeenCalled()
+    })
+})
+
 describe('payment settings — disconnect', () => {
     it('refuses a head coach', async () => {
         await expect(disconnect(prismaWith(savedRow()), HEAD_COACH)).rejects.toMatchObject({
@@ -313,6 +452,7 @@ describe('payment settings — disconnect', () => {
                 prismaWith(null) as never,
                 rbac() as never,
                 audit() as never,
+                agreements() as never,
             ).execute(new DeletePaymentSettingsFeature('ws-1', 'a-1', 'admin', false)),
         ).rejects.toMatchObject({ statusCode: 404 })
     })
@@ -323,6 +463,7 @@ describe('payment settings — disconnect', () => {
             prismaWith(savedRow()) as never,
             rbac() as never,
             a as never,
+            agreements() as never,
         ).execute(new DeletePaymentSettingsFeature('ws-1', 'a-1', 'admin', false))
         expect(out.connected).toBe(false)
         expect(a.record.mock.calls[0][0].metadata).toEqual({ disconnected: true })

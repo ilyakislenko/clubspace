@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { MemberAutopayAgreementsService } from '../../domains/autopay/member-autopay-agreements.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -12,7 +13,8 @@ import {
 import { loadPaymentSettingsView } from './payment-settings-view'
 
 // Disconnects the provider: the keys are erased, members stop seeing «Оплатить
-// онлайн». Past payments stay; refunding them needs the keys again.
+// онлайн», live autopay agreements stop (their tokens are useless without the
+// keys). Past payments stay; refunding them needs the keys again.
 @Feature(DeletePaymentSettingsFeature)
 export class DeletePaymentSettingsHandler
     implements
@@ -25,6 +27,7 @@ export class DeletePaymentSettingsHandler
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
         private readonly audit: AuditService,
+        private readonly autopay: MemberAutopayAgreementsService,
     ) {}
 
     async execute(f: DeletePaymentSettingsFeature) {
@@ -40,6 +43,7 @@ export class DeletePaymentSettingsHandler
         if (removed.count === 0) {
             throw new NotFoundError({ message: 'Онлайн-оплата не подключена' })
         }
+        await this.autopay.cancelForWorkspace(f.workspaceId, 'клуб отключил онлайн-оплату')
         await this.audit.record({
             action: 'workspace.updatePaymentSettings',
             targetType: 'workspace',

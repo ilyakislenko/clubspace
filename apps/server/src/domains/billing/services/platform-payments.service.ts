@@ -16,6 +16,7 @@ import { escapeHtml } from '../../../shared/utils/escape-html'
 import { AuditService } from '../../audit/services/audit.service'
 import { NotificationProducerService } from '../../notifications/services/notification-producer.service'
 import { NotificationsService } from '../../notifications/services/notifications.service'
+import { declineReasonRu } from '../../payments/decline-reasons'
 import { PaymentGatewayClient } from '../../payments/payment-gateway.client'
 import {
     type GatewayCredentials,
@@ -87,22 +88,6 @@ const AUTOPAY_INFLIGHT_MS = 3 * 24 * 60 * 60 * 1000
 // A renewal row with no provider answer yet is re-sent (same key) only after
 // this long; a younger one is still being sent by another run.
 const RESEND_AFTER_MS = 10 * 60 * 1000
-
-// YooKassa cancellation_details.reason → what the owner is told.
-const DECLINE_REASON_RU: Record<string, string> = {
-    insufficient_funds: 'на карте недостаточно средств',
-    card_expired: 'истёк срок действия карты',
-    permission_revoked: 'карта отвязана — автосписание по ней больше невозможно',
-    payment_method_restricted: 'операции по карте ограничены банком',
-    payment_method_limit_exceeded: 'превышен лимит операций по карте',
-    issuer_unavailable: 'банк карты не ответил',
-    fraud_suspected: 'банк заподозрил мошенничество',
-    general_decline: 'банк отклонил платёж',
-    country_forbidden: 'карты этой страны не принимаются',
-}
-
-export const declineReasonRu = (reason: string | null | undefined): string =>
-    (reason && DECLINE_REASON_RU[reason]) || 'платёж отклонён'
 
 const RUB = new Intl.NumberFormat('ru-RU')
 const DATE = new Intl.DateTimeFormat('ru-RU', {

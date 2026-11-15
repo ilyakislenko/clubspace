@@ -14,7 +14,7 @@ import {
   findEdition,
   formatEditionDate,
 } from "./editions"
-import { DPA_EDITIONS, OFFER_EDITIONS } from "./registry"
+import { AUTOPAY_EDITIONS, DPA_EDITIONS, OFFER_EDITIONS } from "./registry"
 
 // The documents between ClubSpace and the clubs, plus the member-facing ones,
 // cross-linked at the bottom of every page of the set.
@@ -24,6 +24,7 @@ const LEGAL_LINKS = [
   { href: "/legal/requisites", label: "Реквизиты" },
   { href: "/legal/terms", label: "Условия использования" },
   { href: "/legal/privacy", label: "Политика конфиденциальности" },
+  { href: "/legal/autopay", label: "Условия автоплатежа" },
 ]
 
 // The article layout of the /legal/* pages (same as /legal/terms).
@@ -65,7 +66,7 @@ export function LegalArticle({
   )
 }
 
-export type LegalDocumentKind = "offer" | "dpa"
+export type LegalDocumentKind = "offer" | "dpa" | "autopay"
 
 const DOCUMENTS: Record<
   LegalDocumentKind,
@@ -73,7 +74,10 @@ const DOCUMENTS: Record<
     title: string
     path: string
     registry: EditionRegistry
-    serverVersion: (legal: PublicLegal) => string
+    // null: the version is a server code constant that ships with the client
+    // in one deploy, so the newest edition in the registry is the one in
+    // force and the page needs no API call.
+    serverVersion: ((legal: PublicLegal) => string) | null
   }
 > = {
   offer: {
@@ -88,11 +92,18 @@ const DOCUMENTS: Record<
     registry: DPA_EDITIONS,
     serverVersion: (legal) => legal.dpaVersion,
   },
+  autopay: {
+    title: "Условия автоплатежа в приложении ClubSpace",
+    path: "/legal/autopay",
+    registry: AUTOPAY_EDITIONS,
+    serverVersion: null,
+  },
 }
 
 export const LEGAL_DOCUMENT_TITLES: Record<LegalDocumentKind, string> = {
   offer: DOCUMENTS.offer.title,
   dpa: DOCUMENTS.dpa.title,
+  autopay: DOCUMENTS.autopay.title,
 }
 
 // generateStaticParams of /legal/<kind>/[version]: every edition we have.
@@ -110,10 +121,10 @@ export async function LegalEditionPage({
   version?: string
 }) {
   const doc = DOCUMENTS[kind]
-  const legal = await getPublicLegal()
+  const legal = doc.serverVersion ? await getPublicLegal() : null
   const current = currentEditionVersion(
     doc.registry,
-    legal ? doc.serverVersion(legal) : null,
+    legal && doc.serverVersion ? doc.serverVersion(legal) : null,
   )
   const shown = version ?? current
   const Edition = findEdition(doc.registry, shown)

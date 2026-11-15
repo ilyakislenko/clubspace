@@ -13,8 +13,15 @@ jest.mock("../../shared/api/discounts", () => ({
   listSaleDiscounts: jest.fn(),
 }))
 jest.mock("../../shared/lib/use-my-membership", () => ({
-  useMyMembership: () => null,
+  useMyMembership: jest.fn(() => null),
 }))
+jest.mock("../../shared/api/autopay", () => ({
+  listMemberAutopays: jest.fn(),
+  cancelMemberAutopay: jest.fn(),
+}))
+
+import { listMemberAutopays } from "../../shared/api/autopay"
+import { useMyMembership } from "../../shared/lib/use-my-membership"
 
 import { listSaleDiscounts, type SaleDiscountOption } from "../../shared/api/discounts"
 import {
@@ -42,6 +49,7 @@ const plan: Plan = {
   startsOnFirstVisit: false,
   isActive: true,
   purchasableOnline: false,
+  autopayAvailable: false,
   directions: [],
   updatedAt: "2026-11-14T10:00:00.000Z",
 }
@@ -83,6 +91,7 @@ const unpaid = (over: Partial<Row> = {}): Row => ({
   classesTotal: null,
   classesRemaining: null,
   source: "MANUAL",
+  paidByAutopay: false,
   createdAt: "2026-09-01T00:00:00.000Z",
   directions: [],
   ...over,
@@ -229,5 +238,26 @@ describe("MemberSubscriptionPanel mark-paid", () => {
     fireEvent.change(screen.getByLabelText("Получено"), { target: { value: "3000" } })
     // No list price: nothing to call a one-off reduction.
     expect(screen.queryByText(/Разовая скидка/)).toBeNull()
+  })
+})
+
+describe("MemberSubscriptionPanel autopay", () => {
+  const membership = useMyMembership as jest.Mock
+  const autopays = listMemberAutopays as jest.Mock
+
+  afterEach(() => membership.mockReturnValue(null))
+
+  it("shows a sport lead the member's autopay", async () => {
+    membership.mockReturnValue({ role: "head_coach", isOwner: false })
+    autopays.mockResolvedValue({ data: [] })
+    renderPanel()
+    await waitFor(() => expect(autopays).toHaveBeenCalledWith({ workspaceId: "w1", userId: "u1" }))
+  })
+
+  it("never asks for it for a plain coach (the route is the sport leads')", async () => {
+    membership.mockReturnValue({ role: "coach", isOwner: false })
+    renderPanel()
+    await screen.findByText("Нет действующего абонемента")
+    expect(autopays).not.toHaveBeenCalled()
   })
 })

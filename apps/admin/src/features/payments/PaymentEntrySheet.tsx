@@ -32,6 +32,7 @@ import { formatAmount } from "../subscriptions/subscription-display"
 import {
   canDeleteRefund,
   entryAmount,
+  entryMethodLabel,
   entryTitle,
   entryWhat,
   formatEntryAt,
@@ -318,7 +319,7 @@ function EntryDetails({
         </Fact>
         {entry.kind === "refund" && <Fact label="За что">{entry.itemName}</Fact>}
         <Fact label="Когда">{formatEntryAt(entry.at, timezone)}</Fact>
-        <Fact label="Способ">{methodLabel(entry.method)}</Fact>
+        <Fact label="Способ">{entryMethodLabel(entry)}</Fact>
         {entryPriceFacts(entry).map((f) => (
           <Fact key={f.label} label={f.label}>
             {f.value}
@@ -336,6 +337,7 @@ function EntryDetails({
               PROVIDER_LABEL[entry.online.provider],
               entry.online.providerRef ? `№ …${entry.online.providerRef}` : null,
               PAYMENT_STATUS_LABEL[entry.online.status],
+              entry.online.autopay ? ["Автоплатёж", entry.cardLabel].filter(Boolean).join(", ") : null,
             ]
               .filter(Boolean)
               .join(" · ")}

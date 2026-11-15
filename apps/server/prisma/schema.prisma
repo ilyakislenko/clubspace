@@ -252,6 +252,7 @@ model Workspace {
   paymentSettings WorkspacePaymentSettings?
   payments        Payment[]
   refunds                Refund[]
+  memberAutopays         MemberAutopay[]
   discounts              Discount[]
 
   invitations WorkspaceInvitation[]
@@ -386,6 +387,8 @@ model User {
   subscriptions Subscription[] @relation("UserSubscriptions")
   // Refunds of this person's sales, and the refunds this person (staff) made.
   refunds        Refund[]        @relation("RefundMember")
+  // Autopay agreements of this member (domains/autopay).
+  memberAutopays MemberAutopay[] @relation("MemberAutopays")
   refundsMade    Refund[]        @relation("RefundCreatedBy")
 
   workspaceInvitations WorkspaceInvitation[]
@@ -2173,6 +2176,10 @@ model Plan {
   // the club picks which tariffs are sold online.
   purchasableOnline Boolean @default(false)
 
+  // Members may opt in to renew this tariff automatically when paying online.
+  // Needs purchasableOnline and the club's autopayEnabled. Off by default.
+  autopayAvailable Boolean @default(false)
+
   // Directions whose visits may draw this tariff («БЖЖ + ММА 12 занятий»).
   // Empty = club-wide (every direction and classes without a direction).
   directions PlanDirection[]
@@ -2180,6 +2187,7 @@ model Plan {
   subscriptions Subscription[]
   courseAudiences CourseAudience[]
   payments      Payment[]
+  autopays      MemberAutopay[]
   discountPlans DiscountPlan[]
 
   // The edit form's version (optimistic concurrency, admin cleanup F10). The
@@ -3357,6 +3365,15 @@ model WorkspacePaymentSettings {
   // Last successful «Проверить подключение»; cleared when credentials change.
   verifiedAt DateTime?
 
+  // The club offers member autopay (YooKassa only). The admin confirms that
+  // YooKassa enabled autopay in the shop and that the club's own offer to
+  // members covers it. Off by default.
+  autopayEnabled     Boolean   @default(false)
+  // Last refusal of an autopay setup by YooKassa (e.g. the shop isn't
+  // enabled); shown in the settings card, cleared when the toggle is saved.
+  autopayLastError   String?   @db.VarChar(500)
+  autopayLastErrorAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -3432,11 +3449,21 @@ model Payment {
   discountAmount Int       @default(0)
   refunds        Refund[]
 
+  // The agreement this payment set up (setup checkout) or charged (renewal).
+  autopayId             String?        @db.Uuid
+  autopay               MemberAutopay? @relation(fields: [autopayId], references: [id], onDelete: SetNull)
+  // Set on a checkout where the member ticked autopay: the consent text
+  // version shown. The activation creates the agreement from it.
+  autopayConsentVersion String?        @db.VarChar(64)
+  // Why the provider refused (YooKassa cancellation_details.reason).
+  failureReason         String?        @db.VarChar(500)
+
   @@index([workspaceId, createdAt])
   @@index([workspaceId, status, createdAt])
   @@index([userId, workspaceId, createdAt])
   @@index([eventRegistrationId])
   @@index([discountId])
+  @@index([autopayId])
 }
 
 enum DiscountKind {
@@ -3550,6 +3577,92 @@ model Refund {
   @@index([subscriptionId])
   @@index([eventRegistrationId])
   @@index([paymentId])
+}
+
+enum MemberAutopayStatus {
+  ACTIVE // charges when due
+  NEEDS_ACTION // stopped until the member acts (needsActionReason)
+  CANCELLED // final; paymentMethodId wiped
+}
+
+// A member's consent to renew one tariff from a payment method saved by the
+// club's provider (YooKassa). Only the provider's token and display hints are
+// kept — never card data. Created by the activation of the setup payment;
+// charged by MemberAutopayService (domains/autopay). Sport-agnostic: renews
+// whatever the tariff grants (term or class pack).
+model MemberAutopay {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // The member. Restrict like Payment.userId: account deletion de-identifies
+  // the User row (and cancels this agreement first), it never deletes it.
+  userId String @db.Uuid
+  user   User   @relation("MemberAutopays", fields: [userId], references: [id], onDelete: Restrict)
+
+  // SetNull keeps the history if the tariff is deleted (the agreement is
+  // cancelled before); planName is the snapshot shown in lists.
+  planId   String? @db.Uuid
+  plan     Plan?   @relation(fields: [planId], references: [id], onDelete: SetNull)
+  planName String  @db.VarChar(255)
+
+  // `${userId}:${planId}` while not CANCELLED, null after: one live agreement
+  // per member and tariff (unique on a new table — conventions §5).
+  liveKey String? @unique @db.VarChar(80)
+
+  status            MemberAutopayStatus @default(ACTIVE)
+  // CHARGE_FAILED | CARD_EXPIRED | TERMS_CHANGED | GRANT_REFUSED; null when ACTIVE/CANCELLED.
+  needsActionReason String?             @db.VarChar(32)
+
+  // YOOKASSA only (docs/design/2026-11-15-member-autopay.md §12).
+  provider           PaymentProvider
+  // YooKassa payment_method.id; null once cancelled (376-ФЗ: never reused).
+  paymentMethodId    String?         @db.VarChar(64)
+  // «Bank card *4444», for display.
+  paymentMethodTitle String?         @db.VarChar(64)
+  cardLast4          String?         @db.VarChar(4)
+  // The shop the token belongs to; a different shopId in the settings cancels.
+  shopId             String          @db.VarChar(64)
+  // Receipt e-mail at consent; a charge uses the member's current e-mail first.
+  receiptEmail       String          @db.VarChar(255)
+
+  // The terms the member agreed to: renewal amount (after automatic
+  // discounts, without one-off promos), term, pack size.
+  termsAmount       Int
+  currency          String   @db.Char(3)
+  termsDurationDays Int
+  termsClassCount   Int?
+  // AUTOPAY_CONSENT_VERSION shown.
+  consentVersion    String   @db.VarChar(64)
+  // Setup or last terms acceptance.
+  consentedAt       DateTime
+
+  // Declines in a row for attemptAnchorId; reset by a success or a new anchor.
+  failedAttempts  Int       @default(0)
+  attemptAnchorId String?   @db.Uuid
+  nextAttemptAt   DateTime?
+  // Russian decline text.
+  lastError       String?   @db.VarChar(500)
+  lastChargedAt   DateTime?
+
+  cancelledAt   DateTime?
+  // MEMBER | STAFF | SYSTEM
+  cancelSource  String?   @db.VarChar(16)
+  // Display only, no FK (like markedPaidById): the staff member who cancelled.
+  cancelledById String?   @db.Uuid
+  cancelReason  String?   @db.VarChar(200)
+
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId, status])
+  // The hourly pass.
+  @@index([status, nextAttemptAt])
+  @@index([workspaceId, userId])
+  // Tariff edits, tariff page count.
+  @@index([planId, status])
 }
 
 enum GuardianRelation {

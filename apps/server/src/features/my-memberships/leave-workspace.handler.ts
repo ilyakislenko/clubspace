@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { MemberAutopayAgreementsService } from '../../domains/autopay/member-autopay-agreements.service'
 import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -28,6 +29,7 @@ export class LeaveWorkspaceHandler
         private readonly audit: AuditService,
         private readonly realtime: RealtimeEmitter,
         private readonly eventRegistrations: EventRegistrationService,
+        private readonly autopay: MemberAutopayAgreementsService,
     ) {}
 
     async execute({
@@ -77,6 +79,8 @@ export class LeaveWorkspaceHandler
             }),
         )
         await this.eventRegistrations.promoteFreed(workspaceId, freedEventIds)
+        // Membership ended: autopay stops with it (token wiped, notice sent).
+        await this.autopay.cancelForUser(workspaceId, invokerUserId, 'вы вышли из клуба')
 
         await this.audit.record({
             action: 'member.leave',

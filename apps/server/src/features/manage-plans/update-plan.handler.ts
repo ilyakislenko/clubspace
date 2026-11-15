@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { MemberAutopayAgreementsService } from '../../domains/autopay/member-autopay-agreements.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import {
@@ -9,9 +10,12 @@ import {
 import { RbacService } from '../../shared/services/rbac.service'
 import { claimUnchanged } from '../../shared/utils/optimistic-concurrency'
 import {
+    assertClubOffersAutopay,
     assertDirectionsInWorkspace,
+    AUTOPAY_NEEDS_ONLINE_MESSAGE,
     canSellOnline,
     ONLINE_FREE_PLAN_MESSAGE,
+    PLAN_AUTOPAY_OFF_REASON,
     PLAN_WRITE_REFUSAL,
     planDtoInclude,
     serializePlan,
@@ -28,6 +32,7 @@ export class UpdatePlanHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
+        private readonly autopay: MemberAutopayAgreementsService,
     ) {}
 
     async execute(f: UpdatePlanFeature) {
@@ -47,7 +52,11 @@ export class UpdatePlanHandler
                 id: true,
                 price: true,
                 isFreeTrial: true,
+                isActive: true,
                 purchasableOnline: true,
+                autopayAvailable: true,
+                durationDays: true,
+                classCount: true,
             },
         })
         if (!existing) throw new NotFoundError({ message: 'Тариф не найден' })
@@ -62,6 +71,20 @@ export class UpdatePlanHandler
         ) {
             throw new BadRequestError({ message: ONLINE_FREE_PLAN_MESSAGE })
         }
+        // Autopay renews an online sale; a form re-sending a ticked box is
+        // fine even after the club turned autopay off — only ticking it is
+        // checked against the club setting.
+        const purchasableOnline = p.purchasableOnline ?? existing.purchasableOnline
+        if (p.autopayAvailable) {
+            if (!purchasableOnline) {
+                throw new BadRequestError({ message: AUTOPAY_NEEDS_ONLINE_MESSAGE })
+            }
+            if (!existing.autopayAvailable) {
+                await assertClubOffersAutopay(this.prisma, f.workspaceId)
+            }
+        }
+        const autopayAvailable =
+            purchasableOnline && (p.autopayAvailable ?? existing.autopayAvailable)
         const directionIds =
             p.directionIds !== undefined
                 ? await assertDirectionsInWorkspace(
@@ -109,6 +132,9 @@ export class UpdatePlanHandler
                     ...(p.purchasableOnline !== undefined
                         ? { purchasableOnline: p.purchasableOnline }
                         : {}),
+                    ...(autopayAvailable !== existing.autopayAvailable
+                        ? { autopayAvailable }
+                        : {}),
                     ...(directionIds !== undefined
                         ? {
                               directions: {
@@ -123,6 +149,23 @@ export class UpdatePlanHandler
                 include: planDtoInclude,
             })
         })
+
+        // Live agreements (docs/design/2026-11-15-member-autopay.md §3.5):
+        // the tariff stopped renewing by autopay → cancel them; less
+        // favourable terms → tell the members now (the charge waits for their
+        // confirmation, the service compares per agreement).
+        const renews = (x: { isActive: boolean; purchasableOnline: boolean; autopayAvailable: boolean }) =>
+            x.isActive && x.purchasableOnline && x.autopayAvailable
+        if (renews(existing) && !renews(plan)) {
+            await this.autopay.cancelForPlan(plan.id, PLAN_AUTOPAY_OFF_REASON)
+        } else if (
+            renews(plan) &&
+            (plan.price > existing.price ||
+                plan.durationDays !== existing.durationDays ||
+                plan.classCount !== existing.classCount)
+        ) {
+            await this.autopay.notifyTermsChanged(plan.id)
+        }
         return serializePlan(plan)
     }
 }

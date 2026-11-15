@@ -95,7 +95,11 @@ export const buildYookassaCreatePayment = (
             ? { payment_method_id: input.paymentMethodId }
             : {
                   confirmation: { type: 'redirect', return_url: input.returnUrl },
-                  ...(input.savePaymentMethod ? { save_payment_method: true } : {}),
+                  // Tri-state: a shop with autopay enabled offers to save the
+                  // card on every payment unless told `false`.
+                  ...(input.savePaymentMethod === undefined
+                      ? {}
+                      : { save_payment_method: input.savePaymentMethod }),
               }),
         description: clip(input.description),
         metadata: {

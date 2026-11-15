@@ -42,9 +42,11 @@ export type CreateGatewayPaymentInput = {
     itemName: string
     returnUrl: string
     customerEmail: string
-    // Ask the provider to keep the card for later charges without the payer
-    // (YooKassa save_payment_method). The platform's own billing only.
-    savePaymentMethod?: boolean
+    // Whether the provider keeps the card for later charges without the payer
+    // (YooKassa save_payment_method): true = save (autopay setup, the
+    // platform's card binding), false = explicitly never save (a one-off
+    // payment in a club with member autopay on), undefined = not sent.
+    savePaymentMethod?: boolean | undefined
     // Charge a saved card instead of sending the payer to the provider's page
     // (YooKassa payment_method_id; no confirmation step).
     paymentMethodId?: string

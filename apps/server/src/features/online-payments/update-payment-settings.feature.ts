@@ -28,6 +28,10 @@ export const UpdatePaymentSettingsInputSchema = z
         vatCode: z.number().int().min(1).max(12).optional(),
         paymentSubject: z.enum(PAYMENT_SUBJECTS).optional(),
         paymentMode: z.enum(PAYMENT_MODES).optional(),
+        // Member autopay (YooKassa only): the admin confirms YooKassa enabled
+        // autopay in the shop and the club's offer covers it. Omitted = keep.
+        // docs/design/2026-11-15-member-autopay.md §3.5.
+        autopayEnabled: z.boolean().optional(),
     })
     .superRefine((v, ctx) => {
         if (v.provider === 'YOOKASSA' && v.secretKey && !/^(live|test)_/.test(v.secretKey)) {

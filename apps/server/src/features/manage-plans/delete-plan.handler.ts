@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { MemberAutopayAgreementsService } from '../../domains/autopay/member-autopay-agreements.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import {
@@ -11,7 +12,7 @@ import {
     DeletePlanFeature,
     DeletePlanFeatureResponse,
 } from './delete-plan.feature'
-import { PLAN_WRITE_REFUSAL } from './schemas'
+import { PLAN_AUTOPAY_OFF_REASON, PLAN_WRITE_REFUSAL } from './schemas'
 
 @Feature(DeletePlanFeature)
 export class DeletePlanHandler
@@ -20,6 +21,7 @@ export class DeletePlanHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
+        private readonly autopay: MemberAutopayAgreementsService,
     ) {}
 
     async execute(f: DeletePlanFeature) {
@@ -50,6 +52,9 @@ export class DeletePlanHandler
                     'По тарифу есть абонементы — его нельзя удалить, отправьте в архив',
             })
         }
+        // A live agreement normally comes with a sold abonement (refused
+        // above); stop any left so planId never goes null under a live one.
+        await this.autopay.cancelForPlan(plan.id, PLAN_AUTOPAY_OFF_REASON)
         await this.prisma.plan.delete({ where: { id: plan.id } })
         return { status: 'deleted' as const }
     }

@@ -30,6 +30,12 @@ const withTx = <T extends object>(prisma: T) =>
         $transaction: jest.fn(async (fn: (tx: T) => unknown) => fn(prisma)),
     })
 
+// The autopay agreements writer (domains/autopay): the hooks only call it.
+const autopay = () => ({
+    cancelForPlan: jest.fn().mockResolvedValue(0),
+    notifyTermsChanged: jest.fn().mockResolvedValue(0),
+})
+
 describe('createPlan', () => {
     it('creates when admin (currency upper-cased)', async () => {
         const prisma = {
@@ -385,7 +391,7 @@ describe('deletePlan', () => {
         expect(prisma.plan.delete).not.toHaveBeenCalled()
     })
 
-    it('deletes an unreferenced tariff', async () => {
+    it('deletes an unreferenced tariff, stopping any autopay left on it first', async () => {
         const prisma = {
             plan: {
                 findFirst: jest
@@ -394,11 +400,178 @@ describe('deletePlan', () => {
                 delete: jest.fn().mockResolvedValue({}),
             },
         }
+        const a = autopay()
         const out = await new DeletePlanHandler(
             prisma as never,
             rbac(true) as never,
+            a as never,
         ).execute(new DeletePlanFeature('w1', 'p1', 'u1', 'admin', false))
         expect(out).toEqual({ status: 'deleted' })
+        expect(a.cancelForPlan).toHaveBeenCalledWith(
+            'p1',
+            'клуб больше не продлевает этот тариф автоматически',
+        )
+        expect(a.cancelForPlan.mock.invocationCallOrder[0]).toBeLessThan(
+            prisma.plan.delete.mock.invocationCallOrder[0],
+        )
+    })
+})
+
+// Autopay on a tariff (docs/design/2026-11-15-member-autopay.md §3.5): it
+// needs online sale and the club's YooKassa autopay setting; turning it (or
+// online sale, or the tariff) off stops the live agreements; less favourable
+// terms notify the members.
+describe('tariff autopay', () => {
+    const stored = {
+        id: 'p1',
+        workspaceId: 'w1',
+        name: 'Безлимит',
+        description: null,
+        price: 4000,
+        currency: 'RUB',
+        durationDays: 30,
+        classCount: null,
+        isFreeTrial: false,
+        startsOnFirstVisit: false,
+        isActive: true,
+        purchasableOnline: true,
+        autopayAvailable: true,
+        directions: [],
+        updatedAt: STORED_AT,
+    }
+    const db = (
+        current: Partial<typeof stored> = {},
+        settings: { provider: string; autopayEnabled: boolean } | null = {
+            provider: 'YOOKASSA',
+            autopayEnabled: true,
+        },
+    ) => {
+        let row = { ...stored, ...current }
+        return withTx({
+            workspacePaymentSettings: { findUnique: jest.fn().mockResolvedValue(settings) },
+            plan: {
+                findFirst: jest.fn(async () => row),
+                create: jest.fn(async ({ data }: { data: Partial<typeof stored> }) => ({
+                    ...stored,
+                    ...data,
+                    directions: [],
+                })),
+                // What the handler wrote is what it reads back.
+                update: jest.fn(async ({ data }: { data: Partial<typeof stored> }) => {
+                    row = { ...row, ...data }
+                    return row
+                }),
+            },
+        })
+    }
+    const update = (
+        prisma: ReturnType<typeof db>,
+        payload: ConstructorParameters<typeof UpdatePlanFeature>[0],
+        a = autopay(),
+    ) =>
+        new UpdatePlanHandler(prisma as never, rbac(true) as never, a as never).execute(
+            new UpdatePlanFeature(payload, 'w1', 'p1', 'u1', 'admin', false),
+        )
+    const create = (
+        prisma: ReturnType<typeof db>,
+        extra: Partial<ConstructorParameters<typeof CreatePlanFeature>[0]>,
+    ) =>
+        new CreatePlanHandler(prisma as never, rbac(true) as never).execute(
+            new CreatePlanFeature(
+                { name: 'Безлимит', price: 4000, currency: 'RUB', durationDays: 30, ...extra },
+                'w1',
+                'u1',
+                'admin',
+                false,
+            ),
+        )
+
+    it('creates a tariff renewing by autopay only when sold online in a club offering it', async () => {
+        await expect(create(db(), { autopayAvailable: true })).rejects.toThrow(
+            'Продлевать автоплатежом можно только тариф, который покупают онлайн',
+        )
+        const off = db({}, { provider: 'YOOKASSA', autopayEnabled: false })
+        await expect(
+            create(off, { purchasableOnline: true, autopayAvailable: true }),
+        ).rejects.toThrow('Включите автоплатежи в разделе «Онлайн-оплата»')
+        const stripe = db({}, { provider: 'STRIPE', autopayEnabled: true })
+        await expect(
+            create(stripe, { purchasableOnline: true, autopayAvailable: true }),
+        ).rejects.toThrow('Включите автоплатежи')
+        expect(off.plan.create).not.toHaveBeenCalled()
+
+        const on = db()
+        const out = await create(on, { purchasableOnline: true, autopayAvailable: true })
+        expect(on.plan.create.mock.calls[0][0].data.autopayAvailable).toBe(true)
+        expect(out.autopayAvailable).toBe(true)
+        await create(on, { purchasableOnline: true })
+        expect(on.plan.create.mock.calls[1][0].data.autopayAvailable).toBe(false)
+    })
+
+    it('checks the club setting only when the box is ticked, not when a form re-sends it', async () => {
+        const off = { provider: 'YOOKASSA', autopayEnabled: false }
+        const unticked = db({ autopayAvailable: false }, off)
+        await expect(update(unticked, { autopayAvailable: true })).rejects.toThrow(
+            'Включите автоплатежи в разделе «Онлайн-оплата»',
+        )
+        expect(unticked.plan.update).not.toHaveBeenCalled()
+
+        const ticked = db({}, off)
+        await update(ticked, { autopayAvailable: true, name: 'Безлимит+' })
+        expect(ticked.plan.update.mock.calls[0][0].data).toEqual({ name: 'Безлимит+' })
+
+        const offline = db({ purchasableOnline: false, autopayAvailable: false })
+        await expect(update(offline, { autopayAvailable: true })).rejects.toThrow(
+            'только тариф, который покупают онлайн',
+        )
+
+        const fresh = db({ autopayAvailable: false })
+        const out = await update(fresh, { autopayAvailable: true })
+        expect(fresh.plan.update.mock.calls[0][0].data).toEqual({ autopayAvailable: true })
+        expect(out.autopayAvailable).toBe(true)
+    })
+
+    it.each([
+        ['autopay unticked', { autopayAvailable: false }],
+        ['online sale turned off', { purchasableOnline: false }],
+        ['archived', { isActive: false }],
+    ])('stops the live agreements when %s', async (_case, payload) => {
+        const prisma = db()
+        const a = autopay()
+        const out = await update(prisma, payload, a)
+        expect(a.cancelForPlan).toHaveBeenCalledWith(
+            'p1',
+            'клуб больше не продлевает этот тариф автоматически',
+        )
+        expect(a.notifyTermsChanged).not.toHaveBeenCalled()
+        if ('purchasableOnline' in payload) {
+            // Autopay needs online sale: the box goes with it.
+            expect(prisma.plan.update.mock.calls[0][0].data).toEqual({
+                purchasableOnline: false,
+                autopayAvailable: false,
+            })
+            expect(out.autopayAvailable).toBe(false)
+        }
+    })
+
+    it.each([
+        ['a price rise', { price: 4500 }],
+        ['a shorter term', { durationDays: 28 }],
+        ['a pack size', { classCount: 12 }],
+    ])('tells the members about %s (the charge waits for their confirmation)', async (_case, payload) => {
+        const a = autopay()
+        await update(db(), payload, a)
+        expect(a.notifyTermsChanged).toHaveBeenCalledWith('p1')
+        expect(a.cancelForPlan).not.toHaveBeenCalled()
+    })
+
+    it('stays quiet on a price drop, a rename or a tariff without autopay', async () => {
+        const a = autopay()
+        await update(db(), { price: 3500 }, a)
+        await update(db(), { name: 'Безлимит 2' }, a)
+        await update(db({ autopayAvailable: false }), { price: 5000 }, a)
+        expect(a.notifyTermsChanged).not.toHaveBeenCalled()
+        expect(a.cancelForPlan).not.toHaveBeenCalled()
     })
 })
 

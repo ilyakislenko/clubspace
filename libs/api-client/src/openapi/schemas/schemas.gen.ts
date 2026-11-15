@@ -288,6 +288,14 @@ export const CreatePaymentInputSchema = {
         promoCode: {
             type: 'string',
             maxLength: 40
+        },
+        autopay: {
+            default: false,
+            type: 'boolean'
+        },
+        autopayConsentVersion: {
+            type: 'string',
+            maxLength: 64
         }
     },
     required: [
@@ -341,6 +349,9 @@ export const UpdatePaymentSettingsInputSchema = {
                 'full_payment',
                 'advance'
             ]
+        },
+        autopayEnabled: {
+            type: 'boolean'
         }
     },
     required: [
@@ -536,6 +547,54 @@ export const RequestSubscriptionFreezeInputSchema = {
         'fromDate',
         'days',
         'reason'
+    ]
+} as const;
+
+export const CancelMemberAutopayInputSchema = {
+    type: 'object',
+    properties: {
+        reason: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 200
+        }
+    },
+    required: [
+        'reason'
+    ]
+} as const;
+
+export const AcceptMyAutopayTermsInputSchema = {
+    type: 'object',
+    properties: {
+        amount: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 100000000
+        },
+        durationDays: {
+            type: 'integer',
+            exclusiveMinimum: true,
+            maximum: 3650,
+            minimum: 0
+        },
+        classCount: {
+            type: 'integer',
+            exclusiveMinimum: 0,
+            maximum: 1000,
+            nullable: true
+        },
+        consentVersion: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 64
+        }
+    },
+    required: [
+        'amount',
+        'durationDays',
+        'classCount',
+        'consentVersion'
     ]
 } as const;
 
@@ -1415,6 +1474,9 @@ export const UpdatePlanInputSchema = {
         purchasableOnline: {
             type: 'boolean'
         },
+        autopayAvailable: {
+            type: 'boolean'
+        },
         directionIds: {
             maxItems: 50,
             type: 'array',
@@ -1478,6 +1540,9 @@ export const CreatePlanInputSchema = {
             type: 'boolean'
         },
         purchasableOnline: {
+            type: 'boolean'
+        },
+        autopayAvailable: {
             type: 'boolean'
         },
         directionIds: {

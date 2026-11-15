@@ -248,6 +248,11 @@ export const customRangeError = (from: string, to: string): string | null => {
 export const methodLabel = (method: JournalMethod | null): string =>
   method === null || method === "NONE" ? "Не указан" : PAYMENT_METHOD_LABEL[method]
 
+// A row's «Способ»: an autopay renewal reads «Онлайн · автоплатёж».
+export const entryMethodLabel = (
+  e: Pick<PaymentJournalEntry, "method" | "online">,
+): string => (e.online?.autopay ? "Онлайн · автоплатёж" : methodLabel(e.method))
+
 // «3 нояб., 18:40» on the club's clock; another year adds it.
 export const formatEntryAt = (iso: string, timezone: string, now: Date = new Date()): string => {
   const sameYear =
@@ -444,7 +449,11 @@ export const parseRefundAmount = (
 export const refundHint = (s: RefundSubject, amount: number | null): string | null => {
   if (s.kind !== "sale") return null
   if (s.entry.source === "abonement") {
-    return "Абонемент останется действующим — отменить его можно в карточке ученика"
+    const keeps = "Абонемент останется действующим — отменить его можно в карточке ученика"
+    // A refund never touches the agreement (design E2 §4).
+    return s.entry.online?.autopay
+      ? `${keeps}. Автоплатёж останется включённым — отключить его можно в карточке ученика`
+      : keeps
   }
   return s.entry.fullRefundCancelsRegistration && amount === s.entry.refundable
     ? "Запись на событие будет отменена, место перейдёт следующему в листе ожидания"
