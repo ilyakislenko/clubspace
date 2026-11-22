@@ -37,10 +37,15 @@ const fakeChild = () => {
 }
 
 describe('parseProbeOutput', () => {
-    it('reads the demuxer, duration and whether there is a video stream', () => {
+    it('reads the demuxer, duration and which streams there are', () => {
         expect(
             parseProbeOutput(probeJson('mov,mp4,m4a,3gp,3g2,mj2', '62.5', ['video', 'audio'])),
-        ).toEqual({ formatName: 'mov,mp4,m4a,3gp,3g2,mj2', durationSec: 62.5, hasVideo: true })
+        ).toEqual({
+            formatName: 'mov,mp4,m4a,3gp,3g2,mj2',
+            durationSec: 62.5,
+            hasVideo: true,
+            hasAudio: true,
+        })
     })
 
     it('treats a missing or unparsable duration as unknown', () => {
@@ -49,7 +54,12 @@ describe('parseProbeOutput', () => {
     })
 
     it('copes with output that has no format or streams', () => {
-        expect(parseProbeOutput('{}')).toEqual({ formatName: '', durationSec: null, hasVideo: false })
+        expect(parseProbeOutput('{}')).toEqual({
+            formatName: '',
+            durationSec: null,
+            hasVideo: false,
+            hasAudio: false,
+        })
     })
 
     it('rejects output that is not JSON', () => {
@@ -63,7 +73,10 @@ describe('assertTranscodable', () => {
         ['matroska,webm', 'matroska'],
     ])('accepts %s with a video stream and pins the %s demuxer', (formatName, demuxer) => {
         expect(
-            assertTranscodable({ formatName, durationSec: 600, hasVideo: true }, LIMITS),
+            assertTranscodable(
+                { formatName, durationSec: 600, hasVideo: true, hasAudio: true },
+                LIMITS,
+            ),
         ).toBe(demuxer)
     })
 
@@ -71,7 +84,10 @@ describe('assertTranscodable', () => {
         'refuses the %s container',
         (formatName) => {
             expect(() =>
-                assertTranscodable({ formatName, durationSec: 10, hasVideo: true }, LIMITS),
+                assertTranscodable(
+                    { formatName, durationSec: 10, hasVideo: true, hasAudio: true },
+                    LIMITS,
+                ),
             ).toThrow('Формат файла не поддерживается')
         },
     )
@@ -79,14 +95,24 @@ describe('assertTranscodable', () => {
     it('refuses an allowed container with no video stream', () => {
         expect(() =>
             assertTranscodable(
-                { formatName: 'mov,mp4,m4a,3gp,3g2,mj2', durationSec: 10, hasVideo: false },
+                {
+                    formatName: 'mov,mp4,m4a,3gp,3g2,mj2',
+                    durationSec: 10,
+                    hasVideo: false,
+                    hasAudio: true,
+                },
                 LIMITS,
             ),
         ).toThrow('В файле нет видеодорожки')
     })
 
     it('refuses a video longer than the limit, in hours or minutes', () => {
-        const probe = { formatName: 'matroska,webm', durationSec: 4 * 60 * 60 + 1, hasVideo: true }
+        const probe = {
+            formatName: 'matroska,webm',
+            durationSec: 4 * 60 * 60 + 1,
+            hasVideo: true,
+            hasAudio: true,
+        }
         expect(() => assertTranscodable(probe, LIMITS)).toThrow('Видео длиннее 4 ч')
         expect(() => assertTranscodable(probe, { ...LIMITS, maxDurationSec: 90 * 60 })).toThrow(
             'Видео длиннее 90 мин',
@@ -96,7 +122,7 @@ describe('assertTranscodable', () => {
     it('lets an unknown duration through', () => {
         expect(
             assertTranscodable(
-                { formatName: 'matroska,webm', durationSec: null, hasVideo: true },
+                { formatName: 'matroska,webm', durationSec: null, hasVideo: true, hasAudio: false },
                 LIMITS,
             ),
         ).toBe('matroska')
@@ -104,7 +130,10 @@ describe('assertTranscodable', () => {
 
     it('throws errors BullMQ will not retry', () => {
         expect(() =>
-            assertTranscodable({ formatName: 'hls', durationSec: 1, hasVideo: true }, LIMITS),
+            assertTranscodable(
+                { formatName: 'hls', durationSec: 1, hasVideo: true, hasAudio: true },
+                LIMITS,
+            ),
         ).toThrow(expect.objectContaining({ name: 'RejectedInputError' }))
     })
 })
@@ -154,6 +183,7 @@ describe('probeVideo', () => {
             formatName: 'mov,mp4,m4a,3gp,3g2,mj2',
             durationSec: 5,
             hasVideo: true,
+            hasAudio: false,
         })
         const [binary, args] = spawnMock.mock.calls[0]
         expect(binary).toBe('ffprobe')

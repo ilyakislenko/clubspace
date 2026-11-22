@@ -9,6 +9,7 @@ import {
     UpdateVideoTimestampFeature,
     type VideoTimestampResponse,
 } from './update-video-timestamp.feature'
+import { reindexChapterMentions } from '../techniques/chapter-mentions'
 
 @Feature(UpdateVideoTimestampFeature)
 export class UpdateVideoTimestampHandler
@@ -29,7 +30,12 @@ export class UpdateVideoTimestampHandler
                 videoId,
                 video: { workspaceId },
             },
-            select: { id: true, video: { select: { duration: true } } },
+            select: {
+                id: true,
+                positionSec: true,
+                title: true,
+                video: { select: { duration: true } },
+            },
         })
         if (!existing) {
             throw new NotFoundError({ message: 'Таймкод не найден' })
@@ -46,22 +52,32 @@ export class UpdateVideoTimestampHandler
             })
         }
 
+        const title = payload.title?.trim()
+        const changed =
+            (payload.positionSec !== undefined &&
+                payload.positionSec !== existing.positionSec) ||
+            (title !== undefined && title !== existing.title)
+
         const updated = await this.prisma.videoTimestamp.update({
             where: { id: timestampId },
             data: {
                 ...(payload.positionSec !== undefined && {
                     positionSec: payload.positionSec,
                 }),
-                ...(payload.title !== undefined && {
-                    title: payload.title.trim(),
-                }),
+                ...(title !== undefined && { title }),
+                // An automatic chapter staff corrected is theirs now, so
+                // 'ocr'/'speech' keep meaning "as the worker made it".
+                ...(changed && { source: 'manual' }),
             },
         })
+        // «Техники»: the lesson's chapter mentions follow its chapters.
+        if (changed) await reindexChapterMentions(this.prisma, videoId)
 
         return {
             id: updated.id,
             positionSec: updated.positionSec,
             title: updated.title,
+            source: updated.source,
         }
     }
 }

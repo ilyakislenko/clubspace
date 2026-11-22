@@ -9,7 +9,10 @@ import { MyGroupsScreen } from "../groups/MyGroupsScreen"
 import { ClubScheduleScreen } from "./ClubScheduleScreen"
 
 /** The Schedule tab: the club schedule, or the member's groups if it's off. */
-export function ScheduleTabScreen({ navigation }: TabScreenProps<"Schedule">) {
+export function ScheduleTabScreen({
+  navigation,
+  route,
+}: TabScreenProps<"Schedule">) {
   const { workspace } = useAuth()
 
   // The header names the club whose schedule this is, and switches it.
@@ -23,7 +26,7 @@ export function ScheduleTabScreen({ navigation }: TabScreenProps<"Schedule">) {
 
   return scheduleTabContent((key) => isFeatureEnabled(workspace, key)) ===
     "ClubSchedule" ? (
-    <ClubScheduleScreen />
+    <ClubScheduleScreen todayStamp={route.params?.today} />
   ) : (
     <MyGroupsScreen asTab />
   )

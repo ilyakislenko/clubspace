@@ -1,25 +1,42 @@
-import { S3 } from '@aws-sdk/client-s3'
 import * as Sentry from '@sentry/node'
 import { Queue, UnrecoverableError, Worker } from 'bullmq'
 import { spawn, type ChildProcessByStdio } from 'child_process'
 import { Readable } from 'stream'
-import ffmpegPath from 'ffmpeg-static'
-import { createWriteStream, promises as fs } from 'fs'
+import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join, relative, sep } from 'path'
-import { pipeline } from 'stream/promises'
 
-import { PrismaClient } from '@clubspace/prisma-client'
-import { PrismaPg } from '@prisma/adapter-pg'
+import {
+    downloadToFile,
+    downloadVettedSource,
+    ffmpegBinary,
+    getEndpoint,
+    getPublicObjectUrl,
+    prisma,
+    s3Client,
+    subtitleStore,
+    thumbnailStore,
+    uploadFile,
+} from './clients.js'
 import { environment } from './environment.js'
 import {
-    assertInputSize,
     assertTranscodable,
     type Demuxer,
     probeVideo,
     RejectedInputError,
     restrictedInputArgs,
 } from './probe.js'
+import { llmConfigFrom, LlmUnavailableError, whisperConfigFrom } from './speech.js'
+import { extractThumbnail, pickThumbnailTimeSec, publishThumbnail } from './thumbnail.js'
+import { processVideoText } from './video-text.js'
+import { markReviewClipFailed, processReviewClip, type ReviewClipDeps } from './review-clip.js'
+import { indexVideoTechniques } from './technique-index.js'
+
+// Whisper makes transcripts (so subtitles, and chapters from speech); the
+// chat endpoint vets OCR titles, names chapters from speech and translates
+// subtitles. Without either, OCR titles alone.
+const llmConfig = llmConfigFrom(environment.chaptersLlm)
+const whisperConfig = whisperConfigFrom(environment)
 
 // Same DSN variable as the server; empty disables reporting.
 if (environment.sentry.dsn) {
@@ -29,20 +46,6 @@ if (environment.sentry.dsn) {
     })
 }
 
-const prisma = new PrismaClient({
-    adapter: new PrismaPg({ connectionString: environment.databaseUrl }),
-})
-
-const s3Client = new S3({
-    endpoint: environment.s3Storage.s3InternalUrl ?? getEndpoint(),
-    credentials: {
-        accessKeyId: environment.s3Storage.s3AccessKeyId,
-        secretAccessKey: environment.s3Storage.s3SecretAccessKey,
-    },
-    region: environment.s3Storage.s3Region,
-    forcePathStyle: environment.s3Storage.s3ForcePathStyle,
-})
-
 const connection = {
     host: environment.redis.host,
     port: environment.redis.port,
@@ -51,6 +54,9 @@ const connection = {
 }
 
 const readyQueue = new Queue('video-ready', { connection })
+// Automatic chapters run as their own job after the transcode, never inside
+// it: a restart mid-OCR must not re-run a finished transcode.
+const chaptersQueue = new Queue('video-chapters', { connection })
 
 console.log('[video-worker] starting...', {
     redis: {
@@ -67,12 +73,67 @@ console.log('[video-worker] starting...', {
     },
     concurrency: environment.concurrency,
     sentry: Boolean(environment.sentry.dsn),
+    chaptersLlm: llmConfig ? `${llmConfig.model} at ${llmConfig.baseUrl}` : 'off',
+    whisper: whisperConfig ? 'on' : 'off: WHISPER_MODEL_PATH is not set',
   })
   
+
+// «Разбор видео» clips: the ReviewClip rows (never `Video`).
+const reviewClipDb: ReviewClipDeps['db'] = {
+    reviewClip: {
+        findUnique: (args) =>
+            prisma.reviewClip.findUnique({
+                ...args,
+                select: { rawBucket: true, rawKey: true, hlsBucket: true },
+            }),
+        update: (args) => prisma.reviewClip.update(args),
+    },
+}
+
+// The lesson transcode's own steps, wired for review clips.
+const reviewClipDeps: ReviewClipDeps = {
+    db: reviewClipDb,
+    makeWorkdir: (clipId) => fs.mkdtemp(join(tmpdir(), `review-${clipId}-`)),
+    removeWorkdir: (dir) => fs.rm(dir, { recursive: true, force: true }),
+    download: downloadToFile,
+    probe: (filePath) =>
+        probeVideo(filePath, { binary: environment.ffprobePath, timeoutMs: 60_000 }),
+    assertTranscodable: (probe) => assertTranscodable(probe, environment),
+    transcode: runFfmpeg,
+    uploadDir: async (bucket, prefix, dir) => {
+        for (const absPath of await walkDir(dir)) {
+            const rel = relative(dir, absPath).split(sep).join('/')
+            await uploadFile(bucket, `${prefix}${rel}`, absPath)
+        }
+    },
+    extractThumbnail: (o) =>
+        extractThumbnail({
+            binary: ffmpegBinary,
+            // The upload is untrusted: same whitelists as the transcode.
+            inputArgs: restrictedInputArgs(o.demuxer),
+            inputPath: o.inputPath,
+            outputPath: o.outputPath,
+            atSec: o.atSec,
+        }),
+    uploadFile: (bucket, key, filePath, contentType) =>
+        uploadFile(bucket, key, filePath, contentType),
+    deletePrefix: deleteObjectsUnder,
+    log: (message, details) => console.log(`[video-worker] ${message}`, details),
+}
 
 const worker = new Worker(
     'video-transcode',
     async (job) => {
+        // A member's «Разбор видео» clip: its own table, private storage and
+        // none of the lesson extras (see review-clip.ts).
+        const reviewClipId = job.data?.reviewClipId as string | undefined
+        if (reviewClipId) {
+            console.log('[video-worker] review clip job started', { reviewClipId })
+            await processReviewClip(reviewClipDeps, reviewClipId)
+            console.log('[video-worker] review clip job completed', { reviewClipId })
+            return
+        }
+
         const videoId = job.data?.videoId as string | undefined
 
         // A job with no videoId is a programming error, not a no-op — throw so
@@ -134,6 +195,19 @@ const worker = new Worker(
 
             const masterKey = `${outputPrefix}/master.m3u8`
 
+            // Before the row flips to ready, so the video shows up in lists
+            // with its cover. Never fails the job: a video without a cover
+            // still plays.
+            if (!video.thumbnailUrl) {
+                await makeThumbnail({
+                    videoId,
+                    inputPath,
+                    demuxer,
+                    durationSec: probe.durationSec,
+                    outputPath: join(workdir, 'thumbnail.jpg'),
+                })
+            }
+
             await prisma.video.update({
                 where: { id: videoId },
                 data: {
@@ -160,6 +234,10 @@ const worker = new Worker(
                 },
             )
 
+            // Its own job: the transcode is done whatever happens to the
+            // chapters, and a restart while they are read retries only them.
+            await enqueueChapters(videoId)
+
             console.log('[video-worker] job completed', { videoId })
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
@@ -170,7 +248,7 @@ const worker = new Worker(
             })
             // Drop any partially-uploaded HLS objects so a retry starts from a
             // clean prefix and a permanently-failed video leaves no orphans.
-            await deleteHlsPrefix(hlsBucket, videoId).catch((cleanupError) => {
+            await deleteObjectsUnder(hlsBucket, `hls/${videoId}/`).catch((cleanupError) => {
                 console.error('[video-worker] hls cleanup failed', {
                     videoId,
                     error: String(cleanupError),
@@ -190,6 +268,16 @@ const worker = new Worker(
 
 worker.on('failed', async (job, err) => {
     console.error('Video transcode failed', job?.id, err)
+    // A «Разбор видео» clip: the same «done with the job» rule, its own row.
+    const reviewClipId = job?.data?.reviewClipId as string | undefined
+    if (job && reviewClipId) {
+        if (!job.finishedOn) return
+        if (!(err instanceof RejectedInputError)) {
+            Sentry.captureException(err, { tags: { reviewClipId } })
+        }
+        await markReviewClipFailed(reviewClipDb, reviewClipId, err)
+        return
+    }
     const videoId = job?.data?.videoId as string | undefined
     if (!job || !videoId) return
     // Mark the video failed once BullMQ is done with the job — which is not
@@ -216,40 +304,150 @@ worker.on('failed', async (job, err) => {
         })
 })
 
-async function downloadToFile(bucket: string, key: string, filePath: string) {
-    const response = await s3Client.getObject({ Bucket: bucket, Key: key })
-    if (!response.Body) {
-        throw new Error('Empty S3 response body')
-    }
-    // Refuse before a single byte lands on disk: the size is in the headers.
+// Cuts the cover from the source already on disk. Logs and reports a failure
+// instead of throwing: see the call site.
+async function makeThumbnail(options: {
+    videoId: string
+    inputPath: string
+    demuxer: Demuxer
+    durationSec: number | null
+    outputPath: string
+}) {
     try {
-        assertInputSize(response.ContentLength, environment)
+        await extractThumbnail({
+            binary: ffmpegBinary,
+            // The upload is untrusted: same whitelists and pinned demuxer as
+            // the transcode.
+            inputArgs: restrictedInputArgs(options.demuxer),
+            inputPath: options.inputPath,
+            outputPath: options.outputPath,
+            atSec: pickThumbnailTimeSec(options.durationSec),
+        })
+        const outcome = await publishThumbnail(
+            prisma,
+            thumbnailStore,
+            options.videoId,
+            options.outputPath,
+        )
+        console.log('[video-worker] thumbnail', { videoId: options.videoId, outcome })
     } catch (error) {
-        ;(response.Body as Readable).destroy()
-        throw error
+        console.error('[video-worker] thumbnail failed', {
+            videoId: options.videoId,
+            error: error instanceof Error ? error.message : String(error),
+        })
+        Sentry.captureException(error, {
+            tags: { videoId: options.videoId, step: 'thumbnail' },
+        })
     }
-    await pipeline(response.Body as NodeJS.ReadableStream, createWriteStream(filePath))
 }
 
-async function uploadFile(bucket: string, key: string, filePath: string) {
-    const contentType = key.endsWith('.m3u8')
-        ? 'application/vnd.apple.mpegurl'
-        : key.endsWith('.ts')
-        ? 'video/mp2t'
-        : undefined
+// Queues the chapter scan for a transcoded video. The job id makes it
+// idempotent: a transcode re-run while the scan is queued adds nothing.
+// Never fails the transcode — the backfill picks up a video left unscanned.
+async function enqueueChapters(videoId: string) {
+    try {
+        await chaptersQueue.add(
+            'video-chapters',
+            { videoId },
+            { jobId: `chapters-${videoId}`, removeOnComplete: true, removeOnFail: true },
+        )
+    } catch (error) {
+        console.error('[video-worker] chapters not queued', {
+            videoId,
+            error: error instanceof Error ? error.message : String(error),
+        })
+        Sentry.captureException(error, { tags: { videoId, step: 'chapters' } })
+    }
+}
 
-    await s3Client.putObject({
-        Bucket: bucket,
-        Key: key,
-        Body: await fs.readFile(filePath),
-        ContentType: contentType,
+// An unreachable or unpaid model (HTTP 402) is the same state for every
+// video: reported to Sentry once per process, a warning after that.
+let llmUnavailableReported = false
+
+// The `video-chapters` job: the transcript and automatic subtitles, and
+// chapters from titles burned into the video or else from what the instructor
+// says (video-text.ts). Safe to re-run: a scanned video
+// (Video.chaptersScannedAt) is skipped, and every step re-checks before it
+// writes. A failure is logged and reported, never retried here — the
+// backfills retry.
+//
+// `regenerate` (staff's «Пересоздать» in admin, job `chapters-regen-<id>`):
+// the server has already removed the automatic chapters and/or subtitles, so
+// the scan stamp doesn't stop it; chapters are made only if the server cleared
+// the stamp (it does when chapters were asked for), and the subtitles whose
+// automatic tracks it removed are made again from the stored transcript.
+async function runChaptersJob(videoId: string, regenerate = false) {
+    const video = await prisma.video.findUnique({
+        where: { id: videoId },
+        select: { status: true, rawBucket: true, rawKey: true, chaptersScannedAt: true },
     })
+    if (!video || video.status !== 'ready' || (video.chaptersScannedAt && !regenerate)) {
+        console.log('[video-worker] chapters skipped', {
+            videoId,
+            reason: !video ? 'gone' : video.chaptersScannedAt ? 'scanned' : video.status,
+        })
+        return
+    }
+    const startedAt = Date.now()
+    const workdir = await fs.mkdtemp(join(tmpdir(), `chapters-${videoId}-`))
+    try {
+        const run = await processVideoText(
+            {
+                prisma,
+                videoId,
+                ffmpegBinary,
+                workdir,
+                llm: llmConfig,
+                whisper: whisperConfig,
+                subtitleStore,
+                loadSource: () => downloadVettedSource(video, join(workdir, 'source')),
+            },
+            { chapters: !video.chaptersScannedAt },
+        )
+        console.log('[video-worker] chapters', { videoId, ...run, ms: Date.now() - startedAt })
+    } catch (error) {
+        const details = {
+            videoId,
+            error: error instanceof Error ? error.message : String(error),
+            ms: Date.now() - startedAt,
+        }
+        if (error instanceof LlmUnavailableError) {
+            console.warn('[video-worker] chapters: model unavailable', details)
+            if (llmUnavailableReported) return
+            llmUnavailableReported = true
+        } else {
+            console.error('[video-worker] chapters failed', details)
+        }
+        Sentry.captureException(error, { tags: { videoId, step: 'chapters' } })
+    } finally {
+        await fs.rm(workdir, { recursive: true, force: true })
+        // «Техники»: from whatever chapters and transcript the lesson has now
+        // (a failed step above still leaves the rest worth indexing).
+        await indexVideoTechniques(prisma, videoId)
+            .then((found) => console.log('[video-worker] techniques', { videoId, found }))
+            .catch((error: unknown) => {
+                console.error('[video-worker] techniques failed', { videoId, error: String(error) })
+                Sentry.captureException(error, { tags: { videoId, step: 'techniques' } })
+            })
+    }
 }
 
-// Best-effort removal of every object under hls/<videoId>/ — used to clean up
-// partial output when a transcode fails midway through the upload loop.
-async function deleteHlsPrefix(bucket: string, videoId: string) {
-    const prefix = `hls/${videoId}/`
+// One scan at a time: each is a full decode, OCR and maybe Whisper, next to
+// the transcodes.
+const chaptersWorker = new Worker(
+    'video-chapters',
+    async (job) => {
+        const videoId = job.data?.videoId as string | undefined
+        if (!videoId) throw new Error('[video-worker] chapters job has no videoId')
+        await runChaptersJob(videoId, job.data?.regenerate === true)
+    },
+    { connection, concurrency: 1 },
+)
+
+// Best-effort removal of every object under a prefix (hls/<videoId>/,
+// hls/review/<clipId>/) — used to clean up partial output when a transcode
+// fails midway through the upload loop.
+async function deleteObjectsUnder(bucket: string, prefix: string) {
     let continuationToken: string | undefined
     do {
         const listed = await s3Client.listObjectsV2({
@@ -375,12 +573,8 @@ async function runFfmpeg(inputPath: string, demuxer: Demuxer, outputDir: string)
             join(outputDir, 'v%v', 'playlist.m3u8'),
         )
 
-        const binary =
-            environment.ffmpegPath ??
-            (ffmpegPath as unknown as string | null) ??
-            'ffmpeg'
         const ffmpegProcess: ChildProcessByStdio<null, Readable, Readable> =
-            spawn(binary, args, {
+            spawn(ffmpegBinary, args, {
                 stdio: ['ignore', 'pipe', 'pipe'],
             })
         let stderr = ''
@@ -428,33 +622,11 @@ async function runFfmpeg(inputPath: string, demuxer: Demuxer, outputDir: string)
     })
 }
 
-function getEndpoint() {
-    if (environment.s3Storage.s3AccelerateUrl) {
-        return environment.s3Storage.s3AccelerateUrl
-    }
-
-    if (environment.s3Storage.s3BucketName) {
-        const url = new URL(environment.s3Storage.s3UploadBucketUrl)
-        if (url.hostname.startsWith(environment.s3Storage.s3BucketName + '.')) {
-            return undefined
-        }
-    }
-
-    return environment.s3Storage.s3UploadBucketUrl
-}
-
-function getPublicObjectUrl(bucket: string, key: string) {
-    const host = environment.s3Storage.s3UploadBucketUrl
-        .replace('s3:', 'localhost:')
-        .replace(/\/$/, '')
-    const isVirtualHost = host.includes(bucket)
-    const baseUrl = isVirtualHost ? host : `${host}/${bucket}`
-    return `${baseUrl}/${key}`
-}
-
 async function shutdown() {
-    await worker.close()
-    await readyQueue.close()
+    // Waits for the jobs in progress. A scan killed midway is not stamped:
+    // BullMQ re-runs it as a stalled job, or the backfill picks it up.
+    await Promise.all([worker.close(), chaptersWorker.close()])
+    await Promise.all([readyQueue.close(), chaptersQueue.close()])
     await prisma.$disconnect()
     // Deliver anything still queued before the container goes away.
     await Sentry.close(2000)

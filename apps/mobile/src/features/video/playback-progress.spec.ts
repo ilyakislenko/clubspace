@@ -42,7 +42,6 @@ jest.mock("../../shared/outbox/outbox", () => ({
 }))
 
 import {
-    getCourseProgressSummary,
     getProgressStatus,
     getResumePosition,
     markCompleted,
@@ -99,20 +98,6 @@ describe("getProgressStatus", () => {
         const s = await getProgressStatus("barely-started")
         expect(s.status).toBe("in-progress")
         expect(s.ratio).toBe(0)
-    })
-})
-
-describe("getCourseProgressSummary", () => {
-    it("counts completed and past-ratio videos as watched", async () => {
-        const summary = await getCourseProgressSummary({
-            videos: [
-                { id: "completed-vid" }, // completed
-                { id: "almost-done-vid", duration: 100 }, // 0.95 → watched
-                { id: "midway-vid", duration: 100 }, // 0.5 → not watched
-                { id: "missing" }, // no entry
-            ],
-        })
-        expect(summary).toEqual({ watched: 2, total: 4 })
     })
 })
 

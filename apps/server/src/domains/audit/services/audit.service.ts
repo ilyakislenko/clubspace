@@ -10,6 +10,8 @@ export type AuditAction =
     | 'video.update'
     | 'video.delete'
     | 'video.bulkUpdate'
+    // «Пересоздать главы/субтитры» on the admin video page.
+    | 'video.regenerateText'
     | 'playlist.create'
     | 'playlist.update'
     | 'playlist.delete'

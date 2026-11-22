@@ -13,6 +13,8 @@ export const NOTIFICATION_CATEGORY_KEYS = [
     'inactivityEnabled',
     // Owners/admins: Monday «Аналитика за неделю» (push + e-mail).
     'analyticsDigestEnabled',
+    // Members: evening «Пора повторить» when bookmark cards are due.
+    'reviewRemindersEnabled',
 ] as const
 
 export type NotificationCategoryKey =

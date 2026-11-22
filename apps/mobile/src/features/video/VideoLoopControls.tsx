@@ -1,8 +1,9 @@
 import React from "react"
 import { StyleSheet, Text, View } from "react-native"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 
-import { useThemedStyles } from "../../shared/theme-context"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { formatPosition } from "./format-position"
 
@@ -12,97 +13,107 @@ type Props = {
   onSetA: () => void
   onSetB: () => void
   onClear: () => void
+  // Keep the current A–B as a segment bookmark (offered once both are set).
+  onSaveSegment: () => void
 }
 
+// The A–B repeat while one is set (started from the lesson's «⋯»): A, B
+// (each re-marked at the current second on tap), save, clear. Nothing at all
+// while no point is set.
 export function VideoLoopControls({
   loopA,
   loopB,
   onSetA,
   onSetB,
   onClear,
+  onSaveSegment,
 }: Props) {
+  const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  if (loopA == null && loopB == null) return null
   return (
-    <View style={styles.loopBlock}>
-      <View style={styles.loopHeader}>
-        <Text style={styles.noteLabel}>A–B повтор</Text>
-        {(loopA != null || loopB != null) && (
-          <Pressable onPress={onClear} hitSlop={8}>
-            <Text style={styles.loopClear}>Сброс</Text>
-          </Pressable>
-        )}
-      </View>
-      <View style={styles.loopRow}>
-        <Pressable onPress={onSetA} style={styles.loopButton}>
-          <Text style={styles.loopButtonLabel}>A</Text>
-          <Text style={styles.loopButtonValue}>
-            {loopA != null ? formatPosition(loopA) : "—"}
-          </Text>
-        </Pressable>
-        <Pressable onPress={onSetB} style={styles.loopButton}>
-          <Text style={styles.loopButtonLabel}>B</Text>
-          <Text style={styles.loopButtonValue}>
-            {loopB != null ? formatPosition(loopB) : "—"}
-          </Text>
-        </Pressable>
-      </View>
-      {loopA != null && loopB != null && (
-        <Text style={styles.loopHint}>
-          Отрезок зациклен. Снимите отметку, чтобы выключить.
+    <View style={styles.row}>
+      <Text style={styles.title}>Повтор</Text>
+      <Pressable
+        onPress={onSetA}
+        accessibilityRole="button"
+        accessibilityLabel={
+          loopA != null
+            ? `Точка A ${formatPosition(loopA)}, отметить заново`
+            : "Отметить точку A"
+        }
+        style={[styles.point, loopA != null && styles.pointSet]}
+      >
+        <Text style={styles.pointText}>
+          {loopA != null ? `A ${formatPosition(loopA)}` : "A"}
         </Text>
+      </Pressable>
+      <Pressable
+        onPress={onSetB}
+        accessibilityRole="button"
+        accessibilityLabel={
+          loopB != null
+            ? `Точка B ${formatPosition(loopB)}, отметить заново`
+            : "Отметить точку B"
+        }
+        style={[styles.point, loopB != null && styles.pointSet]}
+      >
+        <Text style={styles.pointText}>
+          {loopB != null ? `B ${formatPosition(loopB)}` : "Отметить B"}
+        </Text>
+      </Pressable>
+      <View style={styles.spacer} />
+      {loopA != null && loopB != null && (
+        <Pressable
+          onPress={onSaveSegment}
+          accessibilityRole="button"
+          accessibilityLabel={`Сохранить отрезок ${formatPosition(loopA)}–${formatPosition(loopB)} в закладки`}
+          hitSlop={6}
+        >
+          <Text style={styles.save}>Сохранить</Text>
+        </Pressable>
       )}
+      <Pressable
+        onPress={onClear}
+        accessibilityRole="button"
+        accessibilityLabel="Выключить повтор A–B"
+        style={styles.clear}
+      >
+        <Icon name="close" size={20} color={theme.colors.muted} />
+      </Pressable>
     </View>
   )
 }
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
-  loopBlock: {
-    gap: theme.spacing(2),
-    padding: theme.spacing(3),
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  loopHeader: {
+  row: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    flexWrap: "wrap",
     alignItems: "center",
-  },
-  noteLabel: { ...theme.typography.label },
-  loopClear: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: theme.colors.muted,
-  },
-  loopRow: {
-    flexDirection: "row",
     gap: theme.spacing(2),
   },
-  loopButton: {
-    flex: 1,
-    paddingVertical: theme.spacing(2),
+  title: { ...theme.typography.bodyStrong, color: theme.colors.text },
+  point: {
+    minHeight: 36,
+    justifyContent: "center",
     paddingHorizontal: theme.spacing(3),
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.full,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceMuted,
-    alignItems: "center",
-    gap: 2,
   },
-  loopButtonLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: theme.colors.muted,
-    letterSpacing: 0.5,
-  },
-  loopButtonValue: {
-    fontSize: 15,
+  pointSet: { borderColor: theme.colors.accent },
+  pointText: {
+    fontSize: 14,
     fontWeight: "600",
     color: theme.colors.text,
     fontVariant: ["tabular-nums"],
   },
-  loopHint: {
-    ...theme.typography.caption,
+  spacer: { flex: 1 },
+  save: { fontSize: 14, fontWeight: "600", color: theme.colors.accent },
+  clear: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
 })

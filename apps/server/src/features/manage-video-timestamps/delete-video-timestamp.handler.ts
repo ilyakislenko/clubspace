@@ -5,6 +5,7 @@ import {
     DeleteVideoTimestampFeature,
     DeleteVideoTimestampFeatureResponse,
 } from './delete-video-timestamp.feature'
+import { reindexChapterMentions } from '../techniques/chapter-mentions'
 
 @Feature(DeleteVideoTimestampFeature)
 export class DeleteVideoTimestampHandler
@@ -32,6 +33,8 @@ export class DeleteVideoTimestampHandler
                 video: { workspaceId },
             },
         })
+        // «Техники»: the lesson's chapter mentions follow its chapters.
+        await reindexChapterMentions(this.prisma, videoId)
         return { status: 'deleted' as const }
     }
 }

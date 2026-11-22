@@ -1,7 +1,9 @@
 import type { ScheduleSession } from "../../shared/api/groups"
 import {
   canMarkSession,
+  classPersonLabel,
   isAdminScope,
+  markOnRow,
   runsGroupOf,
   type StaffViewer,
   substitutionActions,
@@ -211,5 +213,69 @@ describe("substitutionActions", () => {
       endAt: "2026-10-30T17:00:00Z",
     })
     expect(substitutionActions(recent, viewer(), NOW)).toEqual(["take"])
+  })
+})
+
+describe("classPersonLabel", () => {
+  it("names the group's coach, but not to the coach themselves", () => {
+    expect(classPersonLabel(session(), "me")).toBe("Я. Иванова")
+    expect(classPersonLabel(session(), "lead")).toBeNull()
+  })
+
+  it("names an approved substitute instead, unless the viewer is the substitute", () => {
+    const s = session({ substitution: approved("sub") })
+    expect(classPersonLabel(s, "lead")).toBe("Замена: О. Петров")
+    expect(classPersonLabel(s, "sub")).toBeNull()
+  })
+
+  it("keeps the coach while a substitution is only requested", () => {
+    expect(classPersonLabel(session({ substitution: pending("sub") }), "me")).toBe(
+      "Я. Иванова",
+    )
+  })
+})
+
+describe("markOnRow", () => {
+  // The class runs 19:00–20:00 Moscow time (16:00–17:00Z) on 5 November.
+  const at = (iso: string) => new Date(iso)
+  const mine = new Set(["g1"])
+
+  it("shows from 30 minutes before the start to the end of the class's day", () => {
+    expect(markOnRow(session(), "lead", mine, at("2026-11-05T15:20:00Z"))).toBe(false)
+    expect(markOnRow(session(), "lead", mine, at("2026-11-05T15:31:00Z"))).toBe(true)
+    expect(markOnRow(session(), "lead", mine, at("2026-11-05T16:30:00Z"))).toBe(true)
+    // Ended an hour ago, still the same evening.
+    expect(markOnRow(session(), "lead", mine, at("2026-11-05T18:00:00Z"))).toBe(true)
+    expect(markOnRow(session(), "lead", mine, at("2026-11-06T06:00:00Z"))).toBe(false)
+  })
+
+  it("reads «today» in the class's zone, not UTC", () => {
+    // 00:30 in Moscow on the 6th, while UTC is still on the 5th.
+    expect(markOnRow(session(), "lead", mine, at("2026-11-05T21:30:00Z"))).toBe(false)
+  })
+
+  it("is only for the viewer's own class", () => {
+    const now = at("2026-11-05T16:30:00Z")
+    // Another group's coach, and admin scope without coaching the group.
+    expect(markOnRow(session(), "me", new Set(["g2"]), now)).toBe(false)
+    expect(markOnRow(session(), "head", new Set(), now)).toBe(false)
+    // The group's coach, known by the coach id even without the group list.
+    expect(markOnRow(session(), "lead", new Set(), now)).toBe(true)
+  })
+
+  it("follows an approved substitution to the substitute", () => {
+    const now = at("2026-11-05T16:30:00Z")
+    const s = session({ substitution: approved("sub") })
+    expect(markOnRow(s, "sub", new Set(["g2"]), now)).toBe(true)
+    expect(markOnRow(s, "lead", mine, now)).toBe(false)
+    // A pending request leaves the class with its coach.
+    const asked = session({ substitution: pending("sub") })
+    expect(markOnRow(asked, "lead", mine, now)).toBe(true)
+  })
+
+  it("never on a cancelled class", () => {
+    expect(
+      markOnRow(session({ cancelled: true }), "lead", mine, at("2026-11-05T16:30:00Z")),
+    ).toBe(false)
   })
 })

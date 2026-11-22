@@ -9,16 +9,19 @@ import { isStoreReviewEmail } from '../../../shared/utils/store-review.util'
 import { BadRequestError } from '../../../shared/errors/shared.errors'
 import { vocabularyForWorkspaceType } from '../../../shared/utils/club-vocabulary'
 import { purgePersonalTraining } from '../../../features/personal-trainings/purge-personal-training'
+import { deleteReviewClipFiles } from '../../../features/video-reviews/review-clip-storage'
+import { FilesService } from '../../../infrastructure/files/services/files.service'
 import { USERS_PUBLISHER, UsersEventPattern, type UsersEventsPublisher } from '../configs/users-events.config'
 import { UserCompleteCodeTooEarlyError, UserNotFoundError } from '../errors/users.errors'
 
 @Injectable()
 export class UsersService {
-    constructor(private readonly prisma: PrismaService, 
+    constructor(
+        private readonly prisma: PrismaService,
         @Inject(USERS_PUBLISHER)
-        private readonly events: UsersEventsPublisher) {
-        
-    }
+        private readonly events: UsersEventsPublisher,
+        private readonly files: FilesService,
+    ) {}
 
     async createUser(payload: {
         email: string
@@ -120,6 +123,12 @@ export class UsersService {
             })
         }
 
+        // Collected before the rows go: the files are deleted once they have.
+        const clips = await this.prisma.reviewClip.findMany({
+            where: { ownerUserId: { in: ids } },
+            select: { id: true, rawBucket: true, hlsBucket: true },
+        })
+
         const now = new Date()
         await this.prisma.$transaction(async (tx) => {
             for (const target of targets) {
@@ -134,6 +143,8 @@ export class UsersService {
                 },
             })
         })
+        // Best effort (logged, never thrown): the account is gone either way.
+        await deleteReviewClipFiles(this.files, clips)
     }
 
     private async purgeAccount(
@@ -157,6 +168,16 @@ export class UsersService {
             tx.notificationPreferences.deleteMany({ where: { userId } }),
             tx.videoFavorite.deleteMany({ where: { userId } }),
             tx.videoWatched.deleteMany({ where: { userId } }),
+            tx.videoBookmark.deleteMany({ where: { userId } }),
+            tx.videoNote.deleteMany({ where: { userId } }),
+            tx.bookmarkReview.deleteMany({ where: { userId } }),
+            // Their items go with them (FK cascade).
+            tx.studyPlan.deleteMany({ where: { userId } }),
+            // «Разбор видео»: their clips (requests and comments go with
+            // them; files after the transaction) and comments they wrote as
+            // staff on others' clips.
+            tx.reviewClip.deleteMany({ where: { ownerUserId: userId } }),
+            tx.videoReviewComment.deleteMany({ where: { authorUserId: userId } }),
             tx.file.deleteMany({ where: { userId } }),
             tx.workspaceMember.deleteMany({ where: { userId } }),
             tx.groupMember.deleteMany({ where: { userId } }),

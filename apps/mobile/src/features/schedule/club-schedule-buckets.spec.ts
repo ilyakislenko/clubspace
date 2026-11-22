@@ -6,6 +6,7 @@ import {
   resolveGymFilter,
   resolveScheduleFilter,
   scheduleChips,
+  scheduleFilterSummary,
   scheduleGyms,
 } from "./club-schedule-buckets"
 
@@ -137,5 +138,73 @@ describe("scheduleChips", () => {
   it("treats a stored gym as «everything» when the club has one gym", () => {
     expect(resolveScheduleFilter("g1", [arena], false)).toBeNull()
     expect(resolveScheduleFilter("g1", [arena, north], false)).toBe("g1")
+  })
+})
+
+describe("scheduleFilterSummary", () => {
+  const directions = [
+    { id: "bjj", name: "БЖЖ" },
+    { id: "mma", name: "ММА" },
+  ]
+  const gyms = [
+    { id: "g1", name: "Зал на Ленина" },
+    { id: "g2", name: "Центр" },
+  ]
+
+  it("says «everything» by default, not accented", () => {
+    expect(
+      scheduleFilterSummary({
+        directions,
+        directionId: null,
+        chips: scheduleChips(gyms, true),
+        filterId: null,
+      }),
+    ).toEqual({ label: "Все направления · Все залы", active: false })
+  })
+
+  it("names the picked direction and chip, accented", () => {
+    expect(
+      scheduleFilterSummary({
+        directions,
+        directionId: "bjj",
+        chips: scheduleChips(gyms, true),
+        filterId: MY_GROUPS_FILTER,
+      }),
+    ).toEqual({ label: "БЖЖ · Мои группы", active: true })
+    expect(
+      scheduleFilterSummary({
+        directions,
+        directionId: null,
+        chips: scheduleChips(gyms, false),
+        filterId: "g2",
+      }),
+    ).toEqual({ label: "Все направления · Центр", active: true })
+  })
+
+  it("leaves out what the club can't filter by", () => {
+    expect(
+      scheduleFilterSummary({
+        directions: [],
+        directionId: null,
+        chips: scheduleChips(gyms, false),
+        filterId: "g1",
+      }),
+    ).toEqual({ label: "Зал на Ленина", active: true })
+    expect(
+      scheduleFilterSummary({
+        directions,
+        directionId: "mma",
+        chips: null,
+        filterId: null,
+      }),
+    ).toEqual({ label: "ММА", active: true })
+    expect(
+      scheduleFilterSummary({
+        directions: [],
+        directionId: null,
+        chips: null,
+        filterId: null,
+      }),
+    ).toBeNull()
   })
 })

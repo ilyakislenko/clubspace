@@ -61,6 +61,17 @@ export const environment = {
     // `|| …`: an empty `FFMPEG_PATH=` in .env means unset, not "run ''".
     ffmpegPath: get('FFMPEG_PATH').required(false).asString() || undefined,
     ffprobePath: get('FFPROBE_PATH').required(false).asString() || 'ffprobe',
+    // Chapters from speech, for videos with no titles on screen (speech.ts).
+    // Off unless both a Whisper model and a chat endpoint are configured.
+    whisperCliPath: get('WHISPER_CLI_PATH').required(false).asString() || 'whisper-cli',
+    whisperModelPath: get('WHISPER_MODEL_PATH').required(false).asString() || undefined,
+    // Any OpenAI-compatible API: https://openrouter.ai/api/v1,
+    // http://127.0.0.1:11434/v1 (Ollama), …
+    chaptersLlm: {
+        baseUrl: get('CHAPTERS_LLM_BASE_URL').required(false).asString() || undefined,
+        model: get('CHAPTERS_LLM_MODEL').required(false).asString() || undefined,
+        apiKey: get('CHAPTERS_LLM_API_KEY').required(false).asString() || undefined,
+    },
     sentry: {
         dsn: get('SENTRY_DSN').required(false).asString(),
         environment: get('SENTRY_ENVIRONMENT').default('development').asString(),

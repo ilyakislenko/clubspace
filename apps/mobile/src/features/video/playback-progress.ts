@@ -200,26 +200,3 @@ export const getProgressStatus = async (
 export const getProgressMap = async (): Promise<ProgressMap> => {
   return await load()
 }
-
-export const getCourseProgressSummary = async (params: {
-  videos: Array<{ id: string; duration?: number | null }>
-}): Promise<{ watched: number; total: number }> => {
-  const map = await load()
-  let watched = 0
-  for (const v of params.videos) {
-    const e = map[v.id]
-    if (!e) continue
-    if (e.completed) {
-      watched += 1
-      continue
-    }
-    if (
-      v.duration &&
-      v.duration > 0 &&
-      e.position / v.duration >= COMPLETION_RATIO
-    ) {
-      watched += 1
-    }
-  }
-  return { watched, total: params.videos.length }
-}

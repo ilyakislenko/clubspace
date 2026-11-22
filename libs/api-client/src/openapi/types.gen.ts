@@ -1026,6 +1026,7 @@ export type GetVideoOutputOutput = {
         id: string;
         positionSec: number;
         title: string;
+        source: string;
     }>;
     subtitles: Array<{
         id: string;
@@ -1033,9 +1034,129 @@ export type GetVideoOutputOutput = {
         label: string;
         publicUrl: string;
         isDefault: boolean;
+        source: string;
     }>;
     createdAt: string;
     updatedAt: string;
+};
+
+export type SearchVideosOutputOutput = {
+    query: string;
+    items: Array<{
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        };
+        course: {
+            id: string;
+            title: string;
+        } | null;
+        titleHighlight: {
+            start: number;
+            length: number;
+        } | null;
+        chapterHits: number;
+        speechHits: number;
+        moments: Array<{
+            atSec: number;
+            kind: 'chapter' | 'speech' | 'speechRu';
+            snippet: string;
+            highlight: {
+                start: number;
+                length: number;
+            } | null;
+        }>;
+    }>;
+};
+
+export type ListTechniquesOutputOutput = {
+    categories: Array<{
+        category: 'submissions' | 'guards' | 'passes' | 'sweeps' | 'takedowns' | 'positions' | 'escapes' | 'other';
+        label: string;
+        techniques: Array<{
+            key: string;
+            en: string;
+            ru: string | null;
+            videoCount: number;
+            chapterCount: number;
+            speechCount: number;
+        }>;
+    }>;
+};
+
+export type GetTechniqueOutputOutput = {
+    technique: {
+        key: string;
+        en: string;
+        ru: string | null;
+        category: string;
+        categoryLabel: string;
+    };
+    items: Array<{
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        };
+        course: {
+            id: string;
+            title: string;
+        } | null;
+        chapterHits: number;
+        speechHits: number;
+        moments: Array<{
+            atSec: number;
+            kind: 'chapter' | 'speech' | 'speechRu';
+            snippet: string;
+            highlight: {
+                start: number;
+                length: number;
+            } | null;
+        }>;
+    }>;
+};
+
+export type VideoTextStatusOutputOutput = {
+    videoStatus: string;
+    chaptersScannedAt: string | null;
+    transcript: {
+        language: string;
+        segmentCount: number;
+        translatedRu: boolean;
+        updatedAt: string;
+    } | null;
+    chapters: {
+        manual: number;
+        auto: number;
+    };
+    subtitles: {
+        manual: number;
+        auto: number;
+    };
+    regeneration: 'waiting' | 'active' | null;
+};
+
+export type RegenerateVideoTextInput = {
+    chapters: boolean;
+    subtitles: boolean;
+};
+
+export type RegenerateVideoTextOutputOutput = {
+    status: 'queued';
+    chaptersRemoved: number;
+    subtitlesRemoved: number;
+};
+
+export type SubtitleCuesOutputOutput = {
+    cues: Array<{
+        from: number;
+        to: number;
+        text: string;
+    }>;
+    total: number;
 };
 
 export type GetWorkspaceVideoOutputOutput = {
@@ -1087,6 +1208,7 @@ export type GetWorkspaceVideoOutputOutput = {
         id: string;
         positionSec: number;
         title: string;
+        source: string;
     }>;
     subtitles: Array<{
         id: string;
@@ -1094,9 +1216,250 @@ export type GetWorkspaceVideoOutputOutput = {
         label: string;
         publicUrl: string;
         isDefault: boolean;
+        source: string;
     }>;
     createdAt: string;
     updatedAt: string;
+};
+
+export type ListMyVideoReviewsOutputOutput = {
+    items: Array<{
+        id: string;
+        title: string;
+        message: string | null;
+        status: 'uploading' | 'processing' | 'failed' | 'open' | 'answered' | 'closed';
+        member: {
+            id: string;
+            name: string;
+        };
+        clip: {
+            id: string;
+            duration: number | null;
+            thumbnailUrl: string | null;
+            errorMessage: string | null;
+        };
+        commentCount: number;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+};
+
+export type CreateMyVideoReviewInput = {
+    title: string;
+    message?: string | null;
+    contentType: string;
+    sizeBytes: number;
+    durationSec?: number;
+};
+
+export type CreateMyVideoReviewOutputOutput = {
+    request: {
+        id: string;
+        title: string;
+        message: string | null;
+        status: 'uploading' | 'processing' | 'failed' | 'open' | 'answered' | 'closed';
+        member: {
+            id: string;
+            name: string;
+        };
+        clip: {
+            id: string;
+            duration: number | null;
+            thumbnailUrl: string | null;
+            errorMessage: string | null;
+        };
+        commentCount: number;
+        createdAt: string;
+        updatedAt: string;
+    };
+    upload: {
+        url: string;
+        method: 'PUT';
+    };
+};
+
+export type CompleteMyVideoReviewUploadOutputOutput = {
+    id: string;
+    title: string;
+    message: string | null;
+    status: 'uploading' | 'processing' | 'failed' | 'open' | 'answered' | 'closed';
+    member: {
+        id: string;
+        name: string;
+    };
+    clip: {
+        id: string;
+        duration: number | null;
+        thumbnailUrl: string | null;
+        errorMessage: string | null;
+    };
+    commentCount: number;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type DeleteMyVideoReviewOutputOutput = {
+    status: 'deleted';
+};
+
+export type ListClubVideoReviewsOutputOutput = {
+    items: Array<{
+        id: string;
+        title: string;
+        message: string | null;
+        status: 'uploading' | 'processing' | 'failed' | 'open' | 'answered' | 'closed';
+        member: {
+            id: string;
+            name: string;
+        };
+        clip: {
+            id: string;
+            duration: number | null;
+            thumbnailUrl: string | null;
+            errorMessage: string | null;
+        };
+        commentCount: number;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+};
+
+export type GetVideoReviewOutputOutput = {
+    id: string;
+    title: string;
+    message: string | null;
+    status: 'uploading' | 'processing' | 'failed' | 'open' | 'answered' | 'closed';
+    member: {
+        id: string;
+        name: string;
+    };
+    clip: {
+        id: string;
+        duration: number | null;
+        thumbnailUrl: string | null;
+        errorMessage: string | null;
+    };
+    commentCount: number;
+    createdAt: string;
+    updatedAt: string;
+    comments: Array<{
+        id: string;
+        atSec: number;
+        endSec: number | null;
+        text: string;
+        drawing: {
+            strokes: Array<{
+                tool: 'pen' | 'arrow' | 'ellipse';
+                color: 'red' | 'yellow' | 'green' | 'white';
+                points: Array<number>;
+            }>;
+        } | null;
+        author: {
+            id: string;
+            name: string;
+        };
+        mine: boolean;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    viewerIsOwner: boolean;
+    viewerIsStaff: boolean;
+};
+
+export type GetVideoReviewPlaybackOutputOutput = {
+    hlsUrl: string;
+};
+
+export type SetVideoReviewStatusInput = {
+    status: 'open' | 'answered' | 'closed';
+};
+
+export type SetVideoReviewStatusOutputOutput = {
+    id: string;
+    title: string;
+    message: string | null;
+    status: 'uploading' | 'processing' | 'failed' | 'open' | 'answered' | 'closed';
+    member: {
+        id: string;
+        name: string;
+    };
+    clip: {
+        id: string;
+        duration: number | null;
+        thumbnailUrl: string | null;
+        errorMessage: string | null;
+    };
+    commentCount: number;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type AddVideoReviewCommentInput = {
+    atSec: number;
+    endSec?: number | null;
+    text: string;
+    drawing?: {
+        strokes: Array<{
+            tool: 'pen' | 'arrow' | 'ellipse';
+            color: 'red' | 'yellow' | 'green' | 'white';
+            points: Array<number>;
+        }>;
+    } | null;
+};
+
+export type VideoReviewCommentOutputOutput = {
+    id: string;
+    title: string;
+    message: string | null;
+    status: 'uploading' | 'processing' | 'failed' | 'open' | 'answered' | 'closed';
+    member: {
+        id: string;
+        name: string;
+    };
+    clip: {
+        id: string;
+        duration: number | null;
+        thumbnailUrl: string | null;
+        errorMessage: string | null;
+    };
+    commentCount: number;
+    createdAt: string;
+    updatedAt: string;
+    comments: Array<{
+        id: string;
+        atSec: number;
+        endSec: number | null;
+        text: string;
+        drawing: {
+            strokes: Array<{
+                tool: 'pen' | 'arrow' | 'ellipse';
+                color: 'red' | 'yellow' | 'green' | 'white';
+                points: Array<number>;
+            }>;
+        } | null;
+        author: {
+            id: string;
+            name: string;
+        };
+        mine: boolean;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    viewerIsOwner: boolean;
+    viewerIsStaff: boolean;
+};
+
+export type UpdateVideoReviewCommentInput = {
+    atSec?: number;
+    endSec?: number | null;
+    text?: string;
+    drawing?: {
+        strokes: Array<{
+            tool: 'pen' | 'arrow' | 'ellipse';
+            color: 'red' | 'yellow' | 'green' | 'white';
+            points: Array<number>;
+        }>;
+    } | null;
 };
 
 export type GetVideoPlaybackOutputOutput = {
@@ -2775,6 +3138,7 @@ export type GetNotificationPreferencesOutputOutput = {
     announcementsEnabled: boolean;
     inactivityEnabled: boolean;
     analyticsDigestEnabled: boolean;
+    reviewRemindersEnabled: boolean;
 };
 
 export type UpdateNotificationPreferencesInput = {
@@ -2784,6 +3148,7 @@ export type UpdateNotificationPreferencesInput = {
     announcementsEnabled?: boolean;
     inactivityEnabled?: boolean;
     analyticsDigestEnabled?: boolean;
+    reviewRemindersEnabled?: boolean;
 };
 
 export type UpdateNotificationPreferencesOutputOutput = {
@@ -2793,6 +3158,7 @@ export type UpdateNotificationPreferencesOutputOutput = {
     announcementsEnabled: boolean;
     inactivityEnabled: boolean;
     analyticsDigestEnabled: boolean;
+    reviewRemindersEnabled: boolean;
 };
 
 export type DeleteAccountOutputOutput = {
@@ -2964,6 +3330,401 @@ export type ListMyFavoritesOutputOutput = {
     }>;
 };
 
+export type ListMyVideoBookmarksOutputOutput = {
+    items: Array<{
+        id: string;
+        videoId: string;
+        positionSec: number;
+        endSec: number | null;
+        label: string;
+        note: string;
+        drawing: {
+            strokes: Array<{
+                tool: 'pen' | 'arrow' | 'ellipse';
+                color: 'red' | 'yellow' | 'green' | 'white';
+                points: Array<number>;
+            }>;
+        } | null;
+        createdAt: string;
+        updatedAt: string;
+        deleted: boolean;
+    }>;
+};
+
+export type PutMyVideoBookmarkInput = {
+    positionSec: number;
+    endSec: number | null;
+    label: string;
+    note: string;
+    drawing?: {
+        strokes: Array<{
+            tool: 'pen' | 'arrow' | 'ellipse';
+            color: 'red' | 'yellow' | 'green' | 'white';
+            points: Array<number>;
+        }>;
+    } | null;
+    updatedAt: string;
+    deleted?: boolean;
+};
+
+export type PutMyVideoBookmarkOutputOutput = {
+    id: string;
+    videoId: string;
+    positionSec: number;
+    endSec: number | null;
+    label: string;
+    note: string;
+    drawing: {
+        strokes: Array<{
+            tool: 'pen' | 'arrow' | 'ellipse';
+            color: 'red' | 'yellow' | 'green' | 'white';
+            points: Array<number>;
+        }>;
+    } | null;
+    createdAt: string;
+    updatedAt: string;
+    deleted: boolean;
+};
+
+export type GetMyVideoNoteOutputOutput = {
+    text: string;
+    updatedAt: string | null;
+};
+
+export type PutMyVideoNoteInput = {
+    text: string;
+    updatedAt: string;
+};
+
+export type PutMyVideoNoteOutputOutput = {
+    text: string;
+    updatedAt: string | null;
+};
+
+export type ListMyVideoNotesOutputOutput = {
+    items: Array<{
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        };
+        course: {
+            id: string;
+            title: string;
+        } | null;
+        note: {
+            text: string;
+            updatedAt: string;
+        } | null;
+        bookmarks: Array<{
+            id: string;
+            videoId: string;
+            positionSec: number;
+            endSec: number | null;
+            label: string;
+            note: string;
+            drawing: {
+                strokes: Array<{
+                    tool: 'pen' | 'arrow' | 'ellipse';
+                    color: 'red' | 'yellow' | 'green' | 'white';
+                    points: Array<number>;
+                }>;
+            } | null;
+            createdAt: string;
+            updatedAt: string;
+            deleted: boolean;
+        }>;
+    }>;
+};
+
+export type ListMyReviewsOutputOutput = {
+    items: Array<{
+        bookmark: {
+            id: string;
+            videoId: string;
+            positionSec: number;
+            endSec: number | null;
+            label: string;
+            note: string;
+            drawing: {
+                strokes: Array<{
+                    tool: 'pen' | 'arrow' | 'ellipse';
+                    color: 'red' | 'yellow' | 'green' | 'white';
+                    points: Array<number>;
+                }>;
+            } | null;
+            createdAt: string;
+            updatedAt: string;
+            deleted: boolean;
+        };
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        };
+        course: {
+            id: string;
+            title: string;
+        } | null;
+        schedule: {
+            bookmarkId: string;
+            dueAt: string;
+            intervalDays: number;
+            ease: number;
+            reps: number;
+            lapses: number;
+            lastReviewedAt: string | null;
+        };
+        nextIntervals: {
+            again: number;
+            hard: number;
+            good: number;
+            easy: number;
+        };
+    }>;
+    dueCount: number;
+    upcomingCount: number;
+    nextDueAt: string | null;
+    totalCount: number;
+};
+
+export type ReviewMyBookmarkInput = {
+    grade: 'again' | 'hard' | 'good' | 'easy';
+    reviewedAt: string;
+};
+
+export type ReviewMyBookmarkOutputOutput = {
+    bookmarkId: string;
+    dueAt: string;
+    intervalDays: number;
+    ease: number;
+    reps: number;
+    lapses: number;
+    lastReviewedAt: string | null;
+};
+
+export type ListMyStudyPlansOutputOutput = {
+    items: Array<{
+        id: string;
+        title: string;
+        description: string | null;
+        itemCount: number;
+        coverUrl: string | null;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+};
+
+export type CreateMyStudyPlanInput = {
+    title: string;
+    description?: string | null;
+};
+
+export type CreateMyStudyPlanOutputOutput = {
+    id: string;
+    title: string;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+    items: Array<{
+        id: string;
+        position: number;
+        videoId: string;
+        startSec: number;
+        endSec: number | null;
+        title: string;
+        note: string | null;
+        createdAt: string;
+        accessible: boolean;
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        } | null;
+    }>;
+};
+
+export type GetMyStudyPlanOutputOutput = {
+    id: string;
+    title: string;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+    items: Array<{
+        id: string;
+        position: number;
+        videoId: string;
+        startSec: number;
+        endSec: number | null;
+        title: string;
+        note: string | null;
+        createdAt: string;
+        accessible: boolean;
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        } | null;
+    }>;
+};
+
+export type UpdateMyStudyPlanInput = {
+    title?: string;
+    description?: string | null;
+};
+
+export type UpdateMyStudyPlanOutputOutput = {
+    id: string;
+    title: string;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+    items: Array<{
+        id: string;
+        position: number;
+        videoId: string;
+        startSec: number;
+        endSec: number | null;
+        title: string;
+        note: string | null;
+        createdAt: string;
+        accessible: boolean;
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        } | null;
+    }>;
+};
+
+export type DeleteMyStudyPlanOutputOutput = {
+    status: 'deleted';
+};
+
+export type AddMyStudyPlanItemInput = {
+    videoId: string;
+    startSec: number;
+    endSec?: number | null;
+    title?: string;
+    note?: string | null;
+};
+
+export type AddMyStudyPlanItemOutputOutput = {
+    id: string;
+    title: string;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+    items: Array<{
+        id: string;
+        position: number;
+        videoId: string;
+        startSec: number;
+        endSec: number | null;
+        title: string;
+        note: string | null;
+        createdAt: string;
+        accessible: boolean;
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        } | null;
+    }>;
+};
+
+export type ReorderMyStudyPlanItemsInput = {
+    itemIds: Array<string>;
+};
+
+export type ReorderMyStudyPlanItemsOutputOutput = {
+    id: string;
+    title: string;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+    items: Array<{
+        id: string;
+        position: number;
+        videoId: string;
+        startSec: number;
+        endSec: number | null;
+        title: string;
+        note: string | null;
+        createdAt: string;
+        accessible: boolean;
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        } | null;
+    }>;
+};
+
+export type UpdateMyStudyPlanItemInput = {
+    title?: string;
+    note?: string | null;
+    startSec?: number;
+    endSec?: number | null;
+};
+
+export type UpdateMyStudyPlanItemOutputOutput = {
+    id: string;
+    title: string;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+    items: Array<{
+        id: string;
+        position: number;
+        videoId: string;
+        startSec: number;
+        endSec: number | null;
+        title: string;
+        note: string | null;
+        createdAt: string;
+        accessible: boolean;
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        } | null;
+    }>;
+};
+
+export type DeleteMyStudyPlanItemOutputOutput = {
+    id: string;
+    title: string;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+    items: Array<{
+        id: string;
+        position: number;
+        videoId: string;
+        startSec: number;
+        endSec: number | null;
+        title: string;
+        note: string | null;
+        createdAt: string;
+        accessible: boolean;
+        video: {
+            id: string;
+            title: string;
+            thumbnailUrl: string | null;
+            duration: number | null;
+        } | null;
+    }>;
+};
+
 export type CreateVideoTimestampInput = {
     positionSec: number;
     title: string;
@@ -2973,6 +3734,7 @@ export type VideoTimestampOutputOutput = {
     id: string;
     positionSec: number;
     title: string;
+    source: string;
 };
 
 export type UpdateVideoTimestampInput = {
@@ -3011,6 +3773,7 @@ export type VideoSubtitleOutputOutput = {
     label: string;
     publicUrl: string;
     isDefault: boolean;
+    source: string;
 };
 
 export type DeleteVideoSubtitleOutputOutput = {
@@ -8256,6 +9019,105 @@ export type UpdateVideoResponses = {
 
 export type UpdateVideoResponse = UpdateVideoResponses[keyof UpdateVideoResponses];
 
+export type SearchVideosData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query: {
+        q: string;
+    };
+    url: '/workspaces/{workspaceId}/videos/search';
+};
+
+export type SearchVideosResponses = {
+    default: SearchVideosOutputOutput;
+};
+
+export type SearchVideosResponse = SearchVideosResponses[keyof SearchVideosResponses];
+
+export type ListTechniquesData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        q?: string;
+    };
+    url: '/workspaces/{workspaceId}/techniques';
+};
+
+export type ListTechniquesResponses = {
+    default: ListTechniquesOutputOutput;
+};
+
+export type ListTechniquesResponse = ListTechniquesResponses[keyof ListTechniquesResponses];
+
+export type GetTechniqueData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        techniqueKey: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/techniques/{techniqueKey}';
+};
+
+export type GetTechniqueResponses = {
+    default: GetTechniqueOutputOutput;
+};
+
+export type GetTechniqueResponse = GetTechniqueResponses[keyof GetTechniqueResponses];
+
+export type GetVideoTextStatusData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        videoId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/videos/{videoId}/text-status';
+};
+
+export type GetVideoTextStatusResponses = {
+    default: VideoTextStatusOutputOutput;
+};
+
+export type GetVideoTextStatusResponse = GetVideoTextStatusResponses[keyof GetVideoTextStatusResponses];
+
+export type RegenerateVideoTextData = {
+    body: RegenerateVideoTextInput;
+    path: {
+        workspaceId: string;
+        videoId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/videos/{videoId}/regenerate-text';
+};
+
+export type RegenerateVideoTextResponses = {
+    default: RegenerateVideoTextOutputOutput;
+};
+
+export type RegenerateVideoTextResponse = RegenerateVideoTextResponses[keyof RegenerateVideoTextResponses];
+
+export type GetSubtitleCuesData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        videoId: string;
+        subtitleId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/videos/{videoId}/subtitles/{subtitleId}/cues';
+};
+
+export type GetSubtitleCuesResponses = {
+    default: SubtitleCuesOutputOutput;
+};
+
+export type GetSubtitleCuesResponse = GetSubtitleCuesResponses[keyof GetSubtitleCuesResponses];
+
 export type GetVideo2Data = {
     body?: never;
     path: {
@@ -8271,6 +9133,196 @@ export type GetVideo2Responses = {
 };
 
 export type GetVideo2Response = GetVideo2Responses[keyof GetVideo2Responses];
+
+export type ListMyVideoReviewsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/video-reviews';
+};
+
+export type ListMyVideoReviewsResponses = {
+    default: ListMyVideoReviewsOutputOutput;
+};
+
+export type ListMyVideoReviewsResponse = ListMyVideoReviewsResponses[keyof ListMyVideoReviewsResponses];
+
+export type CreateMyVideoReviewData = {
+    body: CreateMyVideoReviewInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/video-reviews';
+};
+
+export type CreateMyVideoReviewResponses = {
+    default: CreateMyVideoReviewOutputOutput;
+};
+
+export type CreateMyVideoReviewResponse = CreateMyVideoReviewResponses[keyof CreateMyVideoReviewResponses];
+
+export type CompleteMyVideoReviewUploadData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/video-reviews/{requestId}/complete';
+};
+
+export type CompleteMyVideoReviewUploadResponses = {
+    default: CompleteMyVideoReviewUploadOutputOutput;
+};
+
+export type CompleteMyVideoReviewUploadResponse = CompleteMyVideoReviewUploadResponses[keyof CompleteMyVideoReviewUploadResponses];
+
+export type DeleteMyVideoReviewData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/video-reviews/{requestId}';
+};
+
+export type DeleteMyVideoReviewResponses = {
+    default: DeleteMyVideoReviewOutputOutput;
+};
+
+export type DeleteMyVideoReviewResponse = DeleteMyVideoReviewResponses[keyof DeleteMyVideoReviewResponses];
+
+export type ListClubVideoReviewsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        status?: 'open' | 'answered' | 'closed';
+    };
+    url: '/workspaces/{workspaceId}/video-reviews';
+};
+
+export type ListClubVideoReviewsResponses = {
+    default: ListClubVideoReviewsOutputOutput;
+};
+
+export type ListClubVideoReviewsResponse = ListClubVideoReviewsResponses[keyof ListClubVideoReviewsResponses];
+
+export type GetVideoReviewData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/video-reviews/{requestId}';
+};
+
+export type GetVideoReviewResponses = {
+    default: GetVideoReviewOutputOutput;
+};
+
+export type GetVideoReviewResponse = GetVideoReviewResponses[keyof GetVideoReviewResponses];
+
+export type GetVideoReviewPlaybackData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/video-reviews/{requestId}/playback';
+};
+
+export type GetVideoReviewPlaybackResponses = {
+    default: GetVideoReviewPlaybackOutputOutput;
+};
+
+export type GetVideoReviewPlaybackResponse = GetVideoReviewPlaybackResponses[keyof GetVideoReviewPlaybackResponses];
+
+export type SetVideoReviewStatusData = {
+    body: SetVideoReviewStatusInput;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/video-reviews/{requestId}/status';
+};
+
+export type SetVideoReviewStatusResponses = {
+    default: SetVideoReviewStatusOutputOutput;
+};
+
+export type SetVideoReviewStatusResponse = SetVideoReviewStatusResponses[keyof SetVideoReviewStatusResponses];
+
+export type AddVideoReviewCommentData = {
+    body: AddVideoReviewCommentInput;
+    path: {
+        workspaceId: string;
+        requestId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/video-reviews/{requestId}/comments';
+};
+
+export type AddVideoReviewCommentResponses = {
+    default: VideoReviewCommentOutputOutput;
+};
+
+export type AddVideoReviewCommentResponse = AddVideoReviewCommentResponses[keyof AddVideoReviewCommentResponses];
+
+export type DeleteVideoReviewCommentData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        requestId: string;
+        commentId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/video-reviews/{requestId}/comments/{commentId}';
+};
+
+export type DeleteVideoReviewCommentResponses = {
+    default: VideoReviewCommentOutputOutput;
+};
+
+export type DeleteVideoReviewCommentResponse = DeleteVideoReviewCommentResponses[keyof DeleteVideoReviewCommentResponses];
+
+export type UpdateVideoReviewCommentData = {
+    body: UpdateVideoReviewCommentInput;
+    path: {
+        workspaceId: string;
+        requestId: string;
+        commentId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/video-reviews/{requestId}/comments/{commentId}';
+};
+
+export type UpdateVideoReviewCommentResponses = {
+    default: VideoReviewCommentOutputOutput;
+};
+
+export type UpdateVideoReviewCommentResponse = UpdateVideoReviewCommentResponses[keyof UpdateVideoReviewCommentResponses];
+
+export type GetReviewClipManifestData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/review-clips/{id}/manifest.m3u8';
+};
+
+export type GetReviewClipManifestResponses = {
+    200: unknown;
+};
 
 export type GetPlaybackData = {
     body?: never;
@@ -9586,6 +10638,259 @@ export type List2Responses = {
 };
 
 export type List2Response = List2Responses[keyof List2Responses];
+
+export type ListMyVideoBookmarksData = {
+    body?: never;
+    path: {
+        videoId: string;
+    };
+    query?: never;
+    url: '/videos/{videoId}/my-bookmarks';
+};
+
+export type ListMyVideoBookmarksResponses = {
+    default: ListMyVideoBookmarksOutputOutput;
+};
+
+export type ListMyVideoBookmarksResponse = ListMyVideoBookmarksResponses[keyof ListMyVideoBookmarksResponses];
+
+export type PutMyVideoBookmarkData = {
+    body: PutMyVideoBookmarkInput;
+    path: {
+        videoId: string;
+        bookmarkId: string;
+    };
+    query?: never;
+    url: '/videos/{videoId}/my-bookmarks/{bookmarkId}';
+};
+
+export type PutMyVideoBookmarkResponses = {
+    default: PutMyVideoBookmarkOutputOutput;
+};
+
+export type PutMyVideoBookmarkResponse = PutMyVideoBookmarkResponses[keyof PutMyVideoBookmarkResponses];
+
+export type GetMyVideoNoteData = {
+    body?: never;
+    path: {
+        videoId: string;
+    };
+    query?: never;
+    url: '/videos/{videoId}/my-note';
+};
+
+export type GetMyVideoNoteResponses = {
+    default: GetMyVideoNoteOutputOutput;
+};
+
+export type GetMyVideoNoteResponse = GetMyVideoNoteResponses[keyof GetMyVideoNoteResponses];
+
+export type PutMyVideoNoteData = {
+    body: PutMyVideoNoteInput;
+    path: {
+        videoId: string;
+    };
+    query?: never;
+    url: '/videos/{videoId}/my-note';
+};
+
+export type PutMyVideoNoteResponses = {
+    default: PutMyVideoNoteOutputOutput;
+};
+
+export type PutMyVideoNoteResponse = PutMyVideoNoteResponses[keyof PutMyVideoNoteResponses];
+
+export type ListMyVideoNotesData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        q?: string;
+    };
+    url: '/workspaces/{workspaceId}/me/video-notes';
+};
+
+export type ListMyVideoNotesResponses = {
+    default: ListMyVideoNotesOutputOutput;
+};
+
+export type ListMyVideoNotesResponse = ListMyVideoNotesResponses[keyof ListMyVideoNotesResponses];
+
+export type ListMyReviewsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/reviews';
+};
+
+export type ListMyReviewsResponses = {
+    default: ListMyReviewsOutputOutput;
+};
+
+export type ListMyReviewsResponse = ListMyReviewsResponses[keyof ListMyReviewsResponses];
+
+export type ReviewMyBookmarkData = {
+    body: ReviewMyBookmarkInput;
+    path: {
+        videoId: string;
+        bookmarkId: string;
+    };
+    query?: never;
+    url: '/videos/{videoId}/my-bookmarks/{bookmarkId}/review';
+};
+
+export type ReviewMyBookmarkResponses = {
+    default: ReviewMyBookmarkOutputOutput;
+};
+
+export type ReviewMyBookmarkResponse = ReviewMyBookmarkResponses[keyof ReviewMyBookmarkResponses];
+
+export type ListMyStudyPlansData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/study-plans';
+};
+
+export type ListMyStudyPlansResponses = {
+    default: ListMyStudyPlansOutputOutput;
+};
+
+export type ListMyStudyPlansResponse = ListMyStudyPlansResponses[keyof ListMyStudyPlansResponses];
+
+export type CreateMyStudyPlanData = {
+    body: CreateMyStudyPlanInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/study-plans';
+};
+
+export type CreateMyStudyPlanResponses = {
+    default: CreateMyStudyPlanOutputOutput;
+};
+
+export type CreateMyStudyPlanResponse = CreateMyStudyPlanResponses[keyof CreateMyStudyPlanResponses];
+
+export type DeleteMyStudyPlanData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        planId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/study-plans/{planId}';
+};
+
+export type DeleteMyStudyPlanResponses = {
+    default: DeleteMyStudyPlanOutputOutput;
+};
+
+export type DeleteMyStudyPlanResponse = DeleteMyStudyPlanResponses[keyof DeleteMyStudyPlanResponses];
+
+export type GetMyStudyPlanData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        planId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/study-plans/{planId}';
+};
+
+export type GetMyStudyPlanResponses = {
+    default: GetMyStudyPlanOutputOutput;
+};
+
+export type GetMyStudyPlanResponse = GetMyStudyPlanResponses[keyof GetMyStudyPlanResponses];
+
+export type UpdateMyStudyPlanData = {
+    body: UpdateMyStudyPlanInput;
+    path: {
+        workspaceId: string;
+        planId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/study-plans/{planId}';
+};
+
+export type UpdateMyStudyPlanResponses = {
+    default: UpdateMyStudyPlanOutputOutput;
+};
+
+export type UpdateMyStudyPlanResponse = UpdateMyStudyPlanResponses[keyof UpdateMyStudyPlanResponses];
+
+export type AddMyStudyPlanItemData = {
+    body: AddMyStudyPlanItemInput;
+    path: {
+        workspaceId: string;
+        planId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/study-plans/{planId}/items';
+};
+
+export type AddMyStudyPlanItemResponses = {
+    default: AddMyStudyPlanItemOutputOutput;
+};
+
+export type AddMyStudyPlanItemResponse = AddMyStudyPlanItemResponses[keyof AddMyStudyPlanItemResponses];
+
+export type ReorderMyStudyPlanItemsData = {
+    body: ReorderMyStudyPlanItemsInput;
+    path: {
+        workspaceId: string;
+        planId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/study-plans/{planId}/items/order';
+};
+
+export type ReorderMyStudyPlanItemsResponses = {
+    default: ReorderMyStudyPlanItemsOutputOutput;
+};
+
+export type ReorderMyStudyPlanItemsResponse = ReorderMyStudyPlanItemsResponses[keyof ReorderMyStudyPlanItemsResponses];
+
+export type DeleteMyStudyPlanItemData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        planId: string;
+        itemId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/study-plans/{planId}/items/{itemId}';
+};
+
+export type DeleteMyStudyPlanItemResponses = {
+    default: DeleteMyStudyPlanItemOutputOutput;
+};
+
+export type DeleteMyStudyPlanItemResponse = DeleteMyStudyPlanItemResponses[keyof DeleteMyStudyPlanItemResponses];
+
+export type UpdateMyStudyPlanItemData = {
+    body: UpdateMyStudyPlanItemInput;
+    path: {
+        workspaceId: string;
+        planId: string;
+        itemId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/study-plans/{planId}/items/{itemId}';
+};
+
+export type UpdateMyStudyPlanItemResponses = {
+    default: UpdateMyStudyPlanItemOutputOutput;
+};
+
+export type UpdateMyStudyPlanItemResponse = UpdateMyStudyPlanItemResponses[keyof UpdateMyStudyPlanItemResponses];
 
 export type Create4Data = {
     body: CreateVideoTimestampInput;

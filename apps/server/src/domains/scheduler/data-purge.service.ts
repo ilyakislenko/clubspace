@@ -23,6 +23,8 @@ export const DISPATCH_LOG_RETENTION_DAYS: Record<string, number> = {
     'access.expiring': 30,
     'retention.digest.run': 30,
     'retention.digest': 30,
+    'review.reminders.run': 7,
+    'review.due': 7,
     'subscription.payment_due': 60,
     'subscription.first_visit_pending': 60,
 }

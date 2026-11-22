@@ -410,6 +410,28 @@ import { SetVideoFavoriteController } from '../features/set-video-favorite/set-v
 import { SetVideoFavoriteHandler } from '../features/set-video-favorite/set-video-favorite.handler'
 import { ListMyFavoritesController } from '../features/list-my-favorites/list-my-favorites.controller'
 import { ListMyFavoritesHandler } from '../features/list-my-favorites/list-my-favorites.handler'
+import { MyVideoBookmarksController } from '../features/manage-my-video-bookmarks/my-video-bookmarks.controller'
+import { ListMyVideoBookmarksHandler } from '../features/manage-my-video-bookmarks/list-my-video-bookmarks.handler'
+import { PutMyVideoBookmarkHandler } from '../features/manage-my-video-bookmarks/put-my-video-bookmark.handler'
+import { MyVideoNoteController } from '../features/manage-my-video-note/my-video-note.controller'
+import { GetMyVideoNoteHandler } from '../features/manage-my-video-note/get-my-video-note.handler'
+import { PutMyVideoNoteHandler } from '../features/manage-my-video-note/put-my-video-note.handler'
+import { ListMyVideoNotesController } from '../features/list-my-video-notes/list-my-video-notes.controller'
+import { ListMyVideoNotesHandler } from '../features/list-my-video-notes/list-my-video-notes.handler'
+import { ListMyReviewsController } from '../features/bookmark-reviews/list-my-reviews.controller'
+import { ListMyReviewsHandler } from '../features/bookmark-reviews/list-my-reviews.handler'
+import { ReviewMyBookmarkController } from '../features/bookmark-reviews/review-my-bookmark.controller'
+import { ReviewMyBookmarkHandler } from '../features/bookmark-reviews/review-my-bookmark.handler'
+import { StudyPlansController } from '../features/study-plans/study-plans.controller'
+import { ListMyStudyPlansHandler } from '../features/study-plans/list-my-study-plans.handler'
+import { CreateMyStudyPlanHandler } from '../features/study-plans/create-my-study-plan.handler'
+import { GetMyStudyPlanHandler } from '../features/study-plans/get-my-study-plan.handler'
+import { UpdateMyStudyPlanHandler } from '../features/study-plans/update-my-study-plan.handler'
+import { DeleteMyStudyPlanHandler } from '../features/study-plans/delete-my-study-plan.handler'
+import { AddMyStudyPlanItemHandler } from '../features/study-plans/add-my-study-plan-item.handler'
+import { UpdateMyStudyPlanItemHandler } from '../features/study-plans/update-my-study-plan-item.handler'
+import { DeleteMyStudyPlanItemHandler } from '../features/study-plans/delete-my-study-plan-item.handler'
+import { ReorderMyStudyPlanItemsHandler } from '../features/study-plans/reorder-my-study-plan-items.handler'
 import { GroupScheduleController } from '../features/manage-group-schedule/group-schedule.controller'
 import { CreateGroupSlotHandler } from '../features/manage-group-schedule/create-group-slot.handler'
 import { UpdateGroupSlotHandler } from '../features/manage-group-schedule/update-group-slot.handler'
@@ -538,6 +560,31 @@ import { GetVideoController } from '../features/get-video/get-video.controller'
 import { GetVideoHandler } from '../features/get-video/get-video.handler'
 import { GetWorkspaceVideoController } from '../features/get-video/get-workspace-video.controller'
 import { GetWorkspaceVideoHandler } from '../features/get-video/get-workspace-video.handler'
+import { SearchVideosController } from '../features/search-videos/search-videos.controller'
+import { SearchVideosHandler } from '../features/search-videos/search-videos.handler'
+import { TechniquesController } from '../features/techniques/techniques.controller'
+import { ListTechniquesHandler } from '../features/techniques/list-techniques.handler'
+import { GetTechniqueHandler } from '../features/techniques/get-technique.handler'
+import { VideoTextController } from '../features/video-text/video-text.controller'
+import { GetSubtitleCuesHandler } from '../features/video-text/get-subtitle-cues.handler'
+import { GetVideoTextStatusHandler } from '../features/video-text/get-video-text-status.handler'
+import { RegenerateVideoTextHandler } from '../features/video-text/regenerate-video-text.handler'
+import { MyVideoReviewsController } from '../features/video-reviews/my-video-reviews.controller'
+import { VideoReviewsController } from '../features/video-reviews/video-reviews.controller'
+import { ReviewClipManifestController } from '../features/video-reviews/review-clip-manifest.controller'
+import { CreateMyVideoReviewHandler } from '../features/video-reviews/create-my-video-review.handler'
+import { CompleteMyVideoReviewUploadHandler } from '../features/video-reviews/complete-my-video-review-upload.handler'
+import { ListMyVideoReviewsHandler } from '../features/video-reviews/list-my-video-reviews.handler'
+import { DeleteMyVideoReviewHandler } from '../features/video-reviews/delete-my-video-review.handler'
+import { ListClubVideoReviewsHandler } from '../features/video-reviews/list-club-video-reviews.handler'
+import { GetVideoReviewHandler } from '../features/video-reviews/get-video-review.handler'
+import { GetVideoReviewPlaybackHandler } from '../features/video-reviews/get-video-review-playback.handler'
+import { SetVideoReviewStatusHandler } from '../features/video-reviews/set-video-review-status.handler'
+import {
+    AddVideoReviewCommentHandler,
+    DeleteVideoReviewCommentHandler,
+    UpdateVideoReviewCommentHandler,
+} from '../features/video-reviews/video-review-comment.handler'
 import { ListCategoriesController } from '../features/list-categories/list-categories.controller'
 import { ListCategoriesHandler } from '../features/list-categories/list-categories.handler'
 import { ListTagsController } from '../features/list-tags/list-tags.controller'
@@ -668,7 +715,14 @@ const controllers: ModuleMetadata['controllers'] = [
     CreateCategoryController,
     CompleteVideoUploadController,
     GetVideoController,
+    // Before GetWorkspaceVideoController: `videos/search` must not match `videos/:videoId`.
+    SearchVideosController,
+    TechniquesController,
+    VideoTextController,
     GetWorkspaceVideoController,
+    MyVideoReviewsController,
+    VideoReviewsController,
+    ReviewClipManifestController,
     GetVideoPlaybackController,
     GetOfflineManifestController,
     GetOfflineDownloadController,
@@ -740,6 +794,12 @@ const controllers: ModuleMetadata['controllers'] = [
     SaveVideoProgressController,
     SetVideoFavoriteController,
     ListMyFavoritesController,
+    MyVideoBookmarksController,
+    MyVideoNoteController,
+    ListMyVideoNotesController,
+    ListMyReviewsController,
+    ReviewMyBookmarkController,
+    StudyPlansController,
     VideoTimestampsController,
     VideoSubtitlesController,
     GroupScheduleController,
@@ -841,6 +901,23 @@ const handlers: ModuleMetadata['providers'] = [
     CompleteVideoUploadHandler,
     GetVideoHandler,
     GetWorkspaceVideoHandler,
+    SearchVideosHandler,
+    ListTechniquesHandler,
+    GetTechniqueHandler,
+    GetVideoTextStatusHandler,
+    RegenerateVideoTextHandler,
+    GetSubtitleCuesHandler,
+    CreateMyVideoReviewHandler,
+    CompleteMyVideoReviewUploadHandler,
+    ListMyVideoReviewsHandler,
+    DeleteMyVideoReviewHandler,
+    ListClubVideoReviewsHandler,
+    GetVideoReviewHandler,
+    GetVideoReviewPlaybackHandler,
+    SetVideoReviewStatusHandler,
+    AddVideoReviewCommentHandler,
+    UpdateVideoReviewCommentHandler,
+    DeleteVideoReviewCommentHandler,
     GetVideoPlaybackHandler,
     GetOfflineManifestHandler,
     GetOfflineDownloadHandler,
@@ -924,6 +1001,22 @@ const handlers: ModuleMetadata['providers'] = [
     SaveVideoProgressHandler,
     SetVideoFavoriteHandler,
     ListMyFavoritesHandler,
+    ListMyVideoBookmarksHandler,
+    PutMyVideoBookmarkHandler,
+    GetMyVideoNoteHandler,
+    PutMyVideoNoteHandler,
+    ListMyVideoNotesHandler,
+    ListMyReviewsHandler,
+    ReviewMyBookmarkHandler,
+    ListMyStudyPlansHandler,
+    CreateMyStudyPlanHandler,
+    GetMyStudyPlanHandler,
+    UpdateMyStudyPlanHandler,
+    DeleteMyStudyPlanHandler,
+    AddMyStudyPlanItemHandler,
+    UpdateMyStudyPlanItemHandler,
+    DeleteMyStudyPlanItemHandler,
+    ReorderMyStudyPlanItemsHandler,
     CreateVideoTimestampHandler,
     UpdateVideoTimestampHandler,
     DeleteVideoTimestampHandler,

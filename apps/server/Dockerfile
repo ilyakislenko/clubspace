@@ -28,6 +28,8 @@ COPY apps/server/package.json apps/server/
 COPY apps/video-worker/package.json apps/video-worker/
 COPY libs/api-client/package.json libs/api-client/
 COPY libs/prisma-client/package.json libs/prisma-client/
+# The shared sport glossary (bundled by webpack; npm ci needs its manifest).
+COPY libs/sport-glossary/package.json libs/sport-glossary/
 # NB: libs/ui-kit is a tsconfig-path-only lib (no package.json) and isn't
 # imported by the server, so it's intentionally not copied here. Adding a
 # `COPY libs/ui-kit/package.json` line back will break the build — the file

@@ -384,3 +384,65 @@ export const formatSessionStart = (iso: string, timeZone: string): string =>
     minute: "2-digit",
     hour12: false,
   }).format(new Date(iso))
+
+type GymRef = { name: string; address: string }
+
+const lower = (s: string): string => s.trim().toLocaleLowerCase("ru")
+
+// The city a gym's address opens with: «Томск» of «Томск, ул. Ленина, 84».
+// null when the address opens with the street («ул. Ленина, 5»).
+export const cityOfAddress = (address: string): string | null => {
+  const comma = address.indexOf(",")
+  if (comma <= 0) return null
+  const head = address.slice(0, comma).trim()
+  // An abbreviation («ул.», «мкр.») or a house number is not a city.
+  if (!head || /[.\d]/.test(head)) return null
+  return head
+}
+
+// A class row names its gym's city only when the gyms on screen are in more
+// than one city; a one-city club never repeats it.
+export const gymCitiesDiffer = (addresses: Iterable<string>): boolean => {
+  const cities = new Set<string>()
+  for (const address of addresses) {
+    const city = cityOfAddress(address)
+    if (city) cities.add(lower(city))
+  }
+  return cities.size > 1
+}
+
+// «BJJ Взрослые · Дворец спорта» held at «СК «Дворец спорта»» reads
+// «BJJ Взрослые»: the row names the gym on its own line (or the filter does).
+// A trailing part naming the gym's city is dropped the same way.
+export const withoutGymEcho = (groupName: string, gym: GymRef | null): string => {
+  if (!gym) return groupName
+  const cut = groupName.lastIndexOf(" · ")
+  if (cut <= 0) return groupName
+  const tail = lower(groupName.slice(cut + 3))
+  if (!tail) return groupName
+  const city = cityOfAddress(gym.address)
+  const echoes =
+    lower(gym.name).includes(tail) || (!!city && lower(city) === tail)
+  return echoes ? groupName.slice(0, cut).trim() : groupName
+}
+
+// The muted second line of a class row: «СК «Юпитер», Северск · И. Шекунов».
+// The gym is left out when the filter already picks one, the city unless
+// the gyms on screen are in different cities; null when nothing is left.
+export const classMetaLine = (p: {
+  gym: GymRef | null
+  showGym: boolean
+  showCity: boolean
+  person: string | null
+}): string | null => {
+  let place: string | null = null
+  if (p.showGym && p.gym) {
+    const city = p.showCity ? cityOfAddress(p.gym.address) : null
+    place =
+      city && !lower(p.gym.name).includes(lower(city))
+        ? `${p.gym.name}, ${city}`
+        : p.gym.name
+  }
+  const parts = [place, p.person].filter((x): x is string => !!x)
+  return parts.length > 0 ? parts.join(" · ") : null
+}

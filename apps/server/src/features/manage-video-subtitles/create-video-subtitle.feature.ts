@@ -22,6 +22,8 @@ export const VideoSubtitleOutputSchema = z.object({
     label: z.string(),
     publicUrl: z.string().url(),
     isDefault: z.boolean(),
+    // manual | auto.
+    source: z.string(),
 })
 
 export class CreateVideoSubtitleFeature {

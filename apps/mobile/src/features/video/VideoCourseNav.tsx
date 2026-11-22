@@ -15,6 +15,8 @@ type Props = {
   onNavigate: (videoId: string, title?: string) => void
 }
 
+// The course around the lesson: the next one as a card (the way on), the
+// previous as a quiet link.
 export function VideoCourseNav({
   videos,
   currentIndex,
@@ -49,7 +51,7 @@ export function VideoCourseNav({
             )}
           </View>
           <View style={styles.upNextBody}>
-            <Text style={styles.upNextLabel}>Следующее</Text>
+            <Text style={styles.upNextLabel}>Следующий урок</Text>
             <Text style={styles.upNextTitle} numberOfLines={2}>
               {next.title}
             </Text>
@@ -58,35 +60,14 @@ export function VideoCourseNav({
         </Pressable>
       )}
 
-      {(prevId || nextId) && (
-        <View style={styles.navRow}>
-          <Pressable
-            disabled={!prevId}
-            onPress={() =>
-              prevId && onNavigate(prevId, videos[currentIndex - 1]?.title)
-            }
-            style={({ pressed }) => [
-              styles.navButton,
-              !prevId && styles.navButtonDisabled,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.navText}>← Предыдущее</Text>
-          </Pressable>
-          <Pressable
-            disabled={!nextId}
-            onPress={() =>
-              nextId && onNavigate(nextId, videos[currentIndex + 1]?.title)
-            }
-            style={({ pressed }) => [
-              styles.navButton,
-              !nextId && styles.navButtonDisabled,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.navText}>Следующее →</Text>
-          </Pressable>
-        </View>
+      {prevId && (
+        <Pressable
+          onPress={() => onNavigate(prevId, videos[currentIndex - 1]?.title)}
+          accessibilityRole="button"
+          style={styles.prevLink}
+        >
+          <Text style={styles.prevText}>← Предыдущий урок</Text>
+        </Pressable>
       )}
     </>
   )
@@ -121,7 +102,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.mutedFaint,
   },
   upNextBody: { flex: 1, gap: 2 },
-  upNextLabel: { ...theme.typography.label },
+  upNextLabel: { ...theme.typography.caption },
   upNextTitle: {
     fontSize: 15,
     fontWeight: "600",
@@ -132,20 +113,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.muted,
     fontWeight: "700",
   },
-  navRow: {
-    flexDirection: "row",
-    gap: theme.spacing(2),
-    marginTop: theme.spacing(2),
-  },
-  navButton: {
-    flex: 1,
-    paddingVertical: theme.spacing(3),
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    alignItems: "center",
-  },
-  navButtonDisabled: { opacity: 0.4 },
-  navText: { fontSize: 13, color: theme.colors.text },
+  prevLink: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
+  prevText: { fontSize: 14, color: theme.colors.textSecondary },
   buttonPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
 })

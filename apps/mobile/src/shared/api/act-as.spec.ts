@@ -18,6 +18,11 @@ describe("shouldSendActAs", () => {
     ["get", "/videos/v-1/web-playback"],
     ["post", "/videos/v-1/progress"],
     ["put", "/videos/v-1/favorite"],
+    ["get", "/videos/v-1/my-bookmarks"],
+    ["put", "/videos/v-1/my-bookmarks/b-1"],
+    ["get", "/videos/v-1/my-note"],
+    ["put", "/videos/v-1/my-note"],
+    ["get", "/workspaces/ws-1/me/video-notes?q=guard"],
   ])("sends it on %s %s", (method, url) => {
     expect(shouldSendActAs(method, url)).toBe(true)
   })

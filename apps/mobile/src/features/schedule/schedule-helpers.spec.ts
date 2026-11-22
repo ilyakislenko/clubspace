@@ -1,5 +1,7 @@
 import {
     DAY_SHORT,
+    cityOfAddress,
+    classMetaLine,
     findActiveGroupException,
     findExceptionForSlot,
     findNextAcrossGroups,
@@ -10,10 +12,12 @@ import {
     formatNextSessionLabel,
     formatSlotShort,
     formatUpcomingLabel,
+    gymCitiesDiffer,
     isoDateString,
     isoDayOfWeek,
     onWeekdayPhrase,
     parseHHMM,
+    withoutGymEcho,
     zonedWallTimeToDate,
 } from './schedule-helpers'
 
@@ -563,5 +567,73 @@ describe('formatUpcomingLabel', () => {
         expect(
             formatUpcomingLabel(new Date('2026-10-27T14:00:00Z'), EKB, now, MSK),
         ).toBe('Сегодня в 19:00 GMT+5')
+    })
+})
+
+const DVORETS = { name: 'СК «Дворец спорта»', address: 'Томск, ул. Красноармейская, 126' }
+const SEVERSK = { name: 'СК «Центр тайского бокса»', address: 'Северск, ул. Транспортная, 32' }
+
+describe('cityOfAddress', () => {
+    it('takes the city the address opens with', () => {
+        expect(cityOfAddress(DVORETS.address)).toBe('Томск')
+    })
+
+    it('has none when the address opens with the street or has no parts', () => {
+        expect(cityOfAddress('ул. Ленина, 5')).toBeNull()
+        expect(cityOfAddress('мкр. Южные Ворота, ул. Тихая, 103')).toBeNull()
+        expect(cityOfAddress('Ленина 5')).toBeNull()
+    })
+})
+
+describe('gymCitiesDiffer', () => {
+    it('is false for a one-city club', () => {
+        expect(
+            gymCitiesDiffer([DVORETS.address, 'Томск, ул. Смирнова, 48б', 'ул. Ленина, 5']),
+        ).toBe(false)
+    })
+
+    it('is true once a gym is in another city', () => {
+        expect(gymCitiesDiffer([DVORETS.address, SEVERSK.address])).toBe(true)
+    })
+})
+
+describe('withoutGymEcho', () => {
+    it('drops a trailing part naming the gym', () => {
+        expect(withoutGymEcho('BJJ Взрослые (Вечер) · Дворец спорта', DVORETS)).toBe(
+            'BJJ Взрослые (Вечер)',
+        )
+    })
+
+    it('drops a trailing part naming the gym’s city', () => {
+        expect(withoutGymEcho('Тайский бокс · Северск', SEVERSK)).toBe('Тайский бокс')
+    })
+
+    it('keeps a name that only looks split, or has no gym', () => {
+        expect(withoutGymEcho('Дети · Старшие', DVORETS)).toBe('Дети · Старшие')
+        expect(withoutGymEcho('BJJ · Дворец спорта', null)).toBe('BJJ · Дворец спорта')
+        expect(withoutGymEcho('BJJ Взрослые', DVORETS)).toBe('BJJ Взрослые')
+    })
+})
+
+describe('classMetaLine', () => {
+    const line = (over: Partial<Parameters<typeof classMetaLine>[0]> = {}) =>
+        classMetaLine({ gym: DVORETS, showGym: true, showCity: false, person: 'И. Шекунов', ...over })
+
+    it('names the gym without its address, then the coach', () => {
+        expect(line()).toBe('СК «Дворец спорта» · И. Шекунов')
+    })
+
+    it('adds the city only when asked, and never twice', () => {
+        expect(line({ showCity: true })).toBe('СК «Дворец спорта», Томск · И. Шекунов')
+        expect(
+            line({ showCity: true, gym: { name: 'Северск', address: SEVERSK.address } }),
+        ).toBe('Северск · И. Шекунов')
+    })
+
+    it('leaves out a gym the filter picked, and the viewer as coach', () => {
+        expect(line({ showGym: false })).toBe('И. Шекунов')
+        expect(line({ person: null })).toBe('СК «Дворец спорта»')
+        expect(line({ showGym: false, person: null })).toBeNull()
+        expect(line({ gym: null, person: null })).toBeNull()
     })
 })

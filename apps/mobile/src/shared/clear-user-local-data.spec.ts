@@ -14,6 +14,7 @@ jest.mock("./api/videos", () => ({
     listMyFavorites: jest.fn(),
     setVideoFavorite: jest.fn(),
 }))
+jest.mock("./api/video-study", () => ({}))
 
 import * as FileSystem from "expo-file-system/legacy"
 

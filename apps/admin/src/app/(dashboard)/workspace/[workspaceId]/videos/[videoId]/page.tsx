@@ -10,6 +10,7 @@ import { PlaylistSelectField } from "../../../../../../features/content/video-de
 import { SubtitlesSection } from "../../../../../../features/content/video-detail/SubtitlesSection"
 import { TagSelectField } from "../../../../../../features/content/video-detail/TagSelectField"
 import { TimestampsSection } from "../../../../../../features/content/video-detail/TimestampsSection"
+import { VideoTextSection } from "../../../../../../features/content/video-detail/VideoTextSection"
 import {
   listAllPlaylists,
   type PlaylistResponse,
@@ -27,6 +28,7 @@ import {
   updateVideo,
   type VideoCategory,
   type VideoSubtitleTrack,
+  type VideoTimestamp,
 } from "../../../../../../shared/api/videos"
 import {
   ALLOWED_THUMBNAIL_ACCEPT,
@@ -48,7 +50,7 @@ type VideoDetails = {
   tags: Array<{ id: string; name: string }>
   categories: VideoCategory[]
   playlists: Array<{ id: string; title: string }>
-  timestamps: Array<{ id: string; positionSec: number; title: string }>
+  timestamps: VideoTimestamp[]
   subtitles: VideoSubtitleTrack[]
 }
 
@@ -167,6 +169,22 @@ export default function WorkspaceVideoWatchPage() {
     void loadVideo()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, videoId])
+
+  // «Пересоздать»: only the chapters and subtitles change — reload just them,
+  // so the player keeps playing.
+  const reloadVideoText = async () => {
+    if (!workspaceId || !videoId) return
+    try {
+      const details = await getVideo({ workspaceId, videoId })
+      setVideo((prev) =>
+        prev && prev.id === details.id
+          ? { ...prev, timestamps: details.timestamps, subtitles: details.subtitles }
+          : prev,
+      )
+    } catch (error) {
+      setActionError(errorMessage(error, "Не удалось обновить главы и субтитры."))
+    }
+  }
 
   useEffect(() => {
     void loadPlaylists()
@@ -547,6 +565,18 @@ export default function WorkspaceVideoWatchPage() {
                     : prev,
                 )
               }
+              onUpdated={(updated) =>
+                setVideo((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        timestamps: prev.timestamps
+                          .map((t) => (t.id === updated.id ? updated : t))
+                          .sort((a, b) => a.positionSec - b.positionSec),
+                      }
+                    : prev,
+                )
+              }
               onError={setActionError}
             />
 
@@ -579,6 +609,13 @@ export default function WorkspaceVideoWatchPage() {
                     : prev,
                 )
               }
+              onError={setActionError}
+            />
+
+            <VideoTextSection
+              workspaceId={video.workspaceId}
+              videoId={video.id}
+              onChanged={() => void reloadVideoText()}
               onError={setActionError}
             />
 

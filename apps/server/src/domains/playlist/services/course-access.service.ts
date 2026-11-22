@@ -19,11 +19,10 @@ import { loadMemberDirectionIds } from '../../directions/direction-scope'
 import { currentSubscriptionWhere } from '../../subscriptions/current-subscriptions'
 import {
     audienceRowSelect,
-    type CourseLock,
     type CourseViewer,
     computeProgressionLocks,
-    evaluateCourseAudience,
-    PROGRESSION_LOCK_REASON,
+    judgeVideoPlacements,
+    progressionCourseIds,
     STAFF_VIEWER,
 } from './course-audience'
 import { buildCourseVisibilityClauses } from './playlist-visibility'
@@ -214,51 +213,114 @@ export class CourseAccessService {
             isStaff: false,
         })
 
-        const visibleCourseIds: string[] = []
-        let allowed = false
-        let lock: CourseLock | null = null
-        for (const placement of placements) {
-            const verdict = evaluateCourseAudience(
-                placement.course.audience,
-                viewer,
-            )
-            if (verdict.hidden) continue
-            visibleCourseIds.push(placement.courseId)
-            if (allowed) continue
-            if (verdict.lock) {
-                lock ??= verdict.lock
-                continue
-            }
-            if (
-                !placement.course.lockedProgression ||
-                !(await this.isLessonLocked(placement.courseId, video.id, userId))
-            ) {
-                allowed = true
-                continue
-            }
-            lock ??= { kind: 'PROGRESSION', reason: PROGRESSION_LOCK_REASON }
+        const progressionLocks = await this.loadProgressionLocks(
+            progressionCourseIds(placements, viewer),
+            userId,
+        )
+        const verdict = judgeVideoPlacements(
+            video.id,
+            placements,
+            viewer,
+            progressionLocks,
+        )
+        if (verdict.allowed) {
+            return { isStaff: false, visibleCourseIds: verdict.visibleCourseIds }
         }
-
-        if (allowed) return { isStaff: false, visibleCourseIds }
-        if (!lock) throw new NotFoundError({ message: 'Видео не найдено' })
-        throw new ForbiddenError({ message: lock.reason })
+        if (!verdict.lock) throw new NotFoundError({ message: 'Видео не найдено' })
+        throw new ForbiddenError({ message: verdict.lock.reason })
     }
 
-    private async isLessonLocked(
-        courseId: string,
-        videoId: string,
+    /**
+     * Which of `videoIds` (videos of `workspaceId`) the user may watch right
+     * now — assertCanWatchVideo's rules (judgeVideoPlacements) in one pass,
+     * for lessons a member collected (study plans, reviews, search). None
+     * while the club's videos are closed to them. A fixed number of queries
+     * however many videos: progression locks are worked out once per course.
+     */
+    async watchableVideoIds(
+        workspaceId: string,
         userId: string,
-    ): Promise<boolean> {
+        videoIds: readonly string[],
+    ): Promise<Set<string>> {
+        const ids = [...new Set(videoIds)]
+        if (ids.length === 0) return new Set()
+        let access: { isStaff: boolean }
+        try {
+            access = await this.resolveMemberAccess(workspaceId, userId)
+        } catch (e) {
+            if (e instanceof ForbiddenError || e instanceof ModuleNotEntitledError) {
+                return new Set()
+            }
+            throw e
+        }
+        if (access.isStaff) return new Set(ids)
+
+        const placements = await this.prisma.courseVideo.findMany({
+            where: {
+                videoId: { in: ids },
+                course: { workspaceId, AND: buildCourseVisibilityClauses({}) },
+            },
+            select: {
+                videoId: true,
+                courseId: true,
+                course: {
+                    select: {
+                        lockedProgression: true,
+                        audience: { select: audienceRowSelect },
+                    },
+                },
+            },
+        })
+        if (placements.length === 0) return new Set()
+        const viewer = await this.loadViewer({ workspaceId, userId, isStaff: false })
+        const progressionLocks = await this.loadProgressionLocks(
+            progressionCourseIds(placements, viewer),
+            userId,
+        )
+        const placementsByVideo = new Map<string, typeof placements>()
+        for (const p of placements) {
+            const own = placementsByVideo.get(p.videoId)
+            if (own) own.push(p)
+            else placementsByVideo.set(p.videoId, [p])
+        }
+        const watchable = new Set<string>()
+        for (const [id, own] of placementsByVideo) {
+            if (judgeVideoPlacements(id, own, viewer, progressionLocks).allowed) {
+                watchable.add(id)
+            }
+        }
+        return watchable
+    }
+
+    // Locked videoIds of each of `courseIds` for `userId` (every asked course
+    // gets an entry): every course's lessons in one read, the user's
+    // completions among them in another, then computeProgressionLocks per
+    // course in memory.
+    private async loadProgressionLocks(
+        courseIds: string[],
+        userId: string,
+    ): Promise<Map<string, Set<string>>> {
+        if (courseIds.length === 0) return new Map()
         const lessons = await this.prisma.courseVideo.findMany({
-            where: { courseId },
+            where: { courseId: { in: courseIds } },
             orderBy: [{ order: 'asc' }, { videoId: 'asc' }],
-            select: { videoId: true, isOptional: true },
+            select: { courseId: true, videoId: true, isOptional: true },
         })
         const completed = await loadCompletedVideoIds(
             this.prisma,
             userId,
-            lessons.map((l) => l.videoId),
+            [...new Set(lessons.map((l) => l.videoId))],
         )
-        return computeProgressionLocks(lessons, completed).has(videoId)
+        // Grouping keeps the course order of the read.
+        const lessonsByCourse = new Map<string, typeof lessons>(
+            courseIds.map((id) => [id, []]),
+        )
+        for (const lesson of lessons) lessonsByCourse.get(lesson.courseId)?.push(lesson)
+        return new Map(
+            [...lessonsByCourse].map(([id, own]) => [
+                id,
+                computeProgressionLocks(own, completed),
+            ]),
+        )
     }
 }

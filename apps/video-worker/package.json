@@ -20,6 +20,34 @@
           "cwd": "{workspaceRoot}"
         }
       },
+      "backfill-thumbnails": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node --import tsx apps/video-worker/scripts/backfill-thumbnails.ts",
+          "cwd": "{workspaceRoot}"
+        }
+      },
+      "backfill-chapters": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node --import tsx apps/video-worker/scripts/backfill-chapters.ts",
+          "cwd": "{workspaceRoot}"
+        }
+      },
+      "backfill-transcripts": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node --import tsx apps/video-worker/scripts/backfill-transcripts.ts",
+          "cwd": "{workspaceRoot}"
+        }
+      },
+      "backfill-techniques": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node --import tsx apps/video-worker/scripts/backfill-techniques.ts",
+          "cwd": "{workspaceRoot}"
+        }
+      },
       "test": {
         "executor": "@nx/jest:jest",
         "options": {

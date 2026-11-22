@@ -5,18 +5,21 @@ jest.mock("../../../shared/api/videos", () => ({
   createSubtitleUpload: jest.fn(),
   createSubtitle: jest.fn(),
   deleteSubtitle: jest.fn(),
+  getSubtitleCues: jest.fn(),
 }))
 
 import {
   createSubtitle,
   createSubtitleUpload,
   deleteSubtitle,
+  getSubtitleCues,
 } from "../../../shared/api/videos"
 import { SubtitlesSection } from "./SubtitlesSection"
 
 const uploadMock = createSubtitleUpload as jest.Mock
 const createMock = createSubtitle as jest.Mock
 const deleteMock = deleteSubtitle as jest.Mock
+const cuesMock = getSubtitleCues as jest.Mock
 
 type Subs = React.ComponentProps<typeof SubtitlesSection>["subtitles"]
 
@@ -44,6 +47,7 @@ beforeEach(() => {
   uploadMock.mockReset()
   createMock.mockReset()
   deleteMock.mockReset()
+  cuesMock.mockReset()
   ;(global.fetch as unknown) = jest.fn().mockResolvedValue({ ok: true })
 })
 
@@ -107,5 +111,33 @@ describe("SubtitlesSection", () => {
       subtitleId: "s1",
     })
     await waitFor(() => expect(onRemoved).toHaveBeenCalledWith("s1"))
+  })
+
+  it("badges the source and previews a track's cues", async () => {
+    cuesMock.mockResolvedValue({
+      cues: [{ from: 75, to: 77, text: "Берём кимуру" }],
+      total: 400,
+    })
+    const { getByRole, getByText, queryByText } = setup([
+      { id: "s1", language: "ru", label: "Русский (авто)", publicUrl: "https://cdn/s.vtt", source: "auto" },
+    ] as Subs)
+    expect(getByText("Авто")).toBeTruthy()
+    fireEvent.click(getByRole("button", { name: "Просмотр" }))
+    expect(cuesMock).toHaveBeenCalledWith({ workspaceId: "w1", videoId: "v1", subtitleId: "s1" })
+    await waitFor(() => expect(getByText("Берём кимуру")).toBeTruthy())
+    expect(getByText("1:15")).toBeTruthy()
+    expect(getByText("Показаны первые 1 из 400.")).toBeTruthy()
+    fireEvent.click(getByRole("button", { name: "Скрыть" }))
+    expect(queryByText("Берём кимуру")).toBeNull()
+  })
+
+  it("reports a preview that can't be read", async () => {
+    cuesMock.mockRejectedValue(new Error("boom"))
+    const { getByRole, onError } = setup([
+      { id: "s1", language: "ru", label: "RU", publicUrl: "https://cdn/s.vtt", source: "manual" },
+    ] as Subs)
+    fireEvent.click(getByRole("button", { name: "Просмотр" }))
+    await waitFor(() => expect(onError).toHaveBeenCalled())
+    expect(getByRole("button", { name: "Просмотр" })).toBeTruthy()
   })
 })

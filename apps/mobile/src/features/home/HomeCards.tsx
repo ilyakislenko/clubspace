@@ -1,5 +1,5 @@
 import { agree, cap } from "@clubspace/ui-kit/brand"
-import React, { type ReactNode } from "react"
+import React, { useState, type ReactNode } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import type { Announcement } from "../../shared/api/announcements"
@@ -10,6 +10,7 @@ import type { PendingFreezeRequest } from "../../shared/api/member-subscriptions
 import type { PersonalTraining } from "../../shared/api/personal-trainings"
 import type { MySubscription } from "../../shared/api/subscriptions"
 import { Chevron } from "../../shared/components/Chevron"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -21,11 +22,17 @@ import {
   formatDuration,
   formatNextSessionLabel,
   formatUpcomingLabel,
+  type NextAcrossGroups,
 } from "../schedule/schedule-helpers"
 import type { RecentEntry } from "../profile/preferences-store"
 import {
+  COACH_TODAY_ROWS,
+  canMarkClassNow,
+  coachNextLine,
+  coachTodayView,
   eventStatusLine,
   formatEventWhen,
+  isClassInProgress,
   pickNextTraining,
   type CoachClassToday,
   type MyNextEvent,
@@ -42,29 +49,42 @@ import {
   type AccessVariant,
 } from "../subscription/subscription-state"
 
-// A tappable (or plain) summary card. `onPress` adds the chevron. It grows to
-// its grid cell's height so a row of cards lines up; `grow={false}` where
-// there is no row to match (a column next to taller content would otherwise
-// stretch it to that height — Yoga's legacy flexGrow behaviour).
+// A tappable (or plain) summary card. `onPress` adds the chevron. One card on
+// Home is `prominent` (the role's main block: the coach's today, the member's
+// next class) — elevated, with a heading; the rest are quiet and lead with
+// their fact instead of a label. It grows to its grid cell's height so a row
+// of cards lines up; `grow={false}` where there is no row to match (a column
+// next to taller content would otherwise stretch it to that height — Yoga's
+// legacy flexGrow behaviour).
 export function HomeCard({
   title,
   onPress,
   children,
   accessibilityLabel,
   grow = true,
+  prominent = false,
 }: {
-  title: string
+  title?: string
   onPress?: () => void
   children: ReactNode
   accessibilityLabel?: string
   grow?: boolean
+  prominent?: boolean
 }) {
   const styles = useThemedStyles(makeStyles)
-  const style = grow ? styles.card : [styles.card, styles.cardNoGrow]
+  const style = [
+    styles.card,
+    prominent ? styles.cardProminent : styles.cardQuiet,
+    !grow && styles.cardNoGrow,
+  ]
   const body = (
     <>
       <View style={styles.cardText}>
-        <Text style={styles.cardTitle}>{title}</Text>
+        {title ? (
+          <Text style={prominent ? styles.cardHeading : styles.cardTitle}>
+            {title}
+          </Text>
+        ) : null}
         {children}
       </View>
       {onPress && <Chevron style={styles.chev} />}
@@ -117,7 +137,8 @@ export function AccessBanner({
 
 /**
  * The soonest class: across the member's groups, a guest booking, a place in
- * a «Запись на занятие» class or a personal session.
+ * a «Запись на занятие» class or a personal session. `prominent` when it is
+ * the viewer's main block (a member, not a coach who also trains).
  */
 export function NextClassCard({
   groups,
@@ -125,6 +146,7 @@ export function NextClassCard({
   classBookings,
   personal,
   onPress,
+  prominent,
 }: {
   groups: MyGroup[]
   bookings: DropInBooking[]
@@ -132,6 +154,7 @@ export function NextClassCard({
   // Confirmed sessions where the viewer is the student.
   personal: PersonalTraining[]
   onPress: () => void
+  prominent?: boolean
 }) {
   const styles = useThemedStyles(makeStyles)
   const { sizeClass } = useResponsive()
@@ -149,7 +172,7 @@ export function NextClassCard({
   if (!found) {
     if (groups.length === 0) {
       return (
-        <HomeCard title={title}>
+        <HomeCard title={title} prominent={prominent}>
           <Text style={styles.muted}>
             Вас пока не добавили в группу — это делает {vocabulary.coach.nom} или администратор
             клуба.
@@ -158,7 +181,7 @@ export function NextClassCard({
       )
     }
     return (
-      <HomeCard title={title} onPress={onPress}>
+      <HomeCard title={title} prominent={prominent} onPress={onPress}>
         <Text style={styles.muted}>
           В ближайшие две недели {vocabulary.session.genPl} нет.
         </Text>
@@ -171,6 +194,7 @@ export function NextClassCard({
     return (
       <HomeCard
         title={title}
+        prominent={prominent}
         onPress={onPress}
         accessibilityLabel={`${title}: ${label}, ${vocabulary.personalSession.nom}`}
       >
@@ -193,6 +217,7 @@ export function NextClassCard({
     return (
       <HomeCard
         title={title}
+        prominent={prominent}
         onPress={onPress}
         accessibilityLabel={`${title}: ${label}, ${booking.groupName}, гостевой визит`}
       >
@@ -219,6 +244,7 @@ export function NextClassCard({
     return (
       <HomeCard
         title={title}
+        prominent={prominent}
         onPress={onPress}
         accessibilityLabel={`${title}: ${label}, ${booking.groupName}, вы записаны`}
       >
@@ -240,6 +266,7 @@ export function NextClassCard({
   return (
     <HomeCard
       title={title}
+      prominent={prominent}
       onPress={onPress}
       accessibilityLabel={`${title}: ${formatNextSessionLabel(next)}, ${group.name}`}
     >
@@ -307,12 +334,13 @@ export function PersonalRequestsCard({
   onPress: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
+  const vocabulary = useVocabulary()
   return (
-    <HomeCard title="Заявки на персональные" onPress={onPress}>
+    <HomeCard onPress={onPress}>
       <Text style={styles.strong}>
-        {count}{" "}
-        {pluralRu(count, "заявка ждёт", "заявки ждут", "заявок ждут")} вашего
-        ответа
+        {count} {pluralRu(count, "заявка", "заявки", "заявок")} на{" "}
+        {vocabulary.personalSession.nomPl}{" "}
+        {pluralRu(count, "ждёт", "ждут", "ждут")} ответа
       </Text>
     </HomeCard>
   )
@@ -331,10 +359,16 @@ export function FreezeRequestsCard({
   const styles = useThemedStyles(makeStyles)
   const count = requests.length
   return (
-    <HomeCard title="Заявки на заморозку">
+    <HomeCard>
       <Text style={styles.strong}>
-        {count} {pluralRu(count, "заявка ждёт", "заявки ждут", "заявок ждут")}{" "}
-        вашего ответа
+        {count}{" "}
+        {pluralRu(
+          count,
+          "заявка на заморозку ждёт",
+          "заявки на заморозку ждут",
+          "заявок на заморозку ждут",
+        )}{" "}
+        ответа
       </Text>
       {requests.slice(0, FREEZE_REQUEST_ROWS).map((r) => (
         <Pressable
@@ -357,40 +391,155 @@ export function FreezeRequestsCard({
 
 /**
  * «Сегодня вы ведёте»: the coach's own classes today and the ones they run
- * as a substitute, each with a mark button.
+ * as a substitute. The class on now and the next ones (at most three); the
+ * finished ones fold into «Прошло: N». «Отметить» only on a class that has
+ * started or starts within half an hour; the others open on a tap all the
+ * same. `onAll` opens today's schedule when more classes follow; without it
+ * (no club schedule) the rest unfold in place. With nothing left to run
+ * today, `next` (the next own class on a later day) becomes the block's
+ * «Следующая — …» line instead of a separate «Ближайшая» card.
  */
 export function CoachTodayCard({
   classes,
-  onMark,
+  now,
+  next,
+  onOpen,
+  onAll,
+  onNext,
   grow,
 }: {
   classes: CoachClassToday[]
-  onMark: (c: CoachClassToday) => void
+  now: Date
+  next: NextAcrossGroups | null
+  onOpen: (c: CoachClassToday) => void
+  onAll?: () => void
+  onNext: () => void
   grow?: boolean
 }) {
+  const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  return (
-    <HomeCard title="Сегодня вы ведёте" grow={grow}>
-      {classes.length === 0 ? (
-        <Text style={styles.muted}>Сегодня занятий по расписанию нет</Text>
-      ) : (
-        classes.map((c) => (
-          <View key={c.key} style={styles.classRow}>
-            <Text style={styles.classText} numberOfLines={2}>
-              {[c.startTime, c.groupName, c.gymName, c.note]
-                .filter(Boolean)
-                .join(" · ")}
+  const vocabulary = useVocabulary()
+  const [showFinished, setShowFinished] = useState(false)
+  const [showAll, setShowAll] = useState(false)
+  const view = coachTodayView(
+    classes,
+    now,
+    showAll ? classes.length : COACH_TODAY_ROWS,
+  )
+  const finishedCount = view.finished.length
+  // More classes than the rows: today's schedule, or (no schedule) unfold.
+  const footer = onAll
+    ? view.hidden > 0 && {
+        label: `Все ${vocabulary.session.nomPl} сегодня (${classes.length}) →`,
+        onPress: onAll,
+      }
+    : (view.hidden > 0 || showAll) &&
+      classes.length - finishedCount > COACH_TODAY_ROWS && {
+        label: showAll ? "Свернуть" : `Ещё ${view.hidden}`,
+        onPress: () => setShowAll((v) => !v),
+      }
+
+  const row = (c: CoachClassToday) => {
+    const mark = canMarkClassNow(c, now)
+    const live = isClassInProgress(c, now)
+    // The gym alone: the city and address live on the class's own screen.
+    const sub = [c.gymName, c.note].filter(Boolean).join(" · ")
+    return (
+      <Pressable
+        key={c.key}
+        onPress={() => onOpen(c)}
+        accessibilityRole="button"
+        accessibilityLabel={`${mark ? "Отметить" : "Открыть"}: ${c.startTime}, ${c.groupName}${sub ? `, ${sub}` : ""}${live ? ", идёт сейчас" : ""}`}
+        style={styles.classRow}
+      >
+        <View style={styles.classBody}>
+          <View style={styles.classLine}>
+            <Text style={[styles.classTime, live && styles.classTimeLive]}>
+              {c.startTime}
             </Text>
-            <Pressable
-              onPress={() => onMark(c)}
-              accessibilityRole="button"
-              accessibilityLabel={`Отметить: ${c.startTime}, ${c.groupName}`}
-              style={styles.markButton}
-            >
-              <Text style={styles.markButtonText}>Отметить</Text>
-            </Pressable>
+            <Text style={styles.classTitle} numberOfLines={1}>
+              {c.groupName}
+            </Text>
           </View>
-        ))
+          {sub ? (
+            <Text style={styles.classSub} numberOfLines={1}>
+              {sub}
+            </Text>
+          ) : null}
+        </View>
+        {mark ? (
+          <View style={styles.markButton}>
+            <Text style={styles.markButtonText}>Отметить</Text>
+          </View>
+        ) : (
+          <Chevron style={styles.chev} />
+        )}
+      </Pressable>
+    )
+  }
+
+  const nextText = next && coachNextLine(next, vocabulary.session)
+  const nextRow = nextText && (
+    <Pressable
+      onPress={onNext}
+      accessibilityRole="button"
+      style={styles.classRow}
+    >
+      <Text style={[styles.classTitle, styles.nextLine]} numberOfLines={2}>
+        {nextText}
+      </Text>
+      <Chevron style={styles.chev} />
+    </Pressable>
+  )
+
+  return (
+    <HomeCard
+      title={
+        classes.length === 0
+          ? `Сегодня ${vocabulary.session.genPl} нет`
+          : "Сегодня вы ведёте"
+      }
+      prominent
+      grow={grow}
+    >
+      {classes.length === 0 ? (
+        nextRow
+      ) : (
+        <>
+          {view.rows.map(row)}
+          {view.rows.length === 0 &&
+            (nextRow || (
+              <Text style={styles.muted}>
+                На сегодня все {vocabulary.session.nomPl} позади
+              </Text>
+            ))}
+          {footer && (
+            <Pressable
+              onPress={footer.onPress}
+              accessibilityRole="button"
+              style={styles.footerLink}
+            >
+              <Text style={styles.link}>{footer.label}</Text>
+            </Pressable>
+          )}
+          {finishedCount > 0 && (
+            <Pressable
+              onPress={() => setShowFinished((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel={`Прошло: ${finishedCount}`}
+              accessibilityState={{ expanded: showFinished }}
+              style={styles.finishedToggle}
+            >
+              <Text style={styles.muted}>Прошло: {finishedCount}</Text>
+              <Icon
+                name={showFinished ? "chevron-up" : "chevron-down"}
+                size={14}
+                color={theme.colors.muted}
+              />
+            </Pressable>
+          )}
+          {showFinished && view.finished.map(row)}
+        </>
       )}
     </HomeCard>
   )
@@ -501,7 +650,7 @@ export function SubscriptionCard({
   )
 }
 
-/** The newest (pinned first) announcement. */
+/** The newest (pinned first) announcement, while it is news. */
 export function AnnouncementCard({
   item,
   onPress,
@@ -514,37 +663,63 @@ export function AnnouncementCard({
   const styles = useThemedStyles(makeStyles)
   return (
     <HomeCard
-      title={item.pinned ? "Объявление · закреплено" : "Объявление"}
+      title={item.pinned ? "Закреплённое объявление" : "Объявление"}
       onPress={onPress}
       grow={grow}
     >
       <Text style={styles.strong} numberOfLines={2}>
         {item.title}
       </Text>
-      <Text style={styles.muted} numberOfLines={2}>
+      <Text style={styles.muted} numberOfLines={1}>
         {item.body}
       </Text>
     </HomeCard>
   )
 }
 
-/** Resume the last video; «Все» when there's more than one to continue. */
+/** «Повторение» with cards due today (Home shows it only then). */
+export function ReviewsCard({
+  due,
+  onPress,
+  grow,
+}: {
+  due: number
+  onPress: () => void
+  grow?: boolean
+}) {
+  const styles = useThemedStyles(makeStyles)
+  const line = `Пора повторить: ${due} ${pluralRu(due, "карточку", "карточки", "карточек")}`
+  return (
+    <HomeCard onPress={onPress} grow={grow} accessibilityLabel={line}>
+      <Text style={styles.strong}>{line}</Text>
+    </HomeCard>
+  )
+}
+
+/**
+ * Resume the last video; «Все» when there's more than one to continue.
+ * `prominent` when it is a member's main block (no next class to show).
+ */
 export function ContinueRow({
   recent,
   count,
   onOpen,
   onAll,
+  prominent,
 }: {
   recent: RecentEntry
   count: number
   onOpen: () => void
   onAll: () => void
+  prominent?: boolean
 }) {
   const styles = useThemedStyles(makeStyles)
   return (
     <View style={styles.continueWrap}>
       <View style={styles.continueHeader}>
-        <Text style={styles.cardTitle}>Продолжить просмотр</Text>
+        <Text style={prominent ? styles.cardHeading : styles.cardTitle}>
+          Продолжить просмотр
+        </Text>
         {count > 1 && (
           <Pressable
             onPress={onAll}
@@ -560,7 +735,10 @@ export function ContinueRow({
         onPress={onOpen}
         accessibilityRole="button"
         accessibilityLabel={`Продолжить: ${recent.title}`}
-        style={styles.card}
+        style={[
+          styles.card,
+          prominent ? styles.cardProminent : styles.cardQuiet,
+        ]}
       >
         <View style={styles.cardText}>
           <Text style={styles.strong} numberOfLines={2}>
@@ -596,16 +774,30 @@ const makeStyles = (theme: Theme) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing(3),
-      backgroundColor: theme.colors.surfaceElevated,
       borderRadius: theme.radius.lg,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      padding: theme.spacing(4),
+      paddingHorizontal: theme.spacing(4),
+    },
+    // The role's main block: raised, roomier.
+    cardProminent: {
+      backgroundColor: theme.colors.surfaceElevated,
+      paddingVertical: theme.spacing(4),
       ...theme.shadows.sm,
+    },
+    // Everything else: flat and tighter, so the main block reads first.
+    cardQuiet: {
+      backgroundColor: theme.colors.surface,
+      paddingVertical: theme.spacing(3),
     },
     cardNoGrow: { flexGrow: 0 },
     cardText: { flex: 1, gap: 2 },
-    cardTitle: { ...theme.typography.label },
+    cardTitle: { ...theme.typography.captionStrong, color: theme.colors.muted },
+    cardHeading: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+      marginBottom: theme.spacing(1),
+    },
     strong: { ...theme.typography.bodyStrong, color: theme.colors.text },
     strongLarge: { ...theme.typography.heading, color: theme.colors.text },
     line: { ...theme.typography.body, color: theme.colors.text },
@@ -623,20 +815,42 @@ const makeStyles = (theme: Theme) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing(3),
-      paddingVertical: theme.spacing(1),
-    },
-    classText: { ...theme.typography.body, color: theme.colors.text, flex: 1 },
-    markButton: {
-      paddingHorizontal: theme.spacing(4),
       paddingVertical: theme.spacing(2),
+    },
+    classBody: { flex: 1, gap: 2 },
+    classLine: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: theme.spacing(2),
+    },
+    classTime: { ...theme.typography.bodyStrong, color: theme.colors.text },
+    classTimeLive: { color: theme.colors.accent },
+    classTitle: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+      flexShrink: 1,
+    },
+    classSub: { ...theme.typography.caption, color: theme.colors.muted },
+    nextLine: { flex: 1 },
+    markButton: {
+      paddingHorizontal: theme.spacing(3),
+      paddingVertical: theme.spacing(1) + 2,
       borderRadius: theme.radius.full,
       backgroundColor: theme.colors.accent,
     },
     markButtonText: {
       color: theme.colors.accentText,
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: "600",
     },
+    finishedToggle: {
+      alignSelf: "flex-start",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing(1),
+      paddingVertical: theme.spacing(1),
+    },
+    footerLink: { alignSelf: "flex-start", paddingVertical: theme.spacing(1) },
     chev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
     banner: {
       padding: theme.spacing(4),

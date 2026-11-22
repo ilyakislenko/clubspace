@@ -203,13 +203,41 @@ describe('PlaylistService.getPlaylist', () => {
         expect(out.audienceSummary).toBe('Доступно с уровня «Синий пояс»')
         expect(prisma.videoWatched.findMany).not.toHaveBeenCalled()
     })
+
+    it('borrows the cover of the first lesson, in course order, that has one', async () => {
+        const withCover = (videoId: string, order: number) => {
+            const row = lesson(videoId, order)
+            return { ...row, video: { ...row.video, thumbnailUrl: `${videoId}.jpg` } }
+        }
+        const { service } = setup({
+            ...COURSE_ROW,
+            chapters: [],
+            videos: [lesson('v1', 0), withCover('v2', 1), withCover('v3', 2)],
+        })
+        const out = await get(service)
+        expect(out.thumbnailUrl).toBe('v2.jpg')
+        expect(out.videos.map((v) => v.thumbnailUrl)).toEqual([null, 'v2.jpg', 'v3.jpg'])
+    })
+
+    it('keeps the course’s own cover over any lesson’s', async () => {
+        const row = lesson('v1', 0)
+        const { service } = setup({
+            ...COURSE_ROW,
+            thumbnailUrl: 'course.jpg',
+            chapters: [],
+            videos: [{ ...row, video: { ...row.video, thumbnailUrl: 'v1.jpg' } }],
+        })
+        expect((await get(service)).thumbnailUrl).toBe('course.jpg')
+    })
 })
 
 describe('PlaylistService.listPlaylists', () => {
     const setup = (rows: unknown[]) => {
         const prisma = {
             course: {
-                findMany: jest.fn().mockResolvedValue(rows),
+                findMany: jest
+                    .fn()
+                    .mockResolvedValue(rows.map((row) => ({ videos: [], ...(row as object) }))),
                 count: jest.fn().mockResolvedValue(rows.length),
             },
             $transaction: jest.fn((ops: Array<Promise<unknown>>) => Promise.all(ops)),
@@ -244,5 +272,24 @@ describe('PlaylistService.listPlaylists', () => {
         expect(prisma.course.findMany.mock.calls[0][0].where.AND).toEqual([])
         expect(out.data[0].lock).toBeNull()
         expect(out.data[0].audienceSummary).toBe('Доступно с уровня «Синий пояс»')
+    })
+
+    it('falls back to the first covered lesson, loaded with the page', async () => {
+        const lessonCover = [{ video: { thumbnailUrl: 'lesson.jpg' } }]
+        const { service, prisma } = setup([
+            { ...COURSE_ROW, videos: lessonCover },
+            { ...COURSE_ROW, id: 'c2', thumbnailUrl: 'course.jpg', videos: lessonCover },
+            { ...COURSE_ROW, id: 'c3', videos: [] },
+        ])
+        const out = await service.listPlaylists({ workspaceId: 'w1', viewer: STUDENT })
+        expect(out.data.map((c) => c.thumbnailUrl)).toEqual(['lesson.jpg', 'course.jpg', null])
+        // In the same query as the page: the first lesson by course order
+        // among those with a cover.
+        expect(prisma.course.findMany.mock.calls[0][0].include.videos).toEqual({
+            where: { video: { thumbnailUrl: { not: null } } },
+            orderBy: [{ order: 'asc' }, { videoId: 'asc' }],
+            take: 1,
+            select: { video: { select: { thumbnailUrl: true } } },
+        })
     })
 })

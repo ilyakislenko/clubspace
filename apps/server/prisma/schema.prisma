@@ -191,6 +191,13 @@ model Workspace {
   plans         Plan[]
   watched       VideoWatched[]
   favorites     VideoFavorite[]
+  videoBookmarks VideoBookmark[]
+  videoNotes     VideoNote[]
+  bookmarkReviews BookmarkReview[]
+  studyPlans      StudyPlan[]
+  reviewClips     ReviewClip[]
+  videoTechniqueMentions VideoTechniqueMention[]
+  videoReviewRequests VideoReviewRequest[]
   gyms          Gym[]
   directions    Direction[]
   directionManagers DirectionManager[]
@@ -328,6 +335,13 @@ model User {
   webPushSubscriptions    WebPushSubscription[]
   watched                 VideoWatched[]
   favorites               VideoFavorite[]
+  videoBookmarks          VideoBookmark[]
+  videoNotes              VideoNote[]
+  bookmarkReviews         BookmarkReview[]
+  studyPlans              StudyPlan[]
+  reviewClips             ReviewClip[]
+  videoReviewRequests     VideoReviewRequest[]  @relation("VideoReviewMember")
+  videoReviewComments     VideoReviewComment[]  @relation("VideoReviewAuthor")
   coachOfGroups           Group[]                  @relation("GroupCoach")
   coachAssignments        GroupCoach[]             @relation("GroupCoaches")
   managedDirections       DirectionManager[]
@@ -435,6 +449,8 @@ model NotificationPreferences {
   inactivityEnabled     Boolean @default(true)
   // Monday «Аналитика за неделю» to the club's owner and admins (push + e-mail).
   analyticsDigestEnabled Boolean @default(true)
+  // «Пора повторить»: the evening push when bookmark cards are due for review.
+  reviewRemindersEnabled Boolean @default(true)
 
   email           String? @db.VarChar(255)
   telegramAccount Int?
@@ -1184,6 +1200,11 @@ model Video {
   // upload completes. Summed per workspace for the plan's storage limit; null
   // for uploads that never completed.
   sizeBytes BigInt?
+  // When the video worker last looked for automatic chapters (titles on
+  // screen, then speech) and finished, whatever it found. Null: never
+  // scanned, or the scan failed — the backfill picks those up. Set once, so
+  // chapters staff delete are not generated again.
+  chaptersScannedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1193,8 +1214,13 @@ model Video {
   courses    CourseVideo[]
   watched    VideoWatched[]
   favorites  VideoFavorite[]
+  bookmarks  VideoBookmark[]
+  notes      VideoNote[]
   timestamps VideoTimestamp[]
   subtitles  VideoSubtitle[]
+  transcript VideoTranscript?
+  techniqueMentions VideoTechniqueMention[]
+  studyPlanItems StudyPlanItem[]
 
   @@index([workspaceId])
   @@index([workspaceId, status])
@@ -1212,10 +1238,59 @@ model VideoSubtitle {
   storageKey String
   publicUrl  String
   isDefault  Boolean  @default(false)
+  // Who made it: 'manual' (staff upload) or 'auto' (the video worker, from
+  // the transcript — or its Russian translation). The worker only creates or
+  // replaces 'auto' rows; a staff upload for a language replaces the row and
+  // makes it 'manual'.
+  source     String   @default("manual") @db.VarChar(16)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   @@unique([videoId, language])
+  @@index([videoId])
+}
+
+// What is said in a video, written by the video worker (Whisper): its
+// automatic subtitles are built from it, and later a search inside videos.
+// One per video. segments: [{ from, to, text }] in seconds from the start,
+// empty when there is no speech (or no audio) — the video was transcribed
+// all the same. language: what Whisper detected, 'und' when it could not.
+// translations: the same speech in other languages, by language code — for
+// now { "ru": [{ from, to, text }] }, the cues of the automatic Russian
+// subtitles; null until one is made.
+model VideoTranscript {
+  videoId      String   @id @db.Uuid
+  video        Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  language     String   @db.VarChar(16)
+  segments     Json
+  translations Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// «Техники»: where a technique of the club's sport glossary
+// (libs/sport-glossary) is named in a lesson — a chapter title (strong) or
+// what is said / its Russian translation (weak). Derived data: the worker
+// fills it after the chapters and transcript, the server redoes the chapter
+// rows when a coach edits chapters; rebuilt any time by the backfill script.
+model VideoTechniqueMention {
+  id          String   @id @default(uuid()) @db.Uuid
+  videoId     String   @db.Uuid
+  workspaceId String   @db.Uuid
+  // The technique's key (techniqueKey of its canonical English term).
+  technique   String   @db.VarChar(80)
+  // chapter | speech | speechRu
+  kind        String   @db.VarChar(16)
+  atSec       Int
+  // The chapter title or the cue said there, and the words that named it.
+  text        String   @db.Text
+  matched     String   @db.VarChar(200)
+  createdAt   DateTime @default(now())
+
+  video     Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, technique])
   @@index([videoId])
 }
 
@@ -1228,6 +1303,11 @@ model VideoTimestamp {
   video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   positionSec Int
   title       String   @db.VarChar(255)
+  // Who made it: 'manual' (staff, through the API), or the video worker on a
+  // video with no chapters — 'ocr' (titles burned into the picture) or
+  // 'speech' (named from the instructor's speech). A staff edit makes it
+  // 'manual'.
+  source      String   @default("manual") @db.VarChar(16)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1251,6 +1331,193 @@ model VideoFavorite {
   @@id([userId, videoId])
   @@index([userId, workspaceId, createdAt])
   @@index([videoId])
+}
+
+// A student's personal bookmark on a video. Offline-first: the id is
+// generated on the device and updatedAt comes from the client clock
+// (last-write-wins). endSec set = a saved A–B segment (endSec > positionSec).
+model VideoBookmark {
+  id          String   @id @db.Uuid
+  userId      String   @db.Uuid
+  videoId     String   @db.Uuid
+  workspaceId String   @db.Uuid
+  positionSec Int
+  endSec      Int?
+  label       String   @default("") @db.VarChar(255)
+  note        String   @default("") @db.Text
+  // Sketch over the paused frame (arrows/ellipses/pen, coordinates normalized
+  // to the video frame); shape validated by the bookmark PUT. Null = none.
+  drawing     Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  // Tombstone: a deleted bookmark keeps its row so an older offline edit
+  // can't resurrect it (last-write-wins compares against updatedAt).
+  deletedAt   DateTime?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  review    BookmarkReview?
+
+  @@index([userId, videoId])
+  @@index([userId, workspaceId])
+}
+
+// The spaced-repetition schedule («Повторение») of one bookmark / A–B segment.
+// Kept apart from VideoBookmark because those rows are last-write-wins synced
+// from devices — a schedule field there would be clobbered by an older edit.
+// No row = a «new» card, due one day after the bookmark was created. Rules:
+// features/bookmark-reviews/review-scheduler.ts.
+model BookmarkReview {
+  bookmarkId     String   @id @db.Uuid
+  userId         String   @db.Uuid
+  workspaceId    String   @db.Uuid
+  dueAt          DateTime
+  intervalDays   Int      @default(0)
+  ease           Float    @default(2.5)
+  reps           Int      @default(0)
+  lapses         Int      @default(0)
+  // Client clock of the last applied grade; an older (replayed) grade is ignored.
+  lastReviewedAt DateTime
+  updatedAt      DateTime @updatedAt
+
+  bookmark  VideoBookmark @relation(fields: [bookmarkId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, workspaceId, dueAt])
+}
+
+// «Мои планы»: a member's personal study plan — moments and segments picked
+// from different videos, played back to back. Online-only (server ids).
+model StudyPlan {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  workspaceId String   @db.Uuid
+  title       String   @db.VarChar(120)
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  // Touched by item edits too, so the list shows recently worked-on first.
+  updatedAt   DateTime @updatedAt
+
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items     StudyPlanItem[]
+
+  @@index([userId, workspaceId, updatedAt])
+}
+
+// One moment (endSec null) or segment (endSec > startSec) of a plan.
+model StudyPlanItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  planId    String   @db.Uuid
+  position  Int
+  videoId   String   @db.Uuid
+  startSec  Int
+  endSec    Int?
+  title     String   @default("") @db.VarChar(255)
+  note      String?  @db.Text
+  createdAt DateTime @default(now())
+
+  plan  StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  video Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([planId, position])
+  @@index([videoId])
+}
+
+// «Разбор видео»: a member's own clip (drilling, sparring) sent to the club's
+// coaches for feedback. Deliberately NOT a `Video` row: every course, list,
+// search, stat, notification and AI tool reads `Video`, so a private clip
+// there would be one missed filter away from showing up as club content.
+// The transcode worker processes it from the same queue (job
+// `{ reviewClipId }`); its files live under raw/review/<id>/ and
+// hls/review/<id>/ (thumbnail included) — both private.
+model ReviewClip {
+  id           String    @id @db.Uuid
+  workspaceId  String    @db.Uuid
+  ownerUserId  String    @db.Uuid
+  // uploading → uploaded → processing → ready | failed
+  status       String    @default("uploading") @db.VarChar(16)
+  errorMessage String?   @db.Text
+  rawBucket    String
+  rawKey       String
+  hlsBucket    String
+  hlsMasterKey String?
+  // Private: served through short-lived presigned URLs.
+  thumbnailKey String?
+  duration     Int?
+  sizeBytes    BigInt?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner     User                @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  request   VideoReviewRequest?
+
+  @@index([ownerUserId])
+  @@index([workspaceId])
+}
+
+// A member's request for a coach's review of their clip (one clip each).
+model VideoReviewRequest {
+  id           String   @id @default(uuid()) @db.Uuid
+  workspaceId  String   @db.Uuid
+  clipId       String   @unique @db.Uuid
+  memberUserId String   @db.Uuid
+  title        String   @db.VarChar(200)
+  message      String?  @db.Text
+  // open (waits for a coach) | answered | closed
+  status       String   @default("open") @db.VarChar(16)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  clip      ReviewClip           @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    User                 @relation("VideoReviewMember", fields: [memberUserId], references: [id], onDelete: Cascade)
+  comments  VideoReviewComment[]
+
+  @@index([workspaceId, status, createdAt])
+  @@index([memberUserId, workspaceId])
+}
+
+// A coach's comment pinned to a moment (or segment) of the clip, optionally
+// with a drawing over the frame (same shape as a bookmark's drawing).
+model VideoReviewComment {
+  id           String   @id @default(uuid()) @db.Uuid
+  requestId    String   @db.Uuid
+  authorUserId String   @db.Uuid
+  atSec        Int
+  endSec       Int?
+  text         String   @db.Text
+  drawing      Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  request VideoReviewRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author  User               @relation("VideoReviewAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, atSec])
+  @@index([authorUserId])
+}
+
+// A student's personal free-text note on a video (one per user+video).
+// updatedAt comes from the client clock (last-write-wins). A cleared note
+// keeps its row with empty text as a tombstone, so an older offline edit
+// can't bring it back.
+model VideoNote {
+  userId      String   @db.Uuid
+  videoId     String   @db.Uuid
+  workspaceId String   @db.Uuid
+  text        String   @db.Text
+  updatedAt   DateTime
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, videoId])
+  @@index([userId, workspaceId])
 }
 
 model VideoWatched {

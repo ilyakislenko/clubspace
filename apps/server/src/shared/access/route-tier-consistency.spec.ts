@@ -48,6 +48,7 @@ const EXPECTED_ALLOW_SUSPENDED = [
 // without the decorator; everything else (account, devices, notifications,
 // the guardian's own «Дети» routes) must keep acting as the signed-in person.
 const EXPECTED_ACT_AS_ALLOWED = [
+    'bookmark-reviews/review-my-bookmark.controller.ts reviewMyBookmark',
     'export-my-data/export-my-data.controller.ts exportMyData',
     'get-me/get-me.controller.ts getMe',
     'get-my-workspaces/get-my-workspaces.controller.ts getMyWorkspaces',
@@ -55,6 +56,10 @@ const EXPECTED_ACT_AS_ALLOWED = [
     'get-web-playback/get-web-playback.controller.ts getWebPlayback',
     'join-workspace/join-workspace.controller.ts joinWorkspaceByCode',
     'join-workspace/list-my-join-requests.controller.ts listMyJoinRequests',
+    'manage-my-video-bookmarks/my-video-bookmarks.controller.ts listMyVideoBookmarks',
+    'manage-my-video-bookmarks/my-video-bookmarks.controller.ts putMyVideoBookmark',
+    'manage-my-video-note/my-video-note.controller.ts getMyVideoNote',
+    'manage-my-video-note/my-video-note.controller.ts putMyVideoNote',
     'my-agenda/my-agenda.controller.ts getMyAgenda',
     'save-video-progress/save-video-progress.controller.ts save',
     'set-video-favorite/set-video-favorite.controller.ts setFavorite',
@@ -72,6 +77,8 @@ const EXPECTED_NON_BUS_ROUTES: Record<string, string | null> = {
     'mcp/mcp.controller.ts handleMcpPost': null,
     'mcp/mcp.controller.ts handleMcpGet': null,
     'mcp/mcp.controller.ts handleMcpDelete': null,
+    // «Разбор видео» HLS proxy: playback token + member/staff re-check inside.
+    'video-reviews/review-clip-manifest.controller.ts getReviewClipManifest': null,
 }
 
 const walk = (dir: string): string[] =>

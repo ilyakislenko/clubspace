@@ -1,5 +1,7 @@
 import type { ScheduleSession } from "../../shared/api/groups"
+import { canMarkClassNow } from "../home/home-helpers"
 import { shortPersonName } from "./schedule-calendar"
+import { zonedParts } from "./schedule-helpers"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 // The server records a forgotten substitution for the past week's classes.
@@ -57,6 +59,62 @@ export const substitutionLine = (
   const name = shortPersonName(sub.substitute)
   if (sub.status === "APPROVED") return `Замена: ${name}`
   return showPending ? `Запрос на замену: ${name}` : null
+}
+
+/**
+ * Who a class row names after its gym: the approved substitute («Замена:
+ * И. Фамилия»), else the group's coach — nobody when that is the viewer.
+ */
+export const classPersonLabel = (
+  s: Pick<ScheduleSession, "group" | "substitution">,
+  meId: string | null,
+): string | null => {
+  const sub = s.substitution
+  if (sub?.status === "APPROVED") {
+    return sub.substitute.id === meId
+      ? null
+      : `Замена: ${shortPersonName(sub.substitute)}`
+  }
+  return s.group.coach.id === meId ? null : shortPersonName(s.group.coach)
+}
+
+/**
+ * The viewer runs this class in person: their own group's class nobody took
+ * over, or the one they substitute on. Admin scope alone doesn't count.
+ */
+export const runsClassMyself = (
+  s: ScheduleSession,
+  meId: string | null,
+  coachGroupIds: ReadonlySet<string>,
+): boolean => {
+  if (substitutesFor(s, meId)) return true
+  const ownGroup =
+    coachGroupIds.has(s.groupId) || (!!meId && s.group.coach.id === meId)
+  return ownGroup && s.substitution?.status !== "APPROVED"
+}
+
+/**
+ * «Отметить посещаемость» right on the row: the viewer's own class that is on
+ * now, starts within the lead time, or ended earlier the same day (the
+ * class's zone). Every other class keeps it in its sheet.
+ */
+export const markOnRow = (
+  s: ScheduleSession,
+  meId: string | null,
+  coachGroupIds: ReadonlySet<string>,
+  now: Date,
+): boolean => {
+  if (s.cancelled || !runsClassMyself(s, meId, coachGroupIds)) return false
+  if (!canMarkClassNow({ startsAt: Date.parse(s.startAt) }, now)) return false
+  const endsAt = new Date(s.endAt)
+  if (endsAt.getTime() > now.getTime()) return true
+  const end = zonedParts(endsAt, s.timezone)
+  const today = zonedParts(now, s.timezone)
+  return (
+    end.year === today.year &&
+    end.month === today.month &&
+    end.day === today.day
+  )
 }
 
 export type SubstitutionAction =

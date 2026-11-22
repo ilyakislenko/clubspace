@@ -174,6 +174,20 @@ describe("resolveAppConfig — push", () => {
     )
   })
 
+  it("lists expo-image-picker for «Разбор видео»: the gallery only", () => {
+    const out = resolveAppConfig(CANONICAL_ENV)
+    expect(pluginOptions(out, "expo-image-picker")).toEqual({
+      photosPermission:
+        "Доступ к галерее нужен, чтобы отправить своё видео на разбор",
+      cameraPermission: false,
+      microphonePermission: false,
+    })
+    // The system picker needs no storage permission.
+    expect(out.android.blockedPermissions).toContain(
+      "android.permission.READ_EXTERNAL_STORAGE",
+    )
+  })
+
   it("asks for no Face ID and keeps audio in the foreground", () => {
     const out = resolveAppConfig(CANONICAL_ENV)
     expect(pluginOptions(out, "expo-secure-store")).toEqual({

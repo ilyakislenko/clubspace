@@ -23,6 +23,11 @@ const USER_LEVEL_RULES: readonly Rule[] = [
   { method: "get", path: new RegExp(`^/videos/${SEGMENT}/web-playback$`) },
   { method: "post", path: new RegExp(`^/videos/${SEGMENT}/progress$`) },
   { method: "put", path: new RegExp(`^/videos/${SEGMENT}/favorite$`) },
+  // The child's own bookmarks and lesson notes.
+  { method: "get", path: new RegExp(`^/videos/${SEGMENT}/my-bookmarks$`) },
+  { method: "put", path: new RegExp(`^/videos/${SEGMENT}/my-bookmarks/${SEGMENT}$`) },
+  { method: "get", path: new RegExp(`^/videos/${SEGMENT}/my-note$`) },
+  { method: "put", path: new RegExp(`^/videos/${SEGMENT}/my-note$`) },
 ]
 
 // A club's routes: /workspaces/<id> and everything under it. The server still

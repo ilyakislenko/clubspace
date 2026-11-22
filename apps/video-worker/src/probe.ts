@@ -43,6 +43,8 @@ export interface ProbeResult {
     // null when the container does not state a duration (some WebM files).
     durationSec: number | null
     hasVideo: boolean
+    // A silent screen recording has no audio stream: nothing for Whisper.
+    hasAudio: boolean
 }
 
 export interface TranscodeLimits {
@@ -78,6 +80,7 @@ export const parseProbeOutput = (stdout: string): ProbeResult => {
         formatName: typeof format?.format_name === 'string' ? format.format_name : '',
         durationSec: Number.isFinite(duration) && duration > 0 ? duration : null,
         hasVideo: (streams ?? []).some((s) => s.codec_type === 'video'),
+        hasAudio: (streams ?? []).some((s) => s.codec_type === 'audio'),
     }
 }
 

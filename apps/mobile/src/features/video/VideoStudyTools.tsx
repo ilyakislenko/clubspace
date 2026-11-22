@@ -1,255 +1,405 @@
 import React, { useEffect, useState } from "react"
 import { StyleSheet, Text, View } from "react-native"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
-import { useVocabulary } from "../../shared/use-vocabulary"
 import type { Theme } from "../../shared/theme"
-import { formatPosition } from "./format-position"
+import type { BookmarkDrawing } from "../../shared/api/video-study"
+import {
+  bookmarkOpenLabel,
+  formatBookmarkTime,
+  formatPosition,
+} from "./format-position"
+import { MoreButton } from "./MenuOption"
+import type { SharedMoment } from "./moment-link"
+import { MomentMenuSheet } from "./MomentMenuSheet"
 
 type Timestamp = { id: string; positionSec: number; title: string }
-type Bookmark = { id: string; position: number; label: string }
+// endSec set = a saved A–B segment; drawing = a sketch on its paused frame.
+type Bookmark = {
+  id: string
+  positionSec: number
+  endSec: number | null
+  label: string
+  note: string
+  drawing: BookmarkDrawing | null
+}
+type BookmarkField = "label" | "note"
 
 type Props = {
   timestamps?: Timestamp[]
+  // Index into `timestamps` of the chapter playing now; -1 = none.
+  currentChapter: number
   bookmarks: Bookmark[]
   note: string
   onSeek: (sec: number) => void
+  // A bookmark's tap: seek, loop a segment A–B, or pause on its drawing.
+  onOpenBookmark: (bookmark: Bookmark) => void
+  // «Поделиться моментом» in a chapter's or bookmark's menu.
+  onShareMoment: (moment: SharedMoment) => void
   onAddBookmark: () => void
   onRemoveBookmark: (id: string) => void
-  onRenameBookmark: (id: string, label: string) => void
+  onUpdateBookmark: (
+    id: string,
+    patch: Partial<Pick<Bookmark, BookmarkField>>,
+  ) => void
   onNoteChange: (text: string) => void
   // The id of the just-added bookmark, so its name field opens for editing
-  // immediately (otherwise a new bookmark reads as "Без названия").
+  // immediately (otherwise a new bookmark reads as just its time).
   justAddedBookmarkId?: string | null
+  // «В план» in a chapter's or bookmark's menu (omitted = not offered).
+  onAddChapterToPlan?: (index: number) => void
+  onAddBookmarkToPlan?: (bookmarkId: string) => void
 }
 
-// The study tools shown below the player: chapters (read-only seek targets),
-// personal bookmarks (add/seek/remove) and a free-text note. None of these
-// touch the video player instance directly — they call back into the screen.
+// The study tools below the player: chapters (seek targets, shown from two
+// on — the seek bar's ticks carry a lone one), personal bookmarks (tap to
+// open, «⋯» for the rest) and a note for the whole lesson, opened on demand.
+// None of these touch the player — they call back into the screen.
 export function VideoStudyTools({
   timestamps,
+  currentChapter,
   bookmarks,
   note,
   onSeek,
+  onOpenBookmark,
+  onShareMoment,
   onAddBookmark,
   onRemoveBookmark,
-  onRenameBookmark,
+  onUpdateBookmark,
   onNoteChange,
   justAddedBookmarkId,
+  onAddChapterToPlan,
+  onAddBookmarkToPlan,
 }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const vocabulary = useVocabulary()
-  const [editingId, setEditingId] = useState<string | null>(null)
+  // A bookmark's name or note being typed, in place.
+  const [editing, setEditing] = useState<{
+    id: string
+    field: BookmarkField
+  } | null>(null)
   const [draft, setDraft] = useState("")
+  const [editingNote, setEditingNote] = useState(false)
+  // The row whose «⋯» menu is open.
+  const [menu, setMenu] = useState<
+    { kind: "chapter"; index: number } | { kind: "bookmark"; id: string } | null
+  >(null)
 
   // Open the name field for a freshly-added bookmark so the user can name it
   // right away.
   useEffect(() => {
     if (justAddedBookmarkId) {
-      setEditingId(justAddedBookmarkId)
+      setEditing({ id: justAddedBookmarkId, field: "label" })
       setDraft("")
     }
   }, [justAddedBookmarkId])
 
-  const startEditing = (id: string, current: string) => {
-    setEditingId(id)
+  const startEditing = (id: string, field: BookmarkField, current: string) => {
+    setEditing({ id, field })
     setDraft(current)
   }
-  const commitEditing = (id: string) => {
-    onRenameBookmark(id, draft.trim())
-    setEditingId(null)
+  // Saved on every keystroke, like the lesson note: Android keeps the field
+  // focused when the keyboard is hidden with Back, so a blur-only save would
+  // lose the text when the member then leaves the lesson.
+  const changeDraft = (text: string) => {
+    setDraft(text)
+    if (editing) onUpdateBookmark(editing.id, { [editing.field]: text })
   }
+  const commitEditing = () => {
+    if (!editing) return
+    onUpdateBookmark(editing.id, { [editing.field]: draft.trim() })
+    setEditing(null)
+  }
+
+  const chapters = timestamps && timestamps.length >= 2 ? timestamps : null
+  const menuChapter = menu?.kind === "chapter" ? chapters?.[menu.index] : undefined
+  const menuBookmark =
+    menu?.kind === "bookmark" ? bookmarks.find((b) => b.id === menu.id) : undefined
+
+  const addBookmark = (
+    <Pressable
+      onPress={onAddBookmark}
+      accessibilityRole="button"
+      accessibilityLabel="Добавить закладку на текущем месте"
+      style={styles.addRow}
+    >
+      <Icon name="add" size={18} color={theme.colors.accent} />
+      <Text style={styles.addText}>Закладка</Text>
+    </Pressable>
+  )
 
   return (
     <>
-      {timestamps && timestamps.length > 0 && (
-        <View style={styles.bookmarksBlock}>
-          <Text style={styles.noteLabel}>Главы</Text>
-          <View style={styles.bookmarkList}>
-            {timestamps.map((ts) => (
-              <Pressable
-                key={ts.id}
-                onPress={() => onSeek(ts.positionSec)}
-                style={styles.bookmarkRow}
-              >
-                <View style={styles.bookmarkTime}>
-                  <Text style={styles.bookmarkTimeText}>
-                    {formatPosition(ts.positionSec)}
-                  </Text>
+      {chapters && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Главы</Text>
+          <View>
+            {chapters.map((ts, i) => {
+              const current = i === currentChapter
+              const openMenu = () => setMenu({ kind: "chapter", index: i })
+              return (
+                <View key={ts.id} style={[styles.row, current && styles.rowCurrent]}>
+                  <Pressable
+                    onPress={() => onSeek(ts.positionSec)}
+                    onLongPress={openMenu}
+                    accessibilityLabel={`Глава ${ts.title}, ${formatPosition(ts.positionSec)}`}
+                    accessibilityState={current ? { selected: true } : undefined}
+                    style={styles.rowMain}
+                  >
+                    <Text style={styles.time}>{formatPosition(ts.positionSec)}</Text>
+                    <Text
+                      style={[styles.rowTitle, current && styles.rowTitleCurrent]}
+                      numberOfLines={1}
+                    >
+                      {ts.title}
+                    </Text>
+                  </Pressable>
+                  <MoreButton onPress={openMenu} hint={`Глава ${ts.title}`} />
                 </View>
-                <Text style={styles.bookmarkLabel} numberOfLines={1}>
-                  {ts.title}
-                </Text>
-              </Pressable>
-            ))}
+              )
+            })}
           </View>
         </View>
       )}
 
-      <View style={styles.bookmarksBlock}>
-        <View style={styles.bookmarksHeader}>
-          <Text style={styles.noteLabel}>Закладки</Text>
-          <Pressable
-            onPress={onAddBookmark}
-            accessibilityRole="button"
-            accessibilityLabel="Добавить закладку на текущем месте"
-            style={styles.addBookmarkButton}
-          >
-            <Text style={styles.addBookmarkText}>+ Добавить</Text>
-          </Pressable>
-        </View>
-        {bookmarks.length === 0 ? (
-          <Text style={styles.muted}>
-            Нажмите «Добавить» в нужный момент — вернётесь сюда одним тапом.
-          </Text>
-        ) : (
-          <View style={styles.bookmarkList}>
-            {bookmarks.map((b) => (
-              <View key={b.id} style={styles.bookmarkRow}>
-                <Pressable
-                  onPress={() => onSeek(b.position)}
-                  style={styles.bookmarkTime}
-                >
-                  <Text style={styles.bookmarkTimeText}>
-                    {formatPosition(b.position)}
-                  </Text>
-                </Pressable>
-                {editingId === b.id ? (
-                  <TextInput
-                    value={draft}
-                    onChangeText={setDraft}
-                    onSubmitEditing={() => commitEditing(b.id)}
-                    onBlur={() => commitEditing(b.id)}
-                    placeholder="Название закладки"
-                    placeholderTextColor={theme.colors.mutedFaint}
-                    autoFocus
-                    returnKeyType="done"
-                    style={styles.bookmarkLabelInput}
-                  />
-                ) : (
-                  <Pressable
-                    onPress={() => startEditing(b.id, b.label)}
-                    style={styles.bookmarkLabelPress}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      b.label ? `Закладка ${b.label}, переименовать` : "Назвать закладку"
-                    }
-                  >
-                    <Text
-                      style={b.label ? styles.bookmarkLabel : styles.bookmarkLabelEmpty}
-                      numberOfLines={1}
-                    >
-                      {b.label || "Назвать…"}
-                    </Text>
-                  </Pressable>
-                )}
-                <Pressable
-                  onPress={() => onRemoveBookmark(b.id)}
-                  hitSlop={8}
-                  style={styles.bookmarkRemove}
-                >
-                  <Text style={styles.bookmarkRemoveText}>✕</Text>
-                </Pressable>
-              </View>
-            ))}
+      {bookmarks.length === 0 ? (
+        addBookmark
+      ) : (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Закладки</Text>
+            {addBookmark}
           </View>
-        )}
-      </View>
+          <View>
+            {bookmarks.map((b) => {
+              const editingLabel = editing?.id === b.id && editing.field === "label"
+              const editingBookmarkNote = editing?.id === b.id && editing.field === "note"
+              return (
+                <View key={b.id} style={styles.bookmark}>
+                  {editingLabel ? (
+                    <View style={styles.row}>
+                      <View style={styles.rowMain}>
+                        <Text style={styles.time}>{formatBookmarkTime(b)}</Text>
+                        <TextInput
+                          value={draft}
+                          onChangeText={changeDraft}
+                          onSubmitEditing={commitEditing}
+                          onBlur={commitEditing}
+                          placeholder="Название закладки"
+                          placeholderTextColor={theme.colors.mutedFaint}
+                          autoFocus
+                          returnKeyType="done"
+                          style={styles.labelInput}
+                        />
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.row}>
+                      <Pressable
+                        onPress={() => onOpenBookmark(b)}
+                        onLongPress={() => setMenu({ kind: "bookmark", id: b.id })}
+                        accessibilityLabel={bookmarkOpenLabel(b)}
+                        style={styles.rowMain}
+                      >
+                        <Text style={styles.time}>{formatBookmarkTime(b)}</Text>
+                        <View style={styles.rowText}>
+                          <View style={styles.labelLine}>
+                            {b.label ? (
+                              <Text style={styles.rowTitle} numberOfLines={1}>
+                                {b.label}
+                              </Text>
+                            ) : null}
+                            {b.drawing && (
+                              <Icon
+                                name="brush-outline"
+                                size={14}
+                                color={theme.colors.muted}
+                              />
+                            )}
+                          </View>
+                          {b.note && !editingBookmarkNote ? (
+                            <Text style={styles.notePreview} numberOfLines={1}>
+                              {b.note}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </Pressable>
+                      <MoreButton
+                        onPress={() => setMenu({ kind: "bookmark", id: b.id })}
+                        hint={`Закладка ${b.label || formatBookmarkTime(b)}`}
+                      />
+                    </View>
+                  )}
+                  {editingBookmarkNote && (
+                    <TextInput
+                      value={draft}
+                      onChangeText={changeDraft}
+                      onBlur={commitEditing}
+                      placeholder="Что важно в этом моменте"
+                      placeholderTextColor={theme.colors.mutedFaint}
+                      autoFocus
+                      multiline
+                      textAlignVertical="top"
+                      style={styles.bookmarkNoteInput}
+                    />
+                  )}
+                </View>
+              )
+            })}
+          </View>
+        </View>
+      )}
 
-      <View style={styles.noteBlock}>
-        <Text style={styles.noteLabel}>Личные заметки</Text>
-        <TextInput
-          value={note}
-          onChangeText={onNoteChange}
-          placeholder={`Например: попробовал на ${vocabulary.session.prep}, получается не с первого раза`}
-          placeholderTextColor={theme.colors.muted}
-          multiline
-          style={styles.noteInput}
-          textAlignVertical="top"
+      {editingNote ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Заметка</Text>
+          <TextInput
+            value={note}
+            onChangeText={onNoteChange}
+            onBlur={() => setEditingNote(false)}
+            placeholder="Заметка к уроку"
+            placeholderTextColor={theme.colors.muted}
+            autoFocus
+            multiline
+            style={styles.noteInput}
+            textAlignVertical="top"
+          />
+        </View>
+      ) : note ? (
+        <Pressable
+          onPress={() => setEditingNote(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Заметка к уроку, изменить"
+          style={styles.section}
+        >
+          <Text style={styles.sectionTitle}>Заметка</Text>
+          <Text style={styles.noteText}>{note}</Text>
+        </Pressable>
+      ) : (
+        <Pressable
+          onPress={() => setEditingNote(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Добавить заметку к уроку"
+          style={styles.addRow}
+        >
+          <Icon name="add" size={18} color={theme.colors.accent} />
+          <Text style={styles.addText}>Заметка</Text>
+        </Pressable>
+      )}
+
+      {menu?.kind === "chapter" && menuChapter && (
+        <MomentMenuSheet
+          title={menuChapter.title}
+          onClose={() => setMenu(null)}
+          onAddToPlan={
+            onAddChapterToPlan ? () => onAddChapterToPlan(menu.index) : undefined
+          }
+          onShare={() =>
+            onShareMoment({ startSec: menuChapter.positionSec, label: menuChapter.title })
+          }
         />
-      </View>
+      )}
+      {menuBookmark && (
+        <MomentMenuSheet
+          title={menuBookmark.label || formatBookmarkTime(menuBookmark)}
+          onClose={() => setMenu(null)}
+          onRename={() => startEditing(menuBookmark.id, "label", menuBookmark.label)}
+          onEditNote={() => startEditing(menuBookmark.id, "note", menuBookmark.note)}
+          hasNote={!!menuBookmark.note}
+          onAddToPlan={
+            onAddBookmarkToPlan ? () => onAddBookmarkToPlan(menuBookmark.id) : undefined
+          }
+          onShare={() =>
+            onShareMoment({
+              startSec: menuBookmark.positionSec,
+              endSec: menuBookmark.endSec,
+              label: menuBookmark.label,
+            })
+          }
+          onRemove={() => onRemoveBookmark(menuBookmark.id)}
+        />
+      )}
     </>
   )
 }
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
-  bookmarksBlock: { gap: theme.spacing(2) },
-  bookmarksHeader: {
+  section: { gap: theme.spacing(1) },
+  sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  addBookmarkButton: {
-    paddingHorizontal: theme.spacing(3),
-    paddingVertical: theme.spacing(1) + 2,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  addBookmarkText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: theme.colors.text,
-  },
-  bookmarkList: { gap: theme.spacing(1) + 2 },
-  bookmarkRow: {
+  sectionTitle: { ...theme.typography.bodyStrong, color: theme.colors.text },
+  // «+ Закладка», «+ Заметка»: quiet text actions.
+  addRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing(2),
-    paddingVertical: theme.spacing(1) + 2,
-    paddingHorizontal: theme.spacing(2),
+    alignSelf: "flex-start",
+    gap: theme.spacing(1),
+    minHeight: 44,
+  },
+  addText: { fontSize: 15, fontWeight: "600", color: theme.colors.accent },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surfaceMuted,
   },
-  bookmarkTime: {
-    paddingHorizontal: theme.spacing(2),
-    paddingVertical: 4,
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+  // The chapter playing now.
+  rowCurrent: { backgroundColor: theme.colors.accentSoft },
+  rowMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(3),
+    minHeight: 44,
+    paddingVertical: theme.spacing(1),
+    paddingLeft: theme.spacing(2),
   },
-  bookmarkTimeText: {
-    fontSize: 13,
-    fontWeight: "700",
+  rowText: { flex: 1, gap: 2 },
+  labelLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(1),
+  },
+  time: {
+    fontSize: 14,
+    fontWeight: "600",
     color: theme.colors.accent,
     fontVariant: ["tabular-nums"],
   },
-  bookmarkLabel: {
-    flex: 1,
-    fontSize: 13,
+  rowTitle: {
+    flexShrink: 1,
+    fontSize: 15,
     color: theme.colors.text,
   },
-  bookmarkLabelPress: { flex: 1 },
-  bookmarkLabelEmpty: {
+  rowTitleCurrent: { fontWeight: "700" },
+  notePreview: { ...theme.typography.caption },
+  bookmark: { gap: theme.spacing(1) },
+  labelInput: {
     flex: 1,
-    fontSize: 13,
-    fontStyle: "italic",
-    color: theme.colors.mutedFaint,
-  },
-  bookmarkLabelInput: {
-    flex: 1,
-    fontSize: 13,
+    fontSize: 15,
     color: theme.colors.text,
     paddingVertical: 2,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.accent,
   },
-  bookmarkRemove: {
-    paddingHorizontal: theme.spacing(2),
-    paddingVertical: 4,
+  bookmarkNoteInput: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: theme.colors.text,
+    minHeight: 56,
+    maxHeight: 140,
+    padding: theme.spacing(2),
+    borderWidth: 1,
+    borderColor: theme.colors.accent,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.surface,
   },
-  bookmarkRemoveText: {
-    fontSize: 16,
-    color: theme.colors.muted,
-  },
-  noteBlock: { gap: theme.spacing(2) },
-  noteLabel: { ...theme.typography.label },
-  muted: { ...theme.typography.caption },
+  noteText: { ...theme.typography.body, color: theme.colors.text },
   noteInput: {
     borderWidth: 1,
     borderColor: theme.colors.border,

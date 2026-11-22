@@ -1,5 +1,5 @@
 import React from "react"
-import { ScrollView, StyleSheet, Text } from "react-native"
+import { ScrollView, StyleSheet, Text, View } from "react-native"
 
 import type { DirectionRef } from "../../shared/api/directions"
 import { Pressable } from "../../shared/components/Pressable"
@@ -10,15 +10,18 @@ import { DirectionDot } from "./DirectionTag"
 /**
  * A horizontal «Все» + one-chip-per-direction filter row. Renders nothing
  * when the club has no directions, so such clubs look exactly as before.
+ * `wrap` lays the chips out in wrapping lines instead (inside a sheet).
  */
 export function DirectionChips({
   directions,
   selectedId,
   onSelect,
+  wrap = false,
 }: {
   directions: readonly DirectionRef[]
   selectedId: string | null
   onSelect: (id: string | null) => void
+  wrap?: boolean
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -31,6 +34,38 @@ export function DirectionChips({
       color: d.color,
     })),
   ]
+  const items = chips.map((c) => {
+    const selected = c.id === selectedId
+    return (
+      <Pressable
+        key={c.id ?? "all"}
+        onPress={() => onSelect(c.id)}
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        accessibilityLabel={c.id ? `Направление: ${c.label}` : "Все направления"}
+        style={[styles.chip, selected && styles.chipSelected]}
+      >
+        {c.id !== null && (
+          <DirectionDot
+            color={c.color ?? null}
+            fallback={
+              selected ? theme.colors.accentText : theme.colors.mutedFaint
+            }
+          />
+        )}
+        <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+          {c.label}
+        </Text>
+      </Pressable>
+    )
+  })
+  if (wrap) {
+    return (
+      <View style={[styles.chips, styles.wrap]} accessibilityLabel="Направления">
+        {items}
+      </View>
+    )
+  }
   return (
     <ScrollView
       horizontal
@@ -39,31 +74,7 @@ export function DirectionChips({
       contentContainerStyle={styles.chips}
       accessibilityLabel="Направления"
     >
-      {chips.map((c) => {
-        const selected = c.id === selectedId
-        return (
-          <Pressable
-            key={c.id ?? "all"}
-            onPress={() => onSelect(c.id)}
-            accessibilityRole="button"
-            accessibilityState={{ selected }}
-            accessibilityLabel={c.id ? `Направление: ${c.label}` : "Все направления"}
-            style={[styles.chip, selected && styles.chipSelected]}
-          >
-            {c.id !== null && (
-              <DirectionDot
-                color={c.color ?? null}
-                fallback={
-                  selected ? theme.colors.accentText : theme.colors.mutedFaint
-                }
-              />
-            )}
-            <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-              {c.label}
-            </Text>
-          </Pressable>
-        )
-      })}
+      {items}
     </ScrollView>
   )
 }
@@ -72,6 +83,7 @@ const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     scroll: { flexGrow: 0 },
     chips: { gap: theme.spacing(2) },
+    wrap: { flexDirection: "row", flexWrap: "wrap" },
     chip: {
       flexDirection: "row",
       alignItems: "center",

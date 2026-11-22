@@ -24,6 +24,7 @@ import { haptics } from "../../shared/haptics"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useResponsive } from "../../shared/useResponsive"
+import { DirectionTag } from "../directions/DirectionTag"
 import {
   bookedToast,
   burnLine,
@@ -304,6 +305,7 @@ export function OccurrenceSheet({
                 <Pill label="Лист ожидания" />
               )}
             </View>
+            <DirectionTag direction={session.group.direction} />
             <Text style={styles.when}>
               {capitalize(formatSessionStart(session.startAt, session.timezone))}
               {` · ${formatDuration(session.durationMin)}`}

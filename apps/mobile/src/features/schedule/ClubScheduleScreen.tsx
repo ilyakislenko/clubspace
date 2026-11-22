@@ -9,7 +9,10 @@ import {
   View,
 } from "react-native"
 import { RefreshControl } from "../../shared/components/RefreshControl"
+import { CountBadge } from "../../shared/components/CountBadge"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
+import { Sheet, SheetRow } from "../../shared/components/Sheet"
 import {
   CenteredColumn,
   DASHBOARD_WIDTH,
@@ -20,6 +23,7 @@ import {
   getMyClassBookings,
   type MyClassBookings,
 } from "../../shared/api/class-bookings"
+import type { DirectionRef } from "../../shared/api/directions"
 import {
   getMyDropIns,
   type DropInBooking,
@@ -52,14 +56,14 @@ import type { Theme } from "../../shared/theme"
 import { useResponsive } from "../../shared/useResponsive"
 import type { AppNavigation } from "../../app/navigation"
 import {
+  needsMyAction,
   upcomingConfirmed,
   viewerRole,
 } from "../personal-training/personal-training-helpers"
 import { isStaffWorkspace } from "../retention/retention-helpers"
-import { DirectionChips } from "../directions/DirectionChips"
-import { resolveDirectionFilter } from "../directions/direction-helpers"
-import { DirectionTag } from "../directions/DirectionTag"
 import { useDirections } from "../directions/useDirections"
+import { resolveDirectionFilter } from "../directions/direction-helpers"
+import { DirectionDot } from "../directions/DirectionTag"
 import {
   MY_GROUPS_FILTER,
   filterSchedule,
@@ -67,16 +71,23 @@ import {
   formatTimezoneLabel,
   resolveScheduleFilter,
   scheduleChips,
+  scheduleFilterSummary,
   scheduleGyms,
 } from "./club-schedule-buckets"
 import { spotsLine, withMyBooking } from "./class-booking-helpers"
 import { eventOfferLine } from "./event-helpers"
 import { DayStrip } from "./DayStrip"
-import { foreignTzSuffix } from "./schedule-helpers"
+import {
+  classMetaLine,
+  foreignTzSuffix,
+  gymCitiesDiffer,
+  withoutGymEcho,
+} from "./schedule-helpers"
 import { rsvpStateFor, type RsvpState } from "./drop-in-helpers"
 import { loadGymFilter, saveGymFilter } from "./gym-filter-store"
 import { MyBookingsPanel } from "./MyBookingsPanel"
-import { OccurrenceSheet, Pill } from "./OccurrenceSheet"
+import { OccurrenceSheet } from "./OccurrenceSheet"
+import { ScheduleFilterSheet } from "./ScheduleFilterSheet"
 import {
   CALENDAR_HORIZON_DAYS,
   CALENDAR_PAGES,
@@ -105,7 +116,9 @@ import {
 } from "./schedule-calendar"
 import {
   canMarkSession,
+  classPersonLabel,
   isAdminScope,
+  markOnRow,
   substitutesFor,
   substitutionActions,
   substitutionLine,
@@ -123,9 +136,10 @@ const isoDate = (d: Date): string => {
  * columns on a time axis) paged sideways by week; phones a day strip over the
  * picked day's list, or the same week grid in compact form. Days count from
  * the club's today; the schedule is fetched two weeks at a time as the member
- * pages forward.
+ * pages forward. A new `todayStamp` (Home's «Все тренировки сегодня») brings
+ * the calendar back to today.
  */
-export function ClubScheduleScreen() {
+export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
   const navigation = useNavigation<AppNavigation>()
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -142,6 +156,9 @@ export function ClubScheduleScreen() {
   // and its week is the grid's page.
   const [dayOffset, setDayOffset] = useState(0)
   const [phoneView, setPhoneView] = useState<"day" | "week">("day")
+  useEffect(() => {
+    if (todayStamp) setDayOffset(0)
+  }, [todayStamp])
   const fetchWindow = fetchWindowOf(dayOffset)
 
   // «Все» (null) or one direction — the server narrows the classes and
@@ -315,6 +332,9 @@ export function ClubScheduleScreen() {
 
   // The class whose sheet is open (by occurrenceId).
   const [openOccurrenceId, setOpenOccurrenceId] = useState<string | null>(null)
+  // The «Фильтр» sheet and the «Ещё» menu.
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   if (!workspace) {
     return null
@@ -372,14 +392,22 @@ export function ClubScheduleScreen() {
   const nowMinute = zonedDayMinute(now, clubTz).minute
   const dayKeys = dayKeysFrom(clubToday, CALENDAR_HORIZON_DAYS)
   const loadedKeys = schedule ? windowDayKeys(clubToday, fetchWindow) : []
+  const shown = schedule ? filterSchedule(schedule, filterId, ownGroupIds) : null
   // Personal sessions are not filtered by gym or group: they belong to the
   // member.
   const byDay = segmentsByDay(
-    schedule
-      ? calendarItems(filterSchedule(schedule, filterId, ownGroupIds), personal)
-      : [],
+    shown ? calendarItems(shown, personal) : [],
     loadedKeys,
   )
+  // A picked gym is named by the filter, not by every row; a row names its
+  // gym's city only when the gyms on screen are in different cities.
+  const gymPicked = !!filterId && !mineSelected
+  const showCity =
+    !!shown &&
+    gymCitiesDiffer(
+      [...shown.sessions.map((s) => s.group.gym), ...shown.events.map((e) => e.gym)]
+        .flatMap((g) => (g ? [g.address] : [])),
+    )
   const placed = new Map(
     [...byDay].map(([key, segs]) => [key, placeOverlaps(segs)] as const),
   )
@@ -443,6 +471,38 @@ export function ClubScheduleScreen() {
     setStoredGym(id)
     void saveGymFilter(workspace.workspaceId, id)
   }
+  // «Мои группы» / gyms to pick from, or null when there is no choice.
+  const gymChoice = gyms.length >= 2 || ownGroupIds.size > 0 ? chips : null
+  const filterSummary = scheduleFilterSummary({
+    directions,
+    directionId,
+    chips: gymChoice,
+    filterId,
+  })
+  // The zone note only matters when the phone's clock reads differently.
+  const showTzNote =
+    !!known && !nothingScheduled && foreignTzSuffix(clubTz, new Date(now)) !== ""
+
+  // The «Ещё» menu. Staff answer personal requests rather than make them:
+  // their entry counts the ones waiting on them.
+  const awaitingMe = meId
+    ? (personalList.data?.data ?? []).filter((pt) => needsMyAction(pt, meId))
+        .length
+    : 0
+  const personalEntry = isStaff
+    ? (!!personalList.data?.canOffer || coachesAvailable > 0 || awaitingMe > 0) && {
+        label: `${cap(vocabulary.personalSession.nomPl)} — заявки`,
+        count: awaitingMe,
+      }
+    : coachesAvailable > 0 && {
+        label: `${cap(vocabulary.personalSession.nom)} с ${vocabulary.coach.ins}`,
+        count: 0,
+      }
+  const showMyBookings = hasBookingClasses && !workspace.isOwner
+  const openFromMenu = (route: "PersonalTrainings" | "MyClassBookings") => {
+    setMoreOpen(false)
+    navigation.navigate(route)
+  }
 
   const guestsLineOf = (s: ScheduleSession): string | null =>
     coachesSession(s) && (s.bookedGuests ?? 0) > 0
@@ -462,6 +522,55 @@ export function ClubScheduleScreen() {
     : undefined
   const openPersonal = (pt: PersonalTraining) =>
     navigation.navigate("PersonalTraining", { requestId: pt.id })
+
+  // What a class row of the phone's day says: the time and name, where and
+  // who (the gym unless the filter picked it, the coach unless it's the
+  // viewer), the member's own place trailing the name, one status line, and
+  // the mark link only on the viewer's own class that is on about now.
+  const rowOf = (s: ScheduleSession): SessionRowContent => {
+    const b = s.booking ?? null
+    const booked =
+      !s.cancelled &&
+      (bookedOccurrenceIds.has(s.occurrenceId) ||
+        (!!b?.myBookingId && b.myStatus === "BOOKED"))
+    const waitlisted =
+      !s.cancelled && !!b?.myBookingId && b.myStatus === "WAITLISTED"
+    const status = s.cancelled
+      ? `Отменено${s.cancellationReason ? ` — ${s.cancellationReason}` : ""}`
+      : [
+          s.substitution?.status === "PENDING" ? substitutionLine(s, isStaff) : null,
+          substitutesFor(s, meId) ? "Вы ведёте замену" : null,
+          b ? spotsLine(b) : null,
+          guestsLineOf(s),
+        ]
+          .filter(Boolean)
+          .join(" · ") || null
+    return {
+      title: withoutGymEcho(s.group.name, s.group.gym),
+      meta: classMetaLine({
+        gym: s.group.gym,
+        showGym: !gymPicked,
+        showCity,
+        person: classPersonLabel(s, meId),
+      }),
+      mine: booked
+        ? { label: "Вы записаны", icon: "checkmark-circle" }
+        : waitlisted
+          ? {
+              label: b?.myWaitlistPosition
+                ? `Лист ожидания №${b.myWaitlistPosition}`
+                : "Лист ожидания",
+              icon: "time-outline",
+            }
+          : memberGroupIds.has(s.groupId)
+            ? { label: "Ваша группа", icon: null }
+            : null,
+      status,
+      onMark: markOnRow(s, meId, coachGroupIds, new Date(now))
+        ? markOf(s)
+        : undefined,
+    }
+  }
 
   // What a grid block says and does. A tap opens the class's sheet — for the
   // coach too, whose sheet carries «Отметить посещаемость».
@@ -483,12 +592,9 @@ export function ClubScheduleScreen() {
         kind: "session",
         start,
         end,
-        title: s.group.name,
-        gym: s.group.gym?.name ?? null,
-        person:
-          s.substitution?.status === "APPROVED"
-            ? `Замена: ${shortPersonName(s.substitution.substitute)}`
-            : shortPersonName(s.group.coach),
+        title: withoutGymEcho(s.group.name, s.group.gym),
+        gym: gymPicked ? null : (s.group.gym?.name ?? null),
+        person: classPersonLabel(s, meId),
         state,
         color: s.group.direction?.color ?? null,
         past,
@@ -517,7 +623,7 @@ export function ClubScheduleScreen() {
         start,
         end,
         title: e.title,
-        gym: e.gym?.name ?? null,
+        gym: gymPicked ? null : (e.gym?.name ?? null),
         person: e.coach ? shortPersonName(e.coach) : null,
         state: offer ? { text: offer, tone: "normal" } : null,
         color: e.direction?.color ?? null,
@@ -598,6 +704,16 @@ export function ClubScheduleScreen() {
   const daySegments = (placed.get(selectedKey) ?? []).filter(
     (seg) => !seg.continuesBefore,
   )
+  // Rows lead with their direction's colour when the day has any; a row
+  // without one keeps the place blank so the times line up.
+  const dayHasDirections = daySegments.some(({ item }) =>
+    item.kind === "session"
+      ? !!item.session.group.direction
+      : item.kind === "event" && !!item.event.direction,
+  )
+  const dotOf = (
+    direction: DirectionRef | null | undefined,
+  ): RowDot => (dayHasDirections ? (direction ?? null) : undefined)
   const dayList = !schedule ? (
     <ActivityIndicator color={theme.colors.accent} style={styles.dayLoading} />
   ) : daySegments.length === 0 ? (
@@ -609,22 +725,24 @@ export function ClubScheduleScreen() {
           <SessionRow
             key={item.key}
             session={item.session}
-            isOwnGroup={memberGroupIds.has(item.session.groupId)}
-            booked={
-              bookedOccurrenceIds.has(item.session.occurrenceId) &&
-              !item.session.cancelled
-            }
-            classBooking={item.session.booking ?? null}
-            guestsLine={guestsLineOf(item.session)}
-            substitution={substitutionLine(item.session, isStaff)}
-            canMark={coachesSession(item.session)}
+            content={rowOf(item.session)}
+            dot={dotOf(item.session.group.direction)}
             onOpen={() => setOpenOccurrenceId(item.session.occurrenceId)}
           />
         ) : item.kind === "personal" ? (
           <PersonalRow
             key={item.key}
             pt={item.personal}
-            meId={meId}
+            meta={classMetaLine({
+              gym: item.personal.gym,
+              showGym: true,
+              showCity,
+              person:
+                meId && viewerRole(item.personal, meId) === "member"
+                  ? item.personal.coach.displayName
+                  : item.personal.member.displayName,
+            })}
+            dot={dotOf(null)}
             clubTz={clubTz}
             onPress={() => openPersonal(item.personal)}
           />
@@ -633,6 +751,13 @@ export function ClubScheduleScreen() {
             key={item.key}
             event={item.event}
             offer={eventOfferLine(item.event, listedById.get(item.event.id), isStaff)}
+            meta={classMetaLine({
+              gym: item.event.gym,
+              showGym: !gymPicked,
+              showCity,
+              person: null,
+            })}
+            dot={dotOf(item.event.direction)}
             onPress={openEvent && (() => openEvent(item.event.id))}
             clubTz={clubTz}
           />
@@ -641,19 +766,22 @@ export function ClubScheduleScreen() {
     </View>
   )
 
+  // A step that leads nowhere (before today, past the horizon) is hidden, not
+  // greyed out; it keeps its place so the other buttons don't shift.
   const navButton = (
     label: string,
     onPress: () => void,
-    disabled: boolean,
+    hidden: boolean,
     accessibilityLabel: string,
   ) => (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
+      disabled={hidden}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ disabled }}
-      style={[styles.navButton, disabled && styles.navButtonDisabled]}
+      accessibilityElementsHidden={hidden}
+      importantForAccessibility={hidden ? "no-hide-descendants" : "auto"}
+      style={[styles.navButton, hidden && styles.navButtonHidden]}
     >
       <Text style={styles.navButtonText}>{label}</Text>
     </Pressable>
@@ -738,10 +866,9 @@ export function ClubScheduleScreen() {
           />
         }
       >
-        {known && !nothingScheduled && (
-          <Text style={styles.subtitle}>
-            Время указано по часовому поясу клуба (
-            {formatTimezoneLabel(clubTz)}).
+        {showTzNote && (
+          <Text style={styles.tzNote}>
+            Время указано по часовому поясу клуба ({formatTimezoneLabel(clubTz)})
           </Text>
         )}
 
@@ -751,60 +878,58 @@ export function ClubScheduleScreen() {
           <ErrorRetry message={error} onRetry={refetch} />
         )}
 
-        <DirectionChips
-          directions={directions}
-          selectedId={directionId}
-          onSelect={setPickedDirection}
-        />
-
-        {(gyms.length >= 2 || ownGroupIds.size > 0) && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.chipsScroll}
-            contentContainerStyle={styles.chips}
-          >
-            {chips.map((g) => {
-              const selected = g.id === filterId
-              return (
-                <Pressable
-                  key={g.id ?? "all"}
-                  onPress={() => pickGym(g.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  style={[styles.chip, selected && styles.chipSelected]}
-                >
-                  <Text
-                    style={[styles.chipText, selected && styles.chipTextSelected]}
-                  >
-                    {g.name}
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </ScrollView>
-        )}
-
-        {(coachesAvailable > 0 || (hasBookingClasses && !workspace.isOwner)) && (
-          <View style={styles.links}>
-            {coachesAvailable > 0 && (
+        {(filterSummary || personalEntry || showMyBookings) && (
+          <View style={styles.toolbar}>
+            {filterSummary && (
               <Pressable
-                onPress={() => navigation.navigate("PersonalTrainings")}
+                onPress={() => setFilterOpen(true)}
                 accessibilityRole="button"
-                style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
+                accessibilityLabel={`Фильтр: ${filterSummary.label}`}
+                style={[
+                  styles.toolButton,
+                  styles.filterButton,
+                  filterSummary.active && styles.toolButtonActive,
+                ]}
               >
-                <Text style={styles.personalLinkText}>
-                  {cap(vocabulary.personalSession.nom)} с {vocabulary.coach.ins} →
+                <Icon
+                  name="options-outline"
+                  size={16}
+                  color={
+                    filterSummary.active ? theme.colors.accent : theme.colors.text
+                  }
+                />
+                <Text
+                  style={[
+                    styles.toolButtonText,
+                    styles.filterText,
+                    filterSummary.active && styles.toolButtonTextActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {filterSummary.label}
                 </Text>
+                <Icon
+                  name="chevron-down"
+                  size={14}
+                  color={
+                    filterSummary.active ? theme.colors.accent : theme.colors.muted
+                  }
+                />
               </Pressable>
             )}
-            {hasBookingClasses && !workspace.isOwner && (
+            {(personalEntry || showMyBookings) && (
               <Pressable
-                onPress={() => navigation.navigate("MyClassBookings")}
+                onPress={() => setMoreOpen(true)}
                 accessibilityRole="button"
-                style={({ pressed }) => [styles.personalLink, pressed && styles.rowPressed]}
+                accessibilityLabel={
+                  awaitingMe > 0 && personalEntry
+                    ? `Ещё, заявок ждут ответа: ${awaitingMe}`
+                    : "Ещё"
+                }
+                style={styles.toolButton}
               >
-                <Text style={styles.personalLinkText}>Мои записи на {vocabulary.session.nomPl} →</Text>
+                <Text style={styles.toolButtonText}>Ещё</Text>
+                <CountBadge count={personalEntry ? personalEntry.count : 0} />
               </Pressable>
             )}
           </View>
@@ -860,6 +985,42 @@ export function ClubScheduleScreen() {
         )}
       </ScrollView>
       </CenteredColumn>
+
+      {filterOpen && (
+        <ScheduleFilterSheet
+          directions={directions}
+          directionId={directionId}
+          onDirection={setPickedDirection}
+          chips={gymChoice}
+          filterId={filterId}
+          onFilter={pickGym}
+          onReset={() => {
+            setPickedDirection(null)
+            pickGym(null)
+          }}
+          onClose={() => setFilterOpen(false)}
+        />
+      )}
+
+      {moreOpen && (
+        <Sheet title="Ещё" onClose={() => setMoreOpen(false)}>
+          <View>
+            {personalEntry && (
+              <SheetRow
+                label={personalEntry.label}
+                count={personalEntry.count}
+                onPress={() => openFromMenu("PersonalTrainings")}
+              />
+            )}
+            {showMyBookings && (
+              <SheetRow
+                label={`Мои записи на ${vocabulary.session.nomPl}`}
+                onPress={() => openFromMenu("MyClassBookings")}
+              />
+            )}
+          </View>
+        </Sheet>
+      )}
 
       {openSession && (
         <OccurrenceSheet
@@ -948,105 +1109,58 @@ export function ClubScheduleScreen() {
   )
 }
 
+// What a class row of the phone's day says (see rowOf in the screen).
+type SessionRowContent = {
+  // The group's name, without a trailing echo of its gym.
+  title: string
+  // «СК «Юпитер» · И. Шекунов»; null when there is nothing to name.
+  meta: string | null
+  // The member's own place, trailing the name; booked and waitlisted get an
+  // icon and the accent, «Ваша группа» stays quiet.
+  mine: { label: string; icon: "checkmark-circle" | "time-outline" | null } | null
+  // One line: «Отменено — причина», or the places, guests, substitution.
+  status: string | null
+  // Set on the viewer's own class that is on about now: straight to the roll.
+  onMark?: () => void
+}
+
+// The leading direction colour: undefined = the day has no directions (no
+// column), null = a row without one (a blank place, so the times line up).
+type RowDot = DirectionRef | null | undefined
+
+function LeadingDot({ dot }: { dot: RowDot }) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
+  if (dot === undefined) return null
+  return (
+    <View style={styles.dotSlot}>
+      {dot && (
+        <DirectionDot color={dot.color} fallback={theme.colors.mutedFaint} />
+      )}
+    </View>
+  )
+}
+
 function SessionRow({
   session,
-  isOwnGroup,
-  booked,
-  classBooking,
-  guestsLine,
-  substitution,
-  canMark,
+  content,
+  dot,
   onOpen,
 }: {
   session: ScheduleSession
-  isOwnGroup: boolean
-  booked: boolean
-  // The booking-mode class's places and the viewer's own booking.
-  classBooking: ScheduleSession["booking"] | null
-  guestsLine: string | null
-  // «Замена: И. Фамилия» (staff also see a pending request).
-  substitution: string | null
-  // The viewer may mark the class: its sheet opens on «Отметить посещаемость».
-  canMark: boolean
+  content: SessionRowContent
+  dot: RowDot
   onOpen: () => void
 }) {
+  const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const vocabulary = useVocabulary()
   // Render hour/minute in the SESSION's tz so a Tomsk-gym session shows
   // 19:00 even when a Moscow user opens the app.
   const { hourMinute } = formatTimeInTz(session.startAt, session.timezone)
-  const coachName = personName(session.group.coach)
+  const { title, meta, mine, status, onMark } = content
 
-  const inner = (
-    <>
-      <Text
-        style={[styles.rowTime, session.cancelled && styles.rowTimeCancelled]}
-      >
-        {hourMinute}
-      </Text>
-      <View style={styles.rowBody}>
-        <View style={styles.rowTitleLine}>
-          <Text
-            style={[
-              styles.rowTitle,
-              session.cancelled && styles.rowTitleCancelled,
-            ]}
-          >
-            {session.group.name}
-          </Text>
-          {isOwnGroup && <Pill label="Ваша группа" />}
-          {booked && <Pill label="Вы записаны" />}
-          {classBooking?.myBookingId && classBooking.myStatus === "BOOKED" && (
-            <Pill label="Вы записаны" />
-          )}
-          {classBooking?.myBookingId &&
-            classBooking.myStatus === "WAITLISTED" && (
-              <Pill
-                label={
-                  classBooking.myWaitlistPosition
-                    ? `Лист ожидания · №${classBooking.myWaitlistPosition}`
-                    : "Лист ожидания"
-                }
-              />
-            )}
-          <DirectionTag direction={session.group.direction} />
-        </View>
-        <Text style={styles.rowMeta} numberOfLines={1}>
-          {session.group.gym
-            ? `${session.group.gym.name} · ${session.group.gym.address}`
-            : "Зал не указан"}
-        </Text>
-        <Text style={styles.rowMeta} numberOfLines={1}>
-          {cap(vocabulary.coach.nom)}: {coachName}
-        </Text>
-        {substitution && (
-          <Text style={styles.rowSpots} numberOfLines={1}>
-            {substitution}
-          </Text>
-        )}
-        {classBooking && !session.cancelled && (
-          <Text style={styles.rowSpots} numberOfLines={1}>
-            {spotsLine(classBooking)}
-          </Text>
-        )}
-        {session.cancelled && (
-          <Text style={styles.cancelLabel}>
-            Отменено
-            {session.cancellationReason
-              ? ` — ${session.cancellationReason}`
-              : ""}
-          </Text>
-        )}
-        {guestsLine && <Text style={styles.markHint}>{guestsLine}</Text>}
-        {canMark && (
-          <Text style={styles.markHint}>Отметить посещаемость →</Text>
-        )}
-      </View>
-    </>
-  )
-
-  // Everyone opens the class's sheet: staff find «Отметить посещаемость»
-  // and the substitution actions there, members the booking.
+  // The row opens the class's sheet: staff find «Отметить посещаемость» and
+  // the substitution actions there, members the booking.
   return (
     <Pressable
       style={({ pressed }) => [
@@ -1055,8 +1169,68 @@ function SessionRow({
         pressed && styles.rowPressed,
       ]}
       onPress={onOpen}
+      accessibilityRole="button"
+      accessibilityActions={
+        onMark ? [{ name: "mark", label: "Отметить посещаемость" }] : undefined
+      }
+      onAccessibilityAction={(e) => {
+        if (e.nativeEvent.actionName === "mark") onMark?.()
+      }}
     >
-      {inner}
+      <LeadingDot dot={dot} />
+      <Text style={[styles.rowTime, session.cancelled && styles.struck]}>
+        {hourMinute}
+      </Text>
+      <View style={styles.rowBody}>
+        <View style={styles.rowTitleLine}>
+          <Text
+            style={[styles.rowTitle, session.cancelled && styles.struck]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+          {mine && (
+            <View style={styles.mine}>
+              {mine.icon && (
+                <Icon name={mine.icon} size={14} color={theme.colors.accent} />
+              )}
+              <Text
+                style={[styles.mineText, !!mine.icon && styles.mineTextStrong]}
+                numberOfLines={1}
+              >
+                {mine.label}
+              </Text>
+            </View>
+          )}
+        </View>
+        {meta && (
+          <Text style={styles.rowMeta} numberOfLines={1}>
+            {meta}
+          </Text>
+        )}
+        {(status || onMark) && (
+          <View style={styles.statusLine}>
+            {status && (
+              <Text
+                style={[styles.rowStatus, session.cancelled && styles.rowMeta]}
+                numberOfLines={1}
+              >
+                {status}
+              </Text>
+            )}
+            {onMark && (
+              <Pressable
+                onPress={onMark}
+                accessibilityRole="button"
+                hitSlop={12}
+                style={styles.markLink}
+              >
+                <Text style={styles.markText}>Отметить посещаемость →</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+      </View>
     </Pressable>
   )
 }
@@ -1071,43 +1245,38 @@ function OtherTzLabel({ timeZone, at, clubTz }: { timeZone: string; at: string; 
 
 function PersonalRow({
   pt,
-  meId,
+  meta,
+  dot,
   clubTz,
   onPress,
 }: {
   pt: PersonalTraining
-  meId: string | null
+  // «Зал · the other side's name».
+  meta: string | null
+  dot: RowDot
   clubTz: string
   onPress: () => void
 }) {
   const styles = useThemedStyles(makeStyles)
   const vocabulary = useVocabulary()
   const { hourMinute } = formatTimeInTz(pt.confirmedStartAt!, pt.timezone)
-  const who =
-    meId && viewerRole(pt, meId) === "member"
-      ? `${cap(vocabulary.coach.nom)}: ${pt.coach.displayName}`
-      : `Ученик: ${pt.member.displayName}`
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.row,
-        styles.rowEvent,
-        pressed && styles.rowPressed,
-      ]}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       onPress={onPress}
+      accessibilityRole="button"
     >
+      <LeadingDot dot={dot} />
       <Text style={styles.rowTime}>{hourMinute}</Text>
       <View style={styles.rowBody}>
-        <View style={styles.rowTitleLine}>
-          <Text style={styles.rowTitle}>{cap(vocabulary.personalSession.nom)}</Text>
-          <Pill label={cap(vocabulary.personalTag)} />
-        </View>
-        <Text style={styles.rowMeta} numberOfLines={1}>
-          {who}
+        <Text style={styles.rowTitle} numberOfLines={1}>
+          {cap(vocabulary.personalSession.nom)}
         </Text>
-        <Text style={styles.rowMeta} numberOfLines={1}>
-          {pt.gym ? `${pt.gym.name} · ${pt.gym.address}` : "Зал не выбран"}
-        </Text>
+        {meta && (
+          <Text style={styles.rowMeta} numberOfLines={1}>
+            {meta}
+          </Text>
+        )}
         <OtherTzLabel timeZone={pt.timezone} at={pt.confirmedStartAt!} clubTz={clubTz} />
       </View>
     </Pressable>
@@ -1117,12 +1286,17 @@ function PersonalRow({
 function EventRow({
   event,
   offer,
+  meta,
+  dot,
   clubTz,
   onPress,
 }: {
   event: ScheduleEvent
   // «1 500 ₽ · Свободно 3 из 10»; null for an open event.
   offer: string | null
+  // The gym, unless the filter picked it.
+  meta: string | null
+  dot: RowDot
   clubTz: string
   onPress?: () => void
 }) {
@@ -1130,6 +1304,7 @@ function EventRow({
   const { hourMinute } = formatTimeInTz(event.startAt, event.timezone)
   const inner = (
     <>
+      <LeadingDot dot={dot} />
       <Text style={styles.rowTime}>{hourMinute}</Text>
       <View style={styles.rowBody}>
         <View style={styles.eventTitleRow}>
@@ -1138,26 +1313,26 @@ function EventRow({
             {event.title}
           </Text>
         </View>
-        <DirectionTag direction={event.direction} />
-        {event.gym && (
+        {meta && (
           <Text style={styles.rowMeta} numberOfLines={1}>
-            {event.gym.name} · {event.gym.address}
+            {meta}
           </Text>
         )}
-        {offer && <Text style={styles.rowSpots}>{offer}</Text>}
+        {offer && (
+          <Text style={styles.rowStatus} numberOfLines={1}>
+            {offer}
+          </Text>
+        )}
         <OtherTzLabel timeZone={event.timezone} at={event.startAt} clubTz={clubTz} />
       </View>
     </>
   )
-  if (!onPress) return <View style={[styles.row, styles.rowEvent]}>{inner}</View>
+  if (!onPress) return <View style={styles.row}>{inner}</View>
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.row,
-        styles.rowEvent,
-        pressed && styles.rowPressed,
-      ]}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       onPress={onPress}
+      accessibilityRole="button"
     >
       {inner}
     </Pressable>
@@ -1176,10 +1351,35 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     padding: theme.spacing(5),
     gap: theme.spacing(3),
   },
-  subtitle: {
-    ...theme.typography.body,
+  tzNote: {
+    ...theme.typography.caption,
     color: theme.colors.muted,
   },
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(2),
+  },
+  toolButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(1) + 2,
+    height: 36,
+    paddingHorizontal: theme.spacing(3),
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  // The filter takes what the row leaves and cuts its summary short.
+  filterButton: { flexShrink: 1 },
+  toolButtonActive: {
+    backgroundColor: theme.colors.accentSoft,
+    borderColor: theme.colors.accent,
+  },
+  toolButtonText: { color: theme.colors.text, fontSize: 14, fontWeight: "600" },
+  toolButtonTextActive: { color: theme.colors.accent },
+  filterText: { flexShrink: 1 },
   empty: {
     width: "100%",
     maxWidth: READABLE_WIDTH,
@@ -1243,7 +1443,8 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
   },
-  navButtonDisabled: { opacity: 0.4 },
+  // Keeps its place in the row, so the buttons beside it don't shift.
+  navButtonHidden: { opacity: 0 },
   navButtonText: { color: theme.colors.text, fontSize: 15, fontWeight: "600" },
   toggle: {
     flexDirection: "row",
@@ -1261,109 +1462,79 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   toggleItemSelected: { backgroundColor: theme.colors.accent },
   toggleText: { color: theme.colors.text, fontSize: 13, fontWeight: "600" },
   toggleTextSelected: { color: theme.colors.accentText },
-  links: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    columnGap: theme.spacing(5),
-  },
   dayLoading: { paddingVertical: theme.spacing(6) },
-  dayRows: { gap: theme.spacing(1) },
+  dayRows: { gap: theme.spacing(2) },
+  // One flat layer: the rows stand apart by spacing, not by borders.
   row: {
     flexDirection: "row",
-    gap: theme.spacing(3),
-    padding: theme.spacing(3),
+    gap: theme.spacing(2),
+    paddingVertical: theme.spacing(3),
+    paddingHorizontal: theme.spacing(3),
     borderRadius: theme.radius.md,
     backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
   },
-  rowEvent: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.accent,
-  },
-  rowCancelled: {
-    backgroundColor: theme.colors.surface,
-    opacity: 0.7,
-  },
+  rowCancelled: { opacity: 0.7 },
+  // The direction's dot, centred on the time's line.
+  dotSlot: { width: 8, height: 21, justifyContent: "center" },
   rowTime: {
-    width: 56,
+    width: 48,
     fontSize: 16,
+    lineHeight: 21,
     fontWeight: "600",
     color: theme.colors.text,
   },
-  rowTimeCancelled: {
+  struck: {
     textDecorationLine: "line-through",
     color: theme.colors.muted,
   },
   rowBody: { flex: 1, gap: 2 },
   rowTitle: {
+    flexShrink: 1,
     color: theme.colors.text,
     fontSize: 15,
+    lineHeight: 21,
     fontWeight: "600",
-  },
-  rowTitleCancelled: {
-    textDecorationLine: "line-through",
-    color: theme.colors.muted,
   },
   rowMeta: {
     color: theme.colors.muted,
     fontSize: 12,
   },
-  rowSpots: {
-    color: theme.colors.text,
+  rowStatus: {
+    flexShrink: 1,
+    color: theme.colors.textSecondary,
     fontSize: 12,
-    fontWeight: "600",
-    marginTop: 2,
   },
   rowMetaTz: {
     color: theme.colors.muted,
     fontSize: 11,
-    marginTop: 2,
-    fontFamily: undefined,
-  },
-  cancelLabel: {
-    color: theme.colors.danger,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  markHint: {
-    color: theme.colors.accent,
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 4,
   },
   rowPressed: { opacity: 0.7 },
   rowTitleLine: {
     flexDirection: "row",
-    flexWrap: "wrap",
     alignItems: "center",
-    gap: theme.spacing(1),
+    gap: theme.spacing(2),
   },
-  personalLink: {
-    alignSelf: "flex-start",
-    paddingVertical: theme.spacing(1),
+  // The member's own place, trailing the name: «✓ Вы записаны».
+  mine: {
+    flexShrink: 0,
+    marginLeft: "auto",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-  personalLinkText: {
+  mineText: { color: theme.colors.muted, fontSize: 12 },
+  mineTextStrong: { color: theme.colors.accent, fontWeight: "600" },
+  statusLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(2),
+  },
+  markLink: { flexShrink: 0, marginLeft: "auto" },
+  markText: {
     color: theme.colors.accent,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
   },
-  chipsScroll: { flexGrow: 0 },
-  chips: { gap: theme.spacing(2) },
-  chip: {
-    paddingHorizontal: theme.spacing(3),
-    paddingVertical: theme.spacing(2),
-    borderRadius: theme.radius.full,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-  },
-  chipSelected: {
-    backgroundColor: theme.colors.accent,
-    borderColor: theme.colors.accent,
-  },
-  chipText: { color: theme.colors.text, fontSize: 14, fontWeight: "500" },
-  chipTextSelected: { color: theme.colors.accentText, fontWeight: "700" },
   eventTitleRow: {
     flexDirection: "row",
     alignItems: "center",

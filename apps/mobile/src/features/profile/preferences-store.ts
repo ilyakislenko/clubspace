@@ -1,5 +1,14 @@
 import { type ThemeKey, type ThemeMode } from "@clubspace/ui-kit/util"
 
+import {
+  type BookmarkDrawing,
+  getMyVideoNote,
+  listMyVideoBookmarks,
+  type MyVideoBookmark,
+  type MyVideoNotesItem,
+  putMyVideoBookmark,
+  putMyVideoNote,
+} from "../../shared/api/video-study"
 import { listMyFavorites, setVideoFavorite } from "../../shared/api/videos"
 import {
   DOCUMENT_DIR,
@@ -9,7 +18,28 @@ import {
   safeReadString,
   safeWriteString,
 } from "../../shared/fs-safe"
+import { isPermanentError } from "../../shared/outbox/outbox"
 import { getProfileScopeId, profileSubdir } from "../../shared/profile-scope"
+import { randomUuid } from "../../shared/uuid"
+import {
+  applyBookmarkPushed,
+  applyNotePushed,
+  bookmarkPayload,
+  type BookmarksMap,
+  type LocalBookmark,
+  type LocalNote,
+  mergePulledBookmarks,
+  mergePulledNote,
+  migrateStudyData,
+  notePayload,
+  type NotesMap,
+  pointBookmarkAt,
+  visibleBookmarks,
+} from "./study-merge"
+import {
+  parseSubtitleChoice,
+  type SubtitleChoice,
+} from "../video/subtitle-choice"
 
 const ROOT = `${DOCUMENT_DIR}prefs/`
 const PREFERENCES_FILE = `${ROOT}preferences.json`
@@ -25,13 +55,19 @@ const USER_FILE_NAMES = {
   notes: "notes.json",
   bookmarks: "bookmarks.json",
   pinnedCourses: "pinned-courses.json",
+  // The subtitle language picked last (or Off), applied to every lesson.
+  subtitleChoice: "subtitle-choice.json",
 } as const
 const userFile = (name: keyof typeof USER_FILE_NAMES) =>
   `${userDir()}${USER_FILE_NAMES[name]}`
 
 export type Preferences = {
   autoplay: boolean
+  // After a lesson ends, count down and open the course's next lesson.
+  autoplayNext: boolean
   defaultPlaybackRate: number
+  // Show the video picture flipped left↔right (studying the mirrored side).
+  mirrorVideo: boolean
   wifiOnlyDownloads: boolean
   onboardingSeen: boolean
   themeKey: ThemeKey
@@ -40,7 +76,9 @@ export type Preferences = {
 
 const DEFAULT_PREFERENCES: Preferences = {
   autoplay: true,
+  autoplayNext: true,
   defaultPlaybackRate: 1,
+  mirrorVideo: false,
   wifiOnlyDownloads: false,
   onboardingSeen: false,
   themeKey: "indigo",
@@ -116,6 +154,24 @@ export const setPreferences = async (
     }
   })
   return next
+}
+
+// ---- Subtitle choice (per profile) ----
+
+/** The member's last subtitle choice; null = never chosen. */
+export const getSubtitleChoice = async (): Promise<SubtitleChoice | null> => {
+  await ensureRoot()
+  const raw = await safeReadString(userFile("subtitleChoice"))
+  if (!raw) return null
+  try {
+    return parseSubtitleChoice(JSON.parse(raw))
+  } catch {
+    return null
+  }
+}
+
+export const setSubtitleChoice = async (choice: SubtitleChoice) => {
+  await writeJson(userFile("subtitleChoice"), choice)
 }
 
 // ---- Favorites ----
@@ -279,115 +335,453 @@ export const clearRecents = async () => {
   await writeJson(userFile("recents"), [])
 }
 
-// ---- Personal video notes ----
+// ---- Lesson bookmarks and notes (offline-first, synced) ----
+//
+// notes.json / bookmarks.json are the working copy the video screen reads and
+// writes — with no network at all. Each edit stamps `updatedAt` and marks the
+// record dirty; a removed bookmark stays as a dirty tombstone until the server
+// has it. syncVideoStudy pushes one lesson's dirty records and pulls the
+// server's copy back, merging per study-merge (last write wins). Failures are
+// silent: records stay dirty and go out on the next sync (lesson opened, app
+// foregrounded, back online).
 
-type NotesMap = Record<string, { text: string; updatedAt: string }>
+export type StudyFiles = { bookmarks: string; notes: string; scope: string | null }
+type StudyData = { bookmarks: BookmarksMap; notes: NotesMap }
 
-const readNotes = async (): Promise<NotesMap> => {
-  await ensureRoot()
-  const raw = await safeReadString(userFile("notes"))
-  if (!raw) return {}
+// Captured when an operation starts, so one that outlives a switch to another
+// child's profile never writes into the new profile's files.
+export const studyFiles = (): StudyFiles => ({
+  bookmarks: userFile("bookmarks"),
+  notes: userFile("notes"),
+  scope: getProfileScopeId(),
+})
+
+// Every read-modify-write of the two files runs one at a time: the sync
+// applies server answers in between the member's edits, and two interleaved
+// writers would drop one of them.
+let studyQueue: Promise<unknown> = Promise.resolve()
+const runExclusive = <T,>(fn: () => Promise<T>): Promise<T> => {
+  const run = studyQueue.then(fn, fn)
+  studyQueue = run.catch(() => undefined)
+  return run
+}
+
+const parseJson = (raw: string | null): unknown => {
+  if (!raw) return null
   try {
-    const parsed = JSON.parse(raw)
-    return typeof parsed === "object" && parsed
-      ? (parsed as NotesMap)
-      : {}
+    return JSON.parse(raw)
   } catch {
-    return {}
+    return null
   }
 }
 
+// Reads both files, upgrading pre-sync data in place the first time (its new
+// uuids must be stable, so the upgrade is written straight back).
+const loadStudy = async (files: StudyFiles): Promise<StudyData> => {
+  await ensureRoot()
+  const [rawBookmarks, rawNotes] = await Promise.all([
+    safeReadString(files.bookmarks),
+    safeReadString(files.notes),
+  ])
+  const { bookmarks, notes, changed } = migrateStudyData(
+    parseJson(rawBookmarks),
+    parseJson(rawNotes),
+  )
+  if (changed) {
+    await Promise.all([
+      writeJson(files.bookmarks, bookmarks),
+      writeJson(files.notes, notes),
+    ])
+  }
+  return { bookmarks, notes }
+}
+
+// Loads, lets `change` mutate the data, writes back whichever file changed.
+const updateStudy = <T,>(
+  files: StudyFiles,
+  change: (data: StudyData) => T,
+): Promise<T> =>
+  runExclusive(async () => {
+    const data = await loadStudy(files)
+    const bookmarksBefore = JSON.stringify(data.bookmarks)
+    const notesBefore = JSON.stringify(data.notes)
+    const result = change(data)
+    await Promise.all([
+      JSON.stringify(data.bookmarks) !== bookmarksBefore &&
+        writeJson(files.bookmarks, data.bookmarks),
+      JSON.stringify(data.notes) !== notesBefore &&
+        writeJson(files.notes, data.notes),
+    ])
+    return result
+  })
+
+// An edit's LWW stamp: now, but always after the record's previous stamp (two
+// edits within a millisecond, or a clock that stepped back, must still order).
+const nextStamp = (previous?: string): string => {
+  const now = Date.now()
+  const prev = previous ? Date.parse(previous) : Number.NaN
+  return new Date(Number.isNaN(prev) || now > prev ? now : prev + 1).toISOString()
+}
+
+const setBookmarkList = (
+  data: StudyData,
+  videoId: string,
+  list: LocalBookmark[],
+) => {
+  if (list.length === 0) delete data.bookmarks[videoId]
+  else data.bookmarks[videoId] = list
+}
+
+const setLocalNote = (
+  data: StudyData,
+  videoId: string,
+  note: LocalNote | undefined,
+) => {
+  if (note) data.notes[videoId] = note
+  else delete data.notes[videoId]
+}
+
+const shownBookmarks = (data: StudyData, videoId: string) =>
+  JSON.stringify(visibleBookmarks(data.bookmarks[videoId] ?? []))
+
 export const getNote = async (videoId: string): Promise<string> => {
-  const notes = await readNotes()
-  return notes[videoId]?.text ?? ""
+  const files = studyFiles()
+  const data = await runExclusive(() => loadStudy(files))
+  return data.notes[videoId]?.text ?? ""
 }
 
 export const setNote = async (videoId: string, text: string) => {
-  const notes = await readNotes()
-  if (text.trim().length === 0) {
-    delete notes[videoId]
-  } else {
-    notes[videoId] = { text, updatedAt: new Date().toISOString() }
-  }
-  await writeJson(userFile("notes"), notes)
+  await updateStudy(studyFiles(), (data) => {
+    const current = data.notes[videoId]
+    if (!current && text.trim().length === 0) return
+    if (current?.text === text) return
+    // A clear is kept as an empty text: its stamp orders it against edits
+    // made on other devices.
+    data.notes[videoId] = { text, updatedAt: nextStamp(current?.updatedAt), dirty: true }
+  })
 }
 
-// ---- Video bookmarks (timestamps with optional labels) ----
-
-export type Bookmark = {
-  id: string
-  position: number
-  label: string
-  createdAt: string
+export const listBookmarks = async (
+  videoId: string,
+): Promise<MyVideoBookmark[]> => {
+  const files = studyFiles()
+  const data = await runExclusive(() => loadStudy(files))
+  return visibleBookmarks(data.bookmarks[videoId] ?? [])
 }
 
-type BookmarksMap = Record<string, Bookmark[]>
-
-const readBookmarks = async (): Promise<BookmarksMap> => {
-  await ensureRoot()
-  const raw = await safeReadString(userFile("bookmarks"))
-  if (!raw) return {}
-  try {
-    const parsed = JSON.parse(raw)
-    return typeof parsed === "object" && parsed
-      ? (parsed as BookmarksMap)
-      : {}
-  } catch {
-    return {}
-  }
-}
-
-const writeBookmarks = async (map: BookmarksMap) => {
-  await writeJson(userFile("bookmarks"), map)
-}
-
-export const listBookmarks = async (videoId: string): Promise<Bookmark[]> => {
-  const map = await readBookmarks()
-  const list = map[videoId] ?? []
-  return [...list].sort((a, b) => a.position - b.position)
-}
-
+// A moment, or an A–B segment when `endSec` is set (whole seconds, end > start).
 export const addBookmark = async (
   videoId: string,
-  position: number,
-  label = "",
-): Promise<Bookmark> => {
-  const map = await readBookmarks()
-  const list = map[videoId] ?? []
-  const entry: Bookmark = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    position: Math.max(0, Math.round(position)),
-    label,
-    createdAt: new Date().toISOString(),
+  positionSec: number,
+  endSec: number | null = null,
+): Promise<MyVideoBookmark> => {
+  const now = new Date().toISOString()
+  const created: MyVideoBookmark = {
+    id: randomUuid(),
+    videoId,
+    positionSec: Math.max(0, Math.round(positionSec)),
+    endSec,
+    label: "",
+    note: "",
+    drawing: null,
+    deleted: false,
+    createdAt: now,
+    updatedAt: now,
   }
-  map[videoId] = [...list, entry]
-  await writeBookmarks(map)
-  return entry
+  await updateStudy(studyFiles(), (data) => {
+    setBookmarkList(data, videoId, [
+      ...(data.bookmarks[videoId] ?? []),
+      { ...created, dirty: true },
+    ])
+  })
+  return created
+}
+
+/**
+ * Keeps a drawing made on the frame at `positionSec` (whole seconds): on
+ * `bookmarkId` (the bookmark whose drawing was being edited) while it lives,
+ * else on the moment bookmark already at that second, else on a new one.
+ * `created` tells the screen to open the new bookmark's name field, like
+ * «+ закладка». A null drawing removes the one on that bookmark (null result:
+ * nothing there).
+ */
+export const saveBookmarkDrawing = async (
+  videoId: string,
+  positionSec: number,
+  drawing: BookmarkDrawing | null,
+  bookmarkId: string | null = null,
+): Promise<{ bookmark: MyVideoBookmark; created: boolean } | null> => {
+  const second = Math.max(0, Math.round(positionSec))
+  const now = new Date().toISOString()
+  return await updateStudy(studyFiles(), (data) => {
+    const list = data.bookmarks[videoId] ?? []
+    const existing =
+      list.find((b) => b.id === bookmarkId && !b.deleted) ??
+      pointBookmarkAt(list, second)
+    if (!existing && !drawing) return null
+    const saved: LocalBookmark = existing
+      ? {
+          ...existing,
+          drawing,
+          dirty: true,
+          updatedAt: nextStamp(existing.updatedAt),
+        }
+      : {
+          id: randomUuid(),
+          videoId,
+          positionSec: second,
+          endSec: null,
+          label: "",
+          note: "",
+          drawing,
+          deleted: false,
+          createdAt: now,
+          updatedAt: now,
+          dirty: true,
+        }
+    setBookmarkList(
+      data,
+      videoId,
+      existing
+        ? list.map((b) => (b.id === saved.id ? saved : b))
+        : [...list, saved],
+    )
+    const [bookmark] = visibleBookmarks([saved])
+    return { bookmark, created: !existing }
+  })
 }
 
 export const removeBookmark = async (videoId: string, bookmarkId: string) => {
-  const map = await readBookmarks()
-  const list = map[videoId] ?? []
-  const next = list.filter((b) => b.id !== bookmarkId)
-  if (next.length === 0) {
-    delete map[videoId]
-  } else {
-    map[videoId] = next
-  }
-  await writeBookmarks(map)
+  await updateStudy(studyFiles(), (data) => {
+    const list = data.bookmarks[videoId] ?? []
+    setBookmarkList(
+      data,
+      videoId,
+      list.map((b) =>
+        b.id === bookmarkId && !b.deleted
+          ? { ...b, deleted: true, dirty: true, updatedAt: nextStamp(b.updatedAt) }
+          : b,
+      ),
+    )
+  })
 }
 
-export const updateBookmarkLabel = async (
+export const updateBookmark = async (
   videoId: string,
   bookmarkId: string,
-  label: string,
+  patch: Partial<Pick<MyVideoBookmark, "label" | "note">>,
 ) => {
-  const map = await readBookmarks()
-  const list = map[videoId] ?? []
-  map[videoId] = list.map((b) => (b.id === bookmarkId ? { ...b, label } : b))
-  await writeBookmarks(map)
+  await updateStudy(studyFiles(), (data) => {
+    const list = data.bookmarks[videoId] ?? []
+    setBookmarkList(
+      data,
+      videoId,
+      list.map((b) => {
+        if (b.id !== bookmarkId || b.deleted) return b
+        const next = { ...b, ...patch }
+        if (next.label === b.label && next.note === b.note) return b
+        return { ...next, dirty: true, updatedAt: nextStamp(b.updatedAt) }
+      }),
+    )
+  })
 }
 
+// The device's whole copy — the «Мои заметки» screen lays it over its cached
+// list while offline.
+export const readLocalStudy = (): Promise<StudyData> => {
+  const files = studyFiles()
+  return runExclusive(() => loadStudy(files))
+}
+
+type PushOutcome = {
+  // false: stopped on a transient failure (offline / server down).
+  ok: boolean
+  // The server's answer changed what the screen shows.
+  bookmarksChanged: boolean
+  noteChanged: boolean
+}
+
+// Sends one lesson's dirty records. A 4xx leaves the record dirty (it is the
+// member's data — never dropped) and moves on; a network failure stops here.
+const pushVideo = async (
+  videoId: string,
+  files: StudyFiles,
+): Promise<PushOutcome> => {
+  const outcome: PushOutcome = {
+    ok: true,
+    bookmarksChanged: false,
+    noteChanged: false,
+  }
+  const data = await runExclusive(() => loadStudy(files))
+  const dirtyBookmarks = (data.bookmarks[videoId] ?? []).filter((b) => b.dirty)
+  const dirtyNote = data.notes[videoId]?.dirty ? data.notes[videoId] : undefined
+
+  for (const sent of dirtyBookmarks) {
+    if (files.scope !== getProfileScopeId()) return { ...outcome, ok: false }
+    try {
+      // Edits and removals alike: a tombstone goes up as `deleted: true`.
+      const stored = await putMyVideoBookmark({
+        videoId,
+        bookmarkId: sent.id,
+        data: bookmarkPayload(sent),
+      })
+      const changed = await updateStudy(files, (d) => {
+        const before = shownBookmarks(d, videoId)
+        setBookmarkList(
+          d,
+          videoId,
+          applyBookmarkPushed(d.bookmarks[videoId] ?? [], sent, stored),
+        )
+        return shownBookmarks(d, videoId) !== before
+      })
+      outcome.bookmarksChanged ||= changed
+    } catch (err) {
+      if (!isPermanentError(err)) return { ...outcome, ok: false }
+    }
+  }
+
+  if (dirtyNote) {
+    if (files.scope !== getProfileScopeId()) return { ...outcome, ok: false }
+    try {
+      const stored = await putMyVideoNote({ videoId, data: notePayload(dirtyNote) })
+      const changed = await updateStudy(files, (d) => {
+        const before = d.notes[videoId]?.text ?? ""
+        setLocalNote(d, videoId, applyNotePushed(d.notes[videoId], dirtyNote, stored))
+        return (d.notes[videoId]?.text ?? "") !== before
+      })
+      outcome.noteChanged ||= changed
+    } catch (err) {
+      if (!isPermanentError(err)) return { ...outcome, ok: false }
+    }
+  }
+  return outcome
+}
+
+export type StudySyncResult = { bookmarksChanged: boolean; noteChanged: boolean }
+
+const runVideoSync = async (videoId: string): Promise<StudySyncResult | null> => {
+  const files = studyFiles()
+  try {
+    const pushed = await pushVideo(videoId, files)
+    if (!pushed.ok || files.scope !== getProfileScopeId()) return null
+    const [pulled, note] = await Promise.all([
+      listMyVideoBookmarks({ videoId }),
+      getMyVideoNote({ videoId }),
+    ])
+    if (files.scope !== getProfileScopeId()) return null
+    const merged = await updateStudy(files, (d) => {
+      const bookmarksBefore = shownBookmarks(d, videoId)
+      const noteBefore = d.notes[videoId]?.text ?? ""
+      setBookmarkList(
+        d,
+        videoId,
+        mergePulledBookmarks(d.bookmarks[videoId] ?? [], pulled.items),
+      )
+      setLocalNote(d, videoId, mergePulledNote(d.notes[videoId], note))
+      return {
+        bookmarksChanged: shownBookmarks(d, videoId) !== bookmarksBefore,
+        noteChanged: (d.notes[videoId]?.text ?? "") !== noteBefore,
+      }
+    })
+    return {
+      bookmarksChanged: pushed.bookmarksChanged || merged.bookmarksChanged,
+      noteChanged: pushed.noteChanged || merged.noteChanged,
+    }
+  } catch {
+    return null // offline / auth churn — stays dirty, retried next time
+  }
+}
+
+// At most one sync per lesson runs, plus one queued behind it (which picks up
+// every edit made meanwhile) — rapid triggers collapse into that one.
+const syncTails = new Map<string, Promise<StudySyncResult | null>>()
+const syncQueued = new Map<string, Promise<StudySyncResult | null>>()
+
+/**
+ * Push this lesson's unsynced edits, then pull and merge the server's copy.
+ * Resolves with what the server changed on screen (reload those from the
+ * store), or null when the sync didn't complete (e.g. offline).
+ */
+export const syncVideoStudy = (
+  videoId: string,
+): Promise<StudySyncResult | null> => {
+  const key = `${getProfileScopeId() ?? ""}:${videoId}`
+  const queued = syncQueued.get(key)
+  if (queued) return queued
+  const tail = syncTails.get(key) ?? Promise.resolve(null)
+  const run = tail.then(() => {
+    syncQueued.delete(key)
+    return runVideoSync(videoId)
+  })
+  syncQueued.set(key, run)
+  syncTails.set(key, run)
+  void run.then(() => {
+    if (syncTails.get(key) === run) syncTails.delete(key)
+  })
+  return run
+}
+
+let flushInFlight: Promise<void> | null = null
+
+const runFlush = async (): Promise<void> => {
+  const files = studyFiles()
+  try {
+    const data = await runExclusive(() => loadStudy(files))
+    const videoIds = new Set([
+      ...Object.keys(data.bookmarks).filter((id) =>
+        data.bookmarks[id].some((b) => b.dirty),
+      ),
+      ...Object.keys(data.notes).filter((id) => data.notes[id].dirty),
+    ])
+    for (const videoId of videoIds) {
+      const pushed = await pushVideo(videoId, files)
+      if (!pushed.ok) return
+    }
+  } catch {
+    /* offline — the records stay dirty */
+  }
+}
+
+/**
+ * Push every lesson's unsynced edits (no pull). Silent on failure. A call
+ * while one runs waits for that one, so «Мои заметки» never lists before the
+ * offline edits are up.
+ */
+export const flushStudyData = (): Promise<void> => {
+  flushInFlight ??= runFlush().finally(() => {
+    flushInFlight = null
+  })
+  return flushInFlight
+}
+
+/**
+ * The overview carries each listed lesson's complete server copy: merge it in,
+ * so those lessons' notes are on the device for offline study. `files` must be
+ * captured before the request; if the profile changed since, nothing is merged
+ * and this resolves false.
+ */
+export const mergeVideoNotesIntoStudy = async (
+  files: StudyFiles,
+  items: readonly MyVideoNotesItem[],
+): Promise<boolean> => {
+  if (files.scope !== getProfileScopeId()) return false
+  await updateStudy(files, (data) => {
+    for (const item of items) {
+      const videoId = item.video.id
+      setBookmarkList(
+        data,
+        videoId,
+        mergePulledBookmarks(data.bookmarks[videoId] ?? [], item.bookmarks),
+      )
+      setLocalNote(
+        data,
+        videoId,
+        mergePulledNote(data.notes[videoId], item.note ?? { text: "", updatedAt: null }),
+      )
+    }
+  })
+  return true
+}
 
 const readPinnedCourses = async (): Promise<string[]> => {
   await ensureRoot()

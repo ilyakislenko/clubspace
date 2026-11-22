@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { isOfflineUrl } from "../offline/offline-media-cache"
 import { OfflineCacheLoader } from "./offline-hls-loader"
+import { PLAYBACK_RATES } from "./player-math"
 import type {
   PlayerHandle,
   PlayerSurfaceProps,
@@ -37,9 +38,11 @@ export function usePlayer(uri: string | null): UsePlayerResult {
   const pendingSeek = useRef<number | null>(null)
   const [failed, setFailed] = useState(false)
   const rateRef = useRef(1)
+  const mutedRef = useRef(false)
 
   const attachRef = useCallback((el: HTMLVideoElement | null) => {
     elRef.current = el
+    if (el) el.muted = mutedRef.current
     setVideoEl(el)
   }, [])
 
@@ -66,8 +69,17 @@ export function usePlayer(uri: string | null): UsePlayerResult {
         const d = elRef.current?.duration
         return typeof d === "number" && Number.isFinite(d) && d > 0 ? d : undefined
       },
+      // The DOM exposes no frame rate; the frame step falls back to 30 fps.
+      frameRate: null,
+      get videoSize() {
+        const v = elRef.current
+        return v && v.videoWidth > 0
+          ? { width: v.videoWidth, height: v.videoHeight }
+          : null
+      },
+      // The element's own rate: Plyr's speed menu changes it behind our back.
       get playbackRate() {
-        return rateRef.current
+        return elRef.current?.playbackRate ?? rateRef.current
       },
       set playbackRate(r: number) {
         rateRef.current = r
@@ -80,8 +92,23 @@ export function usePlayer(uri: string | null): UsePlayerResult {
           }
         }
       },
+      get playing() {
+        const v = elRef.current
+        return !!v && !v.paused && !v.ended
+      },
+      // Kept for an element attached later (Plyr mounts it after the handle).
+      get muted() {
+        return elRef.current?.muted ?? mutedRef.current
+      },
+      set muted(m: boolean) {
+        mutedRef.current = m
+        if (elRef.current) elRef.current.muted = m
+      },
       play() {
         void elRef.current?.play().catch(() => undefined)
+      },
+      pause() {
+        elRef.current?.pause()
       },
       addListener(event, cb) {
         if (event !== "playToEnd") return { remove: () => undefined }
@@ -178,7 +205,7 @@ export function usePlayer(uri: string | null): UsePlayerResult {
             "fullscreen",
           ],
           settings: ["speed"],
-          speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] },
+          speed: { selected: 1, options: [...PLAYBACK_RATES] },
           keyboard: { focused: true, global: false, seekTime: 5 },
           // Local sprite (bundled) — no CDN. blankVideo is never fetched because
           // a source (src or hls.js) is always attached before init, so we
@@ -206,7 +233,7 @@ export function usePlayer(uri: string | null): UsePlayerResult {
     () =>
       // Raw DOM <video> (react-native-web runs on ReactDOM, so host elements are
       // fine). No crossOrigin, so the presigned progressive MP4 needs no S3 CORS.
-      function PlayerSurface(_props: PlayerSurfaceProps) {
+      function PlayerSurface({ mirrored = false }: PlayerSurfaceProps) {
         return (
           <video
             ref={attachRef}
@@ -217,6 +244,9 @@ export function usePlayer(uri: string | null): UsePlayerResult {
               height: "100%",
               backgroundColor: "#000",
               display: "block",
+              // Plyr's controls are siblings of the <video>, so only the
+              // picture flips.
+              transform: mirrored ? "scaleX(-1)" : undefined,
             }}
           />
         )
@@ -224,5 +254,5 @@ export function usePlayer(uri: string | null): UsePlayerResult {
     [attachRef],
   )
 
-  return { player, PlayerSurface, failed }
+  return { player, PlayerSurface, failed, builtInControls: true }
 }

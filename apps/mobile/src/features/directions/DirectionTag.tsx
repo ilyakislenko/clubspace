@@ -6,7 +6,7 @@ import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 
 /**
- * A direction's colored dot + emoji + name — on a class / event / agenda row,
+ * A direction's colored dot + name — on a class sheet / event / agenda row,
  * next to a rank ladder, or as a chip (`chip`) in «Мои направления». Renders
  * nothing for a club-wide row (`null`) or a payload cached before directions.
  */
@@ -29,7 +29,6 @@ export function DirectionTag({
     >
       <DirectionDot color={direction.color} fallback={theme.colors.mutedFaint} />
       <Text style={[styles.label, chip && styles.chipLabel]} numberOfLines={1}>
-        {direction.icon ? `${direction.icon} ` : ""}
         {direction.name}
       </Text>
     </View>

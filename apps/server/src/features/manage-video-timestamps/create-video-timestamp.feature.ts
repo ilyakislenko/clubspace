@@ -9,6 +9,8 @@ export const VideoTimestampOutputSchema = z.object({
     id: z.string().uuid(),
     positionSec: z.number().int(),
     title: z.string(),
+    // manual | ocr | speech.
+    source: z.string(),
 })
 
 export class CreateVideoTimestampFeature {

@@ -53,12 +53,15 @@ import {
   NextClassCard,
   NextEventCard,
   PersonalRequestsCard,
+  ReviewsCard,
   SubscriptionCard,
 } from "./HomeCards"
 import {
+  coachNextAfterToday,
   greetingName,
   pickCoachClassesToday,
   pickNextEvent,
+  showAnnouncementOnHome,
   showCheckInButton,
   showHomeFallback,
   showSubscriptionCard,
@@ -78,6 +81,7 @@ import { AgendaTodayCard } from "../agenda/AgendaTodayCard"
 import { useOpenAgendaItem } from "../agenda/use-open-agenda-item"
 import { ClubSwitcherButton } from "../clubs/ClubSwitcherButton"
 import { ActingAsPill } from "../children/ActingAsPill"
+import { useMyReviews } from "../reviews/use-my-reviews"
 
 export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const theme = useTheme()
@@ -238,6 +242,8 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       [workspaceId, todayFrom],
     ),
   )
+  // Same key as the «Повторение» screen, so each paints the other's data.
+  const reviews = useMyReviews(videosOn && workspaceId ? workspaceId : null)
 
   const resources = [
     me,
@@ -253,11 +259,12 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     freezeRequests,
     agenda,
     substitutions,
+    reviews.resource,
   ]
   const refreshing = resources.some((r) => r.refreshing)
-  // Guest bookings, personal sessions, the call list, freeze requests and the
-  // cross-club agenda (it shows its own retry) are bonuses on Home:
-  // never an error banner.
+  // Guest bookings, personal sessions, the call list, freeze requests, the
+  // cross-club agenda (it shows its own retry) and «Повторение» are bonuses on
+  // Home: never an error banner.
   const failed = resources.find(
     (r) =>
       r !== dropIns &&
@@ -268,6 +275,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       r !== agenda &&
       r !== events &&
       r !== substitutions &&
+      r !== reviews.resource &&
       r.error &&
       !r.data,
   )
@@ -280,6 +288,8 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const access = !subscriptionOn
     ? accessStatus(membership.data?.accessUntil)
     : null
+  // Per render: Home is a tab and stays mounted, so «today» can't be memoized.
+  const now = new Date()
   const latestAnnouncement = announcements.data?.data[0]
   const hasRecents = videosOn && recents.length > 0
   const lastRecent = videosOn ? recents[0] : undefined
@@ -293,20 +303,47 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const myPersonal = meId
     ? personalRequests.filter((pt) => viewerRole(pt, meId) === "member")
     : []
-  const nextClass = ((groupsOn && groups.data) ||
+
+  // A coach marks their own classes; self check-in stays for anyone who trains
+  // in a group (a coach who also trains sees both).
+  const myGroups = groups.data ?? []
+  const coachesAnyGroup = myGroups.some((g) => g.role === "coach")
+  const coachClasses = pickCoachClassesToday(
+    myGroups,
+    now,
+    personalRequests,
+    meId ?? null,
+    substitutions.data ?? [],
+  )
+  const showsCoachToday =
+    attendanceOn && (coachesAnyGroup || coachClasses.length > 0)
+
+  // With «Сегодня вы ведёте» on top, «Ближайшая» covers only the groups the
+  // viewer trains in (the coached ones' next class is the today block's
+  // «Следующая — …» line), and it is no longer the main block. Staff never
+  // get «Вас пока не добавили в группу»: the card needs a group of theirs.
+  const nextClassGroups = !groupsOn
+    ? []
+    : showsCoachToday
+      ? myGroups.filter((g) => g.role !== "coach")
+      : myGroups
+  const nextClass = ((showsCoachToday || isStaffWorkspace(workspace)
+    ? nextClassGroups.length > 0
+    : groupsOn && groups.data) ||
     bookings.length > 0 ||
     myClassBookings.length > 0 ||
     myPersonal.length > 0) && (
     <NextClassCard
-      groups={groupsOn ? (groups.data ?? []) : []}
+      groups={nextClassGroups}
       bookings={bookings}
       classBookings={myClassBookings}
       personal={myPersonal}
       onPress={() => navigation.navigate("Schedule")}
+      prominent={!showsCoachToday}
     />
   )
 
-  const nextEvent = pickNextEvent(events.data ?? [], new Date())
+  const nextEvent = pickNextEvent(events.data ?? [], now)
   const nextEventCard = nextEvent && (
     <NextEventCard
       next={nextEvent}
@@ -334,11 +371,8 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
-  // A coach marks their own classes; self check-in stays for anyone who trains
-  // in a group (a coach who also trains sees both).
-  const coachesAnyGroup = (groups.data ?? []).some((g) => g.role === "coach")
   const checkIn = attendanceOn &&
-    showCheckInButton(workspace.roleName, groups.data ?? []) && (
+    showCheckInButton(workspace.roleName, myGroups) && (
     <Pressable
       onPress={() => navigation.navigate("CheckIn")}
       accessibilityRole="button"
@@ -359,20 +393,13 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   // column: there is no row to line up with, so they keep their own height.
   const cardsGrow = sizeClass !== "expanded"
 
-  // Per render: Home is a tab and stays mounted, so «today» can't be memoized.
-  const coachClasses = pickCoachClassesToday(
-    groups.data ?? [],
-    new Date(),
-    personalRequests,
-    meId ?? null,
-    substitutions.data ?? [],
-  )
-  const coachToday = attendanceOn &&
-    (coachesAnyGroup || coachClasses.length > 0) && (
+  const coachToday = showsCoachToday && (
     <CoachTodayCard
       classes={coachClasses}
+      now={now}
+      next={coachNextAfterToday(myGroups, coachClasses, now)}
       grow={cardsGrow}
-      onMark={(c) =>
+      onOpen={(c) =>
         c.sessionId
           ? navigation.navigate("SessionRoster", {
               sessionId: c.sessionId,
@@ -384,6 +411,13 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
               groupName: c.groupName,
             })
       }
+      // The club schedule, back on today (the tab keeps the day it was on).
+      onAll={
+        isFeatureEnabled(workspace, "schedule")
+          ? () => navigation.navigate("Schedule", { today: Date.now() })
+          : undefined
+      }
+      onNext={() => navigation.navigate("Schedule")}
     />
   )
 
@@ -396,7 +430,9 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
-  const announcementCard = announcementsOn && latestAnnouncement && (
+  const announcementCard = announcementsOn &&
+    latestAnnouncement &&
+    showAnnouncementOnHome(latestAnnouncement, now) && (
     <AnnouncementCard
       item={latestAnnouncement}
       onPress={() => navigation.navigate("Announcements")}
@@ -412,6 +448,9 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
+  // A member with no class to show: resuming a video is their main block,
+  // right under the header instead of last.
+  const continueLeads = !coachToday && !nextClass
   const continueRow = lastRecent && (
     <ContinueRow
       recent={lastRecent}
@@ -424,6 +463,17 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
         })
       }
       onAll={() => navigation.navigate("ContinueWatching")}
+      prominent={continueLeads}
+    />
+  )
+
+  // Only with cards due today: «На сегодня всё» is no news on Home.
+  const due = reviews.view?.dueCount ?? 0
+  const reviewsCard = due > 0 && (
+    <ReviewsCard
+      due={due}
+      onPress={() => navigation.navigate("Reviews")}
+      grow={cardsGrow}
     />
   )
 
@@ -438,10 +488,11 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
-  // The expanded layout's main column.
-  // Staff have no abonement card: their short cards (call list, requests)
-  // go to the side column instead, or it held one announcement over a
-  // screen-tall gap beside a long main column.
+  // Every layout: the role's main block (today / next class / resume), the
+  // member's check-in, what waits for an answer, then news.
+  // The expanded layout's main column. Staff have no abonement card: their
+  // short cards (call list, requests) go to the side column instead, or it
+  // held one announcement over a screen-tall gap beside a long main column.
   const staffSide = !subscriptionCard
   const hasSideCards = [
     subscriptionCard,
@@ -454,13 +505,15 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     <>
       {agendaCard}
       {coachToday}
-      {!staffSide && callList}
       {nextClass}
-      {nextEventCard}
+      {continueLeads && continueRow}
+      {checkIn}
       {!staffSide && coachRequests}
       {!staffSide && freezeRequestsCard}
-      {checkIn}
-      {continueRow}
+      {!staffSide && callList}
+      {nextEventCard}
+      {reviewsCard}
+      {!continueLeads && continueRow}
     </>
   )
 
@@ -540,36 +593,40 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             <>
               {agendaCard}
               {coachToday}
-              {callList}
               {nextClass}
-              {nextEventCard}
+              {continueLeads && continueRow}
+              {checkIn}
               {coachRequests}
               {freezeRequestsCard}
-              {checkIn}
+              {callList}
+              {nextEventCard}
               {subscriptionCard}
               {announcementCard}
-              {continueRow}
+              {reviewsCard}
+              {!continueLeads && continueRow}
             </>
           ) : sizeClass === "medium" ? (
             <>
               {agendaCard}
               {coachToday}
-              {/* A coach's call list pairs with the next class instead of
-                  stretching alone across the tablet. */}
-              <ResponsiveGrid fill>
-                {callList}
-                {nextClass}
-                {nextEventCard}
-                {subscriptionCard}
-              </ResponsiveGrid>
+              {continueLeads && continueRow}
               <ResponsiveGrid fill>
                 {coachRequests}
                 {freezeRequestsCard}
               </ResponsiveGrid>
+              {/* A coach's call list pairs with the next class instead of
+                  stretching alone across the tablet. */}
+              <ResponsiveGrid fill>
+                {nextClass}
+                {callList}
+                {nextEventCard}
+                {subscriptionCard}
+              </ResponsiveGrid>
               {checkIn}
               <ResponsiveGrid fill>
+                {reviewsCard}
                 {announcementCard}
-                {continueRow}
+                {!continueLeads && continueRow}
               </ResponsiveGrid>
             </>
           ) : !hasSideCards ? (
@@ -599,7 +656,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             attendanceOn,
             subscriptionOn,
             hasRecents,
-            hasAnnouncement: announcementsOn && !!latestAnnouncement,
+            hasAnnouncement: !!announcementCard,
           }) && videosOn && <HomeFallback onPress={() => navigation.navigate("Courses")} />}
         </ScrollView>
       </CenteredColumn>

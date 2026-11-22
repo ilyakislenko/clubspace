@@ -8,6 +8,7 @@ import {
     PaymentsProcessor,
     PurgeProcessor,
     RemindersProcessor,
+    ReviewRemindersProcessor,
     SCHEDULER_QUEUES,
 } from './scheduler.processors'
 
@@ -51,7 +52,7 @@ describe('scheduler processors', () => {
         await new PurgeProcessor({} as never, qs[4] as never).onModuleInit()
         await new AnalyticsProcessor({} as never, {} as never, qs[5] as never).onModuleInit()
 
-        expect(new Set(Object.values(SCHEDULER_QUEUES)).size).toBe(7)
+        expect(new Set(Object.values(SCHEDULER_QUEUES)).size).toBe(8)
         expect(qs[5].upsertJobScheduler.mock.calls[0][1]).toEqual({ every: 60 * 60_000 })
         expect(qs[1].upsertJobScheduler.mock.calls[0][1]).toEqual({ every: 30 * 60_000 })
         expect(qs[4].upsertJobScheduler.mock.calls[0][1]).toEqual({
@@ -170,5 +171,23 @@ describe('scheduler processors', () => {
         expect(log).toHaveBeenCalledWith(
             expect.stringContaining('2 promoted from waitlists, 1 classes settled'),
         )
+    })
+
+    it('runs review reminders every half hour and reports failed clubs', async () => {
+        const q = queue(SCHEDULER_QUEUES.reviewReminders)
+        const run = jest
+            .fn()
+            .mockResolvedValueOnce({ clubs: 0, failed: 0, sent: 0 })
+            .mockResolvedValueOnce({ clubs: 2, failed: 1, sent: 3 })
+        const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+        const p = new ReviewRemindersProcessor({ run } as never, q as never)
+        await p.onModuleInit()
+        expect(q.upsertJobScheduler.mock.calls[0][1]).toEqual({ every: 30 * 60_000 })
+
+        await p.process(job)
+        expect(log).not.toHaveBeenCalled()
+        await p.process(job)
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('1 club(s)'))
+        expect(log).toHaveBeenCalledWith(expect.stringContaining('2 clubs, 3 reminded'))
     })
 })
