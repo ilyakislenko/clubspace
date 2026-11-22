@@ -63,7 +63,7 @@ export function PlatformPromoPresets({
     }
   }
 
-  const confirm = async () => {
+  const apply = async () => {
     if (!pending) return
     setWorking(true)
     setError(null)
@@ -178,7 +178,7 @@ export function PlatformPromoPresets({
             nextChargeAt={pending.preview.next.nextChargeAt}
           />
           <div className="flex gap-2">
-            <Button size="sm" disabled={disabled} onClick={() => void confirm()}>
+            <Button size="sm" disabled={disabled} onClick={() => void apply()}>
               Применить
             </Button>
             <Button

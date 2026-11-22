@@ -132,8 +132,10 @@ describe('at-risk members', () => {
         expect(await ctx.prisma.memberRetentionContact.count()).toBe(0)
     })
 
-    it('hides a member for two weeks after a coach logs a contact', async () => {
+    it('takes a member off the list at once after a coach logs a contact', async () => {
         const { workspace, coachActor, a, coach } = await setup()
+        // Warm the minute-long cache: the contact must drop it.
+        expect((await list(workspace.id, coachActor.auth)).body.summary.total).toBe(1)
         const post = await ctx
             .http()
             .post(`/workspaces/${workspace.id}/at-risk-members/${a.id}/contacts`)
@@ -154,9 +156,11 @@ describe('at-risk members', () => {
         expect(row.contactedById).toBe(coach.id)
 
         const res = await list(workspace.id, coachActor.auth)
-        expect(res.body.data).toHaveLength(1)
-        expect(res.body.data[0]).toMatchObject({ userId: a.id, snoozed: true })
+        expect(res.body.data).toEqual([])
         expect(res.body.summary).toMatchObject({ total: 0, snoozed: 1 })
+        const contacted = await list(workspace.id, coachActor.auth, '?snoozed=true')
+        expect(contacted.body.data).toHaveLength(1)
+        expect(contacted.body.data[0]).toMatchObject({ userId: a.id, snoozed: true })
     })
 
     it('refuses a plain member', async () => {

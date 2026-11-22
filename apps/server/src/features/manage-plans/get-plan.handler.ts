@@ -6,17 +6,17 @@ import {
     currentSubscriptionWhere,
 } from '../../domains/subscriptions/current-subscriptions'
 import { PrismaService } from '../../infrastructure/prisma'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
-import { paidInRangeWhere } from '../get-workspace-stats/revenue'
+import { paidInRangeWhere } from '../../domains/metrics/revenue'
 import { GetPlanFeature, GetPlanFeatureResponse } from './get-plan.feature'
-import { planDtoInclude, serializePlan } from './schemas'
+import { PLAN_WRITE_REFUSAL, planDtoInclude, serializePlan } from './schemas'
 
 const DAY_MS = 24 * 3600 * 1000
 
-// The tariff page. Who holds it and what it earned are the same scope as
-// editing it: admin scope any tariff, a direction manager the tariffs of
-// directions they run (every one of the set), a club-wide tariff admin only.
+// The tariff page: who holds it and what it earned. Club money, like editing
+// the tariff — the owner and admins only.
 @Feature(GetPlanFeature)
 export class GetPlanHandler
     implements IFeatureHandler<GetPlanFeature, GetPlanFeatureResponse>
@@ -27,12 +27,16 @@ export class GetPlanHandler
     ) {}
 
     async execute(f: GetPlanFeature): Promise<GetPlanFeatureResponse> {
-        const ctx = await this.rbac.resolveCoachScope({
-            userId: f.invokerUserId,
-            workspaceId: f.workspaceId,
-            roleName: f.roleName,
-            isSuperAdmin: f.isSuperAdmin,
-        })
+        await assertClubAdmin(
+            this.rbac,
+            {
+                userId: f.invokerUserId,
+                workspaceId: f.workspaceId,
+                roleName: f.roleName,
+                isSuperAdmin: f.isSuperAdmin,
+            },
+            PLAN_WRITE_REFUSAL,
+        )
         if (!z.string().uuid().safeParse(f.planId).success) {
             throw new NotFoundError({ message: 'Тариф не найден' })
         }
@@ -41,11 +45,6 @@ export class GetPlanHandler
             include: planDtoInclude,
         })
         if (!plan) throw new NotFoundError({ message: 'Тариф не найден' })
-        const scope = plan.directions.map((d) => d.direction.id)
-        await this.rbac.assertCanManageDirection(
-            ctx,
-            ...(scope.length > 0 ? scope : [null]),
-        )
 
         const now = new Date()
         const since = new Date(now.getTime() - 30 * DAY_MS)

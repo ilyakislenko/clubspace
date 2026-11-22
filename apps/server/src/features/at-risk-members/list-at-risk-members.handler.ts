@@ -1,16 +1,24 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { loadWorkspaceRisk } from '../../domains/retention/load-workspace-risk'
-import { summarizeRisk } from '../../domains/retention/risk-signals'
-import { PrismaService } from '../../infrastructure/prisma'
-import { NotFoundError } from '../../shared/errors/shared.errors'
-import { RbacService } from '../../shared/services/rbac.service'
 import {
+    narrowCallList,
+    summarizeCallList,
+} from '../../domains/retention/call-list'
+import { CallListCacheService } from '../../domains/retention/call-list-cache.service'
+import { PrismaService } from '../../infrastructure/prisma'
+import { isClubAdmin } from '../../shared/access/assert-admin-scope'
+import { RbacService } from '../../shared/services/rbac.service'
+import { resolveAnalyticsScope } from '../../domains/analytics/analytics-scope'
+import {
+    AT_RISK_DEFAULT_PER_PAGE,
     ListAtRiskMembersFeature,
     ListAtRiskMembersFeatureResponse,
 } from './list-at-risk-members.feature'
 import { serializeAtRiskMember } from './schemas'
 
+// One list for every surface: sport leads see the whole club, a coach or a
+// direction manager the groups they act on as their own (ownGroupsWhere —
+// the same groups «Связались» may be logged for, so every row is callable).
 @Feature(ListAtRiskMembersFeature)
 export class ListAtRiskMembersHandler
     implements
@@ -22,80 +30,45 @@ export class ListAtRiskMembersHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
+        private readonly callLists: CallListCacheService,
     ) {}
 
-    async execute({
-        payload,
-        workspaceId,
-        invokerUserId,
-        roleName,
-        isSuperAdmin,
-    }: ListAtRiskMembersFeature) {
-        const ctx = await this.rbac.resolveCoachScope({
-            userId: invokerUserId,
-            workspaceId,
-            roleName,
-            isSuperAdmin,
-        })
+    async execute(
+        f: ListAtRiskMembersFeature,
+    ): Promise<ListAtRiskMembersFeatureResponse> {
+        const { payload } = f
+        const { ctx, scope } = await resolveAnalyticsScope(
+            this.prisma,
+            this.rbac,
+            f,
+            payload,
+        )
+        const list = await this.callLists.get(f.workspaceId)
+        const entries = narrowCallList(list.entries, scope.groupIds)
+        const summary = summarizeCallList(entries)
+        // «₽ на кону» is club money: only the owner and admins get amounts.
+        const seesMoney = isClubAdmin(ctx, f)
 
-        if (payload.gymId) {
-            const gym = await this.prisma.gym.findFirst({
-                where: { id: payload.gymId, workspaceId },
-                select: { id: true },
-            })
-            if (!gym) throw new NotFoundError({ message: 'Зал не найден' })
-        }
-        if (payload.groupId) {
-            const group = await this.prisma.group.findFirst({
-                where: { id: payload.groupId, workspaceId },
-                select: { id: true },
-            })
-            if (!group) throw new NotFoundError({ message: 'Группа не найдена' })
-        }
-
-        // Own groups = coached (primary or assistant) or of a direction the
-        // caller runs (ownGroupsWhere), so «mine» and «can contact» match
-        // canWriteMember.
-        const ownOnly =
-            !this.rbac.canSeeAllGroups(ctx) || payload.scope === 'mine'
-        const canWriteAll = this.rbac.canWriteAllGroups(ctx)
-        const coachGroupIds =
-            ownOnly || !canWriteAll
-                ? new Set(await this.rbac.ownGroupIds(ctx))
-                : null
-        const ownGroupIds = ownOnly ? coachGroupIds : null
-
-        const entries = await loadWorkspaceRisk(this.prisma, {
-            workspaceId,
-            now: new Date(),
-        })
-
-        // Same rule as logging a contact: admins any member, a coach only
-        // members of their own groups (even with read-all).
-        const kept = entries
-            .map((e) => ({
-                ...e,
-                canContact:
-                    canWriteAll ||
-                    e.groups.some((g) => coachGroupIds?.has(g.id)),
-            }))
-            .map((e) =>
-                ownGroupIds
-                    ? { ...e, groups: e.groups.filter((g) => ownGroupIds.has(g.id)) }
-                    : e,
-            )
-            .filter(
-                (e) =>
-                    (!ownGroupIds || e.groups.length > 0) &&
-                    (!payload.gymId ||
-                        e.groups.some((g) => g.gymId === payload.gymId)) &&
-                    (!payload.groupId ||
-                        e.groups.some((g) => g.id === payload.groupId)),
-            )
-
+        const snoozed = payload.snoozed ?? false
+        const rows = entries.filter(
+            (e) =>
+                e.snoozed === snoozed &&
+                (!payload.reason || e.reason === payload.reason),
+        )
+        const curPage = payload.curPage ?? 1
+        const perPage = payload.perPage ?? AT_RISK_DEFAULT_PER_PAGE
         return {
-            data: kept.map((e) => serializeAtRiskMember(e)),
-            summary: summarizeRisk(kept),
+            data: rows
+                .slice((curPage - 1) * perPage, curPage * perPage)
+                .map((e) => serializeAtRiskMember(e, seesMoney)),
+            summary: {
+                ...summary,
+                moneyAtStake: seesMoney ? summary.moneyAtStake : null,
+            },
+            total: rows.length,
+            curPage,
+            perPage,
+            scoredAt: list.scoredAt,
         }
     }
 }

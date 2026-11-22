@@ -82,10 +82,11 @@ export class XHandler implements IFeatureHandler<XFeature, XFeatureResponse> {
 ```
 - **Authorize in the handler, never trust `@Roles` alone.** Resolve scope once:
   `const ctx = await this.rbac.resolveCoachScope({ userId, workspaceId, roleName, isSuperAdmin })`.
-  Then: group writes → `await this.rbac.assertCanWriteGroup(ctx, groupId)`; workspace-admin
-  actions → `assertWorkspaceAdmin(this.rbac, {...})` (`shared/access/assert-admin-scope.ts`);
-  scoped reads → `this.rbac.canSeeAllGroups(ctx)`; writes to a direction-owned entity (ladder,
-  grading, promotion, achievement, announcement, event, tariff, course audience) →
+  Then: group writes → `await this.rbac.assertCanWriteGroup(ctx, groupId)`; money/system
+  actions → `assertClubAdmin(this.rbac, {...})`, roster/ops actions → `assertSportLead(...)`
+  (`shared/access/assert-admin-scope.ts`); scoped reads → `this.rbac.canSeeAllGroups(ctx)`;
+  writes to a direction-owned entity (ladder, grading, promotion, achievement, announcement,
+  event, course audience; tariffs are club money, `assertClubAdmin`) →
   `await this.rbac.assertCanManageDirection(ctx, current.directionId, payload.directionId)` and
   `COACHING_ROLES` (руководители направлений, `docs/design/2026-11-01-direction-managers.md`;
   pinned by `shared/access/direction-scope-source.spec.ts`). The **owner bypass** lives inside
@@ -100,6 +101,19 @@ export class XHandler implements IFeatureHandler<XFeature, XFeatureResponse> {
 - **Idempotent create on a compound unique:** Prisma `upsert` isn't atomic there — use
   `create` + `catch (P2002) → findUnique` (check `(e as {code}).code === 'P2002'`).
 - **Enum values** are passed as string literals (`status: 'ACTIVE'`), matching the codebase.
+- **Edit forms and concurrent saves:** an update input that an edit form sends spreads
+  `ExpectedUpdatedAtField` (`shared/utils/optimistic-concurrency.ts`); the handler calls
+  `claimUnchanged(payload.expectedUpdatedAt, (expected) => tx.<model>.updateMany({ where: { id,
+  workspaceId, updatedAt: expected }, data: { updatedAt: new Date() } }))` inside the same
+  `$transaction` as the real update, which throws `StaleUpdateError` (409 `STALE_UPDATE`).
+  Omitted = last write wins (mobile, MCP). The read endpoint returns `updatedAt`.
+- **Counts of people, money and renewals** come only from `domains/metrics/*` and
+  `domains/subscriptions/renewal-rules.ts` (the glossary in
+  `docs/design/2026-11-08-admin-cleanup.md` B2). A new screen or report reuses those functions;
+  never write its own `where` for «students», «active», «awaiting payment» or «renewal due».
+- **Call list cache:** a write that changes who is on «Кому позвонить» (contact logged,
+  membership removed) calls `CallListCacheService.invalidate(workspaceId)`; everything else
+  waits out the 60 s TTL.
 
 ### controller.ts
 ```ts
@@ -107,9 +121,9 @@ export class XHandler implements IFeatureHandler<XFeature, XFeatureResponse> {
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class XController {
   constructor(private bus: FeaturesBus) {}
-  // Tier must match the handler's check: assertWorkspaceAdmin => WORKSPACE_ADMINS
-  // (enforced by shared/access/route-tier-consistency.spec.ts).
-  @Post() @Roles(WORKSPACE_ADMINS) @ZodResponse({ type: XOutputDto })
+  // Tier must match the handler's check: assertClubAdmin => CLUB_ADMINS,
+  // assertSportLead => SPORT_LEADS (enforced by shared/access/route-tier-consistency.spec.ts).
+  @Post() @Roles(SPORT_LEADS) @ZodResponse({ type: XOutputDto })
   async createX(@Param('workspaceId') workspaceId: string, @Body() body: XInputDto,
     @CurrentUser() user: CurrentUserPayload) {
     return this.bus.execute<XFeature, XFeatureResponse>(
@@ -142,11 +156,18 @@ export class XController {
 - **Boolean request fields:** `z.boolean()` for JSON bodies, `strictBoolean()`
   (`shared/utils/strict-boolean.ts`) where a string may arrive (query, form). Never
   `z.coerce.boolean()` — `'false'` coerces to `true`.
-- **Tier rule:** a handler that calls `assertWorkspaceAdmin` sits behind
-  `@Roles(WORKSPACE_ADMINS)`; coach-scope handlers (`resolveCoachScope`) use `COACHING_ROLES`
-  for writes and `STAFF_ROLES` for reads. `shared/access/route-tier-consistency.spec.ts`
-  scans every controller and fails on a mismatch (a coach would otherwise see the button and
-  always get 403). There is no `moderator` role; the roles a club admin can grant are
+- **Tier rule:** two admin tiers. `CLUB_ADMINS` (owner, admin) — money and system: tariffs,
+  refunds, payment keys, the ClubSpace subscription, revenue, settings, staff roles, public
+  page, integrations/AI tokens, import, exports, audit; the handler calls `assertClubAdmin`.
+  `SPORT_LEADS` (owner, admin, head coach) — the sport side across every group: roster of
+  students and parents, gyms, renewals, abonements; the handler calls `assertSportLead`.
+  Anything touching a staff role (inviting a coach, removing or cutting off staff) also calls
+  `assertCanManageRoles` (club admins only). Money figures in shared reads (dashboard, churn,
+  AI tools) are stripped server-side with `isClubAdmin`. Coach-scope handlers
+  (`resolveCoachScope`) use `COACHING_ROLES` for writes and `STAFF_ROLES` for reads.
+  `shared/access/route-tier-consistency.spec.ts` scans every controller, fails on a mismatch
+  (a coach would otherwise see the button and always get 403) and pins the full `CLUB_ADMINS`
+  route list. There is no `moderator` role; the roles a club admin can grant are
   `GRANTABLE_ROLE_NAMES`.
 - **Acting for a dependent (`X-Act-As`):** a guardian may send `X-Act-As: <dependentId>`;
   AuthGuard checks the confirmed `Guardianship` and makes the dependent `user.userId`
@@ -184,7 +205,9 @@ fails the build. Raise the floor in the same commit that adds the tests.
 Run **all** of these and commit their output in the same PR, or CI ("OpenAPI spec in sync" +
 typecheck) fails:
 1. `npx nx run @clubspace/server:open-api:generate` → commit `open-api.json` (headless, no DB).
-2. `npx nx run @clubspace/api-client:types:generate` → commit `libs/api-client/src/openapi/{index.ts,types.gen.ts}`.
+2. `npx nx run @clubspace/api-client:types:generate` → commit `libs/api-client/src/openapi/`
+   (`index.ts`, `types.gen.ts`, and `schemas/schemas.gen.ts` — the request-body JSON schemas,
+   second step of the target, config `libs/api-client/openapi-ts.config.ts`).
 3. Rebuild the dist so the apps typecheck locally: `npx tsc -p libs/api-client/tsconfig.lib.json`.
 - The admin `apps/admin/src/shared/sdk/` axios SDK is **dead/stale — do not regenerate it.**
   Consume the contract via hand-written `shared/api/*.ts` wrappers (§3/§4).
@@ -210,18 +233,55 @@ Reference wrapper: `apps/admin/src/shared/api/events.ts`.
   ```
   Signature: `getApiClient().request<TResponse, TBody>({ method, url, params, data })`.
   Derive types from `ApiTypes.*` (never redefine server shapes by hand).
+- **Reads many components ask for on one page** (account, club list, club settings and
+  billing, content tags/categories, the sidebar membership) go through
+  `cachedRead(key, load, ttlMs)` from `shared/api/read-cache.ts` inside the wrapper: callers
+  asking while it is in flight share one request. `ttlMs` > 0 keeps the answer, only for
+  session-stable data (`/me`, `get-my-workspaces`, `members/me`: 60 s); every write that changes
+  a read calls `invalidateReads("<key>")` right after its request (`updateWorkspaceSettings` →
+  `settings:<id>` + `workspaces`). Data a page reloads after a save or on a realtime signal
+  keeps ttl 0 (shared in flight, never kept). A sign-in/sign-out clears everything.
+- **Form limits** (length, min/max, item counts) come from the contract, never typed by hand:
+  `FORM_LIMITS.<form>.<field>` in `shared/lib/contract-limits.ts` reads them from
+  `@clubspace/api-client/schemas`. Feed the check (`parseIntInput(raw, L.price)`), the error
+  text (`от ${L.days.min} до ${L.days.max}`) and the `maxLength` attribute from it. A new field
+  lists every body it is sent in (create + update); `contract-limits.spec.ts` fails when they
+  disagree. Rules the contract can't carry (zod `refine`, e.g. the slug pattern) stay in the
+  form with a comment naming the server rule.
 - **Pages** are `"use client"`, `useState`/`useEffect` (no react-query), `useParams()` for ids.
   UI from `@clubspace/ui-kit/ui` (`Button`, `Select`, …). Errors via `errorMessage(e, "…")`
   from `shared/lib/error-message`. Tailwind with tokens: `border`, `muted-foreground`, `card`,
-  `primary`, `destructive`. Gate admin actions with `isWorkspaceAdmin(useMyMembership(...))`.
-  Sections the server restricts to `WORKSPACE_ADMINS` get `adminOnly: true` on their nav item
-  (filtered by `visibleNavItems`) and a tiny `"use client"` `layout.tsx` wrapping children in
-  `AdminOnlyGate` (`shared/workspace/admin-only-gate.tsx`), so a coach opening the URL sees a
-  notice and the page never mounts.
-  Sections the server also opens to direction managers (scoped to their directions) use
-  `adminOrDirectionManager: true` + `AdminOrDirectionManagerGate` instead; on those pages read
-  `useDirectionScope(workspaceId)` (`shared/workspace/use-direction-scope.ts`) to hide row
-  actions outside `canManageDirection` and pass `allowedDirectionIds` to `DirectionSelect`.
+  `primary`, `destructive`. Gate actions with `shared/lib/permissions.ts` (mirror of the server
+  tiers): `isClubAdmin(useMyMembership(...))` for money & system (`CLUB_ADMINS`: tariffs,
+  payments, billing, settings, roles, import, exports, audit, integrations), `isSportLead` for
+  club-wide sport & roster work (`SPORT_LEADS`), `canActOnRole` before inviting with, removing or
+  changing the access of a member of a given role (staff roles are club-admin only).
+  Every nav item (`navGroups` in `workspace/[workspaceId]/workspace-sidebar.tsx`) declares
+  `access: "clubAdmin" | "sportLead" | "lead" | "staff"` (filtered by `visibleNavItems`; `lead` =
+  sport lead or direction manager, `staff` = every coach), and a gated section gets a tiny
+  `"use client"` `layout.tsx` wrapping children in the matching `ClubAdminGate` /
+  `SportLeadGate` / `LeadGate` (`shared/workspace/access-gate.tsx`), so a role opening the URL
+  sees a notice and the page never mounts. A section spanning several routes is one nav item with
+  `tabs` (sets in `workspace/[workspaceId]/sections.ts`, each tab with its own `access`) and
+  renders `<SectionTabs title=… tabs=… />` (`shared/workspace/section-tabs.tsx`) as its header:
+  title = sidebar label, tabs are links (the URL is the state). In-page tabs that don't change the
+  route keep `role="tablist"` buttons with `?tab=` (see `retention/page.tsx`). On `LeadGate`
+  pages read `useDirectionScope(workspaceId)` (`shared/workspace/use-direction-scope.ts`) to hide
+  row actions outside `canManageDirection` and pass `allowedDirectionIds` to `DirectionSelect`.
+- **Confirmations:** `await confirmDialog({ title, description, destructive })` from
+  `shared/ui/confirm-dialog.tsx` (host mounted once in `app/(dashboard)/layout.tsx`); the
+  description names what is lost («В группе 21 ученик…»). No `window.confirm`. Component specs
+  render `<ConfirmDialogHost />` next to the component.
+- **Unsaved changes:** a form or side panel calls `useDirtyGuard(dirty)`
+  (`shared/lib/use-dirty-guard.ts`); closing a changed panel (Esc, outside click, «Отмена») goes
+  through `await confirmLeave()` (see `EventFormSheet.tsx`).
+- **Edit forms send the version they opened with** as `expectedUpdatedAt` (captured when the panel
+  opens, not on re-render); on a 409 keep the draft and show `<StaleUpdateNotice>`
+  (`shared/ui/stale-update-notice.tsx`) with «Обновить».
+- **Moving or adding a route:** the old page file becomes
+  `redirectInWorkspace(props, "<new path>")` (`shared/workspace/legacy-redirect.ts`, keeps the
+  query), and the admin e2e role table `apps/admin-e2e/src/role-matrix.ts` gets the route
+  (`ROLE_MATRIX`) or the redirect (`LEGACY_REDIRECTS`) — the smoke suite derives the rest.
 - Prefer a self-contained component (own fetch) over threading state through a large page.
 - Verify: `npx tsc -p apps/admin/tsconfig.json --noEmit`. Visual QA needs the app running.
 

@@ -1,4 +1,4 @@
-// «Кто пропадает»: who is slipping away. Pure rules, no DB — the loader
+// «Кому позвонить»: who is slipping away. Pure rules, no DB — the loader
 // (load-workspace-risk.ts) gathers the facts, this decides and words them.
 // No ML: four explainable signals a coach can act on with one phone call.
 import { localDateInTz } from '../../features/attendance/attendance-utils'

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import {
   Button,
@@ -30,10 +30,11 @@ import {
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { cap } from "@clubspace/ui-kit/brand"
-import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
+import { isSportLead } from "../../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 import { groupOptionLabel } from "../../../../../shared/lib/group-label"
+import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 
 const numberFmt = new Intl.NumberFormat("ru-RU")
 
@@ -157,10 +158,20 @@ export function AnalyticsFilters({
   )
 }
 
+// The server's realtime resource for a finished rebuild
+// (ANALYTICS_REALTIME_RESOURCE in refresh-analytics.processor.ts).
+const ANALYTICS_REALTIME = ["analytics"]
+// Without a socket the page reloads itself this often while a rebuild runs,
+// and gives up waiting after the limit.
+const REFRESH_POLL_MS = 5_000
+const REFRESH_WAIT_LIMIT_MS = 3 * 60_000
+
 /**
  * «Обновлено: …» from the snapshot's computedAt, or a «still computing» note
- * before the first snapshot. Admins get «Пересчитать», which rebuilds the
- * snapshots now and then lets the page reload.
+ * before the first snapshot. Sport leads get «Пересчитать»: the server queues
+ * a rebuild (or says the numbers are fresh), and the page reloads when the
+ * realtime «analytics» signal says it is done — or when a poll sees a new
+ * computedAt. Any finished rebuild reloads every open analytics page.
  */
 export function AnalyticsFreshness({
   workspaceId,
@@ -171,21 +182,60 @@ export function AnalyticsFreshness({
   computedAt: string | null | undefined
   onRefreshed: () => void | Promise<void>
 }) {
-  const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
-  const [busy, setBusy] = useState(false)
+  const canAdmin = isSportLead(useMyMembership(workspaceId))
+  const [requesting, setRequesting] = useState(false)
+  // The computedAt shown when the rebuild was queued.
+  const [pending, setPending] = useState<{
+    before: string | null
+    since: number
+  } | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const reload = useRef(onRefreshed)
+  reload.current = onRefreshed
+
+  useWorkspaceRealtime(workspaceId, ANALYTICS_REALTIME, () => {
+    void Promise.resolve(reload.current()).finally(() => setPending(null))
+  })
+
+  useEffect(() => {
+    if (pending && computedAt !== undefined && computedAt !== pending.before) {
+      setPending(null)
+    }
+  }, [pending, computedAt])
+
+  useEffect(() => {
+    if (!pending) return
+    const timer = setInterval(() => {
+      if (Date.now() - pending.since > REFRESH_WAIT_LIMIT_MS) {
+        setPending(null)
+        setError("Пересчёт ещё идёт — обновите страницу через несколько минут.")
+        return
+      }
+      void reload.current()
+    }, REFRESH_POLL_MS)
+    return () => clearInterval(timer)
+  }, [pending])
+
+  const busy = requesting || pending !== null
 
   const refresh = async () => {
     if (!workspaceId || busy) return
-    setBusy(true)
+    setRequesting(true)
     setError(null)
+    setNotice(null)
     try {
-      await refreshAnalytics({ workspaceId })
-      await onRefreshed()
+      const res = await refreshAnalytics({ workspaceId })
+      if (res.status === "queued") {
+        setPending({ before: computedAt ?? null, since: Date.now() })
+      } else {
+        setNotice("Данные только что пересчитаны.")
+        await onRefreshed()
+      }
     } catch (err) {
       setError(errorMessage(err, "Не удалось пересчитать аналитику."))
     } finally {
-      setBusy(false)
+      setRequesting(false)
     }
   }
 
@@ -207,9 +257,10 @@ export function AnalyticsFreshness({
           onClick={() => void refresh()}
           disabled={busy}
         >
-          {busy ? "Пересчитываю…" : "Пересчитать"}
+          {busy ? "Пересчитываем…" : "Пересчитать"}
         </Button>
       )}
+      {notice && <span>{notice}</span>}
       {error && <span className="text-destructive">{error}</span>}
     </div>
   )
@@ -228,7 +279,7 @@ export function AnalyticsCard({
 }) {
   return (
     <div className="space-y-1 rounded-lg border border-border bg-card p-4">
-      <div className="text-xs uppercase text-muted-foreground">{label}</div>
+      <div className="text-sm text-muted-foreground">{label}</div>
       <div
         className={`whitespace-nowrap text-3xl font-semibold tabular-nums ${TONE_TEXT[tone]}`}
       >

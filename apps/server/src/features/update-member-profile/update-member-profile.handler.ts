@@ -4,7 +4,8 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { UsersService } from '../../domains/users/services/users.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
+import { assertCanManageRoles } from '../../shared/access/role-hierarchy'
 import {
     BadRequestError,
     ForbiddenError,
@@ -41,7 +42,7 @@ export class UpdateMemberProfileHandler
         roleName,
         isSuperAdmin,
     }: UpdateMemberProfileFeature) {
-        await assertWorkspaceAdmin(
+        const ctx = await assertSportLead(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Менять профиль участника может только администратор клуба',
@@ -57,16 +58,29 @@ export class UpdateMemberProfileHandler
         const [membership, workspace] = await Promise.all([
             this.prisma.workspaceMember.findFirst({
                 where: { workspaceId, userId },
-                select: { id: true },
+                select: { id: true, role: { select: { name: true } } },
             }),
             this.prisma.workspace.findUnique({
                 where: { id: workspaceId },
                 select: { ownerId: true },
             }),
         ])
-        if (!membership && workspace?.ownerId !== userId) {
+        const isTargetOwner = workspace?.ownerId === userId
+        if (!membership && !isTargetOwner) {
             throw new NotFoundError({ message: 'Участник не найден' })
         }
+
+        // A sport lead edits students and parents. A staff member's profile —
+        // above all their e-mail and phone, which sign them in — is the club
+        // admins' call, or a head coach could take over an admin's account.
+        await assertCanManageRoles(
+            this.prisma,
+            ctx,
+            { roleName, isSuperAdmin },
+            [isTargetOwner ? 'admin' : membership?.role.name],
+            (v) =>
+                `Менять профиль ${v.coach.gen}, ${v.headCoach.gen} или администратора может только владелец или администратор клуба`,
+        )
 
         const target = await this.prisma.user.findUnique({
             where: { id: userId },

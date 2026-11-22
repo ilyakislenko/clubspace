@@ -203,35 +203,70 @@ describe('listWorkspaceInvitations', () => {
 })
 
 describe('revokeWorkspaceInvitation', () => {
-    const build = (o: { denied?: boolean; removed?: unknown } = {}) => {
+    const build = (
+        o: { denied?: boolean; removed?: unknown; pending?: { roleName: string } | null } = {},
+    ) => {
         const invitations = {
             remove: jest
                 .fn()
                 .mockResolvedValue('removed' in o ? o.removed : { workspaceId: 'w1', userId: 'u9' }),
         }
+        const prisma = {
+            workspaceInvitation: {
+                findFirst: jest
+                    .fn()
+                    .mockResolvedValue('pending' in o ? o.pending : { roleName: 'user' }),
+            },
+            workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
+        }
+        const r = {
+            resolveCoachScope: jest.fn(async (p: { userId: string; workspaceId: string }) => ({
+                scope: o.denied ? 'coach_own_only' : 'admin',
+                userId: p.userId,
+                workspaceId: p.workspaceId,
+                workspaceOwnerId: 'owner',
+            })),
+            canWriteAllGroups: jest.fn().mockReturnValue(!o.denied),
+        }
         const audit = auditMock()
         return {
             handler: new RevokeWorkspaceInvitationHandler(
+                prisma as never,
                 invitations as never,
-                rbac(o.denied ?? false) as never,
+                r as never,
                 audit as never,
             ),
             invitations,
             audit,
         }
     }
-    const run = (h: RevokeWorkspaceInvitationHandler) =>
-        h.execute(new RevokeWorkspaceInvitationFeature(INV_ID, 'w1', 'admin1', 'admin', false))
+    const run = (h: RevokeWorkspaceInvitationHandler, invoker = 'admin1', role = 'admin') =>
+        h.execute(new RevokeWorkspaceInvitationFeature(INV_ID, 'w1', invoker, role, false))
 
     it('refuses a non-admin', async () => {
         const { handler, invitations } = build({ denied: true })
-        await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
+        await expect(run(handler, 'c1', 'coach')).rejects.toBeInstanceOf(ForbiddenError)
         expect(invitations.remove).not.toHaveBeenCalled()
     })
 
+    // A staff offer is the club admins' call, like inviting staff.
+    it('refuses a head coach revoking a coach offer, lets them revoke a student offer', async () => {
+        const staff = build({ pending: { roleName: 'coach' } })
+        await expect(run(staff.handler, 'hc1', 'head_coach')).rejects.toBeInstanceOf(ForbiddenError)
+        expect(staff.invitations.remove).not.toHaveBeenCalled()
+        const student = build()
+        await expect(run(student.handler, 'hc1', 'head_coach')).resolves.toEqual({ status: 'revoked' })
+    })
+
+    it('lets an admin revoke a coach offer', async () => {
+        const { handler } = build({ pending: { roleName: 'coach' } })
+        await expect(run(handler)).resolves.toEqual({ status: 'revoked' })
+    })
+
     it("404s on another club's (or a gone) offer", async () => {
-        const { handler } = build({ removed: null })
+        const { handler, invitations } = build({ pending: null })
         await expect(run(handler)).rejects.toBeInstanceOf(NotFoundError)
+        expect(invitations.remove).not.toHaveBeenCalled()
     })
 
     it('removes the offer scoped to the club and audits', async () => {

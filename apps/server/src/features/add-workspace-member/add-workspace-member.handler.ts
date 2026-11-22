@@ -6,7 +6,8 @@ import { UsersService } from '../../domains/users/services/users.service'
 import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
 import { WorkspaceInvitationService } from '../../domains/workspace/services/workspace-invitation.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
+import { assertCanManageRoles } from '../../shared/access/role-hierarchy'
 import {
     BadRequestError,
     NotFoundError,
@@ -43,11 +44,7 @@ export class AddWorkspaceMemberHandler
         roleName,
         isSuperAdmin,
     }: AddWorkspaceMemberFeature) {
-        // The route declares @Roles(WORKSPACE_ADMINS); comparing ownerId
-        // directly here contradicted that and locked out admins/head_coaches
-        // (and the platform super admin, who is never a member) while the UI
-        // still offered them the control.
-        await assertWorkspaceAdmin(
+        const ctx = await assertSportLead(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Добавлять участников может только администратор клуба',
@@ -117,6 +114,7 @@ export class AddWorkspaceMemberHandler
                   select: {
                       id: true,
                       status: true,
+                      role: { select: { name: true } },
                   },
               })
             : null
@@ -125,6 +123,16 @@ export class AddWorkspaceMemberHandler
                 message: 'Пользователь уже участник этого клуба',
             })
         }
+        // An existing row keeps its role: approving or bringing back a member
+        // of staff is the club admins' call, like inviting one.
+        await assertCanManageRoles(
+            this.prisma,
+            ctx,
+            { roleName, isSuperAdmin },
+            [alreadyMember?.role.name],
+            (v) =>
+                `Принять ${v.coach.acc}, ${v.headCoach.acc} или администратора может только владелец или администратор клуба`,
+        )
 
         let userId: string
         let outcome: AddWorkspaceMemberFeatureResponse['outcome']

@@ -3,7 +3,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 import { loadOccupancyReport } from '../../domains/analytics/analytics-reports'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
-import { resolveAnalyticsScope } from './analytics-scope'
+import { resolveAnalyticsScope } from '../../domains/analytics/analytics-scope'
 import { GetScheduleOccupancyFeature, GetScheduleOccupancyFeatureResponse } from './get-schedule-occupancy.feature'
 import { serializeOccupancyReport } from './schemas'
 

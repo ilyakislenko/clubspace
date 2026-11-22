@@ -10,7 +10,7 @@ import {
 } from '../../domains/subscriptions/visit-abonement'
 import { PrismaService } from '../../infrastructure/prisma'
 import { ownGroupsWhere } from '../../shared/services/rbac.service'
-import { awaitingPaymentWhere } from '../get-workspace-stats/revenue'
+import { awaitingPaymentWhere } from '../../domains/subscriptions/renewal-rules'
 import { localDateInTz } from './attendance-utils'
 import { loadExpectedAttendees } from './expected-attendees'
 import {

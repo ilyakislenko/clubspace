@@ -27,6 +27,8 @@ export const PlanOutputSchema = z.object({
     // Directions an abonement of this tariff may be spent on (snapshotted
     // into each sale). Empty = club-wide.
     directions: z.array(DirectionRefSchema),
+    // The version an edit sends back as `expectedUpdatedAt`.
+    updatedAt: z.iso.datetime(),
 })
 export type PlanOutput = z.infer<typeof PlanOutputSchema>
 
@@ -48,6 +50,7 @@ export const serializePlan = (p: {
     isActive: boolean
     purchasableOnline: boolean
     directions: ReadonlyArray<{ direction: DirectionRef }>
+    updatedAt: Date
 }): PlanOutput => ({
     id: p.id,
     workspaceId: p.workspaceId,
@@ -62,6 +65,7 @@ export const serializePlan = (p: {
     isActive: p.isActive,
     purchasableOnline: p.purchasableOnline,
     directions: p.directions.map((d) => d.direction),
+    updatedAt: p.updatedAt.toISOString(),
 })
 
 // `include` for a plan row passed to serializePlan.
@@ -90,6 +94,9 @@ export const assertDirectionsInWorkspace = async (
     }
     return ids
 }
+
+// Tariffs and prices are club money: the owner and admins only.
+export const PLAN_WRITE_REFUSAL = 'Тарифы меняют владелец и администраторы клуба'
 
 // A free tariff (zero price, or the once-per-member trial) is never sold
 // online: there is nothing to pay, and the trial rule lives in the admin flow.

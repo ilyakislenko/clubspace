@@ -27,8 +27,10 @@ import {
   getAiChatState,
   listAiChatConversations,
 } from '../../shared/api/ai-chat';
+import { FORM_LIMITS } from '../../shared/lib/contract-limits';
 import { errorMessage } from '../../shared/lib/error-message';
 import { pluralRu } from '../../shared/lib/plural-ru';
+import { confirmDialog } from '../../shared/ui/confirm-dialog';
 import { ChatMarkdown } from './ChatMarkdown';
 
 type Step = {
@@ -270,9 +272,17 @@ export function AiChat({ workspaceId }: { workspaceId: string }) {
     setError(null);
   };
 
-  const remove = async (id: string) => {
-    if (!window.confirm('Удалить диалог? Его нельзя будет восстановить.'))
+  const remove = async (c: AiChatConversationSummary) => {
+    if (
+      !(await confirmDialog({
+        title: `Удалить диалог «${c.title}»?`,
+        description: `${c.questions} ${pluralRu(c.questions, 'вопрос', 'вопроса', 'вопросов')} и ответы пропадут, восстановить диалог будет нельзя.`,
+        confirmLabel: 'Удалить диалог',
+        destructive: true,
+      }))
+    )
       return;
+    const id = c.id;
     try {
       await deleteAiChatConversation({ workspaceId, conversationId: id });
       if (id === activeId) startNew();
@@ -432,7 +442,7 @@ export function AiChat({ workspaceId }: { workspaceId: string }) {
             <button
               type="button"
               aria-label="Удалить диалог"
-              onClick={() => void remove(c.id)}
+              onClick={() => void remove(c)}
               className="absolute right-1.5 top-2 hidden rounded p-1 text-muted-foreground hover:text-destructive group-hover:block"
             >
               <Trash2 className="size-3.5" />
@@ -545,7 +555,7 @@ export function AiChat({ workspaceId }: { workspaceId: string }) {
                 }
               }}
               rows={2}
-              maxLength={2000}
+              maxLength={FORM_LIMITS.aiChat.question.max}
               disabled={!canAsk}
               placeholder={
                 !ready

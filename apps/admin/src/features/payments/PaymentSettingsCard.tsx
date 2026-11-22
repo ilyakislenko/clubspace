@@ -28,6 +28,7 @@ import { readModuleNotEntitled } from "../billing/billing-view"
 import { writeToClipboard } from "../../shared/lib/clipboard"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import {
   PAYMENT_MODE_LABEL,
   PAYMENT_SUBJECT_LABEL,
@@ -139,7 +140,7 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
           href={`/workspace/${workspaceId}/billing`}
           className="inline-block text-xs font-medium underline underline-offset-4"
         >
-          Раздел «Тариф»
+          Подписка ClubSpace
         </Link>
       </div>
     )
@@ -217,9 +218,13 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
 
   const onDisconnect = async () => {
     if (
-      !window.confirm(
-        "Отключить онлайн-оплату? Участники не смогут оплачивать абонементы и билеты на события в приложении, сохранённые ключи будут удалены.",
-      )
+      !(await confirmDialog({
+        title: "Отключить онлайн-оплату?",
+        description:
+          "Участники не смогут оплачивать абонементы и билеты на события в приложении, сохранённые ключи будут удалены.",
+        confirmLabel: "Отключить",
+        destructive: true,
+      }))
     )
       return
     setDisconnecting(true)
@@ -527,7 +532,7 @@ export function PaymentSettingsCard({ workspaceId }: { workspaceId: string }) {
               href={`/workspace/${workspaceId}/subscriptions`}
               className="underline underline-offset-2"
             >
-              «Тарифы и абонементы»
+              «Абонементы»
             </Link>
             .
           </p>

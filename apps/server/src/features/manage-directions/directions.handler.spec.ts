@@ -11,12 +11,21 @@ import { ListDirectionsFeature } from './list-directions.feature'
 import { ListDirectionsHandler } from './list-directions.handler'
 import { UpdateDirectionFeature } from './update-direction.feature'
 import { UpdateDirectionHandler } from './update-direction.handler'
+import { DIRECTION_ADMIN_MESSAGE } from './schemas'
 
-const rbac = (admin = true) => ({
+// Directions are a club-admin (owner/admin) decision. The head coach resolves
+// to the sport-lead 'admin' scope — every group writable — and is still refused.
+const OWNER = 'owner-1'
+const rbac = () => ({
     resolveCoachScope: jest
         .fn()
-        .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
-    canWriteAllGroups: jest.fn().mockReturnValue(admin),
+        .mockImplementation(async (p: { userId: string; workspaceId: string }) => ({
+            scope: 'admin',
+            userId: p.userId,
+            workspaceId: p.workspaceId,
+            workspaceOwnerId: OWNER,
+        })),
+    canWriteAllGroups: jest.fn().mockReturnValue(true),
 })
 const audit = () => ({ record: jest.fn().mockResolvedValue(undefined) })
 const realtime = () => ({ invalidate: jest.fn() })
@@ -91,19 +100,39 @@ describe('listDirections', () => {
 })
 
 describe('createDirection', () => {
-    it('refuses a non-admin', async () => {
+    it('refuses a head coach, even with every group in scope', async () => {
         const prisma = { direction: { create: jest.fn() } }
         await expect(
             new CreateDirectionHandler(
                 prisma as never,
-                rbac(false) as never,
+                rbac() as never,
                 audit() as never,
                 realtime() as never,
             ).execute(
-                new CreateDirectionFeature({ name: 'БЖЖ' }, 'w1', 'u1', 'coach', false),
+                new CreateDirectionFeature({ name: 'БЖЖ' }, 'w1', 'u1', 'head_coach', false),
             ),
-        ).rejects.toBeInstanceOf(ForbiddenError)
+        ).rejects.toThrow(new ForbiddenError({ message: DIRECTION_ADMIN_MESSAGE }))
         expect(prisma.direction.create).not.toHaveBeenCalled()
+    })
+
+    it('lets the owner create, whatever their member row says', async () => {
+        const prisma = {
+            direction: {
+                count: jest.fn().mockResolvedValue(0),
+                create: jest.fn().mockResolvedValue(row({ _count: undefined })),
+            },
+        }
+        await expect(
+            new CreateDirectionHandler(
+                prisma as never,
+                rbac() as never,
+                audit() as never,
+                realtime() as never,
+            ).execute(
+                new CreateDirectionFeature({ name: 'БЖЖ' }, 'w1', OWNER, 'head_coach', false),
+            ),
+        ).resolves.toMatchObject({ id: 'd1' })
+        expect(prisma.direction.create).toHaveBeenCalled()
     })
 
     it('appends to the end, audits and refreshes clients', async () => {
@@ -144,19 +173,45 @@ describe('createDirection', () => {
 })
 
 describe('updateDirection', () => {
-    it('refuses a non-admin', async () => {
+    it('refuses a head coach, even with every group in scope', async () => {
         const prisma = { direction: { findFirst: jest.fn() } }
         await expect(
             new UpdateDirectionHandler(
                 prisma as never,
-                rbac(false) as never,
+                rbac() as never,
                 audit() as never,
                 realtime() as never,
             ).execute(
-                new UpdateDirectionFeature({ name: 'x' }, 'w1', 'd1', 'u1', 'coach', false),
+                new UpdateDirectionFeature({ name: 'x' }, 'w1', 'd1', 'u1', 'head_coach', false),
             ),
         ).rejects.toBeInstanceOf(ForbiddenError)
         expect(prisma.direction.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('lets the owner update, whatever their member row says', async () => {
+        const prisma = {
+            direction: {
+                findFirst: jest.fn().mockResolvedValue({ id: 'd1' }),
+                update: jest.fn().mockResolvedValue(row({ name: 'Грэпплинг' })),
+            },
+        }
+        await expect(
+            new UpdateDirectionHandler(
+                prisma as never,
+                rbac() as never,
+                audit() as never,
+                realtime() as never,
+            ).execute(
+                new UpdateDirectionFeature(
+                    { name: 'Грэпплинг' },
+                    'w1',
+                    'd1',
+                    OWNER,
+                    'head_coach',
+                    false,
+                ),
+            ),
+        ).resolves.toMatchObject({ name: 'Грэпплинг' })
     })
 
     it('404s a direction of another club', async () => {
@@ -211,18 +266,34 @@ describe('updateDirection', () => {
 })
 
 describe('deleteDirection', () => {
-    const run = (prisma: unknown, admin = true) =>
+    const run = (prisma: unknown, userId = 'u1', role = 'admin') =>
         new DeleteDirectionHandler(
             prisma as never,
-            rbac(admin) as never,
+            rbac() as never,
             audit() as never,
             realtime() as never,
-        ).execute(new DeleteDirectionFeature('w1', 'd1', 'u1', 'admin', false))
+        ).execute(new DeleteDirectionFeature('w1', 'd1', userId, role, false))
 
-    it('refuses a non-admin', async () => {
+    it('refuses a head coach, even with every group in scope', async () => {
         const prisma = { direction: { findFirst: jest.fn() } }
-        await expect(run(prisma, false)).rejects.toBeInstanceOf(ForbiddenError)
+        await expect(run(prisma, 'u1', 'head_coach')).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
         expect(prisma.direction.findFirst).not.toHaveBeenCalled()
+    })
+
+    it('lets the owner delete, whatever their member row says', async () => {
+        const prisma = {
+            direction: {
+                findFirst: jest
+                    .fn()
+                    .mockResolvedValue({ id: 'd1', name: 'БЖЖ', _count: noUsage }),
+                delete: jest.fn().mockResolvedValue({}),
+            },
+        }
+        await expect(run(prisma, OWNER, 'head_coach')).resolves.toEqual({
+            status: 'deleted',
+        })
     })
 
     it('404s a direction of another club', async () => {

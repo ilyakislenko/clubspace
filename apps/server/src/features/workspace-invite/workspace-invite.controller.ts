@@ -9,7 +9,7 @@ import {
 import {
     Roles,
     STAFF_ROLES,
-    WORKSPACE_ADMINS,
+    SPORT_LEADS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -59,7 +59,7 @@ export class WorkspaceInviteController {
     }
 
     @Post('rotate-code')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: RotateWorkspaceJoinCodeOutput })
     async rotateWorkspaceJoinCode(
         @Param('workspaceId') workspaceId: string,

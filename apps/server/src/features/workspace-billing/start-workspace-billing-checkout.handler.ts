@@ -2,7 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { ClubLegalService } from '../../domains/billing/services/club-legal.service'
 import { PlatformPaymentsService } from '../../domains/billing/services/platform-payments.service'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import { serializePlatformPayment } from './schemas'
 import {
@@ -25,7 +25,7 @@ export class StartWorkspaceBillingCheckoutHandler
     ) {}
 
     async execute(f: StartWorkspaceBillingCheckoutFeature): Promise<StartWorkspaceBillingCheckoutFeatureResponse> {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,
@@ -33,7 +33,7 @@ export class StartWorkspaceBillingCheckoutHandler
                 roleName: f.roleName,
                 isSuperAdmin: f.isSuperAdmin,
             },
-            'Оплатить тариф может только администратор клуба',
+            'Оплатить подписку ClubSpace может только администратор клуба',
         )
         await this.legal.assertPaidActionsAllowed(f.workspaceId)
         const { payment, confirmationUrl } = await this.payments.startCheckout({

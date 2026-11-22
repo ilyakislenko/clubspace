@@ -62,13 +62,13 @@ describe("memberName", () => {
 })
 
 describe("readinessDigest", () => {
-  const grading = { id: "g1", date: "2026-11-14" }
-
-  it("puts members not yet on a grading first and counts the rest", () => {
-    const d = readinessDigest(
-      [entry("a", true, grading), entry("b", false), entry("c", true), entry("d", true)],
-      2,
-    )
+  it("lists the page and counts the whole ladder from the summary", () => {
+    // A ready-only page of 2 out of 3 ready (2 of them not on a list yet),
+    // 4 measured on the ladder.
+    const d = readinessDigest({
+      data: [entry("c", true), entry("d", true)],
+      summary: { all: 4, ready: 3, readyUnlisted: 2 },
+    })
     expect(d.shown.map((e) => e.userId)).toEqual(["c", "d"])
     expect(d.more).toBe(1)
     expect(d.ready).toBe(3)
@@ -77,7 +77,10 @@ describe("readinessDigest", () => {
   })
 
   it("is empty when nobody is ready", () => {
-    const d = readinessDigest([entry("a", false)], 5)
+    const d = readinessDigest({
+      data: [],
+      summary: { all: 1, ready: 0, readyUnlisted: 0 },
+    })
     expect(d.shown).toEqual([])
     expect(d.more).toBe(0)
     expect(d.ready).toBe(0)

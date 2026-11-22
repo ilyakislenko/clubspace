@@ -1,7 +1,7 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
 
 import {
   Button,
@@ -21,11 +21,10 @@ import { listTags, type TagResponse } from "../../shared/api/tags"
 import {
   bulkUpdateVideos,
   completeVideoUpload,
-  deleteVideo,
   listVideos,
-  updateVideo,
   type BulkVideoAction,
 } from "../../shared/api/videos"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 
 type VideoSummary = {
   id: string
@@ -57,12 +56,10 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function VideoList({ workspaceId }: Props) {
-  const router = useRouter()
   const [videos, setVideos] = useState<VideoSummary[]>([])
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [accessSavingId, setAccessSavingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Bulk selection (scoped to the current page — cleared on any page/filter
@@ -182,46 +179,6 @@ export function VideoList({ workspaceId }: Props) {
     }
   }
 
-  const handleDelete = async (video: VideoSummary) => {
-    if (!window.confirm("Удалить видео из системы?")) return
-    try {
-      await deleteVideo({ workspaceId, videoId: video.id })
-      setVideos((prev) => prev.filter((item) => item.id !== video.id))
-      setError(null)
-    } catch {
-      setError("Не удалось удалить видео. Попробуйте ещё раз.")
-    }
-  }
-
-  const handleAccessChange = async (
-    video: VideoSummary,
-    isPublic: boolean,
-  ) => {
-    setAccessSavingId(video.id)
-    setError(null)
-    try {
-      await updateVideo({
-        workspaceId,
-        videoId: video.id,
-        data: { isPublic },
-      })
-      setVideos((prev) =>
-        prev.map((item) =>
-          item.id === video.id ? { ...item, isPublic } : item,
-        ),
-      )
-    } catch {
-      // Without this the toggle silently snaps back with no explanation.
-      setError("Не удалось изменить уровень доступа. Попробуйте ещё раз.")
-    } finally {
-      setAccessSavingId(null)
-    }
-  }
-
-  const handleSelect = (video: VideoSummary) => {
-    router.push(`/workspace/${workspaceId}/videos/${video.id}`)
-  }
-
   // Drop any selection when the visible set changes underneath us.
   useEffect(() => {
     setSelected(new Set())
@@ -259,11 +216,16 @@ export function VideoList({ workspaceId }: Props) {
       setError("Выберите категорию для массового действия.")
       return
     }
-    if (
-      action === "delete" &&
-      !window.confirm(`Удалить выбранные видео (${ids.length})?`)
-    ) {
-      return
+    if (action === "delete") {
+      const one = ids.length === 1 ? videos.find((v) => v.id === ids[0]) : undefined
+      const ok = await confirmDialog({
+        title: one ? `Удалить видео «${one.title}»?` : `Удалить ${ids.length} видео?`,
+        description: one
+          ? "Видео пропадёт из курсов и у учеников."
+          : "Видео пропадут из курсов и у учеников.",
+        destructive: true,
+      })
+      if (!ok) return
     }
     setBulkBusy(true)
     setError(null)
@@ -424,9 +386,9 @@ export function VideoList({ workspaceId }: Props) {
           </Button>
           <div className="mx-1 h-5 w-px bg-border" />
           <Button
-            variant="destructive"
+            variant="ghost"
             type="button"
-            className="h-8"
+            className="h-8 text-destructive"
             onClick={() => void handleBulk("delete")}
             disabled={bulkBusy}
           >
@@ -437,7 +399,7 @@ export function VideoList({ workspaceId }: Props) {
 
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+          <thead className="bg-muted/50 text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-3">
                 <input
@@ -452,7 +414,6 @@ export function VideoList({ workspaceId }: Props) {
               <th className="px-4 py-3">Статус</th>
               <th className="px-4 py-3">Доступ</th>
               <th className="px-4 py-3">Дата</th>
-              <th className="px-4 py-3 text-right">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -473,9 +434,8 @@ export function VideoList({ workspaceId }: Props) {
                   />
                 </td>
                 <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => handleSelect(video)}
+                  <Link
+                    href={`/workspace/${workspaceId}/videos/${video.id}`}
                     className="flex items-center gap-3 text-left"
                   >
                     <div className="h-14 w-24 overflow-hidden rounded-md bg-muted">
@@ -500,50 +460,28 @@ export function VideoList({ workspaceId }: Props) {
                         </div>
                       )}
                     </div>
-                  </button>
+                  </Link>
                 </td>
                 <td className="px-4 py-3 text-sm">
-                  <StatusBadge status={video.status} />
-                </td>
-                <td className="px-4 py-3 text-sm">
-                  <Select
-                    value={video.isPublic ? "public" : "private"}
-                    onValueChange={(value) => {
-                      void handleAccessChange(video, value === "public")
-                    }}
-                    disabled={accessSavingId === video.id}
-                  >
-                    <SelectTrigger className="h-8 w-[140px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="public">Доступно</SelectItem>
-                      <SelectItem value="private">Закрыто</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </td>
-                <td className="px-4 py-3 text-sm">
-                  {new Date(video.createdAt).toLocaleDateString("ru-RU")}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={video.status} />
                     {video.status === "failed" && (
                       <Button
-                        variant="secondary"
+                        variant="ghost"
+                        size="sm"
                         type="button"
                         onClick={() => void handleRetry(video)}
                       >
                         Повторить
                       </Button>
                     )}
-                    <Button
-                      variant="destructive"
-                      type="button"
-                      onClick={() => void handleDelete(video)}
-                    >
-                      Удалить
-                    </Button>
                   </div>
+                </td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">
+                  {video.isPublic ? "Доступно" : "Закрыто"}
+                </td>
+                <td className="px-4 py-3 text-sm">
+                  {new Date(video.createdAt).toLocaleDateString("ru-RU")}
                 </td>
               </tr>
             ))}

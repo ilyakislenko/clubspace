@@ -77,7 +77,6 @@ export default function OccupancyPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Загрузка расписания</h1>
         <p className="text-sm text-muted-foreground">
           Сколько в среднем приходит на {agree(vocabulary.session, "каждую", "каждое")}{" "}
           {vocabulary.session.acc} относительно состава группы — по отметкам
@@ -152,7 +151,7 @@ export default function OccupancyPage() {
             <h2 className="text-sm font-medium">Все слоты</h2>
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-sm">
-                <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
+                <thead className="bg-muted text-left text-xs font-medium text-muted-foreground">
                   <tr>
                     <th className="p-3">Когда</th>
                     <th className="p-3">Группа</th>

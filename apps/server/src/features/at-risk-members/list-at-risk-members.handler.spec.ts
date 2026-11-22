@@ -1,199 +1,207 @@
+import type { CallList, CallListEntry } from '../../domains/retention/call-list'
 import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
 import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import { ListAtRiskMembersFeature } from './list-at-risk-members.feature'
 import { ListAtRiskMembersHandler } from './list-at-risk-members.handler'
 
-jest.mock('../../domains/retention/load-workspace-risk')
-import { loadWorkspaceRisk } from '../../domains/retention/load-workspace-risk'
-
-const OWNER = 'owner1'
-
 const entry = (
     userId: string,
-    groups: { id: string; gymId?: string | null }[],
-    over: Record<string, unknown> = {},
-) => ({
+    groupIds: string[],
+    over: Partial<CallListEntry> = {},
+): CallListEntry => ({
     userId,
     firstname: userId,
     lastname: null,
-    email: `${userId}@x.io`,
+    email: null,
     phone: null,
-    groups: groups.map((g) => ({
-        id: g.id,
-        name: `name-${g.id}`,
-        gymId: g.gymId ?? null,
-        gymName: null,
-    })),
-    risk: {
-        reason: 'absent',
-        signals: ['absent'],
-        facts: {
-            lastVisitAt: new Date('2026-09-01T00:00:00Z'),
-            daysSinceLastVisit: 30,
-            firstVisitAt: new Date('2026-01-01T00:00:00Z'),
-            daysSinceFirstVisit: 300,
-            visitsLast14d: 0,
-            recentPerWeek: 0,
-            baselinePerWeek: 0,
-            absentSinceFreeze: false,
-            lapseKind: null,
-            lapsedAt: null,
-            planName: null,
-        },
-    },
+    guardians: [],
+    groups: groupIds.map((id) => ({ id, name: `name-${id}`, gymId: null, gymName: null })),
+    reason: 'absent',
+    signals: ['absent'],
     factsText: 'Последний визит 4 недели назад',
+    facts: {
+        lastVisitAt: '2026-09-01T00:00:00.000Z',
+        daysSinceLastVisit: 30,
+        firstVisitAt: null,
+        visitsLast14d: 0,
+        recentPerWeek: 0,
+        baselinePerWeek: 0,
+        lapseKind: null,
+        lapsedAt: null,
+        planName: null,
+    },
     lastContact: null,
     snoozed: false,
+    score: 40,
+    level: 'medium',
+    monthlySpend: 3000,
+    currency: 'RUB',
     ...over,
 })
 
-const ENTRIES = [
-    entry('a', [{ id: 'g1', gymId: 'gym1' }, { id: 'g9' }]),
-    entry('b', [{ id: 'g2', gymId: 'gym2' }]),
-    entry('c', [], { snoozed: true }),
-]
-
-// `ownGroupIds` = what the database returns for ownGroupsWhere(caller).
-const make = (scope: string, ownGroupIds: string[] = ['g1']) => {
-    const prisma = {
-        gym: { findFirst: jest.fn().mockResolvedValue({ id: 'gym1' }) },
-        group: {
-            findFirst: jest.fn().mockResolvedValue({ id: 'g1' }),
-            findMany: jest
-                .fn()
-                .mockResolvedValue(ownGroupIds.map((id) => ({ id }))),
-        },
-    }
-    // The real scope rules over the Prisma double; only the role lookup is
-    // stubbed.
-    const rbac = new RbacService(prisma as never)
-    const resolveCoachScope = jest
-        .spyOn(rbac, 'resolveCoachScope')
-        .mockResolvedValue({
-            scope: scope as 'admin' | 'coach_read_all' | 'coach_own_only',
-            userId: 'me',
-            workspaceId: 'w1',
-            workspaceOwnerId: OWNER,
-        })
-    const handler = new ListAtRiskMembersHandler(prisma as never, rbac)
-    return { handler, prisma, resolveCoachScope }
+// The whole club as the cache hands it out.
+const LIST: CallList = {
+    scoredAt: '2026-11-14T03:00:00.000Z',
+    entries: [
+        entry('a', ['own', 'other'], { reason: 'lapsed', score: 80, level: 'high', monthlySpend: 5000 }),
+        entry('b', ['other']),
+        entry('c', [], { score: null, level: null, monthlySpend: null, currency: null }),
+        entry('d', ['own'], { snoozed: true }),
+    ],
 }
 
-const run = (
-    handler: ListAtRiskMembersHandler,
-    payload: Record<string, unknown> = {},
-    invoker = 'me',
-    role = 'coach',
-) =>
-    handler.execute(new ListAtRiskMembersFeature(payload, 'w1', invoker, role, false))
+const OWNER = { roleName: 'admin', userId: 'owner' }
+const ADMIN = { roleName: 'admin', userId: 'adm' }
+const HEAD_COACH = { roleName: 'head_coach', userId: 'hc' }
+const COACH = { roleName: 'coach', userId: 'coach' }
+const MEMBER = { roleName: 'user', userId: 'm' }
+type Who = { roleName: string; userId: string }
 
-beforeEach(() => {
-    ;(loadWorkspaceRisk as jest.Mock).mockReset().mockResolvedValue(ENTRIES)
-})
+// `ownGroups` = what the database returns for the caller's (filtered) groups.
+const make = (p: { coachSeesAllGroups?: boolean; groups?: string[] } = {}) => {
+    const prisma = {
+        workspace: {
+            findUnique: jest.fn().mockResolvedValue({
+                ownerId: 'owner',
+                coachSeesAllGroups: p.coachSeesAllGroups ?? false,
+            }),
+        },
+        gym: { findFirst: jest.fn().mockResolvedValue({ id: 'gym1' }) },
+        direction: { findFirst: jest.fn().mockResolvedValue({ id: 'dir1' }) },
+        group: {
+            findFirst: jest.fn().mockResolvedValue({ id: 'own' }),
+            findMany: jest
+                .fn()
+                .mockResolvedValue((p.groups ?? ['own']).map((id) => ({ id }))),
+        },
+        groupCoach: { findFirst: jest.fn().mockResolvedValue({ userId: 'coach' }) },
+    }
+    const callLists = { get: jest.fn().mockResolvedValue(LIST) }
+    const handler = new ListAtRiskMembersHandler(
+        prisma as never,
+        new RbacService(prisma as never),
+        callLists as never,
+    )
+    const run = (who: Who, payload: Record<string, unknown> = {}) =>
+        handler.execute(
+            new ListAtRiskMembersFeature(payload, 'w1', who.userId, who.roleName, false),
+        )
+    return { prisma, callLists, run }
+}
 
 describe('ListAtRiskMembersHandler', () => {
-    it('propagates a refusal from resolveCoachScope', async () => {
-        const { handler, resolveCoachScope } = make('admin')
-        resolveCoachScope.mockRejectedValueOnce(new ForbiddenError({ message: 'no' }))
-        await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
-        expect(loadWorkspaceRisk).not.toHaveBeenCalled()
+    it('refuses a plain member before reading the list', async () => {
+        const { run, callLists } = make()
+        await expect(run(MEMBER)).rejects.toBeInstanceOf(ForbiddenError)
+        expect(callLists.get).not.toHaveBeenCalled()
     })
 
-    it('lets an admin see everyone, with snoozed kept out of the totals', async () => {
-        const { handler, prisma } = make('admin')
-        const res = await run(handler, {}, 'admin1', 'admin')
+    it('404s on a filter id of another club', async () => {
+        const { run, prisma, callLists } = make()
+        prisma.gym.findFirst.mockResolvedValueOnce(null)
+        await expect(run(ADMIN, { gymId: 'x' })).rejects.toBeInstanceOf(NotFoundError)
+        prisma.direction.findFirst.mockResolvedValueOnce(null)
+        await expect(run(ADMIN, { directionId: 'x' })).rejects.toBeInstanceOf(NotFoundError)
+        prisma.group.findFirst.mockResolvedValueOnce(null)
+        await expect(run(ADMIN, { groupId: 'x' })).rejects.toBeInstanceOf(NotFoundError)
+        expect(callLists.get).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ['the owner', OWNER],
+        ['an admin', ADMIN],
+        ['a head coach', HEAD_COACH],
+    ])('gives %s the whole club, group-less members included', async (_, who) => {
+        const { run, prisma, callLists } = make()
+        const res = await run(who)
+        expect(callLists.get).toHaveBeenCalledWith('w1')
         expect(res.data.map((m) => m.userId)).toEqual(['a', 'b', 'c'])
-        expect(res.summary).toEqual({
-            total: 2,
-            lapsed: 0,
-            newcomer: 0,
-            absent: 2,
-            declining: 0,
-            snoozed: 1,
-        })
+        expect(res.data[0].groups.map((g) => g.id)).toEqual(['own', 'other'])
         expect(prisma.group.findMany).not.toHaveBeenCalled()
     })
 
-    it('shows a coach_own_only only their groups and narrows the group list', async () => {
-        const { handler } = make('coach_own_only')
-        const res = await run(handler)
-        expect(res.data.map((m) => m.userId)).toEqual(['a'])
-        expect(res.data[0].groups.map((g) => g.id)).toEqual(['g1'])
-    })
+    it.each([false, true])(
+        'gives a coach only their own groups (coachSeesAllGroups=%s)',
+        async (coachSeesAllGroups) => {
+            const { run, prisma } = make({ coachSeesAllGroups })
+            const res = await run(COACH)
+            expect(prisma.group.findMany.mock.calls[0][0].where).toEqual({
+                workspaceId: 'w1',
+                ...ownGroupsWhere('coach'),
+            })
+            expect(res.data.map((m) => m.userId)).toEqual(['a'])
+            // Other coaches' groups are not shown on the row.
+            expect(res.data[0].groups.map((g) => g.id)).toEqual(['own'])
+            expect(res.summary).toMatchObject({ total: 1, lapsed: 1, snoozed: 1 })
+        },
+    )
 
-    it('takes own groups from ownGroupsWhere: coached (junction) or of a managed direction', async () => {
-        const { handler, prisma } = make('coach_own_only')
-        await run(handler)
-        expect(prisma.group.findMany).toHaveBeenCalledWith({
-            where: { workspaceId: 'w1', ...ownGroupsWhere('me') },
-            select: { id: true },
-        })
-    })
-
-    it('shows a direction manager the students of another coach of the direction', async () => {
-        // g2 is led by someone else; the caller runs its direction.
-        const { handler } = make('coach_own_only', ['g2'])
-        const res = await run(handler)
-        expect(res.data.map((m) => [m.userId, m.canContact])).toEqual([['b', true]])
-    })
-
-    it('lets coach_read_all see everyone, and scope=mine narrows it', async () => {
-        const { handler } = make('coach_read_all', ['g2'])
-        expect((await run(handler)).data.map((m) => m.userId)).toEqual(['a', 'b', 'c'])
-        expect((await run(handler, { scope: 'mine' })).data.map((m) => m.userId)).toEqual([
-            'b',
-        ])
-    })
-
-    it('narrows an owner without a member row to their own groups on scope=mine', async () => {
-        const { handler, prisma } = make('admin', ['g2'])
-        const res = await run(handler, { scope: 'mine' }, OWNER, 'admin')
-        expect(res.data.map((m) => m.userId)).toEqual(['b'])
+    it('narrows sport leads by gym / direction / group / coach through the groups', async () => {
+        const { run, prisma } = make({ groups: ['other'] })
+        const res = await run(ADMIN, { gymId: 'gym1', directionId: 'dir1', coachId: 'coach' })
         expect(prisma.group.findMany.mock.calls[0][0].where).toEqual({
             workspaceId: 'w1',
-            ...ownGroupsWhere('me'),
+            gymId: 'gym1',
+            directionId: 'dir1',
+            coaches: { some: { userId: 'coach' } },
         })
+        expect(res.data.map((m) => m.userId)).toEqual(['a', 'b'])
+        expect(res.summary.total).toBe(2)
     })
 
-    it('flags canContact: admins any member, a coach only members of their own groups', async () => {
-        const admin = make('admin')
-        expect((await run(admin.handler)).data.map((m) => m.canContact)).toEqual([
-            true,
-            true,
-            true,
-        ])
-        const readAll = make('coach_read_all', ['g2'])
-        expect((await run(readAll.handler)).data.map((m) => m.canContact)).toEqual([
-            false,
-            true,
-            false,
-        ])
-        const own = make('coach_own_only', ['g9'])
-        expect((await run(own.handler)).data.map((m) => m.canContact)).toEqual([true])
+    it('counts the summary over the scope, not the chip or the page', async () => {
+        const { run } = make()
+        const res = await run(OWNER, { reason: 'absent', perPage: 1 })
+        expect(res.data.map((m) => m.userId)).toEqual(['b'])
+        expect(res.total).toBe(2)
+        expect(res.summary).toEqual({
+            total: 3,
+            lapsed: 1,
+            newcomer: 0,
+            absent: 2,
+            declining: 0,
+            high: 1,
+            snoozed: 1,
+            // a + b; c has no snapshot, d is snoozed.
+            moneyAtStake: 8000,
+            currency: 'RUB',
+        })
+        expect(res.scoredAt).toBe(LIST.scoredAt)
     })
 
-    it('filters by gym and by group', async () => {
-        const { handler } = make('admin')
-        expect(
-            (await run(handler, { gymId: 'gym2' })).data.map((m) => m.userId),
-        ).toEqual(['b'])
-        expect((await run(handler, { groupId: 'g9' })).data.map((m) => m.userId)).toEqual(['a'])
+    it('lists the contacted ones only with snoozed=true', async () => {
+        const { run } = make()
+        const res = await run(OWNER, { snoozed: true })
+        expect(res.data.map((m) => [m.userId, m.snoozed])).toEqual([['d', true]])
+        expect(res.total).toBe(1)
     })
 
-    it('404s on an unknown gym or group', async () => {
-        const { handler, prisma } = make('admin')
-        prisma.gym.findFirst.mockResolvedValueOnce(null)
-        await expect(run(handler, { gymId: 'x' })).rejects.toBeInstanceOf(NotFoundError)
-        prisma.group.findFirst.mockResolvedValueOnce(null)
-        await expect(run(handler, { groupId: 'x' })).rejects.toBeInstanceOf(NotFoundError)
-        expect(loadWorkspaceRisk).not.toHaveBeenCalled()
+    it('pages through the rows', async () => {
+        const { run } = make()
+        const second = await run(OWNER, { curPage: 2, perPage: 2 })
+        expect(second).toMatchObject({ curPage: 2, perPage: 2, total: 3 })
+        expect(second.data.map((m) => m.userId)).toEqual(['c'])
+        const past = await run(OWNER, { curPage: 5, perPage: 2 })
+        expect(past.data).toEqual([])
     })
 
-    it('serializes dates to ISO strings and flattens the reason', async () => {
-        const { handler } = make('admin')
-        const [first] = (await run(handler)).data
-        expect(first.reason).toBe('absent')
-        expect(first.facts.lastVisitAt).toBe('2026-09-01T00:00:00.000Z')
-        expect(first.facts.lapsedAt).toBeNull()
+    it('keeps the score join and leaves members without a snapshot unscored', async () => {
+        const { run } = make()
+        const { data } = await run(OWNER)
+        expect(data[0]).toMatchObject({ score: 80, level: 'high' })
+        expect(data[2]).toMatchObject({ score: null, level: null })
+    })
+
+    it('sends the money to the owner and admins only', async () => {
+        for (const who of [OWNER, ADMIN]) {
+            const res = await make().run(who)
+            expect(res.data[0].monthlySpend).toBe(5000)
+            expect(res.summary.moneyAtStake).toBe(8000)
+        }
+        for (const who of [HEAD_COACH, COACH]) {
+            const res = await make().run(who)
+            expect(res.data[0].monthlySpend).toBeNull()
+            expect(res.summary.moneyAtStake).toBeNull()
+        }
     })
 })

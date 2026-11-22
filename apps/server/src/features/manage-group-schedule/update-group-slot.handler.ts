@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { ClassBookingService } from '../../domains/class-bookings/class-booking.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -27,6 +28,7 @@ export class UpdateGroupSlotHandler
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly rbac: RbacService,
+        private readonly classBookings: ClassBookingService,
     ) {}
 
     async execute({
@@ -48,6 +50,7 @@ export class UpdateGroupSlotHandler
 
         const existing = await this.prisma.groupScheduleSlot.findFirst({
             where: { id: slotId, groupId, group: { workspaceId } },
+            include: { group: { select: { bookingMode: true } } },
         })
         if (!existing) {
             throw new NotFoundError({ message: 'Слот расписания не найден' })
@@ -143,6 +146,20 @@ export class UpdateGroupSlotHandler
             actorId: invokerUserId,
             metadata: { slotId, fields: Object.keys(payload) },
         })
+
+        // The series now ends earlier («Убрать из расписания с этой даты»):
+        // booked members of the classes past the new end get their places
+        // released (nothing burned) and a push. Classes up to it are kept.
+        if (payload.effectiveUntil && existing.group.bookingMode === 'BOOKING') {
+            const cut = new Date(payload.effectiveUntil)
+            await this.classBookings.cancelByClub({
+                workspaceId,
+                groupId,
+                slotId,
+                fromDate: new Date(cut.getTime() + 24 * 3600 * 1000),
+                reason: null,
+            })
+        }
 
         return serializeSlot(updated)
     }

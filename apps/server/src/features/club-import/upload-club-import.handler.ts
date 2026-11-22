@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import { parseClubCsv } from './club-import-csv'
 import {
@@ -23,7 +23,7 @@ export class UploadClubImportHandler
     ) {}
 
     async execute(f: UploadClubImportFeature): Promise<ClubImportFeatureResponse> {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,

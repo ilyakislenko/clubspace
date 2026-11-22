@@ -6,6 +6,7 @@ import { useState } from "react"
 import { removeGroupCoach } from "../../shared/api/groups"
 import { errorMessage } from "../../shared/lib/error-message"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { cap } from "@clubspace/ui-kit/brand"
 
 type Props = {
@@ -30,7 +31,16 @@ export function CoachChip({
   const vocabulary = useVocabulary()
   const [busy, setBusy] = useState(false)
   const handleRemove = async () => {
-    if (!window.confirm(`Снять ${name} с роли помощника?`)) return
+    if (
+      !(await confirmDialog({
+        title: `Снять ${name} с роли помощника?`,
+        description: "Роль в клубе и в других группах останется прежней — меняется только эта группа.",
+        confirmLabel: "Снять",
+        destructive: true,
+      }))
+    ) {
+      return
+    }
     setBusy(true)
     onError(null)
     try {

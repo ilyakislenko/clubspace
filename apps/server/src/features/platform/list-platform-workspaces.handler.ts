@@ -6,6 +6,7 @@ import {
     tierFor,
 } from '../../domains/billing/platform-pricing.config'
 import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
+import { countActiveStudentsMany } from '../../domains/metrics/active-students'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
@@ -57,7 +58,7 @@ export class ListPlatformWorkspacesHandler
         const ids = matching.map((w) => w.id)
         const [billingById, activeById, comps] = await Promise.all([
             this.billing.getBillingMany(ids),
-            this.billing.countActiveMembersMany(matching, now),
+            countActiveStudentsMany(this.prisma, matching, now),
             ids.length
                 ? this.prisma.workspaceModuleEntitlement.findMany({
                       where: {

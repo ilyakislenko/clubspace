@@ -2469,20 +2469,12 @@ export type ListWorkspaceMembersOutputOutput = {
                 icon: string | null;
             }>;
         }>;
+        owesPayment: boolean;
         createdAt: string;
-        lastCheckInAt: string | null;
-        watchedCount: number;
-        inProgressCount: number;
-        lastWatchedAt: string | null;
-        lastWatchedVideo: {
-            id: string;
-            title: string;
-        } | null;
     }>;
     total: number;
     curPage: number;
     perPage: number;
-    workspaceVideoTotal: number;
 };
 
 export type ListPendingUsersOutputOutput = {
@@ -2735,7 +2727,6 @@ export type ListGroupsOutputOutput = {
         gym: {
             id: string;
             name: string;
-            address: string;
         } | null;
         direction: {
             id: string;
@@ -2750,9 +2741,6 @@ export type ListGroupsOutputOutput = {
             lastname: string | null;
         };
         bookingMode: 'FIXED' | 'BOOKING';
-        capacity: number | null;
-        bookingWindowDays: number | null;
-        bookingCancelHours: number | null;
         coaches: Array<{
             userId: string;
             email: string | null;
@@ -2761,30 +2749,10 @@ export type ListGroupsOutputOutput = {
             role: 'primary' | 'assistant';
         }>;
         memberCount: number;
-        members: Array<{
-            userId: string;
-            email: string | null;
-            firstname: string | null;
-            lastname: string | null;
-            joinedAt: string;
-        }>;
-        slots: Array<{
-            id: string;
+        week: Array<{
             dayOfWeek: number;
             startTime: string;
-            durationMin: number;
-            effectiveFrom: string | null;
-            effectiveUntil: string | null;
-            capacity: number | null;
         }>;
-        exceptions: Array<{
-            id: string;
-            slotId: string | null;
-            fromDate: string;
-            untilDate: string;
-            reason: string | null;
-        }>;
-        createdAt: string;
     }>;
     total: number;
 };
@@ -2810,9 +2778,6 @@ export type GetGroupOutputOutput = {
         lastname: string | null;
     };
     bookingMode: 'FIXED' | 'BOOKING';
-    capacity: number | null;
-    bookingWindowDays: number | null;
-    bookingCancelHours: number | null;
     coaches: Array<{
         userId: string;
         email: string | null;
@@ -2821,7 +2786,35 @@ export type GetGroupOutputOutput = {
         role: 'primary' | 'assistant';
     }>;
     memberCount: number;
-    members: Array<{
+    week: Array<{
+        dayOfWeek: number;
+        startTime: string;
+    }>;
+    capacity: number | null;
+    bookingWindowDays: number | null;
+    bookingCancelHours: number | null;
+    slots: Array<{
+        id: string;
+        dayOfWeek: number;
+        startTime: string;
+        durationMin: number;
+        effectiveFrom: string | null;
+        effectiveUntil: string | null;
+        capacity: number | null;
+    }>;
+    exceptions: Array<{
+        id: string;
+        slotId: string | null;
+        fromDate: string;
+        untilDate: string;
+        reason: string | null;
+    }>;
+    updatedAt: string;
+    canEdit: boolean;
+};
+
+export type ListGroupMembersOutputOutput = {
+    data: Array<{
         userId: string;
         email: string | null;
         firstname: string | null;
@@ -2844,24 +2837,9 @@ export type GetGroupOutputOutput = {
             text: string;
         } | null;
     }>;
-    slots: Array<{
-        id: string;
-        dayOfWeek: number;
-        startTime: string;
-        durationMin: number;
-        effectiveFrom: string | null;
-        effectiveUntil: string | null;
-        capacity: number | null;
-    }>;
-    exceptions: Array<{
-        id: string;
-        slotId: string | null;
-        fromDate: string;
-        untilDate: string;
-        reason: string | null;
-    }>;
-    createdAt: string;
-    canEdit: boolean;
+    total: number;
+    curPage: number;
+    perPage: number;
 };
 
 export type CreateGroupBody = {
@@ -2897,6 +2875,10 @@ export type UpdateGroupBody = {
     capacity?: number | null;
     bookingWindowDays?: number | null;
     bookingCancelHours?: number | null;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdateGroupOutputOutput = {
@@ -2909,6 +2891,7 @@ export type UpdateGroupOutputOutput = {
     capacity: number | null;
     bookingWindowDays: number | null;
     bookingCancelHours: number | null;
+    updatedAt: string;
 };
 
 export type DeleteGroupOutputOutput = {
@@ -3004,6 +2987,7 @@ export type GetWorkspaceSettingsOutputOutput = {
         enabled: boolean;
         until: string | null;
     }>;
+    updatedAt: string;
 };
 
 export type UpdateWorkspaceSettingsBody = {
@@ -3027,6 +3011,10 @@ export type UpdateWorkspaceSettingsBody = {
     bookingCancelHours?: number;
     bookingLateCancelBurn?: boolean;
     bookingNoShowBurn?: boolean;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdateWorkspaceSettingsOutputOutput = {
@@ -3057,6 +3045,7 @@ export type UpdateWorkspaceSettingsOutputOutput = {
         enabled: boolean;
         until: string | null;
     }>;
+    updatedAt: string;
 };
 
 export type RemoveWorkspaceMemberOutputOutput = {
@@ -4210,6 +4199,10 @@ export type UpdateClubAboutInput = {
         url: string;
     }>;
     rules: string | null;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdateClubAboutOutputDtoOutput = {
@@ -4223,6 +4216,7 @@ export type UpdateClubAboutOutputDtoOutput = {
     }>;
     rules: string | null;
     updatedAt: string | null;
+    clubUpdatedAt: string;
 };
 
 export type ClubPublicProfileOutputDtoOutput = {
@@ -4234,6 +4228,7 @@ export type ClubPublicProfileOutputDtoOutput = {
     isListed: boolean;
     pageUrl: string | null;
     joinPageUrl: string | null;
+    updatedAt: string;
 };
 
 export type UpdateClubPublicProfileInput = {
@@ -4242,6 +4237,10 @@ export type UpdateClubPublicProfileInput = {
     description: string | null;
     logoKey: string | null;
     isListed: boolean;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdateClubPublicProfileOutputDtoOutput = {
@@ -4253,6 +4252,7 @@ export type UpdateClubPublicProfileOutputDtoOutput = {
     isListed: boolean;
     pageUrl: string | null;
     joinPageUrl: string | null;
+    updatedAt: string;
 };
 
 export type CreateClubLogoUploadInput = {
@@ -5496,73 +5496,40 @@ export type GetWorkspaceStatsOutputOutput = {
     today: {
         sessions: number;
         checkins: number;
-        newMembers: number;
+        newStudents: number;
         revenue: number | null;
         currency: string | null;
     };
     counts: {
         videos: number;
         videosReady: number;
-        courses: number;
-        members: number;
-    };
-    activity: {
-        activeMembers7d: number;
-        activeMembers30d: number;
-        videoViewers7d: number;
-        videoViewers30d: number;
-        completions7d: number;
+        students: number;
+        activeStudents: number;
+        studentsWithAbonement: number;
     };
     attendance: {
         sessions7d: number;
         sessions30d: number;
         checkins7d: number;
         checkins30d: number;
-        distinctAttendees30d: number;
-        trend: Array<{
-            week: string;
-            checkins: number;
-        }>;
+        attendedStudents7d: number;
+        attendedStudents30d: number;
     };
     retention: {
-        inactiveMembers30d: number;
-        expiredAccess: number;
-        expiringSoon: number;
+        notAttended30d: number;
+        renewalsDue: number | null;
     };
     revenue: {
-        activeSubscriptions: number;
         revenue30d: number;
         mrr: number;
+        expected30d: number;
         currency: string | null;
         awaitingPayment: {
-            count: number;
+            students: number;
             amount: number;
         };
-        trend: Array<{
-            month: string;
-            revenue: number;
-        }>;
-        byPlan: Array<{
-            planId: string;
-            planName: string;
-            count: number;
-            revenue: number;
-        }>;
+        revenuePrev30d: number;
     } | null;
-    topVideos7d: Array<{
-        id: string;
-        title: string;
-        viewers: number;
-        completions: number;
-    }>;
-    recentEvents: Array<{
-        id: string;
-        action: string;
-        targetType: string;
-        targetId: string | null;
-        actorEmail: string | null;
-        createdAt: string;
-    }>;
 };
 
 export type CreatePlanInput = {
@@ -5598,6 +5565,7 @@ export type PlanOutputDtoOutput = {
         color: string | null;
         icon: string | null;
     }>;
+    updatedAt: string;
 };
 
 export type ListPlansOutputOutput = {
@@ -5620,6 +5588,7 @@ export type ListPlansOutputOutput = {
             color: string | null;
             icon: string | null;
         }>;
+        updatedAt: string;
     }>;
 };
 
@@ -5643,6 +5612,7 @@ export type GetPlanOutputOutput = {
             color: string | null;
             icon: string | null;
         }>;
+        updatedAt: string;
     };
     holders: Array<{
         subscriptionId: string;
@@ -5676,6 +5646,10 @@ export type UpdatePlanInput = {
     isActive?: boolean;
     purchasableOnline?: boolean;
     directionIds?: Array<string>;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdatePlanOutputOutput = {
@@ -5697,6 +5671,7 @@ export type UpdatePlanOutputOutput = {
         color: string | null;
         icon: string | null;
     }>;
+    updatedAt: string;
 };
 
 export type DeletePlanOutputOutput = {
@@ -5709,6 +5684,16 @@ export type ListRenewalCandidatesOutputOutput = {
         firstname: string | null;
         lastname: string | null;
         email: string | null;
+        phone: string | null;
+        guardians: Array<{
+            userId: string;
+            firstname: string | null;
+            lastname: string | null;
+            email: string | null;
+            phone: string | null;
+            relation: 'PARENT' | 'GUARDIAN' | 'OTHER';
+            confirmed: boolean;
+        }>;
         reason: 'out_of_classes' | 'low_classes' | 'access_expiring';
         classesRemaining: number | null;
         classesTotal: number | null;
@@ -5723,6 +5708,9 @@ export type ListRenewalCandidatesOutputOutput = {
             icon: string | null;
         }>;
     }>;
+    total: number;
+    curPage: number;
+    perPage: number;
 };
 
 export type AwaitingPaymentOutputOutput = {
@@ -5739,6 +5727,9 @@ export type AwaitingPaymentOutputOutput = {
         createdAt: string;
     }>;
     total: number;
+    members: number;
+    curPage: number;
+    perPage: number;
 };
 
 export type AssignSubscriptionInput = {
@@ -6638,35 +6629,6 @@ export type MemberRanksOutputOutput = {
     }>;
 };
 
-export type LadderRosterOutputOutput = {
-    data: Array<{
-        userId: string;
-        firstname: string | null;
-        lastname: string | null;
-        email: string | null;
-        isOwner: boolean;
-        current: {
-            levelId: string;
-            levelName: string;
-            color: string | null;
-            stripes: number;
-            awardedAt: string;
-        } | null;
-    }>;
-};
-
-export type PromoteMembersInput = {
-    userIds: Array<string>;
-    levelId: string;
-    stripes?: number;
-    note?: string | null;
-};
-
-export type PromoteMembersOutputOutput = {
-    promoted: number;
-    unchanged: number;
-};
-
 export type ListAtRiskMembersOutputOutput = {
     data: Array<{
         userId: string;
@@ -6713,7 +6675,10 @@ export type ListAtRiskMembersOutputOutput = {
             signals: Array<'lapsed' | 'newcomer' | 'absent' | 'declining'>;
         } | null;
         snoozed: boolean;
-        canContact: boolean;
+        score: number | null;
+        level: 'high' | 'medium' | 'low' | null;
+        monthlySpend: number | null;
+        currency: string | null;
     }>;
     summary: {
         total: number;
@@ -6721,8 +6686,15 @@ export type ListAtRiskMembersOutputOutput = {
         newcomer: number;
         absent: number;
         declining: number;
+        high: number;
         snoozed: number;
+        moneyAtStake: number | null;
+        currency: string | null;
     };
+    total: number;
+    curPage: number;
+    perPage: number;
+    scoredAt: string | null;
 };
 
 export type LogAtRiskContactInput = {
@@ -6737,58 +6709,6 @@ export type LogAtRiskContactOutputOutput = {
     note: string | null;
     reason: 'lapsed' | 'newcomer' | 'absent' | 'declining' | null;
     signals: Array<'lapsed' | 'newcomer' | 'absent' | 'declining'>;
-};
-
-export type ListChurnRiskOutputOutput = {
-    computedAt: string | null;
-    data: Array<{
-        userId: string;
-        firstname: string | null;
-        lastname: string | null;
-        email: string | null;
-        phone: string | null;
-        guardians: Array<{
-            userId: string;
-            firstname: string | null;
-            lastname: string | null;
-            email: string | null;
-            phone: string | null;
-            relation: 'PARENT' | 'GUARDIAN' | 'OTHER';
-            confirmed: boolean;
-        }>;
-        groups: Array<{
-            id: string;
-            name: string;
-            gymId: string | null;
-            gymName: string | null;
-        }>;
-        score: number;
-        level: 'high' | 'medium' | 'low';
-        reasons: Array<{
-            code: 'absent' | 'never_visited' | 'after_freeze' | 'declining' | 'expired' | 'out_of_classes' | 'ending_soon' | 'missed_bookings' | 'newcomer' | 'debt' | 'frozen' | 'veteran';
-            points: number;
-            text: string;
-        }>;
-        monthlySpend: number;
-        currency: string | null;
-        lastVisitAt: string | null;
-        lastContact: {
-            id: string;
-            at: string;
-            byName: string;
-            note: string | null;
-        } | null;
-        contactedRecently: boolean;
-        canContact: boolean;
-    }>;
-    summary: {
-        total: number;
-        high: number;
-        medium: number;
-        moneyAtStake: number;
-        currency: string | null;
-        contactedRecently: number;
-    };
 };
 
 export type GetCohortRetentionOutputOutput = {
@@ -6912,8 +6832,8 @@ export type GetCoachAnalyticsOutputOutput = {
 export type GetRevenueForecastOutputOutput = {
     computedAt: string | null;
     currency: string | null;
-    members: number;
-    monthlyRecurring: number;
+    students: number;
+    mrr: number;
     horizons: Array<{
         days: number;
         potential: number;
@@ -6937,6 +6857,7 @@ export type GetRevenueForecastOutputOutput = {
 };
 
 export type RefreshAnalyticsOutputOutput = {
+    status: 'fresh' | 'queued';
     historyComputedAt: string | null;
     riskComputedAt: string | null;
 };
@@ -7046,6 +6967,10 @@ export type UpdateAnnouncementInput = {
     groupIds?: Array<string>;
     publish?: boolean;
     publishAt?: string;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
 };
 
 export type UpdateAnnouncementOutputOutput = {
@@ -7154,6 +7079,14 @@ export type GetRankReadinessOutputOutput = {
             date: string;
         } | null;
     }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+    summary: {
+        all: number;
+        ready: number;
+        readyUnlisted: number;
+    };
 };
 
 export type CreateRankGradingInput = {
@@ -7541,6 +7474,7 @@ export type PendingFreezeRequestsOutputOutput = {
         memberName: string;
         planName: string;
     }>;
+    total: number;
 };
 
 export type ApproveSubscriptionFreezeRequestInput = {
@@ -8263,7 +8197,6 @@ export type ListAiTokensOutputOutput = {
             id: string;
             name: string;
         };
-        canRevoke: boolean;
     }>;
     mcpUrl: string;
     canUsePersonalData: boolean;
@@ -8300,7 +8233,6 @@ export type CreateAiTokenOutputOutput = {
             id: string;
             name: string;
         };
-        canRevoke: boolean;
     };
     secret: string;
 };
@@ -8320,7 +8252,6 @@ export type AiTokenOutputDtoOutput = {
         id: string;
         name: string;
     };
-    canRevoke: boolean;
 };
 
 export type AiChatStateOutputOutput = {
@@ -9936,7 +9867,7 @@ export type ListMembersData = {
         curPage?: number;
         perPage?: number;
         q?: string;
-        access?: 'all' | 'expiring' | 'expired' | 'inactive';
+        access?: 'all' | 'renew' | 'unpaid' | 'inactive';
         staffOnly?: boolean;
         sort?: 'name' | 'expiry' | 'newest' | 'oldest' | 'role';
     };
@@ -10403,6 +10334,26 @@ export type Update4Responses = {
 };
 
 export type Update4Response = Update4Responses[keyof Update4Responses];
+
+export type ListGroupMembersData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        groupId: string;
+    };
+    query?: {
+        curPage?: number;
+        perPage?: number;
+        q?: string;
+    };
+    url: '/workspaces/{workspaceId}/groups/{groupId}/members';
+};
+
+export type ListGroupMembersResponses = {
+    default: ListGroupMembersOutputOutput;
+};
+
+export type ListGroupMembersResponse = ListGroupMembersResponses[keyof ListGroupMembersResponses];
 
 export type SyncData = {
     body: SyncGroupMembersBody;
@@ -12508,7 +12459,14 @@ export type List4Data = {
     path: {
         workspaceId: string;
     };
-    query?: never;
+    query?: {
+        gymId?: string;
+        directionId?: string;
+        groupId?: string;
+        coachId?: string;
+        curPage?: number;
+        perPage?: number;
+    };
     url: '/workspaces/{workspaceId}/renewal-candidates';
 };
 
@@ -12523,7 +12481,14 @@ export type ListAwaitingPaymentData = {
     path: {
         workspaceId: string;
     };
-    query?: never;
+    query?: {
+        gymId?: string;
+        directionId?: string;
+        groupId?: string;
+        coachId?: string;
+        curPage?: number;
+        perPage?: number;
+    };
     url: '/workspaces/{workspaceId}/awaiting-payment';
 };
 
@@ -13198,47 +13163,20 @@ export type GetMemberRanksResponses = {
 
 export type GetMemberRanksResponse = GetMemberRanksResponses[keyof GetMemberRanksResponses];
 
-export type GetLadderRosterData = {
-    body?: never;
-    path: {
-        workspaceId: string;
-        ladderId: string;
-    };
-    query?: never;
-    url: '/workspaces/{workspaceId}/rank-ladders/{ladderId}/roster';
-};
-
-export type GetLadderRosterResponses = {
-    default: LadderRosterOutputOutput;
-};
-
-export type GetLadderRosterResponse = GetLadderRosterResponses[keyof GetLadderRosterResponses];
-
-export type PromoteMembersData = {
-    body: PromoteMembersInput;
-    path: {
-        workspaceId: string;
-        ladderId: string;
-    };
-    query?: never;
-    url: '/workspaces/{workspaceId}/rank-ladders/{ladderId}/promotions';
-};
-
-export type PromoteMembersResponses = {
-    default: PromoteMembersOutputOutput;
-};
-
-export type PromoteMembersResponse = PromoteMembersResponses[keyof PromoteMembersResponses];
-
 export type ListAtRiskMembersData = {
     body?: never;
     path: {
         workspaceId: string;
     };
     query?: {
-        scope?: 'all' | 'mine';
         gymId?: string;
+        directionId?: string;
         groupId?: string;
+        coachId?: string;
+        reason?: 'lapsed' | 'newcomer' | 'absent' | 'declining';
+        snoozed?: boolean;
+        curPage?: number;
+        perPage?: number;
     };
     url: '/workspaces/{workspaceId}/at-risk-members';
 };
@@ -13264,27 +13202,6 @@ export type LogAtRiskContactResponses = {
 };
 
 export type LogAtRiskContactResponse = LogAtRiskContactResponses[keyof LogAtRiskContactResponses];
-
-export type ListChurnRiskData = {
-    body?: never;
-    path: {
-        workspaceId: string;
-    };
-    query?: {
-        gymId?: string;
-        directionId?: string;
-        groupId?: string;
-        coachId?: string;
-        minScore?: number;
-    };
-    url: '/workspaces/{workspaceId}/analytics/churn';
-};
-
-export type ListChurnRiskResponses = {
-    default: ListChurnRiskOutputOutput;
-};
-
-export type ListChurnRiskResponse = ListChurnRiskResponses[keyof ListChurnRiskResponses];
 
 export type GetCohortRetentionData = {
     body?: never;
@@ -13377,7 +13294,7 @@ export type RefreshAnalyticsData = {
 };
 
 export type RefreshAnalyticsResponses = {
-    default: RefreshAnalyticsOutputOutput;
+    202: RefreshAnalyticsOutputOutput;
 };
 
 export type RefreshAnalyticsResponse = RefreshAnalyticsResponses[keyof RefreshAnalyticsResponses];
@@ -13513,6 +13430,9 @@ export type GetRankReadinessData = {
     query?: {
         ladderId?: string;
         groupId?: string;
+        readyOnly?: boolean;
+        curPage?: number;
+        perPage?: number;
     };
     url: '/workspaces/{workspaceId}/rank-readiness';
 };

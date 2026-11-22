@@ -5,7 +5,11 @@ import { Inject, Injectable, Logger } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import type Redis from 'ioredis'
 
-import { resolveAiAccess, type AiAccess } from '../../domains/ai-assistant/ai-access'
+import {
+    assertAiTokenManager,
+    resolveAiAccess,
+    type AiAccess,
+} from '../../domains/ai-assistant/ai-access'
 import {
     aiTokenState,
     ENABLED_AI_TOKEN_SCOPES,
@@ -162,7 +166,7 @@ export class McpServerService {
             })
         if (!secret || !looksLikeAiToken(secret)) {
             throw unauthorized(
-                'Нужен токен ИИ-ассистента: заголовок Authorization: Bearer csai_… (Интеграции → ИИ-ассистент в админке клуба)',
+                'Нужен токен ИИ-ассистента: заголовок Authorization: Bearer csai_… (Настройки → Интеграции → ИИ-ассистент в админке клуба)',
             )
         }
         const row = await this.prisma.aiAccessToken.findUnique({
@@ -199,6 +203,8 @@ export class McpServerService {
                 userId: row.createdById,
                 now,
             })
+            // A creator no longer a club admin takes their tokens' access along.
+            assertAiTokenManager(access)
             const reason = suspensionReason(row.workspace, environment.billing.enabled)
             if (reason) {
                 throw new WorkspaceSuspendedError({
@@ -291,14 +297,13 @@ export class McpServerService {
         )
     }
 
-    // A direction manager's token doesn't list the money tools; action tools
-    // only with the (not yet grantable) 'actions' scope.
+    // Money tools only for a club admin's access; action tools only with the
+    // (not yet grantable) 'actions' scope.
     private visibleTools(caller: McpCaller): McpTool[] {
-        const isAdmin = caller.access.directionIds === null
         return [
             ...visibleReadTools(caller.access),
             ...(this.actionsEnabled(caller) ? MCP_ACTION_TOOLS : []).filter(
-                (t) => isAdmin || !t.adminOnly,
+                (t) => caller.access.isClubAdmin || !t.adminOnly,
             ),
         ]
     }

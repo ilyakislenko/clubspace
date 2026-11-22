@@ -1,11 +1,7 @@
 import React, { useState } from "react"
 import { Linking, StyleSheet, Text, View } from "react-native"
 
-import {
-  logAtRiskContact,
-  type AtRiskContact,
-  type AtRiskMember,
-} from "../../shared/api/retention"
+import { logAtRiskContact, type AtRiskMember } from "../../shared/api/retention"
 import { showAlert } from "../../shared/alert"
 import { Card } from "../../shared/Card"
 import { Pressable } from "../../shared/components/Pressable"
@@ -31,7 +27,7 @@ export function AtRiskMemberCard({
 }: {
   member: AtRiskMember
   workspaceId: string
-  onContacted: (userId: string, contact: AtRiskContact) => void
+  onContacted: (userId: string) => void
 }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -63,12 +59,12 @@ export function AtRiskMemberCard({
     if (saving) return
     setSaving(true)
     try {
-      const contact = await logAtRiskContact({
+      await logAtRiskContact({
         workspaceId,
         userId: member.userId,
         note: note.trim() || null,
       })
-      onContacted(member.userId, contact)
+      onContacted(member.userId)
       setEditing(false)
       setNote("")
       showToast("Отмечено — скроем на 2 недели", "success")
@@ -157,7 +153,9 @@ export function AtRiskMemberCard({
               {contact.guardian ? "Позвонить родителю" : "Позвонить"}
             </Text>
           </Pressable>
-          {member.canContact && (
+          {/* Every listed member is the caller's to call; the contacted ones
+              are already marked. */}
+          {!member.snoozed && (
             <Pressable
               onPress={() => setEditing(true)}
               accessibilityRole="button"

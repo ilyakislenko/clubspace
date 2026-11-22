@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListClubImportRowsFeature,
@@ -24,7 +24,7 @@ export class ListClubImportRowsHandler
     async execute(
         f: ListClubImportRowsFeature,
     ): Promise<ListClubImportRowsFeatureResponse> {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,

@@ -303,3 +303,44 @@ describe('workspace events: master class (price, places, guest host)', () => {
         ])
     })
 })
+
+describe('workspace events: list window', () => {
+    const list = (payload: { from?: string; to?: string }) => {
+        const prisma = { workspaceEvent: { findMany: jest.fn().mockResolvedValue([]) } }
+        const regs = registrations()
+        regs.summaries.mockResolvedValue(new Map())
+        const run = new ListWorkspaceEventsHandler(prisma as never, regs as never).execute(
+            new ListWorkspaceEventsFeature(payload, 'w1', 'viewer'),
+        )
+        return { prisma, run }
+    }
+
+    it('reads a window of up to a year', async () => {
+        const { prisma, run } = list({ from: '2026-01-01', to: '2027-01-02' })
+        await expect(run).resolves.toEqual({ data: [] })
+        expect(prisma.workspaceEvent.findMany.mock.calls[0][0].where).toMatchObject({
+            startAt: { lte: new Date('2027-01-02') },
+            endAt: { gte: new Date('2026-01-01') },
+        })
+    })
+
+    it('refuses a longer window and one that ends before it starts, without reading', async () => {
+        for (const payload of [
+            { from: '2026-01-01', to: '2027-01-03' },
+            { from: '2026-03-01', to: '2026-02-28' },
+            // From today (the default) back into the past.
+            { to: '2020-01-01' },
+        ]) {
+            const { prisma, run } = list(payload)
+            await expect(run).rejects.toBeInstanceOf(BadRequestError)
+            expect(prisma.workspaceEvent.findMany).not.toHaveBeenCalled()
+        }
+    })
+
+    it('defaults to 60 days from today', async () => {
+        const { prisma, run } = list({})
+        await run
+        const { startAt, endAt } = prisma.workspaceEvent.findMany.mock.calls[0][0].where
+        expect((startAt.lte.getTime() - endAt.gte.getTime()) / 86400_000).toBe(60)
+    })
+})

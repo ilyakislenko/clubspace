@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common'
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
@@ -6,16 +6,20 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { Roles, SPORT_LEADS } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
 import {
     AwaitingPaymentOutputSchema,
     ListAwaitingPaymentFeature,
+    ListAwaitingPaymentInputSchema,
     type ListAwaitingPaymentFeatureResponse,
 } from './list-awaiting-payment.feature'
 
+class ListAwaitingPaymentQuery extends createZodDto(
+    ListAwaitingPaymentInputSchema,
+) {}
 class AwaitingPaymentOutput extends createZodDto(
     AwaitingPaymentOutputSchema,
 ) {}
@@ -26,10 +30,11 @@ export class AwaitingPaymentController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: AwaitingPaymentOutput })
     async listAwaitingPayment(
         @Param('workspaceId') workspaceId: string,
+        @Query() query: ListAwaitingPaymentQuery,
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<
@@ -37,6 +42,7 @@ export class AwaitingPaymentController {
             ListAwaitingPaymentFeatureResponse
         >(
             new ListAwaitingPaymentFeature(
+                query,
                 workspaceId,
                 user.userId,
                 user.role?.name ?? null,

@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { currentSubscriptionWhere } from '../../domains/subscriptions/current-subscriptions'
-import { PrismaService } from '../../infrastructure/prisma'
+import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import { displayName } from '../attendance/schemas'
 import {
@@ -33,49 +33,55 @@ export class ListPendingFreezeRequestsHandler
             isSuperAdmin: f.isSuperAdmin,
         })
         const now = new Date()
-        const rows = await this.prisma.subscriptionFreezeRequest.findMany({
-            where: {
-                workspaceId: f.workspaceId,
-                status: 'PENDING',
-                // Still a current abonement of an active member.
-                subscription: {
-                    ...currentSubscriptionWhere(now),
-                    workspaceMember: { status: 'ACTIVE' },
-                },
-                // A coach sees what they may decide (canWriteMember): members
-                // of groups they coach or whose direction they run, never
-                // their own request.
-                ...(this.rbac.canWriteAllGroups(ctx)
-                    ? {}
-                    : {
-                          userId: { not: ctx.userId },
-                          user: {
-                              groupMemberships: {
-                                  some: {
-                                      group: {
-                                          workspaceId: f.workspaceId,
-                                          ...ownGroupsWhere(ctx.userId),
-                                      },
+        const where = {
+            workspaceId: f.workspaceId,
+            status: 'PENDING',
+            // Still a current abonement of an active member.
+            subscription: {
+                ...currentSubscriptionWhere(now),
+                workspaceMember: { status: 'ACTIVE' },
+            },
+            // A coach sees what they may decide (canWriteMember): members of
+            // groups they coach or whose direction they run, never their own
+            // request.
+            ...(this.rbac.canWriteAllGroups(ctx)
+                ? {}
+                : {
+                      userId: { not: ctx.userId },
+                      user: {
+                          groupMemberships: {
+                              some: {
+                                  group: {
+                                      workspaceId: f.workspaceId,
+                                      ...ownGroupsWhere(ctx.userId),
                                   },
                               },
                           },
-                      }),
-            },
-            orderBy: { createdAt: 'asc' },
-            take: LIMIT,
-            include: {
-                user: {
-                    select: { firstname: true, lastname: true, email: true },
+                      },
+                  }),
+        } satisfies Prisma.SubscriptionFreezeRequestWhereInput
+        const [rows, total] = await Promise.all([
+            this.prisma.subscriptionFreezeRequest.findMany({
+                where,
+                orderBy: { createdAt: 'asc' },
+                take: LIMIT,
+                include: {
+                    user: {
+                        select: { firstname: true, lastname: true, email: true },
+                    },
+                    subscription: { select: { plan: { select: { name: true } } } },
                 },
-                subscription: { select: { plan: { select: { name: true } } } },
-            },
-        })
+            }),
+            // The list stops at LIMIT; the count does not.
+            this.prisma.subscriptionFreezeRequest.count({ where }),
+        ])
         return {
             data: rows.map((r) => ({
                 ...serializeFreezeRequest(r),
                 memberName: displayName(r.user),
                 planName: r.subscription.plan.name,
             })),
+            total,
         }
     }
 }

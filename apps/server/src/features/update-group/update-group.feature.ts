@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { ExpectedUpdatedAtField } from '../../shared/utils/optimistic-concurrency'
 import {
     GroupBookingInputFields,
     GroupBookingOutputFields,
@@ -13,6 +14,7 @@ export const UpdateGroupFeatureInputSchema = z.object({
     directionId: z.string().uuid().nullish(),
     // «Постоянная группа» / «Запись на занятие», spots, window / deadline.
     ...GroupBookingInputFields,
+    ...ExpectedUpdatedAtField,
 })
 
 export const UpdateGroupFeatureOutputSchema = z.object({
@@ -22,6 +24,7 @@ export const UpdateGroupFeatureOutputSchema = z.object({
     coachId: z.string().uuid(),
     directionId: z.string().uuid().nullable(),
     ...GroupBookingOutputFields,
+    updatedAt: z.iso.datetime(),
 })
 
 export class UpdateGroupFeature {

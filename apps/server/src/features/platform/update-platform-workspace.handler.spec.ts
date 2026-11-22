@@ -216,7 +216,8 @@ describe('UpdatePlatformWorkspaceHandler', () => {
         )
     })
 
-    it('leaves an existing head_coach alone when promoting them to owner', async () => {
+    // The owner is a club admin; a head coach is a sport role below that.
+    it('raises an existing head_coach to admin when promoting them to owner', async () => {
         const { handler, tx } = build({
             newOwner: { id: 'u-head', email: 'head@club.ru' },
             existingMembership: {
@@ -226,10 +227,26 @@ describe('UpdatePlatformWorkspaceHandler', () => {
         })
         await run(handler, { ownerEmail: 'head@club.ru' })
         expect(tx.workspaceMember.create).not.toHaveBeenCalled()
-        expect(tx.workspaceMember.update).not.toHaveBeenCalled()
+        expect(tx.workspaceMember.update).toHaveBeenCalledWith({
+            where: { id: 'm-existing' },
+            data: { roleId: 'role-admin' },
+        })
         expect(tx.workspace.update.mock.calls[0][0].data.ownerId).toBe(
             'u-head',
         )
+    })
+
+    it('leaves an existing admin alone when promoting them to owner', async () => {
+        const { handler, tx } = build({
+            newOwner: { id: 'u-adm', email: 'adm@club.ru' },
+            existingMembership: {
+                id: 'm-existing',
+                role: { name: 'admin' },
+            },
+        })
+        await run(handler, { ownerEmail: 'adm@club.ru' })
+        expect(tx.workspaceMember.create).not.toHaveBeenCalled()
+        expect(tx.workspaceMember.update).not.toHaveBeenCalled()
     })
 
     it('audits only the fields that were actually sent', async () => {

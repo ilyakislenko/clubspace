@@ -17,11 +17,16 @@
 #   npm run verify -- --quick     # skip lint and e2e, for a fast inner loop
 #   npm run verify -- --fail-fast
 #   VERIFY_DOCKER=1 npm run verify  # also build every prod image + npm audit
+#   VERIFY_ADMIN_E2E=1 npm run verify  # also the admin smoke e2e (Playwright)
 #
 # The e2e step boots the real server against a real Postgres and Redis, so it
 # needs the local stack up (`npm run dev:infra`). It is skipped with a loud
 # warning rather than silently passing when they are unreachable — a green tick
 # for a suite that never ran is worse than a red one.
+#
+# The admin smoke e2e (apps/admin-e2e/run.sh) needs a running API with the demo
+# clubs; it builds and starts the admin itself. ADMIN_E2E_BASE_URL /
+# ADMIN_E2E_API_URL pick the origins (default :4200 / :3000) — see TESTS.md.
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
@@ -33,7 +38,7 @@ for arg in "$@"; do
     case "$arg" in
         --fail-fast) FAIL_FAST=1 ;;
         --quick) QUICK=1 ;;
-        -h|--help) sed -n '2,27p' "$0" | sed 's|^# \{0,1\}||'; exit 0 ;;
+        -h|--help) sed -n '2,29p' "$0" | sed 's|^# \{0,1\}||'; exit 0 ;;
         *) echo "unknown flag: $arg" >&2; exit 2 ;;
     esac
 done
@@ -239,6 +244,11 @@ fi
 if [ "${VERIFY_DOCKER:-0}" = 1 ]; then
     run_step "docker images (5, no push)" docker_images
     run_step "npm audit --omit=dev (advisory)" npm_audit
+fi
+# Opt-in: needs a running API with the demo clubs (not part of the default
+# stack check), and builds the admin in production mode, which takes minutes.
+if [ "${VERIFY_ADMIN_E2E:-0}" = 1 ]; then
+    run_step "admin smoke e2e (4 roles, Playwright)" bash apps/admin-e2e/run.sh
 fi
 summary
 if [ "$FAILED" = 1 ]; then

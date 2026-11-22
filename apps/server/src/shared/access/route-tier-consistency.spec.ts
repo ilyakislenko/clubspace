@@ -2,21 +2,34 @@ import { readdirSync, readFileSync, statSync } from 'fs'
 import { join, relative } from 'path'
 
 // Static guard: the @Roles tier on a route must agree with the authorization
-// check inside its handler. A handler that calls assertWorkspaceAdmin() can
-// never be passed by a coach, so the route must not advertise COACHING_ROLES.
+// check inside its handler. A handler that calls assertClubAdmin() can never
+// be passed by a head coach, so the route must say CLUB_ADMINS; one that calls
+// assertSportLead() can never be passed by a coach, so it must say SPORT_LEADS.
 
 const FEATURES_DIR = join(__dirname, '..', '..', 'features')
 
-// Routes that are WORKSPACE_ADMINS at the controller but have no
-// assertWorkspaceAdmin() in the handler (the tier itself is the gate).
-// Frozen: this list may only shrink.
-const RULE_B_EXCEPTIONS = [
-    'CreateGymFeature',
-    'DeleteGymFeature',
-    'UpdateGymFeature',
-    'ListRolesFeature',
-    'UpdateMemberNotesFeature',
-]
+// The assert each admin tier pairs with.
+const TIER_CHECK = {
+    CLUB_ADMINS: 'assertClubAdmin(',
+    SPORT_LEADS: 'assertSportLead(',
+} as const
+type AdminTier = keyof typeof TIER_CHECK
+
+// Routes behind an admin tier whose handler has no tier assert (the @Roles
+// tier itself is the gate, or the handler gates another way). Frozen: this
+// list may only shrink.
+const RULE_B_EXCEPTIONS: Record<string, AdminTier> = {
+    CreateGymFeature: 'SPORT_LEADS',
+    DeleteGymFeature: 'SPORT_LEADS',
+    UpdateGymFeature: 'SPORT_LEADS',
+    UpdateMemberNotesFeature: 'SPORT_LEADS',
+    ListRolesFeature: 'CLUB_ADMINS',
+    // ИИ-токены: resolveAiAccess + assertAiTokenManager — the creator's role
+    // is re-read on every MCP call, so the gate lives with the token access.
+    ListAiTokensFeature: 'CLUB_ADMINS',
+    CreateAiTokenFeature: 'CLUB_ADMINS',
+    RevokeAiTokenFeature: 'CLUB_ADMINS',
+}
 
 // Controller methods allowed to carry @AllowExpiredAccess (they skip the
 // accessUntil check in WorkspaceMemberGuard). Keep it to what the lock screen
@@ -66,10 +79,10 @@ const EXPECTED_ACT_AS_ALLOWED = [
 ]
 
 const EXPECTED_NON_BUS_ROUTES: Record<string, string | null> = {
-    'data-export/export.controller.ts members': 'WORKSPACE_ADMINS',
-    'data-export/export.controller.ts renewals': 'WORKSPACE_ADMINS',
-    'data-export/export.controller.ts attendance': 'WORKSPACE_ADMINS',
-    'data-export/export.controller.ts revenue': 'WORKSPACE_ADMINS',
+    'data-export/export.controller.ts members': 'CLUB_ADMINS',
+    'data-export/export.controller.ts renewals': 'CLUB_ADMINS',
+    'data-export/export.controller.ts attendance': 'CLUB_ADMINS',
+    'data-export/export.controller.ts revenue': 'CLUB_ADMINS',
     'get-video-manifest/get-video-manifest.controller.ts getManifest': null,
     'health/health.controller.ts ?': null,
     'health/health.controller.ts readyz': null,
@@ -89,21 +102,35 @@ const walk = (dir: string): string[] =>
 
 const files = walk(FEATURES_DIR).filter((f) => !f.endsWith('.spec.ts'))
 
+// Feature → the source of its own handler class (from its @Feature decorator
+// to the next one), so a file holding several handlers is judged per handler.
 const handlerByFeature = new Map<string, string>()
 for (const file of files.filter((f) => f.endsWith('.handler.ts'))) {
     const src = readFileSync(file, 'utf8')
-    for (const m of src.matchAll(/@Feature\((\w+)\)/g)) {
-        handlerByFeature.set(m[1], src)
-    }
+    const marks = [...src.matchAll(/@Feature\((\w+)\)/g)]
+    marks.forEach((m, i) => {
+        const start = m.index as number
+        handlerByFeature.set(m[1], src.slice(start, marks[i + 1]?.index ?? src.length))
+    })
+}
+
+// The admin tier the handler itself enforces. A sport-lead assert wins: such a
+// handler may additionally refuse a sport lead for some inputs (a staff role),
+// but the route must still let the sport lead in.
+const checkOf = (handler: string | undefined): AdminTier | null => {
+    if (!handler) return null
+    if (handler.includes(TIER_CHECK.SPORT_LEADS)) return 'SPORT_LEADS'
+    if (handler.includes(TIER_CHECK.CLUB_ADMINS)) return 'CLUB_ADMINS'
+    return null
 }
 
 interface Route {
     where: string
     tier: string | null
     feature: string
-    hasCheck: boolean
+    check: AdminTier | null
     // Calls the direction rule (assertCanManageDirection / assertManagesDirections)
-    // without assertWorkspaceAdmin: a direction manager — a coach — must reach it.
+    // without a tier assert: a direction manager — a coach — must reach it.
     hasDirectionCheck: boolean
 }
 
@@ -150,27 +177,91 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
             return
         }
         const handler = handlerByFeature.get(feature)
+        const check = checkOf(handler)
         routes.push({
             where: `${relative(FEATURES_DIR, file)}:${line} ${method} → ${feature}`,
             tier: own.length === 1 ? own[0][1] : classTier,
             feature,
-            hasCheck: handler?.includes('assertWorkspaceAdmin(') ?? false,
+            check,
             hasDirectionCheck:
                 !!handler &&
-                !handler.includes('assertWorkspaceAdmin(') &&
+                check === null &&
                 (handler.includes('assertCanManageDirection(') ||
                     handler.includes('assertManagesDirections(')),
         })
     })
 }
 
+// Money and system (docs/design/2026-11-08-admin-cleanup.md §1): every feature
+// behind CLUB_ADMINS. Pinned so a route cannot slide back to the head coach
+// (SPORT_LEADS) or open wider without this list changing in review.
+const EXPECTED_CLUB_ADMIN_FEATURES = [
+    'AcceptWorkspaceLegalFeature',
+    'ApplyClubImportFeature',
+    'AssignDirectionManagerFeature',
+    'CheckPaymentConnectionFeature',
+    'CreateAiTokenFeature',
+    'CreateClubLogoUploadFeature',
+    'CreateDirectionFeature',
+    'CreatePlanFeature',
+    'DeleteDirectionFeature',
+    'DeletePaymentSettingsFeature',
+    'DeletePlanFeature',
+    'GetClubImportFeature',
+    'GetClubImportTemplateFeature',
+    'GetClubPublicProfileFeature',
+    'GetPaymentSettingsFeature',
+    'GetPlanFeature',
+    'GetRevenueForecastFeature',
+    'GetWorkspaceBillingFeature',
+    'GetWorkspaceBillingPaymentFeature',
+    'GetWorkspaceOnboardingFeature',
+    'GetWorkspaceOnboardingHelpFeature',
+    'ListAiTokensFeature',
+    'ListAuditEventsFeature',
+    'ListClubImportRowsFeature',
+    'ListDirectionManagersFeature',
+    'ListPaymentsFeature',
+    'ListRolesFeature',
+    'ListWorkspaceBillingPaymentsFeature',
+    'PreviewClubImportFeature',
+    'RefundPaymentFeature',
+    'RemoveDirectionManagerFeature',
+    'RemoveWorkspaceBillingCardFeature',
+    'RequestWorkspaceOnboardingHelpFeature',
+    'RevokeAiTokenFeature',
+    'SetWorkspaceBillingModuleFeature',
+    'SetWorkspaceBillingPeriodFeature',
+    'StartWorkspaceBillingCardCheckFeature',
+    'StartWorkspaceBillingCheckoutFeature',
+    'UpdateClubAboutFeature',
+    'UpdateClubPublicProfileFeature',
+    'UpdateDirectionFeature',
+    'UpdateMemberRoleFeature',
+    'UpdatePaymentSettingsFeature',
+    'UpdatePlanFeature',
+    'UpdateWorkspaceSettingsFeature',
+    'UploadClubImportFeature',
+]
+
 describe('route tier consistency', () => {
     it('scans enough routes to be meaningful', () => {
         expect(routes.length).toBeGreaterThanOrEqual(199) // real count (+ club-about GET/PUT, + 11 rank-grading/readiness/progress routes, + 5 freeze-request routes)
+        // real counts: 42 money/system routes assert CLUB_ADMINS (+ 3 AI-token
+        // and the role list gated otherwise); 17 roster/ops routes SPORT_LEADS
+        expect(routes.filter((r) => r.check === 'CLUB_ADMINS').length).toBeGreaterThanOrEqual(42)
+        expect(routes.filter((r) => r.check === 'SPORT_LEADS').length).toBeGreaterThanOrEqual(17)
+    })
+
+    it('money and system routes are exactly the pinned CLUB_ADMINS set', () => {
         expect(
-            routes.filter((r) => r.hasCheck && r.tier === 'WORKSPACE_ADMINS')
-                .length,
-        ).toBeGreaterThanOrEqual(41) // real count (+ 3 direction-manager routes; ladders, gradings, promotions, achievements, announcements, tariffs moved to the direction rule — Rule C)
+            [...new Set(routes.filter((r) => r.tier === 'CLUB_ADMINS').map((r) => r.feature))].sort(),
+        ).toEqual(EXPECTED_CLUB_ADMIN_FEATURES)
+    })
+
+    it('no route uses a removed tier name', () => {
+        const known = new Set([null, 'STAFF_ROLES', 'COACHING_ROLES', 'SPORT_LEADS', 'CLUB_ADMINS'])
+        expect(routes.filter((r) => !known.has(r.tier)).map((r) => `${r.where} (tier ${r.tier})`)).toEqual([])
     })
 
     it('routes outside the feature bus keep their pinned tier', () => {
@@ -237,9 +328,10 @@ describe('route tier consistency', () => {
             (r) => r.hasDirectionCheck && r.tier !== 'COACHING_ROLES',
         )
         expect(bad.map((r) => `${r.where} (tier ${r.tier})`)).toEqual([])
-        // real count: ladders/levels 7, gradings 9, promotions/roster/member ranks 4,
-        // achievements 6, announcements 4, events 3, tariffs 3, course audience 1, update-group 1
-        expect(routes.filter((r) => r.hasDirectionCheck).length).toBeGreaterThanOrEqual(38)
+        // real count: ladders/levels 7, gradings 9, member ranks 2,
+        // achievements 6, announcements 4, events 3, course audience 1, update-group 1
+        // (tariffs left the direction rule: they are CLUB_ADMINS now)
+        expect(routes.filter((r) => r.hasDirectionCheck).length).toBeGreaterThanOrEqual(33)
     })
 
     it('every route resolves to a handler source', () => {
@@ -247,32 +339,26 @@ describe('route tier consistency', () => {
         expect(orphans.map((r) => r.where)).toEqual([])
     })
 
-    it('Rule A: handlers that call assertWorkspaceAdmin sit behind WORKSPACE_ADMINS', () => {
+    it('Rule A: a handler that asserts a tier sits behind exactly that tier', () => {
+        const bad = routes.filter((r) => r.check !== null && r.tier !== r.check)
+        expect(bad.map((r) => `${r.where} (tier ${r.tier}, check ${r.check})`)).toEqual([])
+    })
+
+    it('Rule B: admin-tier routes have their assert or are a frozen exception', () => {
         const bad = routes.filter(
-            (r) => r.hasCheck && r.tier !== 'WORKSPACE_ADMINS',
+            (r) =>
+                (r.tier === 'CLUB_ADMINS' || r.tier === 'SPORT_LEADS') &&
+                r.check === null &&
+                RULE_B_EXCEPTIONS[r.feature] !== r.tier,
         )
         expect(bad.map((r) => `${r.where} (tier ${r.tier})`)).toEqual([])
     })
 
-    it('Rule B: WORKSPACE_ADMINS routes have the check or are a frozen exception', () => {
-        const bad = routes.filter(
-            (r) =>
-                r.tier === 'WORKSPACE_ADMINS' &&
-                !r.hasCheck &&
-                !RULE_B_EXCEPTIONS.includes(r.feature),
-        )
-        expect(bad.map((r) => r.where)).toEqual([])
-    })
-
     it('Rule B exceptions still lack the check (list can only shrink)', () => {
-        const stale = RULE_B_EXCEPTIONS.filter((f) =>
-            handlerByFeature.get(f)?.includes('assertWorkspaceAdmin('),
-        )
-        expect(RULE_B_EXCEPTIONS).toHaveLength(5)
-        expect(stale).toEqual([])
-        expect(
-            RULE_B_EXCEPTIONS.filter((f) => !handlerByFeature.has(f)),
-        ).toEqual([])
+        const names = Object.keys(RULE_B_EXCEPTIONS)
+        expect(names).toHaveLength(8)
+        expect(names.filter((f) => checkOf(handlerByFeature.get(f)) !== null)).toEqual([])
+        expect(names.filter((f) => !handlerByFeature.has(f))).toEqual([])
     })
 
     // @RequiresFeature only marks a route; FeatureEnabledGuard is what enforces

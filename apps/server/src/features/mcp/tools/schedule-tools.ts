@@ -214,7 +214,7 @@ export const attendanceStatsTool = defineTool({
     },
 })
 
-// The groups an «Аналитика» report covers: the whole club for an admin
+// The groups an «Отчёты» report covers: the whole club for an admin
 // without a direction filter, otherwise the groups in scope (of that direction).
 const analyticsScope = async (
     ctx: McpToolContext,
@@ -234,7 +234,7 @@ export const scheduleOccupancyTool = defineTool({
     name: 'schedule_occupancy',
     title: 'Загрузка расписания',
     description:
-        'Загрузка слотов расписания за последние N недель (по умолчанию 8, как «Аналитика → Загрузка расписания» в админке): ' +
+        'Загрузка слотов расписания за последние N недель (по умолчанию 8, как «Отчёты → Загрузка залов» в админке): ' +
         'для каждого слота группы — день недели и время, зал, сколько занятий прошло, среднее число пришедших, вместимость и заполненность fill (0–1). ' +
         'weakest — самые пустые слоты, strongest — самые полные, suggestions — готовые советы (добавить занятие, пересмотреть слот). ' +
         'Считается раз в ночь, computedAt — когда.',
@@ -276,12 +276,12 @@ export const scheduleOccupancyTool = defineTool({
     },
 })
 
-// «Аналитика → Тренеры»: students, retention and renewals per coach.
+// «Отчёты → Тренеры»: students, retention and renewals per coach.
 export const coachStatsTool = defineTool({
     name: 'coach_stats',
     title: 'Тренеры',
     description:
-        'Показатели тренеров (как «Аналитика → Тренеры» в админке): активные ученики (были за 30 дней), ' +
+        'Показатели тренеров (как «Отчёты → Тренеры» в админке): активные ученики (были за 30 дней), ' +
         'удержание retention — доля учеников, начавших больше 3 месяцев назад, которые ходят и сейчас (retained из eligible, rate 0–1), ' +
         'продления renewals (done из due, rate 0–1), занятия за последние weeks недель и среднее число пришедших на занятие. ' +
         'Сравнивай удержание только у тренеров с retention.eligible не меньше 3 — у остальных учеников для оценки мало. ' +

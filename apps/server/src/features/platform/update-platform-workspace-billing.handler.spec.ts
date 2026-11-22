@@ -80,13 +80,16 @@ const build = (o: { ws?: unknown; active?: number } = {}) => {
         workspaceFeatureLock: {
             updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         },
+        // countActiveStudentsMany (the tier a payment is for).
+        workspaceMember: {
+            groupBy: jest
+                .fn()
+                .mockResolvedValue([{ workspaceId: 'w1', _count: { _all: o.active ?? 10 } }]),
+        },
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const billing = {
         getBilling: jest.fn().mockResolvedValue(CURRENT),
-        countActiveMembersMany: jest
-            .fn()
-            .mockResolvedValue(new Map([['w1', o.active ?? 10]])),
     }
     const modules = { assertEntitled: jest.fn().mockResolvedValue(undefined) }
     return { prisma, audit, billing, modules }

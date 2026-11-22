@@ -5,7 +5,7 @@ import { PlanOutputSchema } from './schemas'
 export const CreatePlanInputSchema = z.object({
     name: z.string().trim().min(1).max(255),
     description: z.string().trim().max(5000).nullable().optional(),
-    price: z.number().int().min(0),
+    price: z.number().int().min(0).max(100_000_000),
     currency: z.string().trim().length(3),
     durationDays: z.number().int().positive().max(3650),
     // Class-pack size (null / omitted = time-only tariff).

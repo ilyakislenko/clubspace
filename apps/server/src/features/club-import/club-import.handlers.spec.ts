@@ -20,12 +20,20 @@ import { ListClubImportRowsHandler } from './list-club-import-rows.handler'
 import { PreviewClubImportHandler } from './preview-club-import.handler'
 import { UploadClubImportHandler } from './upload-club-import.handler'
 
-import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
+const OWNER_ID = 'owner-1'
 
-const rbac = (admin = true, clubType = 'GRAPPLING') => ({
-    resolveCoachScope: jest.fn().mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
-    canWriteAllGroups: jest.fn().mockReturnValue(admin),
-    clubVocabulary: jest.fn().mockResolvedValue(vocabularyForWorkspaceType(clubType)),
+// Resolves the scope the way RbacService does: a head coach (like an admin)
+// runs every group; only the caller's identity decides who is a club admin.
+const rbac = () => ({
+    resolveCoachScope: jest.fn(
+        async (p: { userId: string; workspaceId: string; roleName: string | null }) => ({
+            scope: p.roleName === 'coach' ? 'coach_own_only' : 'admin',
+            userId: p.userId,
+            workspaceId: p.workspaceId,
+            workspaceOwnerId: OWNER_ID,
+        }),
+    ),
+    canWriteAllGroups: jest.fn((ctx: { scope: string }) => ctx.scope === 'admin'),
 })
 
 const stored = (over: Record<string, unknown> = {}) => ({
@@ -66,27 +74,39 @@ const prismaWith = (row: object | null, busy: { id: string } | null = null) => (
     },
 })
 
-const caller = ['w1', 'u1', 'coach', false] as const
+type Caller = readonly [string, string, string, boolean]
+const caller: Caller = ['w1', 'u1', 'admin', false]
+// The owner passes whatever their member row says.
+const owner: Caller = ['w1', OWNER_ID, 'head_coach', false]
+const headCoach: Caller = ['w1', 'u3', 'head_coach', false]
 
 describe('UploadClubImportHandler', () => {
-    const feature = (text: string) =>
-        new UploadClubImportFeature({ fileName: 'club.csv', bytes: Buffer.from(text) }, ...caller)
+    const feature = (text: string, by: Caller = caller) =>
+        new UploadClubImportFeature({ fileName: 'club.csv', bytes: Buffer.from(text) }, ...by)
 
-    it('refuses a coach, naming the head coach in the club’s words', async () => {
+    it('refuses a head coach, even one who runs every group, naming who may import', async () => {
         const prisma = prismaWith(null)
-        await expect(
-            new UploadClubImportHandler(prisma as never, rbac(false) as never).execute(feature('a,b\n1,2')),
-        ).rejects.toThrow('Импортировать клуб может только администратор или главный тренер')
+        const refusal = new UploadClubImportHandler(prisma as never, rbac() as never).execute(
+            feature('a,b\n1,2', headCoach),
+        )
+        await expect(refusal).rejects.toBeInstanceOf(ForbiddenError)
+        await expect(refusal).rejects.toThrow(
+            'Импортировать клуб могут только владелец и администраторы клуба',
+        )
         expect(prisma.clubImport.create).not.toHaveBeenCalled()
-        await expect(
-            new UploadClubImportHandler(prisma as never, rbac(false, 'DANCE') as never).execute(feature('a,b\n1,2')),
-        ).rejects.toThrow('Импортировать клуб может только администратор или главный педагог')
     })
 
-    it('reads the club’s words only when refusing', async () => {
-        const r = rbac()
-        await new UploadClubImportHandler(prismaWith(null) as never, r as never).execute(feature('a,b\n1,2'))
-        expect(r.clubVocabulary).not.toHaveBeenCalled()
+    it.each([
+        ['an admin', caller],
+        ['the owner', owner],
+    ])('lets %s upload a file', async (_, by) => {
+        const prisma = prismaWith(null)
+        await expect(
+            new UploadClubImportHandler(prisma as never, rbac() as never).execute(
+                feature('a,b\n1,2', by),
+            ),
+        ).resolves.toMatchObject({ status: 'uploaded' })
+        expect(prisma.clubImport.create).toHaveBeenCalledTimes(1)
     })
 
     it('stores the parsed cells and suggests a mapping', async () => {
@@ -122,10 +142,10 @@ describe('GetClubImportHandler / ListClubImportRowsHandler', () => {
         { line: 4, name: 'В', email: null, action: 'skip', changes: [], messages: [] },
     ]
 
-    it('refuses a coach and hides another club’s import', async () => {
+    it('refuses a head coach and hides another club’s import', async () => {
         await expect(
-            new GetClubImportHandler(prismaWith(stored()) as never, rbac(false) as never).execute(
-                new GetClubImportFeature('imp1', ...caller),
+            new GetClubImportHandler(prismaWith(stored()) as never, rbac() as never).execute(
+                new GetClubImportFeature('imp1', ...headCoach),
             ),
         ).rejects.toBeInstanceOf(ForbiddenError)
         const prisma = prismaWith(null)
@@ -159,8 +179,8 @@ describe('GetClubImportHandler / ListClubImportRowsHandler', () => {
         )
         expect(flagged).toEqual({ data: [results[1]], total: 1 })
         await expect(
-            new ListClubImportRowsHandler(prismaWith(stored()) as never, rbac(false) as never).execute(
-                new ListClubImportRowsFeature({ offset: 0, limit: 1 }, 'imp1', ...caller),
+            new ListClubImportRowsHandler(prismaWith(stored()) as never, rbac() as never).execute(
+                new ListClubImportRowsFeature({ offset: 0, limit: 1 }, 'imp1', ...headCoach),
             ),
         ).rejects.toBeInstanceOf(ForbiddenError)
     })
@@ -168,19 +188,19 @@ describe('GetClubImportHandler / ListClubImportRowsHandler', () => {
 
 describe('PreviewClubImportHandler / ApplyClubImportHandler', () => {
     const queue = () => ({ add: jest.fn().mockResolvedValue(undefined) })
-    const preview = (mapping: Record<string, number>) =>
-        new PreviewClubImportFeature({ mapping, createMissing: true, overwrite: false }, 'imp1', ...caller)
+    const preview = (mapping: Record<string, number>, by: Caller = caller) =>
+        new PreviewClubImportFeature({ mapping, createMissing: true, overwrite: false }, 'imp1', ...by)
 
-    it('refuses a coach', async () => {
+    it('refuses a head coach, even one who runs every group', async () => {
         const q = queue()
         await expect(
-            new PreviewClubImportHandler(prismaWith(stored()) as never, rbac(false) as never, q as never).execute(
-                preview({ email: 1 }),
+            new PreviewClubImportHandler(prismaWith(stored()) as never, rbac() as never, q as never).execute(
+                preview({ email: 1 }, headCoach),
             ),
         ).rejects.toBeInstanceOf(ForbiddenError)
         await expect(
-            new ApplyClubImportHandler(prismaWith(stored()) as never, rbac(false) as never, q as never).execute(
-                new ApplyClubImportFeature('imp1', ...caller),
+            new ApplyClubImportHandler(prismaWith(stored()) as never, rbac() as never, q as never).execute(
+                new ApplyClubImportFeature('imp1', ...headCoach),
             ),
         ).rejects.toBeInstanceOf(ForbiddenError)
         expect(q.add).not.toHaveBeenCalled()
@@ -266,16 +286,18 @@ describe('PreviewClubImportHandler / ApplyClubImportHandler', () => {
 })
 
 describe('GetClubImportTemplateHandler', () => {
-    it('refuses a coach and serves the template to an admin', async () => {
+    it('refuses a head coach and serves the template to an admin and the owner', async () => {
         await expect(
-            new GetClubImportTemplateHandler(rbac(false) as never).execute(
-                new GetClubImportTemplateFeature(...caller),
+            new GetClubImportTemplateHandler(rbac() as never).execute(
+                new GetClubImportTemplateFeature(...headCoach),
             ),
         ).rejects.toBeInstanceOf(ForbiddenError)
-        const csv = await new GetClubImportTemplateHandler(rbac() as never).execute(
-            new GetClubImportTemplateFeature(...caller),
-        )
-        expect(csv).toContain('ФИО;E-mail;Телефон')
+        for (const by of [caller, owner]) {
+            const csv = await new GetClubImportTemplateHandler(rbac() as never).execute(
+                new GetClubImportTemplateFeature(...by),
+            )
+            expect(csv).toContain('ФИО;E-mail;Телефон')
+        }
     })
 })
 

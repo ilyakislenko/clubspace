@@ -15,7 +15,7 @@ import {
 } from '../../shared/decorators/current-user.decorator'
 import {
     Roles,
-    WORKSPACE_ADMINS,
+    SPORT_LEADS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -44,7 +44,7 @@ export class WorkspaceInvitationsController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: ListWorkspaceInvitationsOutput })
     async listWorkspaceInvitations(
         @Param('workspaceId') workspaceId: string,
@@ -64,7 +64,7 @@ export class WorkspaceInvitationsController {
     }
 
     @Delete(':invitationId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: RevokeWorkspaceInvitationOutput })
     async revokeWorkspaceInvitation(
         @Param('workspaceId') workspaceId: string,

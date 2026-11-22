@@ -17,12 +17,19 @@ export type RoleName =
 //                      'user' is the mobile-only role and is never here.
 // COACHING_ROLES     — can manage groups, students of those groups, and
 //                      the content library.
-// WORKSPACE_ADMINS   — top-level workspace admin only. Things like
-//                      changing roles, deleting gyms, managing the
-//                      member roster. Coach is intentionally absent.
+// SPORT_LEADS        — run the club's training side across every group:
+//                      roster of students and parents, gyms, renewals,
+//                      abonements and freezes. Coach is intentionally absent.
+// CLUB_ADMINS        — money and system: tariffs, refunds, payment keys,
+//                      the ClubSpace subscription, revenue, settings, staff
+//                      roles, public page, integrations, import, exports,
+//                      audit log. The head coach is a sport role and is not
+//                      here. The owner passes both (AuthGuard resolves them
+//                      to 'admin').
 export const COACHING_ROLES: RoleName[] = ['admin', 'head_coach', 'coach']
 export const STAFF_ROLES: RoleName[] = [...COACHING_ROLES]
-export const WORKSPACE_ADMINS: RoleName[] = ['admin', 'head_coach']
+export const SPORT_LEADS: RoleName[] = ['admin', 'head_coach']
+export const CLUB_ADMINS: RoleName[] = ['admin']
 
 // Roles a club admin may hand out from the workspace UI. The Role table is
 // global, so anything else (platform roles, legacy rows) must be refused.

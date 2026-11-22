@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     ListPaymentsFeature,
@@ -25,7 +25,7 @@ export class ListPaymentsHandler
     ) {}
 
     async execute(f: ListPaymentsFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        await assertClubAdmin(this.rbac, {
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,

@@ -1,10 +1,14 @@
 import {
     BadRequestError,
     ForbiddenError,
+    StaleUpdateError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { UpdateClubAboutFeature } from './update-club-about.feature'
 import { UpdateClubAboutHandler } from './update-club-about.handler'
+
+// «О клубе»'s current version in the mocked database.
+const ABOUT_AT = new Date('2026-11-14T10:00:00.000Z')
 
 const build = () => {
     const update = jest.fn().mockImplementation(({ data }) =>
@@ -13,17 +17,28 @@ const build = () => {
             aboutLinks: data.aboutLinks,
             aboutRules: data.aboutRules,
             aboutUpdatedAt: data.aboutUpdatedAt,
+            updatedAt: new Date('2026-11-14T11:00:00.000Z'),
         }),
     )
     const record = jest.fn().mockResolvedValue(undefined)
+    // The compare-and-set: matches only the stored version.
+    const updateMany = jest.fn(
+        async (args: { where: { aboutUpdatedAt: Date } }) => ({
+            count: args.where.aboutUpdatedAt.getTime() === ABOUT_AT.getTime() ? 1 : 0,
+        }),
+    )
     const invalidate = jest.fn()
     const prisma = {
         workspace: {
             update,
+            updateMany,
             findUnique: jest.fn().mockResolvedValue({
                 ownerId: 'owner',
                 coachSeesAllGroups: false,
             }),
+        },
+        $transaction(fn: (tx: unknown) => unknown) {
+            return fn(this)
         },
     }
     const handler = new UpdateClubAboutHandler(
@@ -32,7 +47,7 @@ const build = () => {
         { record } as never,
         { invalidate } as never,
     )
-    return { handler, update, record, invalidate }
+    return { handler, update, updateMany, record, invalidate }
 }
 
 const payload = {
@@ -67,10 +82,16 @@ describe('updateClubAbout', () => {
         },
     )
 
-    it('lets a head coach (workspace-admin tier) save', async () => {
+    it('refuses a head coach — a sport lead, not a club admin — and writes nothing', async () => {
         const { handler, update } = build()
-        await run(handler, payload, { userId: 'hc1', roleName: 'head_coach' })
-        expect(update).toHaveBeenCalledTimes(1)
+        await expect(
+            run(handler, payload, { userId: 'hc1', roleName: 'head_coach' }),
+        ).rejects.toThrow(
+            new ForbiddenError({
+                message: 'Менять информацию о клубе может только администратор клуба',
+            }),
+        )
+        expect(update).not.toHaveBeenCalled()
     })
 
     it('lets a platform super admin save', async () => {
@@ -81,11 +102,14 @@ describe('updateClubAbout', () => {
         expect(update).toHaveBeenCalledTimes(1)
     })
 
-    it('lets the owner (no member row) save', async () => {
-        const { handler, update } = build()
-        await run(handler, payload, { userId: 'owner', roleName: null })
-        expect(update).toHaveBeenCalledTimes(1)
-    })
+    it.each([null, 'head_coach'])(
+        'lets the owner save, whatever their member row says (%s)',
+        async (roleName) => {
+            const { handler, update } = build()
+            await run(handler, payload, { userId: 'owner', roleName })
+            expect(update).toHaveBeenCalledTimes(1)
+        },
+    )
 
     it('normalizes phones, stamps aboutUpdatedAt, audits and invalidates', async () => {
         const { handler, update, record, invalidate } = build()
@@ -122,5 +146,39 @@ describe('updateClubAbout', () => {
             }),
         ).rejects.toThrow(BadRequestError)
         expect(update).not.toHaveBeenCalled()
+    })
+
+    it('refuses a form that read an older «О клубе» with 409, writing nothing', async () => {
+        const { handler, update, record, invalidate } = build()
+        const err = await run(handler, {
+            ...payload,
+            expectedUpdatedAt: '2026-11-14T09:00:00.000Z',
+        }).catch((e: unknown) => e)
+        expect(err).toBeInstanceOf(StaleUpdateError)
+        expect((err as StaleUpdateError).statusCode).toBe(409)
+        expect(update).not.toHaveBeenCalled()
+        expect(record).not.toHaveBeenCalled()
+        expect(invalidate).not.toHaveBeenCalled()
+    })
+
+    it('saves a form that read the current «О клубе» and reports the club row version', async () => {
+        const { handler, update, updateMany } = build()
+        const out = await run(handler, {
+            ...payload,
+            expectedUpdatedAt: ABOUT_AT.toISOString(),
+        })
+        expect(updateMany.mock.calls[0][0].where).toEqual({
+            id: 'w1',
+            aboutUpdatedAt: ABOUT_AT,
+        })
+        expect(update).toHaveBeenCalledTimes(1)
+        expect(out.clubUpdatedAt).toBe('2026-11-14T11:00:00.000Z')
+    })
+
+    it('keeps last-write-wins when the version is omitted', async () => {
+        const { handler, update, updateMany } = build()
+        await run(handler, payload)
+        expect(updateMany).not.toHaveBeenCalled()
+        expect(update).toHaveBeenCalledTimes(1)
     })
 })

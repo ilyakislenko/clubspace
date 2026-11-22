@@ -20,6 +20,7 @@
     "baseUrl": ".",
     "paths": {
       "@clubspace/api-client": ["libs/api-client/src/index.ts"],
+      "@clubspace/api-client/schemas": ["libs/api-client/src/openapi/schemas/schemas.gen.ts"],
       "@clubspace/ui-kit/util": ["libs/ui-kit/util/index.ts"],
       "@clubspace/ui-kit/ui": ["libs/ui-kit/ui/index.ts"],
       "@clubspace/ui-kit/brand": ["libs/ui-kit/brand/index.ts"],

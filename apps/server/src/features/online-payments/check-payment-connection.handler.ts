@@ -6,7 +6,7 @@ import { PaymentGatewayClient } from '../../domains/payments/payment-gateway.cli
 import { PaymentGatewayError } from '../../domains/payments/payment-gateway.types'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -35,7 +35,7 @@ export class CheckPaymentConnectionHandler
     async execute(
         f: CheckPaymentConnectionFeature,
     ): Promise<CheckPaymentConnectionFeatureResponse> {
-        await assertWorkspaceAdmin(this.rbac, {
+        await assertClubAdmin(this.rbac, {
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,

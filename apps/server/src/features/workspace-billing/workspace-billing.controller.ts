@@ -21,7 +21,7 @@ import {
 } from '../../shared/decorators/current-user.decorator'
 import {
     Roles,
-    WORKSPACE_ADMINS,
+    CLUB_ADMINS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -92,7 +92,7 @@ class SetWorkspaceBillingPeriodOutput extends createZodDto(
     SetWorkspaceBillingPeriodOutputSchema,
 ) {}
 
-// The club's «Тариф» page. Everything but the module switch stays open in a
+// The club's «Подписка ClubSpace» page. Everything but the module switch stays open in a
 // suspended club: this page is where its admin sees why and pays.
 @Controller('workspaces/:workspaceId/billing')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
@@ -100,7 +100,7 @@ export class WorkspaceBillingController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @AllowSuspendedWorkspace()
     @ZodResponse({ type: GetWorkspaceBillingOutput })
     async getWorkspaceBilling(
@@ -121,7 +121,7 @@ export class WorkspaceBillingController {
     }
 
     @Post('checkout')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @AllowSuspendedWorkspace()
     @ZodResponse({ type: StartWorkspaceBillingCheckoutOutput })
     async startWorkspaceBillingCheckout(
@@ -148,7 +148,7 @@ export class WorkspaceBillingController {
     }
 
     @Post('card')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: StartWorkspaceBillingCardCheckOutput })
     async startWorkspaceBillingCardCheck(
         @Param('workspaceId') workspaceId: string,
@@ -172,7 +172,7 @@ export class WorkspaceBillingController {
     }
 
     @Post('modules')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: SetWorkspaceBillingModuleOutput })
     async setWorkspaceBillingModule(
         @Param('workspaceId') workspaceId: string,
@@ -194,7 +194,7 @@ export class WorkspaceBillingController {
     }
 
     @Get('payments')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @AllowSuspendedWorkspace()
     @ZodResponse({ type: ListWorkspaceBillingPaymentsOutput })
     async listWorkspaceBillingPayments(
@@ -215,7 +215,7 @@ export class WorkspaceBillingController {
     }
 
     @Get('payments/:paymentId')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @AllowSuspendedWorkspace()
     @ZodResponse({ type: GetWorkspaceBillingPaymentOutput })
     async getWorkspaceBillingPayment(
@@ -238,7 +238,7 @@ export class WorkspaceBillingController {
     }
 
     @Delete('payment-method')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @AllowSuspendedWorkspace()
     @ZodResponse({ type: RemoveWorkspaceBillingCardOutput })
     async removeWorkspaceBillingCard(
@@ -259,7 +259,7 @@ export class WorkspaceBillingController {
     }
 
     @Put('period')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @AllowSuspendedWorkspace()
     @ZodResponse({ type: SetWorkspaceBillingPeriodOutput })
     async setWorkspaceBillingPeriod(

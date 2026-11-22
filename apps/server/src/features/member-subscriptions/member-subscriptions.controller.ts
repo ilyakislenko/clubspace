@@ -18,7 +18,7 @@ import {
     COACHING_ROLES,
     Roles,
     STAFF_ROLES,
-    WORKSPACE_ADMINS,
+    SPORT_LEADS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -147,7 +147,7 @@ export class MemberSubscriptionsController {
     }
 
     @Post('subscriptions/:subscriptionId/cancel')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: CancelSubscriptionOutput })
     async cancelSubscription(
         @Param('workspaceId') workspaceId: string,
@@ -197,7 +197,7 @@ export class MemberSubscriptionsController {
     }
 
     @Delete('subscriptions/:subscriptionId/payment')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: UnmarkSubscriptionPaidOutput })
     async unmarkSubscriptionPaid(
         @Param('workspaceId') workspaceId: string,

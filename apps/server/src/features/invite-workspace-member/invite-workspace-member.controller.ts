@@ -9,7 +9,7 @@ import {
 } from '../../shared/decorators/current-user.decorator'
 import {
     Roles,
-    WORKSPACE_ADMINS,
+    SPORT_LEADS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -35,7 +35,7 @@ export class InviteWorkspaceMemberController {
     constructor(private bus: FeaturesBus) {}
 
     @Post('invite')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(SPORT_LEADS)
     @Throttle({ default: { ttl: 3_600_000, limit: 100 } })
     @ZodResponse({ type: InviteWorkspaceMemberOutput })
     async inviteWorkspaceMember(

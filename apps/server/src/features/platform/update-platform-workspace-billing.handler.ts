@@ -4,6 +4,7 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { endOfDayMoscow } from '../../domains/billing/billing-rules'
 import { tierFor } from '../../domains/billing/platform-pricing.config'
 import { PlatformBillingService } from '../../domains/billing/services/platform-billing.service'
+import { countActiveStudentsMany } from '../../domains/metrics/active-students'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
@@ -79,10 +80,7 @@ export class UpdatePlatformWorkspaceBillingHandler
                 break
             case 'markPaid': {
                 // The tier this payment is for: the one the club is in now.
-                const active = await this.billing.countActiveMembersMany(
-                    [workspace],
-                    now,
-                )
+                const active = await countActiveStudentsMany(this.prisma, [workspace], now)
                 const { tier } = tierFor(
                     environment.billing.pricing.tiers,
                     active.get(workspace.id) ?? 0,

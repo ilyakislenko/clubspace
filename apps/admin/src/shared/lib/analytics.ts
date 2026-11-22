@@ -1,7 +1,5 @@
 import type {
   AnalyticsScope,
-  ChurnRiskLevel,
-  ChurnRiskMember,
   CoachStats,
   CohortCell,
   CohortRow,
@@ -90,27 +88,6 @@ const decimalFmt = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 })
 // Average attendance: one decimal, Russian comma. null → «—».
 export const formatAverage = (n: number | null): string =>
   n === null ? "—" : decimalFmt.format(n)
-
-export const CHURN_LEVEL_LABEL: Record<ChurnRiskLevel, string> = {
-  high: "Высокий риск",
-  medium: "Средний риск",
-  low: "Низкий риск",
-}
-
-export const CHURN_LEVEL_CHIP: Record<ChurnRiskLevel, string> = {
-  high: "bg-destructive/10 text-destructive",
-  medium: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  low: "bg-muted text-foreground",
-}
-
-// «Кому позвонить» keeps the server order; members someone already called
-// recently drop into a separate, collapsed list at the bottom.
-export const splitChurnList = (
-  data: readonly ChurnRiskMember[],
-): { toCall: ChurnRiskMember[]; contacted: ChurnRiskMember[] } => ({
-  toCall: data.filter((m) => !m.contactedRecently),
-  contacted: data.filter((m) => m.contactedRecently),
-})
 
 export const COHORT_OFFSETS = [1, 2, 3, 6] as const
 

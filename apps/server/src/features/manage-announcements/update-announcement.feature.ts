@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { ExpectedUpdatedAtField } from '../../shared/utils/optimistic-concurrency'
 import { AnnouncementAudienceSchema, AnnouncementOutputSchema } from './schemas'
 
 export const UpdateAnnouncementInputSchema = z
@@ -19,10 +20,13 @@ export const UpdateAnnouncementInputSchema = z
         // Schedule for a specific time (ISO); a future time hides it from the
         // feed until then. Takes precedence over `publish`.
         publishAt: z.iso.datetime().optional(),
+        ...ExpectedUpdatedAtField,
     })
-    .refine((v) => Object.keys(v).length > 0, {
-        message: 'Нужно заполнить хотя бы одно поле',
-    })
+    .refine(
+        ({ expectedUpdatedAt: _version, ...fields }) =>
+            Object.keys(fields).length > 0,
+        { message: 'Нужно заполнить хотя бы одно поле' },
+    )
 export const UpdateAnnouncementOutputSchema = AnnouncementOutputSchema
 
 export class UpdateAnnouncementFeature {

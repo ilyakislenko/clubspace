@@ -4,7 +4,7 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import { assertCanManageRoles } from '../../shared/access/role-hierarchy'
 import {
     BadRequestError,
@@ -40,11 +40,11 @@ export class RemoveWorkspaceMemberHandler
         roleName,
         isSuperAdmin,
     }: RemoveWorkspaceMemberFeature) {
-        // The route declares @Roles(WORKSPACE_ADMINS); comparing ownerId
+        // The route declares @Roles(SPORT_LEADS); comparing ownerId
         // directly here contradicted that and locked out admins/head_coaches
         // (and the platform super admin, who is never a member) while the UI
         // still offered them the control.
-        const ctx = await assertWorkspaceAdmin(
+        const ctx = await assertSportLead(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Удалять участников может только администратор клуба',
@@ -77,13 +77,14 @@ export class RemoveWorkspaceMemberHandler
             throw new NotFoundError({ message: 'Участник не найден' })
         }
 
+        // A sport lead removes students and parents; staff are the club admins' call.
         await assertCanManageRoles(
             this.prisma,
             ctx,
             { roleName, isSuperAdmin },
             [member.role.name],
             (v) =>
-                `Удалить администратора или ${v.headCoach.gen} может только владелец или администратор клуба`,
+                `Удалить ${v.coach.acc}, ${v.headCoach.acc} или администратора может только владелец или администратор клуба`,
         )
 
         const { freedEventIds } = await this.prisma.$transaction((tx) =>

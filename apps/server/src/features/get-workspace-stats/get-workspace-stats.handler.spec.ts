@@ -1,4 +1,3 @@
-import { notAwaitingFirstVisitWhere } from '../manage-announcements/renewal-segment'
 import { ownGroupsWhere, RbacService } from '../../shared/services/rbac.service'
 import { GetWorkspaceStatsFeature } from './get-workspace-stats.feature'
 import { GetWorkspaceStatsHandler } from './get-workspace-stats.handler'
@@ -101,31 +100,36 @@ const run = (
     handler.execute(new GetWorkspaceStatsFeature('w1', userId, roleName, false))
 
 describe('GetWorkspaceStatsHandler revenue visibility', () => {
-    it.each(['admin', 'head_coach'])('%s sees revenue', async (roleName) => {
+    it('an admin sees revenue', async () => {
         const { handler } = build()
-        const out = await run(handler, roleName)
+        const out = await run(handler, 'admin')
         expect(out.revenue).not.toBeNull()
         expect(out.revenue?.revenue30d).toBe(5000)
         expect(out.today.revenue).toBe(5000)
     })
 
-    it('the workspace owner sees revenue', async () => {
-        const { handler } = build()
-        const out = await run(handler, 'coach', 'owner-1')
-        expect(out.revenue).not.toBeNull()
-    })
-
-    it.each([false, true])(
-        'a coach never sees revenue (coachSeesAllGroups=%s)',
-        async (coachSeesAllGroups) => {
-            const { handler, subscriptionFindMany } = build(coachSeesAllGroups)
-            const out = await run(handler, 'coach')
-            expect(out.revenue).toBeNull()
-            expect(out.today.revenue).toBeNull()
-            expect(out.today.currency).toBeNull()
-            expect(subscriptionFindMany).not.toHaveBeenCalled()
+    it.each(['coach', 'head_coach'])(
+        'the workspace owner sees revenue whatever their row (%s)',
+        async (roleName) => {
+            const { handler } = build()
+            const out = await run(handler, roleName, 'owner-1')
+            expect(out.revenue).not.toBeNull()
         },
     )
+
+    // Club money is stripped on the server for everyone below club admin.
+    it.each([
+        ['head_coach', false],
+        ['coach', false],
+        ['coach', true],
+    ])('a %s never receives revenue (coachSeesAllGroups=%s)', async (roleName, all) => {
+        const { handler, subscriptionFindMany } = build(all)
+        const out = await run(handler, roleName)
+        expect(out.revenue).toBeNull()
+        expect(out.today.revenue).toBeNull()
+        expect(out.today.currency).toBeNull()
+        expect(subscriptionFindMany).not.toHaveBeenCalled()
+    })
 })
 
 describe('GetWorkspaceStatsHandler paid-only revenue', () => {
@@ -135,12 +139,12 @@ describe('GetWorkspaceStatsHandler paid-only revenue', () => {
         return subscriptionFindMany.mock.calls.map(([a]) => a.where)
     }
 
-    it('reads revenue, the trend and today from paid rows only', async () => {
+    it('reads revenue, the previous 30 days and today from paid rows only', async () => {
         const paidWheres = (await wheres()).filter(
             (w) => w.isPaid === true && w.OR,
         )
-        // 6-month trend/30d slice + today's glance.
-        expect(paidWheres).toHaveLength(2)
+        // One 60-day read: the 30-day slice, the 30 days before it, today.
+        expect(paidWheres).toHaveLength(1)
     })
 
     it('asks for the receivable: unpaid, active or expired', async () => {
@@ -152,14 +156,15 @@ describe('GetWorkspaceStatsHandler paid-only revenue', () => {
         })
     })
 
-    it('reports the receivable next to revenue', async () => {
-        const { handler } = build()
+    it('reports the receivable next to revenue: the people who owe and the amount', async () => {
+        const { handler, memberCount } = build()
+        memberCount.mockResolvedValue(1)
         const out = await run(handler, 'admin')
         // The fixture row answers every subscription query.
-        expect(out.revenue?.awaitingPayment).toEqual({ count: 1, amount: 5000 })
+        expect(out.revenue?.awaitingPayment).toEqual({ students: 1, amount: 5000 })
     })
 
-    it('counts paid event tickets (a master class) as sales, one breakdown row per event', async () => {
+    it('counts paid event tickets (a master class) as sales', async () => {
         const tickets = jest.fn().mockResolvedValue([
             {
                 amountPaid: 1500,
@@ -174,27 +179,40 @@ describe('GetWorkspaceStatsHandler paid-only revenue', () => {
         const out = await run(handler, 'admin')
         expect(out.revenue?.revenue30d).toBe(6500)
         expect(out.today.revenue).toBe(6500)
-        expect(out.revenue?.byPlan).toContainEqual({
-            planId: 'e1',
-            planName: 'Мастер-класс',
-            count: 1,
-            revenue: 1500,
-        })
         for (const [args] of tickets.mock.calls) {
             expect(args.where).toMatchObject({ workspaceId: 'w1', isPaid: true })
             expect(args.where.paidAt.gte).toBeInstanceOf(Date)
         }
     })
+
+    it('puts a sale paid 31–60 days ago into the previous period, not into revenue30d', async () => {
+        const paidAt = new Date(Date.now() - 45 * 24 * 3600 * 1000)
+        const tickets = jest.fn().mockResolvedValue([
+            {
+                amountPaid: 1500,
+                currency: 'RUB',
+                paidAt,
+                createdAt: paidAt,
+                eventId: 'e1',
+                event: { title: 'Мастер-класс', currency: 'RUB' },
+            },
+        ])
+        const { handler } = build(false, { 'eventRegistration.findMany': tickets })
+        const out = await run(handler, 'admin')
+        expect(out.revenue?.revenue30d).toBe(5000)
+        expect(out.revenue?.revenuePrev30d).toBe(1500)
+    })
 })
 
-describe('GetWorkspaceStatsHandler expiringSoon', () => {
-    it('does not count a pending abonement’s provisional window', async () => {
-        const { handler, memberCount } = build()
-        await run(handler, 'admin')
-        const where = memberCount.mock.calls
-            .map(([a]) => a.where)
-            .find((w) => w.accessUntil?.gte && w.accessUntil?.lt)
-        expect(where).toMatchObject(notAwaitingFirstVisitWhere)
+describe('GetWorkspaceStatsHandler renewals due', () => {
+    it.each([
+        ['admin', 0],
+        ['head_coach', 0],
+        ['coach', null],
+    ])('%s reads the «Продлить» count: %s', async (roleName, expected) => {
+        const { handler } = build()
+        const out = await run(handler, roleName)
+        expect(out.retention.renewalsDue).toBe(expected)
     })
 })
 
@@ -210,80 +228,34 @@ describe('GetWorkspaceStatsHandler sessions held', () => {
 })
 
 describe('GetWorkspaceStatsHandler student counters', () => {
-    const students = [{ userId: 's1' }, { userId: 's2' }, { userId: 's3' }]
-    const recordRows = (since7: unknown[], since30: unknown[]) =>
-        jest.fn().mockImplementation((args: {
-            distinct?: string[]
-            where: { markedAt: { gte: Date } }
-        }) => {
-            if (!args.distinct) return Promise.resolve([])
-            const ageMs = Date.now() - args.where.markedAt.gte.getTime()
-            return Promise.resolve(ageMs < 8 * 24 * 3600 * 1000 ? since7 : since30)
-        })
-
-    it('counts active members by attendance check-ins, not video views', async () => {
-        const { handler } = build(false, {
-            'workspaceMember.findMany': jest.fn().mockResolvedValue(students),
-            // s1 came this week, s2 only this month, 'coach-1' is staff.
-            'attendanceRecord.findMany': recordRows(
-                [{ userId: 's1' }, { userId: 'coach-1' }],
-                [{ userId: 's1' }, { userId: 's2' }, { userId: 'coach-1' }],
-            ),
-            'videoWatched.findMany': jest
-                .fn()
-                .mockResolvedValue([{ userId: 's3' }]),
-        })
-        const out = await run(handler, 'admin')
-        expect(out.activity.activeMembers7d).toBe(1)
-        expect(out.activity.activeMembers30d).toBe(2)
-        expect(out.activity.videoViewers7d).toBe(1)
-        expect(out.activity.videoViewers30d).toBe(1)
-        // s3 never checked in this month.
-        expect(out.retention.inactiveMembers30d).toBe(1)
-    })
-
-    it('keeps the owner and coaching roles out of the student queries', async () => {
-        const memberFindMany = jest.fn().mockResolvedValue(students)
-        const memberCount = jest.fn().mockResolvedValue(3)
-        const { handler } = build(false, {
-            'workspaceMember.findMany': memberFindMany,
-            'workspaceMember.count': memberCount,
-        })
+    it('counts every people figure over students: active members of the student role, never the owner', async () => {
+        const { handler, memberCount } = build()
         await run(handler, 'admin')
-        const where = memberCount.mock.calls[0][0].where
-        expect(where.NOT).toEqual(
-            expect.arrayContaining([
-                { role: { name: { in: ['admin', 'head_coach', 'coach'] } } },
-                { userId: 'owner-1' },
-            ]),
-        )
-        expect(memberFindMany.mock.calls[0][0].where.NOT).toEqual(where.NOT)
+        const student = {
+            workspaceId: 'w1',
+            status: 'ACTIVE',
+            role: { name: 'user' },
+            userId: { not: 'owner-1' },
+        }
+        const wheres = memberCount.mock.calls.map(([a]) => JSON.stringify(a.where))
+        // students, active, with abonement, attended 7d/30d, not attended 30d,
+        // new today — each starts from the student filter.
+        expect(wheres.filter((w) => w.includes(JSON.stringify(student))).length).toBeGreaterThanOrEqual(7)
     })
-})
 
-describe('GetWorkspaceStatsHandler attendance cards count students only', () => {
-    it('leaves staff out of unique attendees and today’s check-ins', async () => {
+    it('counts check-ins of students only', async () => {
         const recordCount = jest.fn().mockResolvedValue(2)
-        const { handler } = build(false, {
-            'workspaceMember.findMany': jest
-                .fn()
-                .mockResolvedValue([{ userId: 's1' }, { userId: 's2' }]),
-            'attendanceRecord.findMany': jest
-                .fn()
-                .mockResolvedValue([
-                    { userId: 's1', markedAt: new Date() },
-                    { userId: 's2', markedAt: new Date() },
-                    { userId: 'coach-1', markedAt: new Date() },
-                ]),
-            'attendanceRecord.count': recordCount,
-        })
+        const { handler } = build(false, { 'attendanceRecord.count': recordCount })
         const out = await run(handler, 'admin')
-        expect(out.attendance.distinctAttendees30d).toBe(2)
-        const todayCall = recordCount.mock.calls
-            .map(([a]) => a.where)
-            .find((w) => w.userId?.in)
-        expect(todayCall.userId.in).toEqual(['s1', 's2'])
+        expect(recordCount).toHaveBeenCalledTimes(3)
+        for (const [args] of recordCount.mock.calls) {
+            expect(args.where.user.workspaceMemberships.some).toMatchObject({
+                role: { name: 'user' },
+                userId: { not: 'owner-1' },
+            })
+        }
         expect(out.today.checkins).toBe(2)
+        expect(out.attendance.checkins7d).toBe(2)
     })
 })
 
@@ -360,7 +332,7 @@ describe('GetWorkspaceStatsHandler coach scope', () => {
         })
         // Students of both groups (and the coach) are counted; sessions of
         // both groups too.
-        expect(memberCount.mock.calls[0][0].where.userId).toEqual({
+        expect(memberCount.mock.calls[0][0].where.AND[1].userId).toEqual({
             in: ['u1', 's1', 's2'],
         })
         expect(sessionCount.mock.calls[0][0].where.groupId).toEqual({
@@ -377,6 +349,6 @@ describe('GetWorkspaceStatsHandler coach scope', () => {
         await run(handler, 'coach')
         expect(groupFindMany).not.toHaveBeenCalled()
         expect(groupMemberFindMany).not.toHaveBeenCalled()
-        expect(memberCount.mock.calls[0][0].where.userId).toBeUndefined()
+        expect(memberCount.mock.calls[0][0].where).not.toHaveProperty('AND')
     })
 })

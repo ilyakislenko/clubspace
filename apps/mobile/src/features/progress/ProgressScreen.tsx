@@ -39,8 +39,8 @@ import {
 } from "../attendance/month-attendance"
 import { CurrentRankCard } from "../ranks/CurrentRankCard"
 import { CallListCard } from "../retention/CallListCard"
-import { isStaffWorkspace } from "../retention/retention-helpers"
-import { overviewLine, showsOwnProgress } from "./coach-progress"
+import { callListSummaryKey, isStaffWorkspace } from "../retention/retention-helpers"
+import { overviewLine, READINESS_SHOWN, showsOwnProgress } from "./coach-progress"
 import { inMonth, tenureSummary, yearMonth } from "./progress-helpers"
 import { ReadinessCard } from "./ReadinessCard"
 import { WeeklyBars } from "./WeeklyBars"
@@ -94,12 +94,12 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
       [workspaceId],
     ),
   )
-  // Same key as Home and «Кому позвонить».
+  // Same key and number as the Home card.
   const atRisk = useCachedResource(
-    workspaceId && staff ? `atrisk:${workspaceId}:mine` : null,
+    workspaceId && staff ? callListSummaryKey(workspaceId) : null,
     useCallback(
       async () =>
-        await listAtRiskMembers({ workspaceId: workspaceId!, scope: "mine" }),
+        await listAtRiskMembers({ workspaceId: workspaceId!, perPage: 1 }),
       [workspaceId],
     ),
   )
@@ -112,13 +112,20 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
       [workspaceId],
     ),
   )
+  // One page of the ready (the card's rows) plus the whole ladder's counts.
+  // ":ready" keeps a cached payload of the old, unpaged shape from being read.
   const readiness = useCachedResource(
     workspaceId && staff && ranksOn
-      ? `rank-readiness:${workspaceId}:${ladderId ?? "first"}`
+      ? `rank-readiness:${workspaceId}:${ladderId ?? "first"}:ready`
       : null,
     useCallback(
       async () =>
-        await getRankReadiness({ workspaceId: workspaceId!, ladderId }),
+        await getRankReadiness({
+          workspaceId: workspaceId!,
+          ladderId,
+          readyOnly: true,
+          perPage: READINESS_SHOWN,
+        }),
       [workspaceId, ladderId],
     ),
   )

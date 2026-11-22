@@ -44,11 +44,15 @@ const buildNotice = (result: InviteMemberResult, wantedEmail: boolean) => {
   return base
 }
 
+// `canInviteStaff`: club admins may invite coaches; a sport lead invites
+// students only, so the role field is not shown to them.
 export function InviteMemberForm({
   workspaceId,
+  canInviteStaff,
   onInvited,
 }: {
   workspaceId: string
+  canInviteStaff: boolean
   onInvited: () => void
 }) {
   const vocabulary = useVocabulary()
@@ -82,7 +86,7 @@ export function InviteMemberForm({
         workspaceId,
         data: {
           email: email.trim(),
-          role,
+          role: canInviteStaff ? role : "user",
           sendEmail,
           ...(firstname.trim() ? { firstname: firstname.trim() } : {}),
           ...(lastname.trim() ? { lastname: lastname.trim() } : {}),
@@ -106,11 +110,12 @@ export function InviteMemberForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-3 rounded-lg border border-border bg-card p-4"
+      className="space-y-3"
     >
+      <h3 className="text-sm font-semibold">По e-mail</h3>
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-2 sm:col-span-3">
-          <Label htmlFor="invite-email">Email*</Label>
+          <Label htmlFor="invite-email">E-mail*</Label>
           <Input
             id="invite-email"
             type="email"
@@ -141,25 +146,31 @@ export function InviteMemberForm({
             />
           </div>
         </div>
-        <div className="space-y-2 sm:col-span-1">
-          <Label>Роль</Label>
-          <Select
-            value={role}
-            onValueChange={(value) => setRole(value as Role)}
-          >
-            <SelectTrigger disabled={submitting}>
-              <SelectValue>{formatRoleName(role, vocabulary)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {ROLES.map((key) => (
-                <SelectItem key={key} value={key}>
-                  {formatRoleName(key, vocabulary)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2 sm:col-span-2">
+        {canInviteStaff && (
+          <div className="space-y-2 sm:col-span-1">
+            <Label>Роль</Label>
+            <Select
+              value={role}
+              onValueChange={(value) => setRole(value as Role)}
+            >
+              <SelectTrigger disabled={submitting}>
+                <SelectValue>{formatRoleName(role, vocabulary)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {ROLES.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {formatRoleName(key, vocabulary)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div
+          className={
+            canInviteStaff ? "space-y-2 sm:col-span-2" : "space-y-2 sm:col-span-3"
+          }
+        >
           <Label>Группа</Label>
           <Select value={groupId} onValueChange={setGroupId}>
             <SelectTrigger disabled={submitting}>

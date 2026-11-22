@@ -8,10 +8,11 @@ export type WorkspaceFeatures = WorkspaceSummary["features"]
 export type WorkspaceFeature = keyof WorkspaceFeatures
 
 // The club's app sections (ranks, video, …) as switched in its settings.
-// Re-read whenever `refreshKey` changes (the sidebar passes the path, so a
-// section switched off leaves the menu on the next page). null until loaded
-// or when the lookup failed: callers then show everything — the server still
-// guards each page.
+// Asked again whenever `refreshKey` changes (the sidebar passes the path);
+// fetchWorkspaces keeps the list for a minute and a settings save drops it,
+// so a section switched off here leaves the menu on the next page. null until
+// loaded or when the lookup failed: callers then show everything — the server
+// still guards each page.
 export const useWorkspaceFeatures = (
   workspaceId: string | undefined,
   refreshKey?: unknown,

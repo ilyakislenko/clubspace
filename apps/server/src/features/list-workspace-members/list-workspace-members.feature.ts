@@ -18,9 +18,10 @@ export const ListWorkspaceMembersInputSchema = z.object({
     // Name, e-mail or phone of the member or of a child's guardian; every
     // word must match somewhere ("иван петров").
     q: z.string().trim().min(1).max(200).optional(),
-    // The dashboard retention segments, same definitions as its counters:
-    // students only (no owner, no staff), ACTIVE.
-    access: z.enum(['all', 'expiring', 'expired', 'inactive']).optional(),
+    // Roster segments, same definitions as the screens that count them:
+    // renew = «Удержание → Продлить», unpaid = holds an unpaid abonement
+    // («Ожидают оплаты»), inactive = a student without a check-in in 30 days.
+    access: z.enum(['all', 'renew', 'unpaid', 'inactive']).optional(),
     // Staff and the owner only — for the coach / manager pickers.
     staffOnly: strictBoolean().optional(),
     // Every order ends on the row id, so pages never overlap or skip.
@@ -60,26 +61,15 @@ export const ListWorkspaceMembersFeatureOutputSchema = z.object({
                     directions: z.array(DirectionRefSchema),
                 }),
             ),
+            // Holds an unpaid abonement — the «Должники» segment's rule.
+            owesPayment: z.boolean(),
             createdAt: z.iso.datetime(),
-            // Most recent attendance check-in (null = never attended) — powers
-            // the "inactive 30d" churn filter.
-            lastCheckInAt: z.iso.datetime().nullable(),
-            watchedCount: z.number().int(),
-            inProgressCount: z.number().int(),
-            lastWatchedAt: z.iso.datetime().nullable(),
-            lastWatchedVideo: z
-                .object({
-                    id: z.string().uuid(),
-                    title: z.string(),
-                })
-                .nullable(),
         }),
     ),
     // Members matching the filters, across all pages.
     total: z.number().int(),
     curPage: z.number().int(),
     perPage: z.number().int(),
-    workspaceVideoTotal: z.number().int(),
 })
 
 export class ListWorkspaceMembersFeature {

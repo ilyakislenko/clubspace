@@ -13,6 +13,7 @@ import {
 } from "../../shared/api/billing"
 import { errorMessage } from "../../shared/lib/error-message"
 import { pluralRu } from "../../shared/lib/plural-ru"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { formatAmount } from "../subscriptions/subscription-display"
 import { formatDay, type Banner } from "./billing-view"
 import { BillingLegalNote } from "./BillingLegalSection"
@@ -84,10 +85,16 @@ export function BillingPaymentSection({
 
   const removeCard = async () => {
     if (!card) return
-    const ok = window.confirm(
-      `Удалить карту${card.last4 ? ` •••• ${card.last4}` : ""}? Автосписание выключится — продление нужно будет оплачивать вручную.`,
-    )
-    if (!ok) return
+    if (
+      !(await confirmDialog({
+        title: `Удалить карту${card.last4 ? ` •••• ${card.last4}` : ""}?`,
+        description: `Автосписание выключится — продление${billing.nextChargeAt ? ` ${formatDay(billing.nextChargeAt)}` : ""} нужно будет оплатить вручную.`,
+        confirmLabel: "Удалить карту",
+        destructive: true,
+      }))
+    ) {
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -223,15 +230,21 @@ export function BillingPaymentSection({
                   ? ` Следующая попытка — ${formatDay(autopay.nextAttemptAt)}.`
                   : ""}
               </p>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={busy || legal.required}
-                onClick={() => void pay(savedPeriod)}
-              >
-                Оплатить сейчас
-              </Button>
-              <BillingLegalNote legal={legal} />
+              {/* Without card renewal the «Оплатить картой» above is already the
+                  way to pay; a second pay button here would repeat it. */}
+              {renewsByCard && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={busy || legal.required}
+                    onClick={() => void pay(savedPeriod)}
+                  >
+                    Оплатить сейчас
+                  </Button>
+                  <BillingLegalNote legal={legal} />
+                </>
+              )}
             </div>
           )}
         </div>

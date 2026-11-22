@@ -6,6 +6,7 @@ import {
     BadRequestError,
     ForbiddenError,
     NotFoundError,
+    StaleUpdateError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { UpdateClubPublicProfileFeature } from './update-club-public-profile.feature'
@@ -13,6 +14,8 @@ import { UpdateClubPublicProfileHandler } from './update-club-public-profile.han
 
 const OLD_LOGO = 'workspaces/w1/logo/0b8f7a52-7c5f-4c5e-9d1e-7f1a2b3c4d5e'
 const NEW_LOGO = 'workspaces/w1/logo/1c9e8b63-8d6a-4d6f-8e2f-8a2b3c4d5e6f'
+// The club row's current version in the mocked database.
+const STORED_AT = new Date('2026-11-14T10:00:00.000Z')
 
 const CURRENT = {
     ownerId: 'owner',
@@ -23,6 +26,7 @@ const CURRENT = {
     publicDescription: null as string | null,
     logoKey: null as string | null,
     isListed: false,
+    updatedAt: STORED_AT,
 }
 
 const build = (current: typeof CURRENT | null = CURRENT) => {
@@ -34,7 +38,21 @@ const build = (current: typeof CURRENT | null = CURRENT) => {
                 .mockResolvedValueOnce(current),
             // Echo what was written, so the response proves the write.
             update: jest.fn().mockImplementation(({ data }) =>
-                Promise.resolve({ ...CURRENT, ...current, ...data }),
+                Promise.resolve({
+                    ...CURRENT,
+                    ...current,
+                    ...data,
+                    updatedAt: new Date('2026-11-14T11:00:00.000Z'),
+                }),
+            ),
+            // The compare-and-set: matches only the stored version.
+            updateMany: jest.fn(
+                async (args: { where: { updatedAt: Date } }) => ({
+                    count:
+                        args.where.updatedAt.getTime() === STORED_AT.getTime()
+                            ? 1
+                            : 0,
+                }),
             ),
         },
         workspacePublicSlug: {
@@ -43,6 +61,9 @@ const build = (current: typeof CURRENT | null = CURRENT) => {
         },
         workspaceJoinCode: {
             findUnique: jest.fn().mockResolvedValue({ code: 'ABCD2345' }),
+        },
+        $transaction(fn: (tx: unknown) => unknown) {
+            return fn(this)
         },
     }
     const record = jest.fn().mockResolvedValue(undefined)
@@ -70,7 +91,7 @@ const payload = {
 
 const run = (
     handler: UpdateClubPublicProfileHandler,
-    body: Partial<typeof payload> = {},
+    body: Partial<typeof payload> & { expectedUpdatedAt?: string } = {},
     who: { userId: string; roleName: string | null } = {
         userId: 'admin1',
         roleName: 'admin',
@@ -87,7 +108,9 @@ const run = (
     )
 
 describe('updateClubPublicProfile', () => {
-    it.each(['coach', 'user'])(
+    // The head coach runs the sport side (every group writable) but the
+    // public page is club-admin (owner/admin) territory.
+    it.each(['head_coach', 'coach', 'user'])(
         'refuses a %s and writes nothing',
         async (roleName) => {
             const { handler, prisma, record } = build()
@@ -98,6 +121,12 @@ describe('updateClubPublicProfile', () => {
             expect(record).not.toHaveBeenCalled()
         },
     )
+
+    it('lets the owner save, whatever their member row says', async () => {
+        const { handler, prisma } = build()
+        await run(handler, {}, { userId: 'owner', roleName: 'head_coach' })
+        expect(prisma.workspace.update).toHaveBeenCalledTimes(1)
+    })
 
     it('404s when the club is gone', async () => {
         const { handler, prisma } = build(null)
@@ -192,5 +221,36 @@ describe('updateClubPublicProfile', () => {
         const { handler, files } = build({ ...CURRENT, logoKey: OLD_LOGO })
         await run(handler, { logoKey: OLD_LOGO })
         expect(files.deleteObject).not.toHaveBeenCalled()
+    })
+
+    it('refuses a form that read an older version with 409, changing neither slug nor page', async () => {
+        const { handler, prisma, record } = build()
+        const err = await run(handler, {
+            slug: 'gracie-tomsk',
+            expectedUpdatedAt: '2026-11-14T09:00:00.000Z',
+        }).catch((e: unknown) => e)
+        expect(err).toBeInstanceOf(StaleUpdateError)
+        expect((err as StaleUpdateError).statusCode).toBe(409)
+        expect(prisma.workspacePublicSlug.update).not.toHaveBeenCalled()
+        expect(prisma.workspace.update).not.toHaveBeenCalled()
+        expect(record).not.toHaveBeenCalled()
+    })
+
+    it('saves a form that read the current version and returns the new one', async () => {
+        const { handler, prisma } = build()
+        const out = await run(handler, { expectedUpdatedAt: STORED_AT.toISOString() })
+        expect(prisma.workspace.updateMany.mock.calls[0][0].where).toEqual({
+            id: 'w1',
+            updatedAt: STORED_AT,
+        })
+        expect(prisma.workspace.update).toHaveBeenCalledTimes(1)
+        expect(out.updatedAt).toBe('2026-11-14T11:00:00.000Z')
+    })
+
+    it('keeps last-write-wins when the version is omitted', async () => {
+        const { handler, prisma } = build()
+        await run(handler)
+        expect(prisma.workspace.updateMany).not.toHaveBeenCalled()
+        expect(prisma.workspace.update).toHaveBeenCalledTimes(1)
     })
 })

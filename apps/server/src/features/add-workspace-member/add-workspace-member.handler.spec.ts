@@ -38,7 +38,12 @@ const build = (
         leaveWorkspaceRoom: jest.fn(),
     }
     const rbac = {
-        resolveCoachScope: jest.fn().mockResolvedValue({ scope: 'admin' }),
+        resolveCoachScope: jest.fn(async (p: { userId: string; workspaceId: string }) => ({
+            scope: 'admin',
+            userId: p.userId,
+            workspaceId: p.workspaceId,
+            workspaceOwnerId: 'owner',
+        })),
         canWriteAllGroups: jest.fn().mockReturnValue(!o.denied),
     }
     const joinRequests = { notifyApproved: jest.fn().mockResolvedValue(undefined) }
@@ -57,13 +62,13 @@ const build = (
     return { handler, prisma, users, audit, joinRequests, realtime, invitations }
 }
 
-const run = (handler: AddWorkspaceMemberHandler) =>
+const run = (handler: AddWorkspaceMemberHandler, invoker = 'admin1', role = 'admin') =>
     handler.execute(
         new AddWorkspaceMemberFeature(
             { email: ' Ann@B.com ' },
             'w1',
-            'admin1',
-            'admin',
+            invoker,
+            role,
             false,
         ),
     )
@@ -111,6 +116,21 @@ describe('addWorkspaceMember', () => {
         expect(out).toEqual({ userId: 'u1', email: 'ann@b.com', outcome: 'approved' })
         // An open app session starts receiving the club's events at once.
         expect(realtime.joinWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
+    })
+
+    // The row keeps its role, so approving a pending coach is staff business.
+    it('refuses a head coach approving a pending coach; an admin may', async () => {
+        const pendingCoach = { id: 'm1', status: 'INVITED', role: { name: 'coach' } }
+        const hc = build({ member: pendingCoach })
+        await expect(run(hc.handler, 'hc1', 'head_coach')).rejects.toBeInstanceOf(ForbiddenError)
+        expect(hc.prisma.workspaceMember.update).not.toHaveBeenCalled()
+        const admin = build({ member: pendingCoach })
+        await expect(run(admin.handler)).resolves.toMatchObject({ outcome: 'approved' })
+    })
+
+    it('lets a head coach approve a pending student', async () => {
+        const { handler } = build({ member: { id: 'm1', status: 'INVITED', role: { name: 'user' } } })
+        await expect(run(handler, 'hc1', 'head_coach')).resolves.toMatchObject({ outcome: 'approved' })
     })
 
     it('an applicant typed in another letter case approves the existing request, no new user', async () => {
@@ -161,7 +181,7 @@ describe('addWorkspaceMember', () => {
         'a %s row of an existing account is an invitation too',
         async (status) => {
             const { handler, prisma, invitations } = build({
-                member: { id: 'm1', status },
+                member: { id: 'm1', status, role: { name: 'user' } },
             })
             expect((await run(handler)).outcome).toBe('invited')
             expect(invitations.invite).toHaveBeenCalled()

@@ -537,11 +537,10 @@ export function SettingsScreen(_props: Props) {
               }
             />
           )}
-          {/* The weekly digest goes to the club's owner, admins and head
-              coaches only — nobody else would ever receive it. */}
+          {/* The weekly digest (it carries club money) goes to the club's
+              owner and admins only — nobody else would ever receive it. */}
           {workspace &&
-            (workspace.isOwner ||
-              ["admin", "head_coach"].includes(workspace.roleName)) && (
+            (workspace.isOwner || workspace.roleName === "admin") && (
             <Row
               label="Аналитика за неделю"
               description="Понедельник, 9:00: 3 факта и 3 действия по клубу"

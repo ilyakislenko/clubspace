@@ -33,6 +33,8 @@ export const PendingFreezeRequestSchema =
 
 export const PendingFreezeRequestsOutputSchema = z.object({
     data: z.array(PendingFreezeRequestSchema),
+    // Every pending request in scope; `data` stops at the oldest 100.
+    total: z.number().int(),
 })
 
 // The start dates a member may ask for, in club-local days.

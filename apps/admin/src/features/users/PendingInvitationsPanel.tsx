@@ -13,6 +13,7 @@ import { errorMessage } from "../../shared/lib/error-message"
 import { formatRoleName } from "../../shared/lib/role-labels"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { useWorkspaceRealtime } from "../../shared/realtime/useWorkspaceRealtime"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 
 // «Ожидают принятия»: people with an existing account the club invited. They
 // join only after accepting in the app (an existing account is never enrolled
@@ -47,7 +48,14 @@ export function PendingInvitationsPanel({
   useWorkspaceRealtime(workspaceId, ["members"], () => void load())
 
   const handleRevoke = async (item: WorkspaceInvitation) => {
-    if (!window.confirm(`Отозвать приглашение для ${item.email}?`)) return
+    const ok = await confirmDialog({
+      title: `Отозвать приглашение для ${item.email}?`,
+      description:
+        "Приглашение в приложении перестанет действовать. Пригласить снова можно в любой момент.",
+      confirmLabel: "Отозвать",
+      destructive: true,
+    })
+    if (!ok) return
     setRevokingId(item.id)
     setError(null)
     try {
@@ -63,23 +71,22 @@ export function PendingInvitationsPanel({
   if (items.length === 0 && !error) return null
 
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+    <section className="space-y-3">
       <div className="space-y-1">
-        <h2 className="text-sm font-semibold">
+        <h3 className="text-sm font-semibold">
           Ожидают принятия ({items.length})
-        </h2>
+        </h3>
         <p className="text-xs text-muted-foreground">
-          У этих людей уже есть аккаунт, поэтому они вступят в клуб, только когда
-          примут приглашение в приложении. Уведомление о приглашении им уже
-          пришло.
+          У этих людей уже есть аккаунт: они вступят в клуб, когда примут
+          приглашение в приложении.
         </p>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <ul className="space-y-2">
+      <ul className="divide-y divide-border rounded-md border border-border">
         {items.map((item) => (
           <li
             key={item.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2"
+            className="flex items-center justify-between gap-2 px-3 py-2"
           >
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{item.email}</p>
@@ -102,6 +109,6 @@ export function PendingInvitationsPanel({
           </li>
         ))}
       </ul>
-    </div>
+    </section>
   )
 }

@@ -20,23 +20,19 @@ const planRow = (directions: Array<typeof BJJ>) => ({
     isActive: true,
     purchasableOnline: true,
     directions: directions.map((direction) => ({ direction })),
+    updatedAt: new Date('2026-11-14T10:00:00.000Z'),
 })
 
-const make = (opts: {
-    scope: 'admin' | 'coach_own_only' | 'coach_read_all'
-    plan: object | null
-    managed?: string[]
-}) => {
+// A real RbacService over a one-club fake: the role, ownership and super-admin
+// flag decide who reads the tariff page.
+const make = (opts: { plan: object | null; userId?: string; role?: string }) => {
     const prisma = {
-        plan: { findFirst: jest.fn().mockResolvedValue(opts.plan) },
-        directionManager: {
-            count: jest.fn(
-                async (a: { where: { directionId: { in: string[] } } }) =>
-                    a.where.directionId.in.filter((d) =>
-                        (opts.managed ?? []).includes(d),
-                    ).length,
-            ),
+        workspace: {
+            findUnique: jest
+                .fn()
+                .mockResolvedValue({ ownerId: 'owner', coachSeesAllGroups: true }),
         },
+        plan: { findFirst: jest.fn().mockResolvedValue(opts.plan) },
         subscription: {
             findMany: jest.fn().mockResolvedValue([
                 {
@@ -58,23 +54,16 @@ const make = (opts: {
             aggregate: jest.fn().mockResolvedValue({ _sum: { amountPaid: 15000 } }),
         },
     }
-    const rbac = new RbacService(prisma as never)
-    jest.spyOn(rbac, 'resolveCoachScope').mockImplementation(async (p) => ({
-        scope: opts.scope,
-        userId: p.userId,
-        workspaceId: p.workspaceId,
-        workspaceOwnerId: 'owner',
-    }))
     const run = (planId = PLAN) =>
-        new GetPlanHandler(prisma as never, rbac).execute(
-            new GetPlanFeature('w1', planId, 'me', 'coach', false),
+        new GetPlanHandler(prisma as never, new RbacService(prisma as never)).execute(
+            new GetPlanFeature('w1', planId, opts.userId ?? 'me', opts.role ?? 'admin', false),
         )
     return { prisma, run }
 }
 
 describe('GetPlanHandler', () => {
     it('returns the tariff, its holders and the last 30 days to admin scope', async () => {
-        const { prisma, run } = make({ scope: 'admin', plan: planRow([]) })
+        const { prisma, run } = make({ plan: planRow([]) })
         const out = await run()
         expect(out.plan).toMatchObject({ id: PLAN, startsOnFirstVisit: true, directions: [] })
         expect(out.holders).toEqual([
@@ -99,36 +88,21 @@ describe('GetPlanHandler', () => {
         })
     })
 
-    it('lets a direction manager open a tariff of their direction', async () => {
-        const { run } = make({
-            scope: 'coach_own_only',
-            plan: planRow([BJJ]),
-            managed: ['d-bjj'],
-        })
+    // What a tariff earned is club money: the owner and admins only.
+    it('opens the tariff page to the owner', async () => {
+        const { run } = make({ plan: planRow([BJJ]), userId: 'owner' })
         await expect(run()).resolves.toMatchObject({ plan: { id: PLAN } })
     })
 
-    it('refuses a direction manager a tariff of another direction', async () => {
-        const { prisma, run } = make({
-            scope: 'coach_own_only',
-            plan: planRow([BJJ]),
-            managed: ['d-mma'],
-        })
+    it.each(['head_coach', 'coach'])('refuses a %s before reading holders', async (role) => {
+        const { prisma, run } = make({ plan: planRow([BJJ]), role })
         await expect(run()).rejects.toBeInstanceOf(ForbiddenError)
+        expect(prisma.plan.findFirst).not.toHaveBeenCalled()
         expect(prisma.subscription.findMany).not.toHaveBeenCalled()
     })
 
-    it('keeps a club-wide tariff to admin scope', async () => {
-        const { run } = make({
-            scope: 'coach_read_all',
-            plan: planRow([]),
-            managed: ['d-bjj'],
-        })
-        await expect(run()).rejects.toBeInstanceOf(ForbiddenError)
-    })
-
     it('is a 404 for a tariff of another club or a malformed id', async () => {
-        const { prisma, run } = make({ scope: 'admin', plan: null })
+        const { prisma, run } = make({ plan: null })
         await expect(run()).rejects.toBeInstanceOf(NotFoundError)
         expect(prisma.plan.findFirst.mock.calls[0][0].where).toEqual({
             id: PLAN,

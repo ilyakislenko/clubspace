@@ -19,8 +19,10 @@
 #   5. `prisma db push` with the NEW image, then a post-push backfill if
 #      needed, then `docker compose up -d` (seconds of downtime per container)
 #   6. smoke check: server healthy and /healthz ok inside the container, the
-#      worker and both web apps running without restarts; public /healthz is
-#      reported but does not gate (DNS/hairpin)
+#      worker and both web apps running without restarts, the web apps'
+#      Content-Security-Policy allowing the server's ROOT_URL (video preview,
+#      lib/common.sh check_api_origin); public /healthz is reported but does
+#      not gate (DNS/hairpin)
 #   7. on failure at any step: :rollback images re-tagged as current, the git
 #      checkout moved back, the old containers started again, alert sent. A
 #      data migration is not undone — the alert names the backup to restore
@@ -169,7 +171,7 @@ smoke() {
 }
 
 update() {
-    local svc cid img pre post public
+    local svc cid img pre post public mismatch
     cd "$CS_ROOT"
     if ! git diff --quiet || ! git diff --cached --quiet; then
         die "в $CS_ROOT есть незакоммиченные правки — git stash или git status"
@@ -273,6 +275,17 @@ update() {
     # 6. smoke
     log "жду готовности…"
     smoke || rollback "новая версия не поднялась (server /healthz или перезапуски контейнеров)"
+    # The web apps' policy must allow the API's public address, or video
+    # preview is blocked in the browser while every container looks healthy.
+    # A wrong build rolls back; a web app that is merely not answering yet
+    # (exit 2) is reported — the container checks above cover a crashed one.
+    local origin_rc=0
+    mismatch="$(check_api_origin)" || origin_rc=$?
+    case "$origin_rc" in
+        0) ;;
+        2) warn "$mismatch" ;;
+        *) rollback "$mismatch" ;;
+    esac
     public="${HEALTH_API_URL:-https://api.$DOMAIN${PUBLIC_PORT_SUFFIX:-}}/healthz"
     curl -fsS -m 15 -o /dev/null "$public" || warn "$public снаружи не отвечает, хотя контейнер здоров — проверьте Caddy/DNS"
 

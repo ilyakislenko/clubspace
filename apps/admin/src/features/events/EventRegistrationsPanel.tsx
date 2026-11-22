@@ -3,7 +3,13 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 
-import { Button } from "@clubspace/ui-kit/ui"
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@clubspace/ui-kit/ui"
 
 import {
   listEventRegistrations,
@@ -14,7 +20,10 @@ import {
   type EventRegistrations,
 } from "../../shared/api/events"
 import { errorMessage } from "../../shared/lib/error-message"
+import { isClubAdmin } from "../../shared/lib/permissions"
+import { useMyMembership } from "../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../shared/realtime/useWorkspaceRealtime"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import {
   CLUB_PAYMENT_METHODS,
   PAYMENT_METHOD_LABEL,
@@ -31,7 +40,7 @@ const statusLabel = (r: EventRegistrant): string =>
 type Props = {
   workspaceId: string
   eventId: string
-  // Unmarking a payment is admin-only (the server gates it the same way).
+  // Unmarking a payment is the sport leads' (the server gates it the same way).
   canUnmark: boolean
 }
 
@@ -40,6 +49,8 @@ type Props = {
 // online (marked by the payment; refunded from «Платежи»). Own fetch;
 // refreshes live as members register, cancel and move up from the waitlist.
 export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Props) {
+  // Refunds (online payments) are the club admins'.
+  const canRefund = isClubAdmin(useMyMembership(workspaceId))
   const [data, setData] = useState<EventRegistrations | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -75,9 +86,22 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
     act(r, () =>
       markEventRegistrationPaid({ workspaceId, registrationId: r.id, method }),
     )
-  const unmark = (r: EventRegistrant) => {
-    if (!window.confirm(`Снять отметку об оплате у «${r.name}»?`)) return
-    void act(r, () =>
+  const unmark = async (r: EventRegistrant) => {
+    if (
+      !(await confirmDialog({
+        title: `Снять отметку об оплате у «${r.name}»?`,
+        description: `${
+          r.amountPaid !== null && r.currency
+            ? `Оплата ${formatAmount(r.amountPaid, r.currency)}`
+            : "Оплата"
+        } перестанет учитываться в выручке${
+          r.status === "BOOKED" ? ", место останется за участником" : ""
+        }.`,
+        confirmLabel: "Снять отметку",
+      }))
+    )
+      return
+    await act(r, () =>
       unmarkEventRegistrationPaid({ workspaceId, registrationId: r.id }),
     )
   }
@@ -164,19 +188,21 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
                       (r.paymentMethod === "ONLINE" ? (
                         // Paid through the club's provider: the money goes
                         // back by a refund, which takes the mark back too.
-                        <Link
-                          href={`/workspace/${workspaceId}/payments`}
-                          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                        >
-                          Возврат — в «Платежах»
-                        </Link>
+                        canRefund && (
+                          <Link
+                            href={`/workspace/${workspaceId}/subscriptions/payments`}
+                            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                          >
+                            Возврат — в «Абонементы → Платежи»
+                          </Link>
+                        )
                       ) : (
                         <Button
                           type="button"
                           size="sm"
                           variant="ghost"
                           disabled={busyId === r.id}
-                          onClick={() => unmark(r)}
+                          onClick={() => void unmark(r)}
                         >
                           Снять
                         </Button>
@@ -184,23 +210,28 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
                   </div>
                 ) : r.status === "BOOKED" ? (
                   // Payment is taken for a place: the waitlist pays once moved up.
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">
-                      Оплата на месте:
-                    </span>
-                    {CLUB_PAYMENT_METHODS.map((m) => (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
                       <Button
-                        key={m}
                         type="button"
                         size="sm"
-                        variant="secondary"
+                        variant="ghost"
                         disabled={busyId === r.id}
-                        onClick={() => void markPaid(r, m)}
                       >
-                        {PAYMENT_METHOD_LABEL[m]}
+                        Отметить оплату
                       </Button>
-                    ))}
-                  </div>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {CLUB_PAYMENT_METHODS.map((m) => (
+                        <DropdownMenuItem
+                          key={m}
+                          onSelect={() => void markPaid(r, m)}
+                        >
+                          {PAYMENT_METHOD_LABEL[m]}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 ) : null)}
             </li>
           ))}

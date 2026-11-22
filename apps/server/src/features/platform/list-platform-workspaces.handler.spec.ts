@@ -67,15 +67,23 @@ const build = (opts: BuildOpts = {}) => {
         workspaceModuleEntitlement: {
             findMany: jest.fn().mockResolvedValue(opts.comps ?? []),
         },
+        // countActiveStudentsMany: one grouped count over every listed club.
+        workspaceMember: {
+            groupBy: jest.fn(
+                async (args: {
+                    where: { AND: [{ OR: { workspaceId: string }[] }, unknown] }
+                }) =>
+                    args.where.AND[0].OR.map(({ workspaceId }) => ({
+                        workspaceId,
+                        _count: { _all: opts.active?.[workspaceId] ?? 64 },
+                    })),
+            ),
+        },
     }
     const billing = {
         getBillingMany: jest.fn(
             async (ids: string[]) =>
                 new Map(ids.map((id) => [id, opts.billing?.[id] ?? billingRow()])),
-        ),
-        countActiveMembersMany: jest.fn(
-            async (ws: { id: string }[]) =>
-                new Map(ws.map((w) => [w.id, opts.active?.[w.id] ?? 64])),
         ),
     }
     const handler = new ListPlatformWorkspacesHandler(

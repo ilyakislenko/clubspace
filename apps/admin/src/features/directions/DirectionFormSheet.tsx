@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 import {
   Button,
@@ -19,8 +19,12 @@ import {
   updateDirection,
   type Direction,
 } from "../../shared/api/directions"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
+import { confirmLeave, sameData, useDirtyGuard } from "../../shared/lib/use-dirty-guard"
+
+const L = FORM_LIMITS.direction
 
 const PRESET_COLORS = [
   "#2563EB",
@@ -44,6 +48,8 @@ type Props = {
   // Default `order` for a new direction (after the last one).
   nextOrder: number
   onSaved: () => void
+  // Edit mode extras that save on their own (the direction's managers).
+  children?: ReactNode
 }
 
 export function DirectionFormSheet({
@@ -53,6 +59,7 @@ export function DirectionFormSheet({
   direction,
   nextOrder,
   onSaved,
+  children,
 }: Props) {
   const isCreate = !direction
   const [name, setName] = useState("")
@@ -74,6 +81,20 @@ export function DirectionFormSheet({
     setError("")
   }, [open, direction, nextOrder])
 
+  // Closing with changes asks first (the same prompt as leaving the page).
+  const saved = {
+    name: direction?.name ?? "",
+    color: direction?.color ?? PRESET_COLORS[0],
+    icon: direction?.icon ?? "",
+    order: String(direction?.order ?? nextOrder),
+    isActive: direction?.isActive ?? true,
+  }
+  const dirty = open && !sameData({ name, color, icon, order, isActive }, saved)
+  useDirtyGuard(dirty)
+  const requestClose = async () => {
+    if (await confirmLeave()) onOpenChange(false)
+  }
+
   const colorValid = color.trim() === "" || HEX_RE.test(color.trim())
 
   const handleSubmit = async () => {
@@ -82,9 +103,9 @@ export function DirectionFormSheet({
       setError("Цвет в формате #RRGGBB")
       return
     }
-    const parsedOrder = parseIntInput(order, { min: 0, max: 10000 })
+    const parsedOrder = parseIntInput(order, L.order)
     if (parsedOrder === null) {
-      setError("Порядок — целое число от 0")
+      setError(`Порядок — целое число от ${L.order.min} до ${L.order.max}`)
       return
     }
     setSaving(true)
@@ -112,7 +133,7 @@ export function DirectionFormSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={(next) => (next ? onOpenChange(true) : void requestClose())}>
       <SheetContent className="flex w-full flex-col gap-6 sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>
@@ -127,13 +148,15 @@ export function DirectionFormSheet({
         <div className="flex-1 space-y-4 overflow-y-auto">
           <div className="grid gap-3 sm:grid-cols-[80px,1fr]">
             <div className="space-y-2">
-              <Label htmlFor="direction-icon">Эмодзи</Label>
+              <Label htmlFor="direction-icon" title="Показывается в приложении учеников">
+                Значок
+              </Label>
               <Input
                 id="direction-icon"
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
                 placeholder="⭐"
-                maxLength={8}
+                maxLength={L.icon.max}
                 className="text-center text-lg"
               />
             </div>
@@ -144,6 +167,7 @@ export function DirectionFormSheet({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Например, хип-хоп"
+                maxLength={L.name.max}
               />
             </div>
           </div>
@@ -202,7 +226,8 @@ export function DirectionFormSheet({
             <Input
               id="direction-order"
               type="number"
-              min={0}
+              min={L.order.min}
+              max={L.order.max}
               value={order}
               onChange={(e) => setOrder(e.target.value)}
               className="w-28"
@@ -224,6 +249,8 @@ export function DirectionFormSheet({
             </span>
           </label>
 
+          {!isCreate && children}
+
           {error && (
             <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
@@ -236,7 +263,7 @@ export function DirectionFormSheet({
             <Button
               type="button"
               variant="ghost"
-              onClick={() => onOpenChange(false)}
+              onClick={() => void requestClose()}
               disabled={saving}
             >
               Отмена

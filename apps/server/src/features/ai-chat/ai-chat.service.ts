@@ -53,7 +53,7 @@ import {
     pseudonymizeQuestion,
     type StoredChatMessage,
     type StoredRefs,
-    SUGGESTED_QUESTIONS,
+    suggestedQuestions,
     toolLabel,
 } from './ai-chat-utils'
 import type {
@@ -140,7 +140,7 @@ export class AiChatService {
                 warning: aiChatDataWarning(vocabulary),
             },
             limit,
-            suggestions: [...SUGGESTED_QUESTIONS],
+            suggestions: suggestedQuestions(access),
         }
     }
 

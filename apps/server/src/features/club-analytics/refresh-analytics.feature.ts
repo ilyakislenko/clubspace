@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
 export const RefreshAnalyticsOutputSchema = z.object({
+    // fresh = both snapshots are younger than ANALYTICS_FRESH_MS, nothing was
+    // started (HTTP 200); queued = a rebuild waits or runs (HTTP 202), the
+    // realtime «analytics» invalidation follows when it is done.
+    status: z.enum(['fresh', 'queued']),
     historyComputedAt: z.iso.datetime().nullable(),
     riskComputedAt: z.iso.datetime().nullable(),
 })

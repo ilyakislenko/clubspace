@@ -10,6 +10,7 @@ import {
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
+import { claimUnchanged } from '../../shared/utils/optimistic-concurrency'
 import {
     UpdateGroupFeature,
     UpdateGroupFeatureResponse,
@@ -103,7 +104,15 @@ export class UpdateGroupHandler
         // promote the new one (or insert if they weren't on the group).
         // If the new primary was previously an assistant, just flip the
         // role to 'primary' instead of duplicating.
+        const { expectedUpdatedAt, ...changes } = payload
         const updated = await this.prisma.$transaction(async (tx) => {
+            // A form that read an older version is refused before any write.
+            await claimUnchanged(expectedUpdatedAt, (expected) =>
+                tx.group.updateMany({
+                    where: { id: groupId, workspaceId, updatedAt: expected },
+                    data: { updatedAt: new Date() },
+                }),
+            )
             const next = await tx.group.update({
                 where: { id: groupId },
                 data: {
@@ -163,7 +172,7 @@ export class UpdateGroupHandler
             workspaceId,
             actorId: invokerUserId,
             metadata: {
-                changes: payload,
+                changes,
             },
         })
 
@@ -191,6 +200,7 @@ export class UpdateGroupHandler
             capacity: updated.capacity,
             bookingWindowDays: updated.bookingWindowDays,
             bookingCancelHours: updated.bookingCancelHours,
+            updatedAt: updated.updatedAt.toISOString(),
         }
     }
 }

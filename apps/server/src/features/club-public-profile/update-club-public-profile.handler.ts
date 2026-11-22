@@ -11,12 +11,13 @@ import { ensurePublicSlug } from '../../domains/workspace/public-slug.store'
 import { environment } from '../../environments/environment'
 import { FilesService } from '../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
+import { claimUnchanged } from '../../shared/utils/optimistic-concurrency'
 import {
     PUBLIC_PROFILE_WORKSPACE_SELECT,
     serializeClubPublicProfile,
@@ -53,7 +54,7 @@ export class UpdateClubPublicProfileHandler
         roleName,
         isSuperAdmin,
     }: UpdateClubPublicProfileFeature) {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Публичную страницу клуба настраивает только администратор',
@@ -77,32 +78,40 @@ export class UpdateClubPublicProfileHandler
             })
         }
 
-        // The slug first: a clash must refuse the save before anything else
-        // has changed.
+        // A stale form is refused first; the slug goes before the page
+        // fields, so a clash refuses the save before anything has changed —
+        // all in one transaction.
         const previousSlug = await ensurePublicSlug(this.prisma, current)
-        if (payload.slug !== previousSlug) {
-            try {
-                await this.prisma.workspacePublicSlug.update({
-                    where: { workspaceId },
-                    data: { slug: payload.slug },
-                })
-            } catch (e) {
-                if (!isUniqueClash(e)) throw e
-                throw new BadRequestError({
-                    message: `Адрес «${payload.slug}» уже занят другим клубом`,
-                })
+        const workspace = await this.prisma.$transaction(async (tx) => {
+            await claimUnchanged(payload.expectedUpdatedAt, (expected) =>
+                tx.workspace.updateMany({
+                    where: { id: workspaceId, updatedAt: expected },
+                    data: { updatedAt: new Date() },
+                }),
+            )
+            if (payload.slug !== previousSlug) {
+                try {
+                    await tx.workspacePublicSlug.update({
+                        where: { workspaceId },
+                        data: { slug: payload.slug },
+                    })
+                } catch (e) {
+                    if (!isUniqueClash(e)) throw e
+                    throw new BadRequestError({
+                        message: `Адрес «${payload.slug}» уже занят другим клубом`,
+                    })
+                }
             }
-        }
-
-        const workspace = await this.prisma.workspace.update({
-            where: { id: workspaceId },
-            data: {
-                city: payload.city,
-                publicDescription: payload.description,
-                logoKey: payload.logoKey,
-                isListed: payload.isListed,
-            },
-            select: PUBLIC_PROFILE_WORKSPACE_SELECT,
+            return tx.workspace.update({
+                where: { id: workspaceId },
+                data: {
+                    city: payload.city,
+                    publicDescription: payload.description,
+                    logoKey: payload.logoKey,
+                    isListed: payload.isListed,
+                },
+                select: PUBLIC_PROFILE_WORKSPACE_SELECT,
+            })
         })
 
         if (current.logoKey && current.logoKey !== workspace.logoKey) {

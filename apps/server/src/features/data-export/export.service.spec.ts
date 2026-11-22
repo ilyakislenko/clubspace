@@ -480,11 +480,13 @@ describe('ExportService.renewalsCsv', () => {
         const farAccess = new Date(Date.now() + 90 * DAY)
         const findMany = jest.fn().mockResolvedValue([
             {
+                userId: 'anna',
                 accessUntil: soonAccess,
                 user: { firstname: 'Анна', lastname: 'К', email: 'a@x' },
                 subscriptions: [],
             },
             {
+                userId: 'ivan',
                 accessUntil: farAccess,
                 user: { firstname: 'Иван', lastname: 'П', email: 'i@x' },
                 subscriptions: [
@@ -492,6 +494,7 @@ describe('ExportService.renewalsCsv', () => {
                 ],
             },
             {
+                userId: 'petr',
                 accessUntil: farAccess,
                 user: { firstname: 'Пётр', lastname: 'С', email: 'p@x' },
                 subscriptions: [sub({ classesRemaining: 5, classesTotal: 8 })],
@@ -521,6 +524,7 @@ describe('ExportService.renewalsCsv', () => {
     it('does not call a pending abonement expiring', async () => {
         const findMany = jest.fn().mockResolvedValue([
             {
+                userId: 'olga',
                 accessUntil: new Date(Date.now() + 2 * DAY),
                 user: { firstname: 'Ольга', lastname: 'Н', email: 'o@x' },
                 subscriptions: [sub({ startDate: null, endDate: null })],
@@ -535,6 +539,7 @@ describe('ExportService.renewalsCsv', () => {
         const thai = { direction: { id: 'd-thai', name: 'Тайский', color: null, icon: null } }
         const findMany = jest.fn().mockResolvedValue([
             {
+                userId: 'renewed',
                 accessUntil: new Date(Date.now() + 60 * DAY),
                 user: { firstname: 'Renewed', lastname: null, email: 'r@x' },
                 subscriptions: [
@@ -543,6 +548,7 @@ describe('ExportService.renewalsCsv', () => {
                 ],
             },
             {
+                userId: 'other',
                 accessUntil: new Date(Date.now() + 60 * DAY),
                 user: { firstname: 'Other', lastname: null, email: 'o@x' },
                 subscriptions: [

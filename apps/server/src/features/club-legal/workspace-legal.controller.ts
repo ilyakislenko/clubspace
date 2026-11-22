@@ -17,7 +17,7 @@ import {
 } from '../../shared/decorators/current-user.decorator'
 import {
     Roles,
-    WORKSPACE_ADMINS,
+    CLUB_ADMINS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -44,7 +44,7 @@ export class WorkspaceLegalController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @AllowSuspendedWorkspace()
     @ZodResponse({ type: AcceptWorkspaceLegalOutput })
     async acceptWorkspaceLegal(

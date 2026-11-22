@@ -73,7 +73,7 @@ export class CreateAnnouncementHandler
         // filters on publishedAt <= now, so it appears then; notifying members
         // at go-live would need the scheduler (follow-up).
         if (created.publishedAt && created.publishedAt <= new Date()) {
-            await announceToWorkspace(this.notifications, created)
+            await announceToWorkspace(this.prisma, this.notifications, created)
             showInOpenFeeds(
                 this.realtime,
                 f.workspaceId,

@@ -1,12 +1,13 @@
 import type { ClubAboutInput } from "../../shared/api/club-about"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
+
+const L = FORM_LIMITS.clubAbout
 
 export type ClubAboutDraft = {
   contacts: Array<{ label: string; phone: string }>
   links: Array<{ label: string; url: string }>
   rules: string
 }
-
-export const MAX_ITEMS = 10
 
 // Mirrors the server's normalizePhone: a leading «+» with 10–15 digits, or a
 // Russian number of 11 digits starting with 7/8. «+8 9…» / «+8 3…» (11 digits,
@@ -41,29 +42,35 @@ const isHttpUrl = (value: string) => {
 
 // First problem found, in Russian for the admin; null when the draft can be saved.
 export const validateClubAboutDraft = (draft: ClubAboutDraft): string | null => {
-  if (draft.contacts.length > MAX_ITEMS) {
-    return `Контактов не больше ${MAX_ITEMS}`
+  if (draft.contacts.length > L.contacts.max) {
+    return `Контактов не больше ${L.contacts.max}`
   }
-  if (draft.links.length > MAX_ITEMS) {
-    return `Ссылок не больше ${MAX_ITEMS}`
+  if (draft.links.length > L.links.max) {
+    return `Ссылок не больше ${L.links.max}`
   }
   for (const c of draft.contacts) {
     if (!c.label.trim()) return "Укажите подпись контакта"
-    if (c.label.trim().length > 120) return "Подпись контакта слишком длинная"
+    if (c.label.trim().length > L.contactLabel.max) {
+      return `Подпись контакта — не длиннее ${L.contactLabel.max} символов`
+    }
     if (!isPhone(c.phone)) {
       return `Телефон «${c.phone.trim()}» не похож на номер — укажите номер с кодом страны, например +7 952 884-94-20`
     }
   }
   for (const l of draft.links) {
     if (!l.label.trim()) return "Укажите подпись ссылки"
-    if (l.label.trim().length > 60) return "Подпись ссылки слишком длинная"
-    if (l.url.trim().length > 500) return "Ссылка слишком длинная"
+    if (l.label.trim().length > L.linkLabel.max) {
+      return `Подпись ссылки — не длиннее ${L.linkLabel.max} символов`
+    }
+    if (l.url.trim().length > L.linkUrl.max) {
+      return `Ссылка — не длиннее ${L.linkUrl.max} символов`
+    }
     if (!isHttpUrl(l.url.trim())) {
       return "Ссылка должна начинаться с http:// или https://"
     }
   }
-  if (draft.rules.trim().length > 10000) {
-    return "Правила не длиннее 10000 символов"
+  if (draft.rules.trim().length > L.rules.max) {
+    return `Правила — не длиннее ${L.rules.max.toLocaleString("ru-RU")} символов`
   }
   return null
 }

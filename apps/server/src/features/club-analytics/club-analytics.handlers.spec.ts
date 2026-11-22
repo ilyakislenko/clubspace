@@ -1,5 +1,4 @@
 jest.mock('../../domains/analytics/analytics-reports', () => ({
-    loadChurnReport: jest.fn(),
     loadCohortReport: jest.fn(),
     loadOccupancyReport: jest.fn(),
     loadCoachReport: jest.fn(),
@@ -7,8 +6,6 @@ jest.mock('../../domains/analytics/analytics-reports', () => ({
 }))
 
 import {
-    type ChurnEntry,
-    loadChurnReport,
     loadCoachReport,
     loadCohortReport,
     loadForecastReport,
@@ -24,10 +21,6 @@ import { GetRevenueForecastFeature } from './get-revenue-forecast.feature'
 import { GetRevenueForecastHandler } from './get-revenue-forecast.handler'
 import { GetScheduleOccupancyFeature } from './get-schedule-occupancy.feature'
 import { GetScheduleOccupancyHandler } from './get-schedule-occupancy.handler'
-import { ListChurnRiskFeature } from './list-churn-risk.feature'
-import { ListChurnRiskHandler } from './list-churn-risk.handler'
-import { RefreshAnalyticsFeature } from './refresh-analytics.feature'
-import { RefreshAnalyticsHandler } from './refresh-analytics.handler'
 
 const AT = new Date('2026-11-02T03:00:00.000Z')
 
@@ -47,7 +40,9 @@ const makePrisma = () => ({
     },
 })
 
+const OWNER = { roleName: 'admin', userId: 'owner' }
 const ADMIN = { roleName: 'admin', userId: 'adm' }
+const HEAD_COACH = { roleName: 'head_coach', userId: 'hc' }
 const COACH = { roleName: 'coach', userId: 'coach' }
 const MEMBER = { roleName: 'user', userId: 'm' }
 type Who = { roleName: string | null; userId: string }
@@ -76,16 +71,6 @@ describe.each([
             ),
     },
     {
-        name: 'GetCoachAnalyticsHandler',
-        loader: loadCoachReport as jest.Mock,
-        report: { computedAt: null, weeks: 12, coaches: [] },
-        expected: { computedAt: null, weeks: 12, coaches: [] },
-        run: (p: ReturnType<typeof setup>, who: Who, payload = {}) =>
-            new GetCoachAnalyticsHandler(p.prisma as never, p.rbac).execute(
-                new GetCoachAnalyticsFeature(payload, 'ws', who.userId, who.roleName, false),
-            ),
-    },
-    {
         name: 'GetScheduleOccupancyHandler',
         loader: loadOccupancyReport as jest.Mock,
         report: {
@@ -109,16 +94,6 @@ describe.each([
         run: (p: ReturnType<typeof setup>, who: Who, payload = {}) =>
             new GetScheduleOccupancyHandler(p.prisma as never, p.rbac).execute(
                 new GetScheduleOccupancyFeature(payload, 'ws', who.userId, who.roleName, false),
-            ),
-    },
-    {
-        name: 'GetRevenueForecastHandler',
-        loader: loadForecastReport as jest.Mock,
-        report: { computedAt: AT, members: 3 },
-        expected: { computedAt: AT.toISOString(), members: 3 },
-        run: (p: ReturnType<typeof setup>, who: Who, payload = {}) =>
-            new GetRevenueForecastHandler(p.prisma as never, p.rbac).execute(
-                new GetRevenueForecastFeature(payload, 'ws', who.userId, who.roleName, false),
             ),
     },
 ])('$name', ({ loader, report, expected, run }) => {
@@ -168,101 +143,67 @@ describe('GetScheduleOccupancyHandler weeks', () => {
     })
 })
 
-describe('ListChurnRiskHandler', () => {
-    const entry = (groups: ChurnEntry['groups']): ChurnEntry => ({
-        userId: 'u1',
-        firstname: 'Иван',
-        lastname: null,
-        email: null,
-        phone: '+79000000000',
-        guardians: [],
-        groups,
-        score: 72,
-        level: 'high',
-        reasons: [{ code: 'absent', points: 40, text: 'Не был на тренировке 50 дней' }],
-        monthlySpend: 5000,
-        currency: 'RUB',
-        lastVisitAt: AT,
-        lastContact: { id: 'c1', at: AT, byName: 'Тренер', note: null, reason: null, signals: [] },
-        contactedRecently: true,
-    })
-    const report = (e: ChurnEntry) => ({
-        computedAt: AT,
-        entries: [e],
-        summary: { total: 0, high: 0, medium: 0, moneyAtStake: 0, currency: null, contactedRecently: 1 },
-    })
+// Club money: the forecast is for the owner and admins only.
+describe('GetRevenueForecastHandler', () => {
     const run = (p: ReturnType<typeof setup>, who: Who, payload = {}) =>
-        new ListChurnRiskHandler(p.prisma as never, p.rbac).execute(
-            new ListChurnRiskFeature(payload, 'ws', who.userId, who.roleName, false),
+        new GetRevenueForecastHandler(p.prisma as never, p.rbac).execute(
+            new GetRevenueForecastFeature(payload, 'ws', who.userId, who.roleName, false),
         )
 
-    it('refuses a plain member', async () => {
-        await expect(run(setup(), MEMBER)).rejects.toBeInstanceOf(ForbiddenError)
-        expect(loadChurnReport).not.toHaveBeenCalled()
+    it.each([
+        ['a head coach', HEAD_COACH],
+        ['a coach', COACH],
+        ['a plain member', MEMBER],
+    ])('refuses %s before reading anything', async (_, who) => {
+        await expect(run(setup(), who)).rejects.toBeInstanceOf(ForbiddenError)
+        expect(loadForecastReport).not.toHaveBeenCalled()
     })
 
-    it('404s on a group of another club', async () => {
-        await expect(run(setup(), ADMIN, { groupId: 'foreign' })).rejects.toBeInstanceOf(NotFoundError)
-    })
-
-    it('serializes the list and lets an admin contact anyone', async () => {
-        ;(loadChurnReport as jest.Mock).mockResolvedValue(report(entry([])))
-        const res = await run(setup(), ADMIN, { minScore: 50 })
-        expect((loadChurnReport as jest.Mock).mock.calls[0][1]).toMatchObject({
+    it.each([
+        ['the owner', OWNER],
+        ['an admin', ADMIN],
+    ])('reads the whole club for %s', async (_, who) => {
+        ;(loadForecastReport as jest.Mock).mockResolvedValue({ computedAt: AT, students: 3 })
+        await expect(run(setup(), who)).resolves.toEqual({
+            computedAt: AT.toISOString(),
+            students: 3,
+        })
+        expect((loadForecastReport as jest.Mock).mock.calls[0][1]).toMatchObject({
+            workspaceId: 'ws',
             scope: WHOLE,
-            minScore: 50,
         })
-        expect(res.computedAt).toBe(AT.toISOString())
-        expect(res.data[0]).toMatchObject({
-            userId: 'u1',
-            score: 72,
-            level: 'high',
-            lastVisitAt: AT.toISOString(),
-            lastContact: { id: 'c1', at: AT.toISOString(), byName: 'Тренер', note: null },
-            contactedRecently: true,
-            canContact: true,
-        })
-        expect(res.summary.contactedRecently).toBe(1)
     })
 
-    it('lets a coach contact only members left in their groups', async () => {
-        ;(loadChurnReport as jest.Mock).mockResolvedValue(
-            report(entry([{ id: 'own', name: 'Вечер', gymId: null, gymName: null }])),
+    it('404s on a gym of another club', async () => {
+        await expect(run(setup(), ADMIN, { gymId: 'foreign' })).rejects.toBeInstanceOf(
+            NotFoundError,
         )
-        const own = await run(setup(), COACH)
-        expect((loadChurnReport as jest.Mock).mock.calls[0][1].scope).toEqual(OWN)
-        expect(own.data[0].canContact).toBe(true)
-        ;(loadChurnReport as jest.Mock).mockResolvedValue(report(entry([])))
-        expect((await run(setup(), COACH)).data[0].canContact).toBe(false)
     })
 })
 
-describe('RefreshAnalyticsHandler', () => {
-    const run = (p: ReturnType<typeof setup>, who: Who, snapshots = { refresh: jest.fn() }) =>
-        new RefreshAnalyticsHandler(p.prisma as never, p.rbac, snapshots as never).execute(
-            new RefreshAnalyticsFeature('ws', who.userId, who.roleName, false),
+// Comparing coaches is for sport leads; a coach (a direction manager is one)
+// does not rank colleagues.
+describe('GetCoachAnalyticsHandler', () => {
+    const run = (p: ReturnType<typeof setup>, who: Who) =>
+        new GetCoachAnalyticsHandler(p.prisma as never, p.rbac).execute(
+            new GetCoachAnalyticsFeature({}, 'ws', who.userId, who.roleName, false),
         )
 
-    it('refuses a coach', async () => {
-        const snapshots = { refresh: jest.fn() }
-        await expect(run(setup(), COACH, snapshots)).rejects.toBeInstanceOf(ForbiddenError)
-        expect(snapshots.refresh).not.toHaveBeenCalled()
+    it.each([
+        ['a coach', COACH],
+        ['a plain member', MEMBER],
+    ])('refuses %s before reading anything', async (_, who) => {
+        await expect(run(setup(), who)).rejects.toBeInstanceOf(ForbiddenError)
+        expect(loadCoachReport).not.toHaveBeenCalled()
     })
 
-    it('rebuilds the club snapshots for an admin and the owner', async () => {
-        for (const who of [ADMIN, { roleName: null, userId: 'owner' }] as Who[]) {
-            const snapshots = { refresh: jest.fn() }
-            await expect(run(setup(), who, snapshots)).resolves.toEqual({
-                historyComputedAt: AT.toISOString(),
-                riskComputedAt: AT.toISOString(),
-            })
-            expect(snapshots.refresh).toHaveBeenCalledWith('ws')
-        }
-    })
-
-    it('reports nothing computed when the run is missing', async () => {
-        const p = setup()
-        p.prisma.analyticsRun.findUnique.mockResolvedValue(null)
-        await expect(run(p, ADMIN)).resolves.toEqual({ historyComputedAt: null, riskComputedAt: null })
+    it.each([
+        ['the owner', OWNER],
+        ['an admin', ADMIN],
+        ['a head coach', HEAD_COACH],
+    ])('reads the whole club for %s', async (_, who) => {
+        ;(loadCoachReport as jest.Mock).mockResolvedValue({ computedAt: null, weeks: 12, coaches: [] })
+        await expect(run(setup(), who)).resolves.toEqual({ computedAt: null, weeks: 12, coaches: [] })
+        expect((loadCoachReport as jest.Mock).mock.calls[0][1].scope).toEqual(WHOLE)
     })
 })

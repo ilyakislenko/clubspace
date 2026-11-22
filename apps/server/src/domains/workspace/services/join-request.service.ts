@@ -7,7 +7,7 @@ import {
     SendNotificationFeatureResponse,
 } from '../../../features/send-notification/send-notification.feature'
 import { NotificationTypeEnum, PrismaService } from '../../../infrastructure/prisma'
-import { WORKSPACE_ADMINS } from '../../../shared/decorators/roles.decorator'
+import { SPORT_LEADS } from '../../../shared/decorators/roles.decorator'
 import { NotFoundError } from '../../../shared/errors/shared.errors'
 import { RolesEnum } from '../../../shared/interfaces/shared.intefaces'
 import { escapeHtml } from '../../../shared/utils/escape-html'
@@ -261,7 +261,7 @@ export class JoinRequestService {
                           where: {
                               workspaceId: ws.id,
                               status: 'ACTIVE',
-                              role: { name: { in: WORKSPACE_ADMINS } },
+                              role: { name: { in: SPORT_LEADS } },
                           },
                           select: { userId: true },
                       })

@@ -27,7 +27,8 @@ export type McpTool = {
     // Russian: what the tool answers, when to call it, what the fields mean.
     description: string
     input: z.ZodObject
-    // Money and receivables: admin scope only, like the dashboard's revenue.
+    // Money and receivables: club admins only (owner, admin), like the
+    // dashboard's revenue — a head coach's chat does not list them.
     adminOnly?: boolean
     // 'action' tools change data and go through confirmation (mcp-actions.ts).
     kind?: 'read' | 'action'
@@ -50,7 +51,7 @@ export const defineTool = <S extends z.ZodObject>(tool: {
 export class McpToolError extends Error {}
 
 export const ADMIN_ONLY_TOOL_MESSAGE =
-    'Финансовые данные доступны только токену администратора клуба'
+    'Финансовые данные доступны только владельцу и администраторам клуба'
 
 export const MAX_PAGE_SIZE = 50
 export const DEFAULT_PAGE_SIZE = 20

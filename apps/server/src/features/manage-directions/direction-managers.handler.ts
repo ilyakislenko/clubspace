@@ -2,7 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     NotFoundError,
@@ -37,7 +37,7 @@ export class ListDirectionManagersHandler
     ) {}
 
     async execute(f: ListDirectionManagersFeature) {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,
@@ -73,7 +73,7 @@ export class AssignDirectionManagerHandler
     ) {}
 
     async execute(f: AssignDirectionManagerFeature) {
-        const ctx = await assertWorkspaceAdmin(
+        const ctx = await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,
@@ -160,7 +160,7 @@ export class RemoveDirectionManagerHandler
     ) {}
 
     async execute(f: RemoveDirectionManagerFeature) {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,

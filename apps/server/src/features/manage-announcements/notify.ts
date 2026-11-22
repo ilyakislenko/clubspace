@@ -1,21 +1,25 @@
 import { memberOfDirectionWhere } from '../../domains/directions/direction-scope'
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
-import { Prisma } from '../../infrastructure/prisma'
+import { renewalDueUserIds } from '../../domains/subscriptions/renewal-rules'
+import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { STAFF_ROLES } from '../../shared/decorators/roles.decorator'
-import { expiringSegmentWhere } from './renewal-segment'
 import type { AnnouncementOutput } from './schemas'
 
 // Who an announcement's push reaches beyond "active member of the club": a
 // direction one only that direction's members, a group one only the students
 // and coaches of its groups (a child's notice goes on to its guardians) — plus
-// the staff, who see every announcement; an EXPIRING one only members due for
-// renewal — AND-ed.
-export const announcementMemberWhere = (a: {
-    audience: 'ALL' | 'EXPIRING'
-    directionId: string | null
-    groups: Array<{ groupId: string | null }>
-}): Prisma.WorkspaceMemberWhereInput | undefined => {
+// the staff, who see every announcement; an EXPIRING one («Только на
+// продление») only `renewalDue`, the members listed in «Удержание → Продлить»
+// (renewal-rules) — AND-ed.
+export const announcementMemberWhere = (
+    a: {
+        audience: 'ALL' | 'EXPIRING'
+        directionId: string | null
+        groups: Array<{ groupId: string | null }>
+    },
+    renewalDue: readonly string[] = [],
+): Prisma.WorkspaceMemberWhereInput | undefined => {
     const clauses: Prisma.WorkspaceMemberWhereInput[] = []
     const staff = { role: { name: { in: [...STAFF_ROLES] } } }
     if (a.directionId) {
@@ -40,7 +44,9 @@ export const announcementMemberWhere = (a: {
             ],
         })
     }
-    if (a.audience === 'EXPIRING') clauses.push(expiringSegmentWhere())
+    if (a.audience === 'EXPIRING') {
+        clauses.push({ userId: { in: [...renewalDue] } })
+    }
     if (clauses.length === 0) return undefined
     return clauses.length === 1 ? clauses[0] : { AND: clauses }
 }
@@ -49,6 +55,7 @@ export const announcementMemberWhere = (a: {
 // (once per announcement, author excluded), narrowed by announcementMemberWhere.
 // The live feed update is handled separately by the caller (see the handlers).
 export const announceToWorkspace = async (
+    prisma: Pick<PrismaService, 'workspace' | 'workspaceMember'>,
     notifications: NotificationProducerService,
     a: {
         id: string
@@ -61,7 +68,11 @@ export const announceToWorkspace = async (
         groups: Array<{ groupId: string | null }>
     },
 ): Promise<void> => {
-    const memberWhere = announcementMemberWhere(a)
+    const renewalDue =
+        a.audience === 'EXPIRING'
+            ? await renewalDueUserIds(prisma, a.workspaceId, new Date())
+            : []
+    const memberWhere = announcementMemberWhere(a, renewalDue)
     await notifications.notifyWorkspace({
         workspaceId: a.workspaceId,
         kind: 'announcement.published',

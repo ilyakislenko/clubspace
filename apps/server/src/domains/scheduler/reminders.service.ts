@@ -146,7 +146,7 @@ export class RemindersService {
         for (const a of candidates) {
             if (alreadySent.has(a.id)) continue
             // The claim inside announceToWorkspace fences the next run.
-            await announceToWorkspace(this.notifications, a)
+            await announceToWorkspace(this.prisma, this.notifications, a)
             showInOpenFeeds(
                 this.realtime,
                 a.workspaceId,

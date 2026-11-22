@@ -1,5 +1,4 @@
 import { aiTokenState } from '../../domains/ai-assistant/ai-token'
-import type { AiAccess } from '../../domains/ai-assistant/ai-access'
 import { displayName } from '../attendance/schemas'
 import type { AiTokenOutput } from './ai-tokens.feature'
 
@@ -28,17 +27,7 @@ export type AiTokenRow = {
     }
 }
 
-// Admin scope revokes any token of the club; anyone else only their own.
-export const canRevokeAiToken = (
-    access: Pick<AiAccess, 'directionIds' | 'userId'>,
-    row: Pick<AiTokenRow, 'createdById'>,
-): boolean => access.directionIds === null || row.createdById === access.userId
-
-export const serializeAiToken = (
-    row: AiTokenRow,
-    access: Pick<AiAccess, 'directionIds' | 'userId'>,
-    now: Date,
-): AiTokenOutput => ({
+export const serializeAiToken = (row: AiTokenRow, now: Date): AiTokenOutput => ({
     id: row.id,
     name: row.name,
     tokenPrefix: row.tokenPrefix,
@@ -53,5 +42,4 @@ export const serializeAiToken = (
     revokedAt: row.revokedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     createdBy: { id: row.createdBy.id, name: displayName(row.createdBy) },
-    canRevoke: canRevokeAiToken(access, row),
 })

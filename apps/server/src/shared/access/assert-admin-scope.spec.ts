@@ -1,40 +1,66 @@
 import { ForbiddenError } from '../errors/shared.errors'
-import { assertWorkspaceAdmin } from './assert-admin-scope'
+import { RbacService } from '../services/rbac.service'
+import { assertClubAdmin, assertSportLead } from './assert-admin-scope'
 
-const params = {
-    userId: 'u1',
-    workspaceId: 'w1',
-    roleName: 'admin',
-    isSuperAdmin: false,
-}
+// A real RbacService over a one-club fake: the tiers are decided by role name,
+// ownership and the super-admin flag, not by a mocked scope.
+const rbac = () =>
+    new RbacService({
+        workspace: {
+            findUnique: jest
+                .fn()
+                .mockResolvedValue({ ownerId: 'owner', coachSeesAllGroups: true }),
+        },
+    } as never)
 
-const rbacWith = (canWrite: boolean, ctx: unknown = { scope: 'admin' }) => ({
-    resolveCoachScope: jest.fn().mockResolvedValue(ctx),
-    canWriteAllGroups: jest.fn().mockReturnValue(canWrite),
-})
+const caller = (
+    userId: string,
+    roleName: string | null,
+    isSuperAdmin = false,
+) => ({ userId, workspaceId: 'w1', roleName, isSuperAdmin })
 
-describe('assertWorkspaceAdmin', () => {
-    it('resolves scope from the given params and returns the context', async () => {
-        const ctx = { scope: 'admin', workspaceOwnerId: 'owner' }
-        const rbac = rbacWith(true, ctx)
-
-        const out = await assertWorkspaceAdmin(rbac as never, params)
-
-        expect(rbac.resolveCoachScope).toHaveBeenCalledWith(params)
-        expect(out).toBe(ctx)
+describe('assertClubAdmin', () => {
+    it.each([
+        ['the owner (resolved to admin)', caller('owner', 'admin')],
+        ['the owner with a lower member row', caller('owner', 'head_coach')],
+        ['an admin', caller('u1', 'admin')],
+        ['the platform super admin', caller('su', null, true)],
+    ])('passes %s and returns the context', async (_, params) => {
+        const ctx = await assertClubAdmin(rbac(), params)
+        expect(ctx).toMatchObject({ userId: params.userId, workspaceOwnerId: 'owner' })
     })
 
-    it('throws Forbidden when the caller cannot write all groups', async () => {
-        const rbac = rbacWith(false)
-        await expect(
-            assertWorkspaceAdmin(rbac as never, params),
-        ).rejects.toBeInstanceOf(ForbiddenError)
+    it.each([
+        ['a head coach', 'head_coach'],
+        ['a coach', 'coach'],
+    ])('refuses %s', async (_, role) => {
+        await expect(assertClubAdmin(rbac(), caller('u1', role))).rejects.toBeInstanceOf(
+            ForbiddenError,
+        )
     })
 
     it('uses the caller-supplied message on rejection', async () => {
-        const rbac = rbacWith(false)
         await expect(
-            assertWorkspaceAdmin(rbac as never, params, 'Only owners'),
-        ).rejects.toThrow('Only owners')
+            assertClubAdmin(rbac(), caller('u1', 'head_coach'), 'Только администратор'),
+        ).rejects.toThrow('Только администратор')
+    })
+})
+
+describe('assertSportLead', () => {
+    it.each([
+        ['the owner', caller('owner', 'admin')],
+        ['an admin', caller('u1', 'admin')],
+        ['a head coach', caller('u1', 'head_coach')],
+        ['the platform super admin', caller('su', null, true)],
+    ])('passes %s', async (_, params) => {
+        await expect(assertSportLead(rbac(), params)).resolves.toMatchObject({
+            scope: 'admin',
+        })
+    })
+
+    it('refuses a coach with the caller-supplied message', async () => {
+        await expect(
+            assertSportLead(rbac(), caller('u1', 'coach'), 'Только руководство'),
+        ).rejects.toThrow('Только руководство')
     })
 })

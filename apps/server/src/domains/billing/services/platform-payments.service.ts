@@ -294,7 +294,7 @@ export class PlatformPaymentsService {
     }): Promise<{ payment: PlatformPaymentRow; confirmationUrl: string }> {
         const now = p.now ?? new Date()
         if (!this.billing.enabled) {
-            throw new BadRequestError({ message: 'На этой установке тариф не оплачивается' })
+            throw new BadRequestError({ message: 'На этой установке подписка ClubSpace не оплачивается' })
         }
         const row = await this.billing.getBilling(p.workspaceId)
         if (!this.billing.cardTrialEnabled(row)) {
@@ -304,7 +304,7 @@ export class PlatformPaymentsService {
         }
         if (row.status !== 'TRIAL' || !row.trialEndsAt || row.trialEndsAt <= now) {
             throw new BadRequestError({
-                message: 'Пробный период закончился — оплатите тариф на этой странице',
+                message: 'Пробный период закончился — оплатите подписку на этой странице',
             })
         }
         if (row.paymentMethodId) {
@@ -696,7 +696,7 @@ export class PlatformPaymentsService {
             const retry = nextAttemptAt
                 ? `Повторим ${DATE.format(nextAttemptAt)}.`
                 : 'Автосписание по этой карте больше невозможно.'
-            const text = `Не прошло автосписание ${RUB.format(payment.amount)} ₽ за подписку клуба «${club.name}»: ${declineReasonRu(reason)}. ${retry} Проверьте карту или оплатите на странице «Тариф».`
+            const text = `Не прошло автосписание ${RUB.format(payment.amount)} ₽ за подписку клуба «${club.name}»: ${declineReasonRu(reason)}. ${retry} Проверьте карту или оплатите на странице «Подписка ClubSpace».`
             await this.producer.notifyUser({
                 userId: club.ownerId,
                 kind: 'platformBilling.chargeFailed',
@@ -713,7 +713,7 @@ export class PlatformPaymentsService {
                     identity: club.ownerEmail,
                     topic,
                     message: `<p>${escapeHtml(text)}</p>${
-                        link ? `<p><a href="${escapeHtml(link)}">Открыть «Тариф»</a></p>` : ''
+                        link ? `<p><a href="${escapeHtml(link)}">Открыть «Подписка ClubSpace»</a></p>` : ''
                     }`,
                     metadata: {
                         kind: 'platformBilling.chargeFailed',

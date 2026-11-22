@@ -12,7 +12,7 @@ import {
   type WorkspaceLegal,
 } from "../../shared/api/billing"
 import { errorMessage } from "../../shared/lib/error-message"
-import { isWorkspaceAdmin } from "../../shared/lib/permissions"
+import { isClubAdmin } from "../../shared/lib/permissions"
 import { useMyMembership } from "../../shared/lib/use-my-membership"
 import { BANNER_TONE_CLASS, billingBanner, isConflictError, legalBanner } from "./billing-view"
 import { LegalDocLink } from "./LegalDocLink"
@@ -27,7 +27,7 @@ export const LEGAL_ACCEPTED_EVENT = "clubspace:legal-accepted"
 // install. Below it, for the club owner only, a non-blocking line asking to
 // accept the current offer / DPA editions.
 export function BillingBanner({ workspaceId }: { workspaceId: string }) {
-  const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
+  const canAdmin = isClubAdmin(useMyMembership(workspaceId))
   const [billing, setBilling] = useState<WorkspaceBilling | null>(null)
   const [legal, setLegal] = useState<WorkspaceLegal | null>(null)
   const [attempt, setAttempt] = useState(0)
@@ -68,7 +68,7 @@ export function BillingBanner({ workspaceId }: { workspaceId: string }) {
             href={`/workspace/${workspaceId}/billing`}
             className="font-medium underline underline-offset-4"
           >
-            Тариф
+            Подписка ClubSpace
           </Link>
         </div>
       )}

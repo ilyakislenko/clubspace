@@ -5,6 +5,10 @@ import type { ClubVocabulary } from "@clubspace/ui-kit/brand"
 // Boolean on the workspace settings; the mobile app hides the matching block
 // when it's off. Shown on the club's settings page and in the platform console,
 // named in the club's words like the app's own menu.
+// `core`: a section every club starts with. Switching it off changes how the
+// club works, not only the menu (no abonement = bookings and guest visits need
+// none, the launch checklist drops tariffs and payments), so the club's
+// settings keep these under «Дополнительно».
 export type AppSectionFeature = ApiTypes.SetPlatformWorkspaceFeatureInputDto["feature"]
 
 export const appSections = (
@@ -13,6 +17,7 @@ export const appSections = (
   feature: AppSectionFeature
   label: string
   description: string
+  core?: true
 }> => [
   {
     feature: "announcements",
@@ -33,16 +38,19 @@ export const appSections = (
     feature: "attendance",
     label: "Посещаемость",
     description: "История посещений ученика.",
+    core: true,
   },
   {
     feature: "subscription",
     label: "Абонемент",
     description: "Остаток занятий и статус абонемента.",
+    core: true,
   },
   {
     feature: "schedule",
     label: "Расписание",
     description: `Расписание ${v.session.genPl} клуба.`,
+    core: true,
   },
   {
     feature: "groups",

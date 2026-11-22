@@ -4,6 +4,8 @@ import { getApiClient } from "./client"
 
 export type ClubAbout = ApiTypes.ClubAboutOutputDtoOutput
 export type ClubAboutInput = ApiTypes.UpdateClubAboutInput
+// The saved «О клубе» plus the club row's new version (`clubUpdatedAt`).
+export type ClubAboutSaved = ApiTypes.UpdateClubAboutOutputDtoOutput
 
 export const getClubAbout = async (params: {
   workspaceId: string
@@ -17,8 +19,8 @@ export const getClubAbout = async (params: {
 export const updateClubAbout = async (params: {
   workspaceId: string
   data: ClubAboutInput
-}): Promise<ClubAbout> => {
-  return await getApiClient().request<ClubAbout, ClubAboutInput>({
+}): Promise<ClubAboutSaved> => {
+  return await getApiClient().request<ClubAboutSaved, ClubAboutInput>({
     method: "put",
     url: `/workspaces/${params.workspaceId}/about`,
     data: params.data,

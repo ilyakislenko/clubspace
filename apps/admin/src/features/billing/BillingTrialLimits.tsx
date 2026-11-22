@@ -18,7 +18,7 @@ export function BillingTrialLimits({ billing }: { billing: WorkspaceBilling }) {
         />
       ))}
       <p className="text-xs text-muted-foreground">
-        Оплатите тариф, чтобы снять ограничение.
+        Оплатите подписку ClubSpace, чтобы снять ограничение.
       </p>
     </section>
   )

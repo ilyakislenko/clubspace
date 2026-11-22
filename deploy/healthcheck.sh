@@ -10,6 +10,9 @@
 #                container itself alive? — tells a proxy/DNS problem from a dead app)
 #   api-readyz   /readyz is 200: database, Redis, SMTP (sign-in codes!) usable
 #   containers   every service of the stack is running and not unhealthy
+#   api-origin   the admin/client Content-Security-Policy allows the server's
+#                ROOT_URL — else video preview is blocked in the browser (e.g. a
+#                web image built for another DOMAIN; lib/common.sh check_api_origin)
 #   disk         /, Docker's data dir and BACKUP_DIR below ALERT_DISK_PERCENT (85)
 #   backup-s3    last good backup-s3.sh younger than ALERT_BACKUP_MAX_AGE_HOURS (30)
 #   backup-local no LAST_FAILURE / LAST_MEDIA_FAILURE marker from db-backup/media-backup
@@ -196,9 +199,19 @@ check_certs() {
     fi
 }
 
+check_api_origin_matches() {
+    local mismatch
+    if mismatch="$(check_api_origin)"; then
+        record api-origin ok "ROOT_URL сервера разрешён в политике admin и client"
+    else
+        record api-origin fail "$mismatch"
+    fi
+}
+
 check_healthz
 check_readyz
 check_containers
+check_api_origin_matches
 check_disk
 check_backup_s3
 check_backup_local

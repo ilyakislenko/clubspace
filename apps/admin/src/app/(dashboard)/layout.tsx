@@ -2,6 +2,7 @@
 
 import { ConsentGate } from "../../features/consent/ConsentGate"
 import { useAuthProxy } from "../../shared/proxy"
+import { ConfirmDialogHost } from "../../shared/ui/confirm-dialog"
 
 export default function DashboardLayout({
   children,
@@ -20,5 +21,10 @@ export default function DashboardLayout({
 
   // Every dashboard route — clubs list, club panel, /platform — sits behind
   // the personal-data consent; nothing below mounts until it is accepted.
-  return <ConsentGate>{children}</ConsentGate>
+  return (
+    <>
+      <ConsentGate>{children}</ConsentGate>
+      <ConfirmDialogHost />
+    </>
+  )
 }

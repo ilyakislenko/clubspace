@@ -10,6 +10,7 @@ import {
     joinAnswer,
     monthBounds,
     OLD_TOOL_RESULT_CHARS,
+    suggestedQuestions,
     parseStoredMessages,
     parseStoredRefs,
     pseudonymizeQuestion,
@@ -26,6 +27,7 @@ const access = (directionIds: string[] | null): AiAccess => ({
     userId: 'u1',
     roleName: 'admin',
     isOwner: false,
+    isClubAdmin: directionIds === null,
     directionIds,
 })
 
@@ -59,6 +61,17 @@ describe('ai-chat utils', () => {
         expect(
             buildSystemPrompt(access(null), '2026-11-02', vocabularyForWorkspaceType('DANCE')),
         ).toContain('«педагог»')
+    })
+
+    // A head coach reads the whole club but no money: the prompt and the
+    // suggestions follow the club-admin tier, not the whole-club scope.
+    it('keeps money out of a head coach chat', () => {
+        const headCoach = { ...access(null), roleName: 'head_coach', isClubAdmin: false }
+        const prompt = buildSystemPrompt(headCoach, '2026-11-02', vocabularyForWorkspaceType('GRAPPLING'))
+        expect(prompt).toContain('весь клуб, кроме денег')
+        expect(prompt).not.toContain('включая выручку')
+        expect(suggestedQuestions(headCoach)).not.toContain('Выручка по направлениям за 3 месяца')
+        expect(suggestedQuestions(access(null))).toContain('Выручка по направлениям за 3 месяца')
     })
 
     it('titles a conversation by its first question', () => {

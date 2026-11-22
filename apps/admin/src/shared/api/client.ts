@@ -102,9 +102,9 @@ export const restoreSession = async (): Promise<boolean> => {
   return getHttp().refreshSession()
 }
 
-// Per-account caches (the membership behind the sidebar) register a reset
-// here, so the next account signed in on this tab never starts from the
-// previous one's role.
+// Per-account caches (read-cache.ts: the account, the club list, the
+// membership behind the sidebar) register a reset here, so the next account
+// signed in on this tab never starts from the previous one's data.
 const sessionResets = new Set<() => void>()
 
 export const onAuthSessionChange = (reset: () => void): void => {

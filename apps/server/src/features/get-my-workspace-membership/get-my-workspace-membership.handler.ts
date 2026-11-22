@@ -2,8 +2,9 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PrismaService } from '../../infrastructure/prisma'
 import {
+    CLUB_ADMINS,
     type RoleName,
-    WORKSPACE_ADMINS,
+    SPORT_LEADS,
 } from '../../shared/decorators/roles.decorator'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import {
@@ -44,7 +45,7 @@ export class GetMyWorkspaceMembershipHandler
 
         const role =
             isSuperAdmin &&
-            !WORKSPACE_ADMINS.includes(member.role.name as RoleName)
+            !CLUB_ADMINS.includes(member.role.name as RoleName)
                 ? 'admin'
                 : member.role.name
         const isOwner = member.workspace.ownerId === userId
@@ -71,7 +72,7 @@ export class GetMyWorkspaceMembershipHandler
             managedDirectionIds: managed.map((m) => m.directionId),
             marksAnyClass:
                 isOwner ||
-                WORKSPACE_ADMINS.includes(role as RoleName) ||
+                SPORT_LEADS.includes(role as RoleName) ||
                 (role === 'coach' && member.workspace.coachesMarkAnyClass),
         }
     }
@@ -80,7 +81,7 @@ export class GetMyWorkspaceMembershipHandler
     // rights, and both used to get a 404 here: the workspace **owner** (the
     // documented "owner has no member row" case) and a **platform super
     // admin**. Clients gate their admin controls on this endpoint
-    // (`isWorkspaceAdmin(useMyMembership(...))`), so a 404 rendered a read-only
+    // (`isClubAdmin` / `isSportLead` over `useMyMembership(...)`), so a 404 rendered a read-only
     // screen for people the server would happily let write.
     //
     // The synthetic row reports the access the server actually enforces —

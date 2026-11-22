@@ -145,7 +145,7 @@ export type AuditAction =
     | 'workspace.onboardingHelpRequest'
     | 'workspace.onboardingHelpUpdate'
     // The club owner accepted the current offer + DPA editions (sign-up,
-    // console, the «Тариф» page, the first card payment).
+    // console, the «Подписка ClubSpace» page, the first card payment).
     | 'workspace.legalAccept'
     // Families: a guardian acting for a dependent (any write), the guardian
     // side of a dependent's lifecycle, and a club adding a child.
@@ -225,9 +225,6 @@ export class AuditService {
         // Where a prefix is too coarse: the platform feed wants
         // workspace.create/update/transferOwner but not updateSettings.
         actions?: string[]
-        // Coach-scoped readers pass `extraOr` to narrow to their own students,
-        // groups and actions.
-        extraOr?: Array<Record<string, unknown>>
     }) {
         const perPage = Math.min(payload.perPage ?? 50, 200)
         const curPage = Math.max(payload.curPage ?? 1, 1)
@@ -241,9 +238,6 @@ export class AuditService {
             where.action = { in: payload.actions }
         } else if (payload.actionPrefix) {
             where.action = { startsWith: payload.actionPrefix }
-        }
-        if (payload.extraOr) {
-            where.OR = payload.extraOr
         }
 
         const [data, total] = await this.prisma.$transaction([
@@ -266,6 +260,7 @@ export class AuditService {
         const slotIds = new Set<string>()
         const exceptionIds = new Set<string>()
         const eventIds = new Set<string>()
+        const directionIds = new Set<string>()
 
         const UUID_RE =
             /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -359,10 +354,27 @@ export class AuditService {
                     courseIds.add(event.targetId)
                 else if (event.targetType === 'member')
                     userIds.add(event.targetId)
+                else if (event.targetType === 'gym') gymIds.add(event.targetId)
+                else if (event.targetType === 'group')
+                    groupIds.add(event.targetId)
+                else if (event.targetType === 'event')
+                    eventIds.add(event.targetId)
+                else if (event.targetType === 'direction')
+                    directionIds.add(event.targetId)
             }
             if (event.metadata) collectIds(event.metadata)
         }
 
+        // Names come only from the journal's own club (the platform journal,
+        // workspaceId null, may name any club's objects). Users are not
+        // scoped: the owner has no member row and removed members lose theirs,
+        // and both must still be named in the club's history.
+        const inClub =
+            payload.workspaceId !== null ? { workspaceId: payload.workspaceId } : {}
+        const inClubVia =
+            payload.workspaceId !== null
+                ? { group: { workspaceId: payload.workspaceId } }
+                : {}
         const [
             users,
             videos,
@@ -374,6 +386,7 @@ export class AuditService {
             events,
             roles,
             chapters,
+            directions,
         ] = await Promise.all([
             userIds.size > 0
                 ? this.prisma.user.findMany({
@@ -388,31 +401,31 @@ export class AuditService {
                 : [],
             videoIds.size > 0
                 ? this.prisma.video.findMany({
-                      where: { id: { in: Array.from(videoIds) } },
+                      where: { id: { in: Array.from(videoIds) }, ...inClub },
                       select: { id: true, title: true },
                   })
                 : [],
             courseIds.size > 0
                 ? this.prisma.course.findMany({
-                      where: { id: { in: Array.from(courseIds) } },
+                      where: { id: { in: Array.from(courseIds) }, ...inClub },
                       select: { id: true, title: true },
                   })
                 : [],
             gymIds.size > 0
                 ? this.prisma.gym.findMany({
-                      where: { id: { in: Array.from(gymIds) } },
+                      where: { id: { in: Array.from(gymIds) }, ...inClub },
                       select: { id: true, name: true },
                   })
                 : [],
             groupIds.size > 0
                 ? this.prisma.group.findMany({
-                      where: { id: { in: Array.from(groupIds) } },
+                      where: { id: { in: Array.from(groupIds) }, ...inClub },
                       select: { id: true, name: true },
                   })
                 : [],
             slotIds.size > 0
                 ? this.prisma.groupScheduleSlot.findMany({
-                      where: { id: { in: Array.from(slotIds) } },
+                      where: { id: { in: Array.from(slotIds) }, ...inClubVia },
                       select: {
                           id: true,
                           dayOfWeek: true,
@@ -423,7 +436,7 @@ export class AuditService {
                 : [],
             exceptionIds.size > 0
                 ? this.prisma.scheduleException.findMany({
-                      where: { id: { in: Array.from(exceptionIds) } },
+                      where: { id: { in: Array.from(exceptionIds) }, ...inClubVia },
                       select: {
                           id: true,
                           fromDate: true,
@@ -434,7 +447,7 @@ export class AuditService {
                 : [],
             eventIds.size > 0
                 ? this.prisma.workspaceEvent.findMany({
-                      where: { id: { in: Array.from(eventIds) } },
+                      where: { id: { in: Array.from(eventIds) }, ...inClub },
                       select: { id: true, title: true },
                   })
                 : [],
@@ -446,8 +459,19 @@ export class AuditService {
                 : [],
             chapterIds.size > 0
                 ? this.prisma.chapter.findMany({
-                      where: { id: { in: Array.from(chapterIds) } },
+                      where: {
+                          id: { in: Array.from(chapterIds) },
+                          ...(payload.workspaceId !== null
+                              ? { course: { workspaceId: payload.workspaceId } }
+                              : {}),
+                      },
                       select: { id: true, title: true },
+                  })
+                : [],
+            directionIds.size > 0
+                ? this.prisma.direction.findMany({
+                      where: { id: { in: Array.from(directionIds) }, ...inClub },
+                      select: { id: true, name: true },
                   })
                 : [],
         ])
@@ -472,6 +496,8 @@ export class AuditService {
             roles.find((x) => x.id === id)?.name ?? null
         const chapterLabel = (id: string): string | null =>
             chapters.find((x) => x.id === id)?.title ?? null
+        const directionLabel = (id: string): string | null =>
+            directions.find((x) => x.id === id)?.name ?? null
         const DOW = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
         const slotLabel = (id: string): string | null => {
             const s = slots.find((x) => x.id === id)
@@ -536,6 +562,8 @@ export class AuditService {
             if (event.targetType === 'gym') return gymLabel(event.targetId)
             if (event.targetType === 'group') return groupLabel(event.targetId)
             if (event.targetType === 'event') return eventLabel(event.targetId)
+            if (event.targetType === 'direction')
+                return directionLabel(event.targetId)
             return null
         }
 

@@ -13,6 +13,12 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./schemas": {
+      "@clubspace/source": "./src/openapi/schemas/schemas.gen.ts",
+      "types": "./dist/openapi/schemas/schemas.gen.d.ts",
+      "import": "./dist/openapi/schemas/schemas.gen.js",
+      "default": "./dist/openapi/schemas/schemas.gen.js"
     }
   },
   "dependencies": {
@@ -26,7 +32,7 @@
         "dependsOn": ["@clubspace/server:open-api:generate"],
         "options": {
           "cwd": "{workspaceRoot}",
-          "command": "openapi-ts -i open-api.json -p @hey-api/typescript -o libs/api-client/src/openapi"
+          "command": "openapi-ts -i open-api.json -p @hey-api/typescript -o libs/api-client/src/openapi && openapi-ts -f libs/api-client/openapi-ts.config.ts"
         }
       },
       "test": {

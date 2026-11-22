@@ -1,5 +1,7 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common'
+import { Controller, Get, HttpStatus, Param, Post, Query, Res, UseGuards } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import { FeaturesBus } from '@shelfjs/features'
+import type { Response } from 'express'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
 import {
@@ -7,9 +9,10 @@ import {
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
 import {
+    CLUB_ADMINS,
     Roles,
+    SPORT_LEADS,
     STAFF_ROLES,
-    WORKSPACE_ADMINS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -39,19 +42,11 @@ import {
     GetScheduleOccupancyOutputSchema,
 } from './get-schedule-occupancy.feature'
 import {
-    ListChurnRiskFeature,
-    ListChurnRiskFeatureResponse,
-    ListChurnRiskInputSchema,
-    ListChurnRiskOutputSchema,
-} from './list-churn-risk.feature'
-import {
     RefreshAnalyticsFeature,
     RefreshAnalyticsFeatureResponse,
     RefreshAnalyticsOutputSchema,
 } from './refresh-analytics.feature'
 
-class ListChurnRiskQuery extends createZodDto(ListChurnRiskInputSchema) {}
-class ListChurnRiskOutput extends createZodDto(ListChurnRiskOutputSchema) {}
 class GetCohortRetentionQuery extends createZodDto(GetCohortRetentionInputSchema) {}
 class GetCohortRetentionOutput extends createZodDto(GetCohortRetentionOutputSchema) {}
 class GetScheduleOccupancyQuery extends createZodDto(GetScheduleOccupancyInputSchema) {}
@@ -62,32 +57,17 @@ class GetRevenueForecastQuery extends createZodDto(GetRevenueForecastInputSchema
 class GetRevenueForecastOutput extends createZodDto(GetRevenueForecastOutputSchema) {}
 class RefreshAnalyticsOutput extends createZodDto(RefreshAnalyticsOutputSchema) {}
 
-// «Аналитика» (docs/design/2026-11-01-smart-analytics.md). Reads are staff-wide
-// and scoped in the handlers (analytics-scope.ts): admins the whole club,
-// coaches and direction managers their own groups.
+export const REFRESH_ANALYTICS_PER_MINUTE = 5
+
+// «Аналитика» (docs/design/2026-11-01-smart-analytics.md). Cohorts and
+// occupancy are staff-wide and scoped in the handlers (analytics-scope.ts):
+// sport leads the whole club, coaches and direction managers their own groups.
+// Comparing coaches is for sport leads; the revenue forecast for club admins.
+// «Кому позвонить» lives in at-risk-members.
 @Controller('workspaces/:workspaceId/analytics')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
 export class ClubAnalyticsController {
     constructor(private bus: FeaturesBus) {}
-
-    @Get('churn')
-    @Roles(STAFF_ROLES)
-    @ZodResponse({ type: ListChurnRiskOutput })
-    async listChurnRisk(
-        @Param('workspaceId') workspaceId: string,
-        @Query() query: ListChurnRiskQuery,
-        @CurrentUser() user: CurrentUserPayload,
-    ) {
-        return this.bus.execute<ListChurnRiskFeature, ListChurnRiskFeatureResponse>(
-            new ListChurnRiskFeature(
-                query,
-                workspaceId,
-                user.userId,
-                user.role?.name ?? null,
-                user.isSuperAdmin,
-            ),
-        )
-    }
 
     @Get('cohorts')
     @Roles(STAFF_ROLES)
@@ -128,7 +108,7 @@ export class ClubAnalyticsController {
     }
 
     @Get('coaches')
-    @Roles(STAFF_ROLES)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: GetCoachAnalyticsOutput })
     async getCoachAnalytics(
         @Param('workspaceId') workspaceId: string,
@@ -147,7 +127,7 @@ export class ClubAnalyticsController {
     }
 
     @Get('forecast')
-    @Roles(STAFF_ROLES)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: GetRevenueForecastOutput })
     async getRevenueForecast(
         @Param('workspaceId') workspaceId: string,
@@ -165,14 +145,22 @@ export class ClubAnalyticsController {
         )
     }
 
+    // 202 while a rebuild is queued, 200 when the snapshots are fresh and
+    // nothing was started. A few presses a minute per person: the work itself
+    // is single-flight per club (refresh-analytics.processor.ts).
     @Post('refresh')
-    @Roles(WORKSPACE_ADMINS)
-    @ZodResponse({ type: RefreshAnalyticsOutput })
+    @Roles(SPORT_LEADS)
+    @Throttle({ default: { ttl: 60_000, limit: REFRESH_ANALYTICS_PER_MINUTE } })
+    @ZodResponse({ status: HttpStatus.ACCEPTED, type: RefreshAnalyticsOutput })
     async refreshAnalytics(
         @Param('workspaceId') workspaceId: string,
         @CurrentUser() user: CurrentUserPayload,
+        @Res({ passthrough: true }) res: Response,
     ) {
-        return this.bus.execute<RefreshAnalyticsFeature, RefreshAnalyticsFeatureResponse>(
+        const result = await this.bus.execute<
+            RefreshAnalyticsFeature,
+            RefreshAnalyticsFeatureResponse
+        >(
             new RefreshAnalyticsFeature(
                 workspaceId,
                 user.userId,
@@ -180,5 +168,7 @@ export class ClubAnalyticsController {
                 user.isSuperAdmin,
             ),
         )
+        if (result.status === 'fresh') res.status(HttpStatus.OK)
+        return result
     }
 }

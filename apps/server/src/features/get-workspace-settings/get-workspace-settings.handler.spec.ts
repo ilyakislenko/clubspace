@@ -22,6 +22,7 @@ describe('getWorkspaceSettings', () => {
         }
         const { handler, findUnique } = build({
             ...row,
+            updatedAt: new Date('2026-11-14T10:00:00.000Z'),
             billing: null,
             moduleEntitlements: [],
             featureLocks: [],
@@ -33,6 +34,8 @@ describe('getWorkspaceSettings', () => {
         expect(findUnique.mock.calls[0][0].select.coachesMarkAnyClass).toBe(true)
         expect(out).toEqual({
             ...row,
+            // The version a settings edit sends back.
+            updatedAt: '2026-11-14T10:00:00.000Z',
             videoModuleEntitled: true,
             lockedFeatures: [],
         })
@@ -41,6 +44,7 @@ describe('getWorkspaceSettings', () => {
     it('reports videoModuleEntitled false when VIDEO is not on the bill', async () => {
         const { handler } = build({
             id: 'w1',
+            updatedAt: new Date('2026-11-14T10:00:00.000Z'),
             billing: { status: 'ACTIVE' },
             moduleEntitlements: [],
             featureLocks: [],
@@ -48,6 +52,7 @@ describe('getWorkspaceSettings', () => {
         const out = await handler.execute(new GetWorkspaceSettingsFeature('w1'))
         expect(out).toEqual({
             id: 'w1',
+            updatedAt: '2026-11-14T10:00:00.000Z',
             videoModuleEntitled: false,
             lockedFeatures: [],
         })
@@ -57,6 +62,7 @@ describe('getWorkspaceSettings', () => {
         const until = new Date(Date.now() + 86_400_000)
         const { handler, findUnique } = build({
             id: 'w1',
+            updatedAt: new Date('2026-11-14T10:00:00.000Z'),
             billing: null,
             moduleEntitlements: [],
             featureLocks: [

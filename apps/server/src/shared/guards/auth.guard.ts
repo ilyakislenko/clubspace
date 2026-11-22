@@ -19,7 +19,7 @@ import { RoleFeature } from '../decorators/role-feature.decorator'
 import {
     type RoleName,
     Roles,
-    WORKSPACE_ADMINS,
+    CLUB_ADMINS,
 } from '../decorators/roles.decorator'
 import { SKIP_CONSENT_CHECK } from '../decorators/skip-consent-check.decorator'
 import {
@@ -178,13 +178,13 @@ export class AuthGuard {
                 })
                 role = memberRole
                 // The member row's role wins, but an owner must never be
-                // weaker than a workspace admin: owners promoted from coach
-                // (or given a plain `user` row by an import) would otherwise
-                // be refused by RoleGuard on every admin route of their own
-                // club. Same resolution as the no-row path below.
+                // weaker than a club admin: owners promoted from coach or head
+                // coach (or given a plain `user` row by an import) would
+                // otherwise be refused by RoleGuard on the money and system
+                // routes of their own club. Same resolution as the no-row path below.
                 if (
                     memberRole.isWorkspaceOwner &&
-                    !WORKSPACE_ADMINS.includes(memberRole.name as RoleName)
+                    !CLUB_ADMINS.includes(memberRole.name as RoleName)
                 ) {
                     const ownerRole =
                         await this.rolesService.getRoleForWorkspaceOwner({

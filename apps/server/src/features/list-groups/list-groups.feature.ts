@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
-import { GroupRowSchema } from './schemas'
+import { GroupListRowSchema } from './schemas'
 
 export const ListGroupsFeatureOutputSchema = z.object({
-    data: z.array(GroupRowSchema),
+    data: z.array(GroupListRowSchema),
     total: z.number().int(),
 })
 

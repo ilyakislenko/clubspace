@@ -41,7 +41,7 @@ import {
   viewerRole,
 } from "../personal-training/personal-training-helpers"
 import { CallListCard } from "../retention/CallListCard"
-import { isStaffWorkspace } from "../retention/retention-helpers"
+import { callListSummaryKey, isStaffWorkspace } from "../retention/retention-helpers"
 import { accessStatus } from "../subscription/subscription-state"
 import {
   AccessBanner,
@@ -186,15 +186,15 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     ),
   )
 
-  // Staff only. The same key as the «Кому позвонить» screen, so each paints
-  // the other's data.
+  // Staff only: the «Кому позвонить» count, the same number as the admin list
+  // and the dashboard (only the summary is needed, so one row is fetched).
   const atRisk = useCachedResource(
     workspaceId && isStaffWorkspace(workspace)
-      ? `atrisk:${workspaceId}:mine`
+      ? callListSummaryKey(workspaceId)
       : null,
     useCallback(
       async () =>
-        await listAtRiskMembers({ workspaceId: workspaceId!, scope: "mine" }),
+        await listAtRiskMembers({ workspaceId: workspaceId!, perPage: 1 }),
       [workspaceId],
     ),
   )

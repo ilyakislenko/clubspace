@@ -21,12 +21,27 @@ import { UpdatePaymentSettingsHandler } from './update-payment-settings.handler'
 
 const KEY = 'unit-test-encryption-key'
 
-const rbac = (admin = true) => ({
-    resolveCoachScope: jest
-        .fn()
-        .mockResolvedValue({ scope: admin ? 'admin' : 'coach_own_only' }),
-    canWriteAllGroups: jest.fn().mockReturnValue(admin),
+const OWNER_ID = 'owner-1'
+
+// Resolves the scope the way RbacService does: a head coach (like an admin)
+// runs every group; only the caller's identity decides who is a club admin.
+const rbac = () => ({
+    resolveCoachScope: jest.fn(
+        async (p: { userId: string; workspaceId: string; roleName: string | null }) => ({
+            scope: p.roleName === 'coach' ? 'coach_own_only' : 'admin',
+            userId: p.userId,
+            workspaceId: p.workspaceId,
+            workspaceOwnerId: OWNER_ID,
+        }),
+    ),
+    canWriteAllGroups: jest.fn((ctx: { scope: string }) => ctx.scope === 'admin'),
 })
+
+type Caller = { userId: string; roleName: string }
+const ADMIN: Caller = { userId: 'admin-1', roleName: 'admin' }
+// The owner passes whatever their member row says.
+const OWNER: Caller = { userId: OWNER_ID, roleName: 'head_coach' }
+const HEAD_COACH: Caller = { userId: 'hc-1', roleName: 'head_coach' }
 
 const savedRow = (over: Record<string, unknown> = {}) => ({
     workspaceId: 'ws-1',
@@ -73,27 +88,79 @@ const modules = () => ({ assertEntitled: jest.fn().mockResolvedValue(undefined) 
 const update = (
     prisma: ReturnType<typeof prismaWith>,
     payload: ConstructorParameters<typeof UpdatePaymentSettingsFeature>[0],
-    admin = true,
+    caller: Caller = ADMIN,
     a = audit(),
 ) =>
     new UpdatePaymentSettingsHandler(
         prisma as never,
-        rbac(admin) as never,
+        rbac() as never,
         a as never,
         modules() as never,
     ).execute(
-        new UpdatePaymentSettingsFeature(payload, 'ws-1', 'admin-1', 'admin', false),
+        new UpdatePaymentSettingsFeature(payload, 'ws-1', caller.userId, caller.roleName, false),
     )
 
-describe('payment settings — read', () => {
-    it('refuses a coach', async () => {
+const read = (prisma: ReturnType<typeof prismaWith>, caller: Caller = ADMIN) =>
+    new GetPaymentSettingsHandler(prisma as never, rbac() as never, modules() as never).execute(
+        new GetPaymentSettingsFeature('ws-1', caller.userId, caller.roleName, false),
+    )
+
+const disconnect = (prisma: ReturnType<typeof prismaWith>, caller: Caller = ADMIN) =>
+    new DeletePaymentSettingsHandler(prisma as never, rbac() as never, audit() as never).execute(
+        new DeletePaymentSettingsFeature('ws-1', caller.userId, caller.roleName, false),
+    )
+
+const check = (
+    prisma: ReturnType<typeof prismaWith>,
+    gateway: { checkConnection: jest.Mock },
+    caller: Caller = ADMIN,
+) =>
+    new CheckPaymentConnectionHandler(
+        prisma as never,
+        rbac() as never,
+        gateway as never,
+        modules() as never,
+    ).execute(new CheckPaymentConnectionFeature('ws-1', caller.userId, caller.roleName, false))
+
+describe('payment settings — access (club admins only)', () => {
+    it('refuses a head coach on every endpoint, even one who runs every group', async () => {
+        const prisma = prismaWith(savedRow())
+        const gateway = { checkConnection: jest.fn() }
+        for (const call of [
+            () => read(prisma, HEAD_COACH),
+            () => update(prisma, { provider: 'YOOKASSA', vatCode: 4 }, HEAD_COACH),
+            () => disconnect(prisma, HEAD_COACH),
+            () => check(prisma, gateway, HEAD_COACH),
+        ]) {
+            await expect(call()).rejects.toMatchObject({ statusCode: 403 })
+        }
+        expect(prisma.workspacePaymentSettings.update).not.toHaveBeenCalled()
+        expect(prisma.workspacePaymentSettings.deleteMany).not.toHaveBeenCalled()
+        expect(gateway.checkConnection).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ['an admin', ADMIN],
+        ['the owner', OWNER],
+    ])('lets %s read, change, check and disconnect the keys', async (_, caller) => {
+        const prisma = prismaWith(savedRow())
+        const gateway = {
+            checkConnection: jest.fn().mockResolvedValue({ accountId: '123456', testMode: false }),
+        }
+        await expect(read(prisma, caller)).resolves.toMatchObject({ connected: true })
         await expect(
-            new GetPaymentSettingsHandler(
-                prismaWith(null) as never,
-                rbac(false) as never,
-                modules() as never,
-            ).execute(new GetPaymentSettingsFeature('ws-1', 'c-1', 'coach', false)),
-        ).rejects.toMatchObject({ statusCode: 403 })
+            update(prisma, { provider: 'YOOKASSA', vatCode: 4 }, caller),
+        ).resolves.toMatchObject({ vatCode: 4 })
+        await expect(check(prisma, gateway, caller)).resolves.toMatchObject({ ok: true })
+        await expect(disconnect(prisma, caller)).resolves.toMatchObject({ connected: false })
+    })
+})
+
+describe('payment settings — read', () => {
+    it('refuses a head coach', async () => {
+        await expect(read(prismaWith(null), HEAD_COACH)).rejects.toMatchObject({
+            statusCode: 403,
+        })
     })
 
     it('refuses a club without the ONLINE_PAYMENTS module', async () => {
@@ -144,10 +211,14 @@ describe('payment settings — read', () => {
 })
 
 describe('payment settings — update', () => {
-    it('refuses a coach', async () => {
+    it('refuses a head coach', async () => {
         const prisma = prismaWith(null)
         await expect(
-            update(prisma, { provider: 'YOOKASSA', shopId: '1', secretKey: 'live_x12345678' }, false),
+            update(
+                prisma,
+                { provider: 'YOOKASSA', shopId: '1', secretKey: 'live_x12345678' },
+                HEAD_COACH,
+            ),
         ).rejects.toMatchObject({ statusCode: 403 })
         expect(prisma.workspacePaymentSettings.create).not.toHaveBeenCalled()
     })
@@ -158,7 +229,7 @@ describe('payment settings — update', () => {
         const out = await update(
             prisma,
             { provider: 'YOOKASSA', shopId: '123456', secretKey: 'live_newsecret9876', vatCode: 11 },
-            true,
+            ADMIN,
             a,
         )
         const data = prisma.workspacePaymentSettings.create.mock.calls[0][0].data
@@ -230,14 +301,10 @@ describe('payment settings — update', () => {
 })
 
 describe('payment settings — disconnect', () => {
-    it('refuses a coach', async () => {
-        await expect(
-            new DeletePaymentSettingsHandler(
-                prismaWith(savedRow()) as never,
-                rbac(false) as never,
-                audit() as never,
-            ).execute(new DeletePaymentSettingsFeature('ws-1', 'c-1', 'coach', false)),
-        ).rejects.toMatchObject({ statusCode: 403 })
+    it('refuses a head coach', async () => {
+        await expect(disconnect(prismaWith(savedRow()), HEAD_COACH)).rejects.toMatchObject({
+            statusCode: 403,
+        })
     })
 
     it('answers 404 when nothing is connected', async () => {
@@ -263,21 +330,9 @@ describe('payment settings — disconnect', () => {
 })
 
 describe('payment settings — connection check', () => {
-    const check = (
-        prisma: ReturnType<typeof prismaWith>,
-        gateway: { checkConnection: jest.Mock },
-        admin = true,
-    ) =>
-        new CheckPaymentConnectionHandler(
-            prisma as never,
-            rbac(admin) as never,
-            gateway as never,
-            modules() as never,
-        ).execute(new CheckPaymentConnectionFeature('ws-1', 'a-1', 'admin', false))
-
-    it('refuses a coach and 404s without settings', async () => {
+    it('refuses a head coach and 404s without settings', async () => {
         const gateway = { checkConnection: jest.fn() }
-        await expect(check(prismaWith(savedRow()), gateway, false)).rejects.toMatchObject({
+        await expect(check(prismaWith(savedRow()), gateway, HEAD_COACH)).rejects.toMatchObject({
             statusCode: 403,
         })
         await expect(check(prismaWith(null), gateway)).rejects.toMatchObject({

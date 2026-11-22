@@ -1,6 +1,10 @@
 import { ForbiddenError, NotFoundError } from '../../shared/errors/shared.errors'
 import { ownGroupsWhere } from '../../shared/services/rbac.service'
-import { GetRankReadinessFeature } from './get-rank-readiness.feature'
+import {
+    GetRankReadinessFeature,
+    GetRankReadinessInputSchema,
+    READINESS_MAX_PER_PAGE,
+} from './get-rank-readiness.feature'
 import { GetRankReadinessHandler } from './get-rank-readiness.handler'
 
 const OWNER = 'owner1'
@@ -104,7 +108,15 @@ describe('getRankReadiness', () => {
 
     it('returns an empty payload when the club has no ladders', async () => {
         const out = await make({ ladders: [] }).run()
-        expect(out).toEqual({ ladders: [], ladderId: null, data: [] })
+        expect(out).toEqual({
+            ladders: [],
+            ladderId: null,
+            data: [],
+            total: 0,
+            curPage: 1,
+            perPage: 50,
+            summary: { all: 0, ready: 0, readyUnlisted: 0 },
+        })
     })
 
     it('404s an unknown group', async () => {
@@ -216,5 +228,65 @@ describe('getRankReadiness', () => {
         })
         const out = await run()
         expect(out.data.map((e) => e.userId)).toEqual(['c', 'b', 'a'])
+    })
+
+    describe('pages', () => {
+        // r1–r4 have met the rule (r1, r2 already on a grading list), s1–s3
+        // are still short of visits.
+        const ladder = () =>
+            make({
+                members: ['s1', 'r1', 's2', 'r2', 'r3', 's3', 'r4'],
+                promotions: ['s1', 'r1', 's2', 'r2', 'r3', 's3', 'r4'].map((id) =>
+                    promo(id, 'white', 10),
+                ),
+                visits: { r1: 5, r2: 5, r3: 5, r4: 5, s1: 1, s2: 2, s3: 0 },
+                pending: ['r1', 'r2'].map((userId) => ({
+                    userId,
+                    grading: { id: 'gr1', date: new Date('2026-12-01T00:00:00Z') },
+                })),
+            })
+
+        it('pages the ready, unlisted first, with totals that ignore the page', async () => {
+            const { run } = ladder()
+            const first = await run({ readyOnly: true, perPage: 3 })
+            expect(first.data.map((e) => e.userId)).toEqual(['r3', 'r4', 'r1'])
+            const second = await run({ readyOnly: true, perPage: 3, curPage: 2 })
+            expect(second.data.map((e) => e.userId)).toEqual(['r2'])
+            for (const page of [first, second]) {
+                expect(page.total).toBe(4)
+                expect(page.summary).toEqual({ all: 7, ready: 4, readyUnlisted: 2 })
+            }
+        })
+
+        it('pages everyone measured, the ready first, then the closest to their rule', async () => {
+            const { run } = ladder()
+            const out = await run({ perPage: 5, curPage: 2 })
+            expect(out.data.map((e) => e.userId)).toEqual(['s1', 's3'])
+            expect(out).toMatchObject({ total: 7, curPage: 2, perPage: 5 })
+            expect(out.summary).toEqual({ all: 7, ready: 4, readyUnlisted: 2 })
+        })
+
+        it('caps an unpaged call at 50 rows while the counts stay whole', async () => {
+            const ids = Array.from({ length: 60 }, (_, i) => `m${String(i).padStart(2, '0')}`)
+            const { run } = make({
+                members: ids,
+                promotions: ids.map((id) => promo(id, 'white', 10)),
+                visits: Object.fromEntries(ids.map((id) => [id, 4])),
+            })
+            const out = await run()
+            expect(out.data).toHaveLength(50)
+            expect(out.total).toBe(60)
+            expect(out.summary).toEqual({ all: 60, ready: 60, readyUnlisted: 60 })
+        })
+
+        it('refuses a page larger than the maximum', () => {
+            expect(
+                GetRankReadinessInputSchema.safeParse({ perPage: String(READINESS_MAX_PER_PAGE + 1) })
+                    .success,
+            ).toBe(false)
+            expect(
+                GetRankReadinessInputSchema.parse({ perPage: '20', curPage: '2', readyOnly: 'false' }),
+            ).toEqual({ perPage: 20, curPage: 2, readyOnly: false })
+        })
     })
 })

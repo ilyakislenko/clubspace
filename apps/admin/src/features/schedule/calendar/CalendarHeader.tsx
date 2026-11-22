@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Columns3,
   Grid2x2,
-  Grid3x3,
   Layers,
   List,
   Settings2,
@@ -49,7 +48,6 @@ const VIEW_OPTIONS: Array<{ view: CalendarView; label: string; icon: typeof List
   { view: "day", label: "День", icon: CalendarDays },
   { view: "week", label: "Неделя", icon: Columns3 },
   { view: "month", label: "Месяц", icon: Grid2x2 },
-  { view: "year", label: "Год", icon: Grid3x3 },
   { view: "agenda", label: "Список", icon: List },
 ]
 
@@ -110,7 +108,7 @@ export function CalendarHeader(props: Props) {
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
               <span className="text-lg font-semibold">
-                {view === "year" ? anchor.slice(0, 4) : monthTitle(anchor)}
+                {monthTitle(anchor)}
               </span>
               <span className="rounded-md border border-border px-1.5 py-0.5 text-xs text-muted-foreground">
                 {props.classCount} {countForm(props.classCount, vocabulary.session, pluralRu)}

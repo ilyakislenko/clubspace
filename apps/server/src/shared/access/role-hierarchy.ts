@@ -1,19 +1,20 @@
 import { PrismaService } from '../../infrastructure/prisma'
-import { type RoleName } from '../decorators/roles.decorator'
+import { type RoleName, STAFF_ROLES } from '../decorators/roles.decorator'
 import { ForbiddenError } from '../errors/shared.errors'
 import { CoachContext } from '../services/rbac.service'
 import { type ClubVocabulary, loadClubVocabulary } from '../utils/club-vocabulary'
+import { isClubAdmin } from './assert-admin-scope'
 
-// Roles with club-wide admin power. Both sit in WORKSPACE_ADMINS, but they are
-// not peers: only the top of the club — the owner, an admin, the platform
-// super admin — may grant them, take them away, or act on a member who holds
-// one. A head_coach manages coaches and students only; otherwise a head coach
-// could promote a friend to admin, or two head coaches could demote the admins.
-export const PRIVILEGED_ROLE_NAMES: RoleName[] = ['admin', 'head_coach']
-
-// Call after assertWorkspaceAdmin, with every role the action touches: the
-// target's current role and, for a role change, the new one. The refusal
-// names the head coach in the club's words, read only when refusing.
+// A sport lead (head coach) runs the roster of students and parents. Staff are
+// not theirs to hand out, take away or act on: inviting someone as a coach,
+// removing a coach, cutting off an admin's access — anything touching a staff
+// role — belongs to the club admins (owner, admin, platform super admin).
+// Otherwise a head coach could promote a friend to admin, or two head coaches
+// could demote the admins.
+//
+// Call after assertSportLead, with every role the action touches: the target's
+// current role and, for a role change or an invitation, the new one. The
+// refusal is built in the club's words, read only when refusing.
 export const assertCanManageRoles = async (
     prisma: PrismaService,
     ctx: CoachContext,
@@ -21,16 +22,10 @@ export const assertCanManageRoles = async (
     touchedRoleNames: Array<string | null | undefined>,
     message: (vocabulary: ClubVocabulary) => string,
 ): Promise<void> => {
-    if (
-        caller.isSuperAdmin ||
-        ctx.workspaceOwnerId === ctx.userId ||
-        caller.roleName === 'admin'
-    ) {
-        return
-    }
+    if (isClubAdmin(ctx, caller)) return
     if (
         touchedRoleNames.some((name) =>
-            PRIVILEGED_ROLE_NAMES.includes(name as RoleName),
+            STAFF_ROLES.includes(name as RoleName),
         )
     ) {
         const vocabulary = await loadClubVocabulary(prisma, ctx.workspaceId)

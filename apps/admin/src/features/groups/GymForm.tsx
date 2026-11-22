@@ -4,12 +4,14 @@ import { useState, type FormEvent } from "react"
 
 import { Button, Input, Label } from "@clubspace/ui-kit/ui"
 
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { TimezoneSelect } from "../settings/TimezoneSelect"
+
+const L = FORM_LIMITS.gym
 
 type Props = {
   initial?: { name: string; address: string; timezone: string | null }
   submitting: boolean
-  title?: string
   submitLabel?: string
   onCancel: () => void
   onSubmit: (payload: {
@@ -22,7 +24,6 @@ type Props = {
 export function GymForm({
   initial,
   submitting,
-  title = "Новый зал",
   submitLabel = "Создать",
   onCancel,
   onSubmit,
@@ -43,11 +44,7 @@ export function GymForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-3 rounded-lg border border-border bg-card p-4"
-    >
-      <h3 className="text-sm font-medium">{title}</h3>
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid gap-2 sm:grid-cols-2">
         <div>
           <Label htmlFor="gym-name">Название</Label>
@@ -56,6 +53,7 @@ export function GymForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Гладиатор"
+            maxLength={L.name.max}
             required
           />
         </div>
@@ -66,6 +64,7 @@ export function GymForm({
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             placeholder="Москва, Тимура Фрунзе 11"
+            maxLength={L.address.max}
             required
           />
         </div>

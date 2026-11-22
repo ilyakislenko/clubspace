@@ -6,6 +6,26 @@ export const AI_DATA_MODE_LABEL: Record<"PSEUDONYMIZED" | "PERSONAL", string> = 
   PERSONAL: "С персональными данными",
 }
 
+// The assistant's tools by their server name (`features/mcp/tools`, `title`),
+// for the audit log. `coach_stats` is named in the club's words by the caller.
+export const AI_TOOL_LABEL: Record<string, string> = {
+  club_directory: "Справочник клуба",
+  club_overview: "Сводка по клубу",
+  search_members: "Поиск участников",
+  member_profile: "Карточка участника",
+  at_risk_members: "Кто может уйти",
+  revenue_report: "Выручка",
+  renewals_due: "Кому продлевать",
+  unpaid_abonements: "Долги: неоплаченные абонементы",
+  abonement_states: "Состояние абонементов",
+  rank_distribution: "Ранги учеников",
+  upcoming_gradings: "Аттестации",
+  schedule: "Расписание",
+  attendance_stats: "Посещаемость",
+  schedule_occupancy: "Загрузка расписания",
+  list_events: "События",
+}
+
 export const AI_TOKEN_STATE_LABEL: Record<"active" | "expired" | "revoked", string> = {
   active: "Действует",
   expired: "Истёк",

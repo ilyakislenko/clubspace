@@ -1,9 +1,8 @@
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
-import type { ClubVocabulary } from '../../shared/utils/club-vocabulary'
 
-export const CLUB_IMPORT_ADMIN_MESSAGE = (v: ClubVocabulary): string =>
-    `Импортировать клуб может только администратор или ${v.headCoach.nom}`
+export const CLUB_IMPORT_ADMIN_MESSAGE =
+    'Импортировать клуб могут только владелец и администраторы клуба'
 
 // An import of THIS club — another club's id reads as not found.
 export const findClubImport = async (

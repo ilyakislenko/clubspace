@@ -7,7 +7,7 @@ import { PrismaService } from '../../infrastructure/prisma'
 import { assertPlatformAdmin } from '../../shared/access/assert-platform-admin'
 import {
     type RoleName,
-    WORKSPACE_ADMINS,
+    CLUB_ADMINS,
 } from '../../shared/decorators/roles.decorator'
 import {
     BadRequestError,
@@ -99,7 +99,7 @@ export class UpdatePlatformWorkspaceHandler
                 previousRole = membership?.role.name ?? null
                 const isAdminLevel =
                     !!membership &&
-                    WORKSPACE_ADMINS.includes(membership.role.name as RoleName)
+                    CLUB_ADMINS.includes(membership.role.name as RoleName)
                 if (!isAdminLevel) {
                     const adminRole = await tx.role.findUnique({
                         where: { name: 'admin' },

@@ -1,5 +1,6 @@
 import type { ApiTypes } from "@clubspace/api-client"
 
+import type { AnalyticsScope } from "./analytics"
 import { getApiClient } from "./client"
 
 export type Plan = ApiTypes.PlanOutputDtoOutput
@@ -28,29 +29,47 @@ export type UnmarkPaidResult = ApiTypes.UnmarkSubscriptionPaidOutputOutput
 export type AwaitingPaymentResult = ApiTypes.AwaitingPaymentOutputOutput
 export type AwaitingPayment = ApiTypes.AwaitingPaymentOutputOutput["data"][number]
 
-export type RenewalCandidate =
-  ApiTypes.ListRenewalCandidatesOutputOutput["data"][number]
+export type RenewalCandidateList = ApiTypes.ListRenewalCandidatesOutputOutput
+export type RenewalCandidate = RenewalCandidateList["data"][number]
 
 const ws = (workspaceId: string) => `/workspaces/${workspaceId}`
 
-// ---- Renewal candidates (members to sell a new abonement to) ----
+type ListPage = { curPage?: number; perPage?: number } & AnalyticsScope
 
-export const listRenewalCandidates = async (params: {
-  workspaceId: string
-}): Promise<{ data: RenewalCandidate[] }> =>
-  await getApiClient().request<{ data: RenewalCandidate[] }>({
+// ---- «Продлить» (members due for renewal), one page ----
+
+export const listRenewalCandidates = async (
+  params: { workspaceId: string } & ListPage,
+): Promise<RenewalCandidateList> =>
+  await getApiClient().request<RenewalCandidateList>({
     method: "get",
     url: `${ws(params.workspaceId)}/renewal-candidates`,
+    params: {
+      gymId: params.gymId,
+      directionId: params.directionId,
+      groupId: params.groupId,
+      coachId: params.coachId,
+      curPage: params.curPage,
+      perPage: params.perPage,
+    },
   })
 
-// ---- Abonements sold but not paid yet ----
+// ---- Abonements sold but not paid yet, one page ----
 
-export const listAwaitingPayment = async (params: {
-  workspaceId: string
-}): Promise<AwaitingPaymentResult> =>
+export const listAwaitingPayment = async (
+  params: { workspaceId: string } & ListPage,
+): Promise<AwaitingPaymentResult> =>
   await getApiClient().request<AwaitingPaymentResult>({
     method: "get",
     url: `${ws(params.workspaceId)}/awaiting-payment`,
+    params: {
+      gymId: params.gymId,
+      directionId: params.directionId,
+      groupId: params.groupId,
+      coachId: params.coachId,
+      curPage: params.curPage,
+      perPage: params.perPage,
+    },
   })
 
 // ---- Tariffs (Plans) ----
@@ -161,6 +180,19 @@ export const endSubscriptionFreeze = async (params: {
   await getApiClient().request<EndFreezeResult>({
     method: "post",
     url: `${ws(params.workspaceId)}/members/${params.userId}/subscriptions/${params.subscriptionId}/freezes/${params.freezeId}/end`,
+  })
+
+// Members' freeze requests waiting for a decision — those the caller may
+// decide (a coach: members of their groups), the oldest 100 and the total.
+export type PendingFreezeRequests = ApiTypes.PendingFreezeRequestsOutputOutput
+export type PendingFreezeRequest = PendingFreezeRequests["data"][number]
+
+export const listPendingFreezeRequests = async (params: {
+  workspaceId: string
+}): Promise<PendingFreezeRequests> =>
+  await getApiClient().request<PendingFreezeRequests>({
+    method: "get",
+    url: `${ws(params.workspaceId)}/freeze-requests`,
   })
 
 export const approveSubscriptionFreezeRequest = async (params: {

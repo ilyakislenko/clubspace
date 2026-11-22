@@ -1,13 +1,28 @@
-// Authorization is covered by the assert-admin-scope tests; stub it so these
-// specs focus on the candidate selection + ordering.
+// Authorization is covered by the assert-admin-scope tests and the filter ids
+// by analytics-scope's; stub both so these specs focus on the candidate
+// selection, ordering and paging.
 jest.mock('../../shared/access/assert-admin-scope', () => ({
-    assertWorkspaceAdmin: jest.fn().mockResolvedValue(undefined),
+    assertSportLead: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../../domains/analytics/analytics-scope', () => ({
+    ...jest.requireActual('../../domains/analytics/analytics-scope'),
+    resolveAnalyticsScope: jest.fn(),
 }));
 
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope';
+import { studentWhere } from '../../domains/metrics/students';
+import { assertSportLead } from '../../shared/access/assert-admin-scope';
 import { ForbiddenError } from '../../shared/errors/shared.errors';
-import { ListRenewalCandidatesFeature } from './list-renewal-candidates.feature';
+import { resolveAnalyticsScope } from '../../domains/analytics/analytics-scope';
+import {
+    ListRenewalCandidatesFeature,
+    type ListRenewalCandidatesInput,
+} from './list-renewal-candidates.feature';
 import { ListRenewalCandidatesHandler } from './list-renewal-candidates.handler';
+
+const CLUB = { groupIds: null, includeGroupless: true };
+beforeEach(() => {
+    (resolveAnalyticsScope as jest.Mock).mockResolvedValue({ scope: CLUB });
+});
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -54,7 +69,13 @@ const member = (o: {
 }) => ({
     userId: o.userId,
     accessUntil: o.accessUntil ?? null,
-    user: { firstname: 'F', lastname: 'L', email: `${o.userId}@x` },
+    user: {
+        firstname: 'F',
+        lastname: 'L',
+        email: `${o.userId}@x`,
+        phone: null,
+        dependentOf: [],
+    },
     subscriptions:
         o.subscriptions ??
         (o.classesRemaining === undefined
@@ -69,19 +90,28 @@ const member = (o: {
 });
 
 const prismaFor = (members: unknown[]) => ({
+    workspace: {
+        findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner' }),
+    },
     workspaceMember: { findMany: jest.fn().mockResolvedValue(members) },
 });
 
-const run = (members: unknown[], prisma = prismaFor(members)) => {
+const run = (
+    members: unknown[],
+    prisma = prismaFor(members),
+    payload: ListRenewalCandidatesInput = {},
+) => {
     return new ListRenewalCandidatesHandler(
         prisma as never,
         {} as never,
-    ).execute(new ListRenewalCandidatesFeature('w1', 'admin', 'admin', false));
+    ).execute(
+        new ListRenewalCandidatesFeature(payload, 'w1', 'admin', 'admin', false),
+    );
 };
 
 describe('listRenewalCandidates', () => {
     it('refuses a non-admin (coach) before touching the roster', async () => {
-        (assertWorkspaceAdmin as jest.Mock).mockRejectedValueOnce(
+        (assertSportLead as jest.Mock).mockRejectedValueOnce(
             new ForbiddenError({ message: 'nope' }),
         );
         const findMany = jest.fn();
@@ -91,7 +121,7 @@ describe('listRenewalCandidates', () => {
         );
         await expect(
             handler.execute(
-                new ListRenewalCandidatesFeature('w1', 'c1', 'coach', false),
+                new ListRenewalCandidatesFeature({}, 'w1', 'c1', 'coach', false),
             ),
         ).rejects.toThrow(ForbiddenError);
         expect(findMany).not.toHaveBeenCalled();
@@ -140,15 +170,20 @@ describe('listRenewalCandidates', () => {
         expect(data.map((c) => c.userId)).toEqual(['out', 'low', 'expiring']);
     });
 
-    it('treats an already-expired window as a candidate', async () => {
+    it('treats a window that lapsed within 30 days as a candidate, not an older one', async () => {
         const { data } = await run([
             member({
                 userId: 'lapsed',
                 accessUntil: new Date(Date.now() - DAY),
             }),
+            member({
+                userId: 'gone',
+                accessUntil: new Date(Date.now() - 31 * DAY),
+            }),
         ]);
-        expect(data).toHaveLength(1);
-        expect(data[0].reason).toBe('access_expiring');
+        expect(data.map((c) => [c.userId, c.reason])).toEqual([
+            ['lapsed', 'access_expiring'],
+        ]);
     });
 
     it('does not flag a healthy class-pack member with a far-off window', async () => {
@@ -162,11 +197,12 @@ describe('listRenewalCandidates', () => {
         expect(data).toHaveLength(0);
     });
 
-    it('reads current plus recently ended abonements of active members', async () => {
+    it('reads current plus recently ended abonements of the club’s students', async () => {
         const prisma = prismaFor([]);
         await run([], prisma);
         const args = prisma.workspaceMember.findMany.mock.calls[0][0];
-        expect(args.where).toEqual({ workspaceId: 'w1', status: 'ACTIVE' });
+        // The whole club: no narrowing after the student base.
+        expect(args.where).toEqual({ AND: [studentWhere('w1', 'owner'), {}] });
         const or = args.select.subscriptions.where.OR;
         expect(or[0]).toEqual({
             NOT: { workspaceMemberId: null },
@@ -202,6 +238,8 @@ describe('listRenewalCandidates', () => {
                 firstname: 'F',
                 lastname: 'L',
                 email: 'u@x',
+                phone: null,
+                guardians: [],
                 reason: 'low_classes',
                 classesRemaining: 1,
                 classesTotal: 12,
@@ -395,6 +433,32 @@ describe('listRenewalCandidates', () => {
         expect(data[0]).toMatchObject({
             reason: 'out_of_classes',
             planName: 'БЖЖ 12',
+        });
+    });
+});
+
+describe('listRenewalCandidates paging and filters', () => {
+    const many = ['a', 'b', 'c'].map((userId, i) =>
+        member({ userId, accessUntil: new Date(Date.now() + (i + 1) * DAY) }),
+    );
+
+    it('pages the ordered list and reports the total', async () => {
+        const out = await run(many, prismaFor(many), { curPage: 2, perPage: 2 });
+        expect(out).toMatchObject({ total: 3, curPage: 2, perPage: 2 });
+        expect(out.data.map((c) => c.userId)).toEqual(['c']);
+    });
+
+    it('narrows a filtered list to the students of the matching groups', async () => {
+        (resolveAnalyticsScope as jest.Mock).mockResolvedValueOnce({
+            scope: { groupIds: new Set(['g1']), includeGroupless: false },
+        });
+        const prisma = prismaFor([]);
+        await run([], prisma, { groupId: 'g1' });
+        expect(prisma.workspaceMember.findMany.mock.calls[0][0].where).toEqual({
+            AND: [
+                studentWhere('w1', 'owner'),
+                { user: { groupMemberships: { some: { groupId: { in: ['g1'] } } } } },
+            ],
         });
     });
 });

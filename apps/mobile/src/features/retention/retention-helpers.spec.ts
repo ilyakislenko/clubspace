@@ -7,33 +7,51 @@ import type {
 import {
   applyContact,
   callContact,
+  callListKey,
   callListReason,
+  callListSummaryKey,
   callListTitle,
   contactLine,
   isStaffWorkspace,
-  visibleEntries,
+  mergePages,
 } from "./retention-helpers"
 
 const member = (
   userId: string,
-  reason: AtRiskList["data"][number]["reason"],
-  snoozed = false,
-) => ({ userId, reason, snoozed, lastContact: null }) as AtRiskList["data"][number]
+  reason: AtRiskMember["reason"],
+  over: Partial<AtRiskMember> = {},
+) =>
+  ({
+    userId,
+    reason,
+    snoozed: false,
+    lastContact: null,
+    level: null,
+    monthlySpend: null,
+    ...over,
+  }) as AtRiskMember
 
-const list = (): AtRiskList => ({
+// The first page of «to call»: two of the three; one more is snoozed.
+const list = (moneyAtStake: number | null = 8000): AtRiskList => ({
   data: [
-    member("a", "lapsed"),
-    member("b", "absent"),
-    member("c", "absent", true),
+    member("a", "lapsed", { level: "high", monthlySpend: 5000 }),
+    member("b", "absent", { monthlySpend: 3000 }),
   ],
   summary: {
-    total: 2,
+    total: 3,
     lapsed: 1,
     newcomer: 0,
-    absent: 1,
+    absent: 2,
     declining: 0,
+    high: 1,
     snoozed: 1,
+    moneyAtStake,
+    currency: "RUB",
   },
+  total: 3,
+  curPage: 1,
+  perPage: 2,
+  scoredAt: null,
 })
 
 const contact = (over: Partial<AtRiskContact> = {}): AtRiskContact => ({
@@ -68,7 +86,10 @@ describe("callListTitle / callListReason", () => {
     newcomer: 0,
     absent: 0,
     declining: 0,
+    high: 0,
     snoozed: 0,
+    moneyAtStake: null,
+    currency: null,
     ...over,
   })
 
@@ -101,44 +122,71 @@ describe("callListTitle / callListReason", () => {
   })
 })
 
-describe("visibleEntries", () => {
-  it("hides snoozed members unless asked", () => {
-    expect(visibleEntries(list(), null, false).map((m) => m.userId)).toEqual([
-      "a",
-      "b",
-    ])
-    expect(visibleEntries(list(), null, true)).toHaveLength(3)
+describe("cache keys", () => {
+  it("keeps every view under the club's atrisk resource", () => {
+    expect(callListSummaryKey("w1")).toBe("atrisk:w1:summary")
+    expect(callListKey("w1", false, null)).toBe("atrisk:w1:open:all")
+    expect(callListKey("w1", false, "lapsed")).toBe("atrisk:w1:open:lapsed")
+    expect(callListKey("w1", true, null)).toBe("atrisk:w1:snoozed:all")
+  })
+})
+
+describe("mergePages", () => {
+  it("appends the next pages and shows a member once", () => {
+    const merged = mergePages(
+      [member("a", "lapsed"), member("b", "absent")],
+      [member("b", "absent"), member("c", "declining")],
+    )
+    expect(merged.map((m) => m.userId)).toEqual(["a", "b", "c"])
   })
 
-  it("filters by reason", () => {
-    expect(visibleEntries(list(), "absent", true).map((m) => m.userId)).toEqual([
-      "b",
-      "c",
-    ])
+  it("shows no row twice after a contact shifts the pages under «Показать ещё»", () => {
+    const PER_PAGE = 50
+    let server = Array.from({ length: 120 }, (_, i) => member(`u${i}`, "absent"))
+    const page = (n: number) => server.slice((n - 1) * PER_PAGE, n * PER_PAGE)
+    // Two pages on screen.
+    let first = page(1)
+    let more = page(2)
+    // «Связались» on page 1: off the list, page 1 refetched.
+    server = server.filter((m) => m.userId !== "u3")
+    first = page(1)
+    more = more.filter((m) => m.userId !== "u3")
+    // «Показать ещё» asks for the page after what is shown.
+    const shown = mergePages(first, more).length
+    more = [...more, ...page(Math.floor(shown / PER_PAGE) + 1)]
+    const ids = mergePages(first, more).map((m) => m.userId)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toHaveLength(100)
+    expect(ids).not.toContain("u3")
   })
 })
 
 describe("applyContact", () => {
-  it("snoozes the member, stores the contact and recounts", () => {
-    const c = contact()
-    const out = applyContact(list(), "b", c)!
-    const b = out.data.find((m) => m.userId === "b")!
-    expect(b.snoozed).toBe(true)
-    expect(b.lastContact).toEqual(c)
+  it("takes the member off the list and moves every count by one", () => {
+    const out = applyContact(list(), "a")!
+    expect(out.data.map((m) => m.userId)).toEqual(["b"])
+    expect(out.total).toBe(2)
     expect(out.summary).toEqual({
-      total: 1,
-      lapsed: 1,
+      total: 2,
+      lapsed: 0,
       newcomer: 0,
-      absent: 0,
+      absent: 2,
       declining: 0,
+      high: 0,
       snoozed: 2,
+      moneyAtStake: 3000,
+      currency: "RUB",
     })
   })
 
-  it("leaves other members and a missing list alone", () => {
-    expect(applyContact(null, "b", contact())).toBeNull()
-    const out = applyContact(list(), "zzz", contact())!
-    expect(out.summary.total).toBe(2)
+  it("keeps hidden money hidden", () => {
+    expect(applyContact(list(null), "b")!.summary.moneyAtStake).toBeNull()
+  })
+
+  it("leaves an unknown member and a missing list alone", () => {
+    expect(applyContact(null, "b")).toBeNull()
+    const prev = list()
+    expect(applyContact(prev, "zzz")).toBe(prev)
   })
 })
 

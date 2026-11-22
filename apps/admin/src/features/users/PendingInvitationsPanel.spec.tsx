@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 jest.mock("../../shared/api/invitations", () => ({
   listWorkspaceInvitations: jest.fn(),
@@ -13,6 +13,7 @@ import {
   listWorkspaceInvitations,
   revokeWorkspaceInvitation,
 } from "../../shared/api/invitations"
+import { ConfirmDialogHost } from "../../shared/ui/confirm-dialog"
 import { PendingInvitationsPanel } from "./PendingInvitationsPanel"
 
 const list = listWorkspaceInvitations as jest.Mock
@@ -49,12 +50,19 @@ describe("PendingInvitationsPanel", () => {
     expect(screen.getByText(/ожидает принятия с/)).toBeTruthy()
   })
 
-  it("revokes after confirmation and drops the row", async () => {
+  it("revokes only after the dialog is confirmed, and drops the row", async () => {
     list.mockResolvedValue({ data: [invitation] })
     revoke.mockResolvedValue({ status: "revoked" })
-    jest.spyOn(window, "confirm").mockReturnValue(true)
-    render(<PendingInvitationsPanel workspaceId="w1" refreshKey={0} />)
+    render(
+      <>
+        <PendingInvitationsPanel workspaceId="w1" refreshKey={0} />
+        <ConfirmDialogHost />
+      </>,
+    )
     fireEvent.click(await screen.findByRole("button", { name: "Отозвать" }))
+    const dialog = await screen.findByRole("dialog")
+    expect(revoke).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Отозвать" }))
     await waitFor(() =>
       expect(revoke).toHaveBeenCalledWith({ workspaceId: "w1", invitationId: "i1" }),
     )

@@ -4,13 +4,57 @@ import { getApiClient } from "./client"
 
 export type Gym = ApiTypes.ListGymsOutputOutput["data"][number]
 
+// A group as lists, pickers and filters show it: no roster (that is
+// listGroupMembers, paged), `week` = its weekly days and times.
 export type GroupSummary = ApiTypes.ListGroupsOutputOutput["data"][number]
 
-export type GroupCoach = GroupSummary["coach"]
-export type GroupMemberRow = GroupSummary["members"][number]
-export type GroupScheduleSlot = GroupSummary["slots"][number]
-export type GroupScheduleException = GroupSummary["exceptions"][number]
-export type GroupCoachAssignment = GroupSummary["coaches"][number]
+// The group card: the list row plus the hall address, running/upcoming slots,
+// ongoing/future exceptions and canEdit.
+export type GroupDetails = ApiTypes.GetGroupOutputOutput
+export type GroupScheduleSlot = GroupDetails["slots"][number]
+export type GroupScheduleException = GroupDetails["exceptions"][number]
+
+export type GroupRosterPage = ApiTypes.ListGroupMembersOutputOutput
+export type GroupRosterMember = GroupRosterPage["data"][number]
+
+// One page of a group's roster, searched server-side; abonements and risk
+// only for whoever runs the group.
+export const listGroupMembers = async (params: {
+  workspaceId: string
+  groupId: string
+  q?: string
+  curPage?: number
+  perPage?: number
+}): Promise<GroupRosterPage> =>
+  await getApiClient().request<GroupRosterPage>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/members`,
+    params: { q: params.q, curPage: params.curPage, perPage: params.perPage },
+  })
+
+export const addGroupMember = async (params: {
+  workspaceId: string
+  groupId: string
+  userId: string
+}) =>
+  await getApiClient().request<
+    ApiTypes.AddGroupMemberOutputOutput,
+    ApiTypes.AddGroupMemberBody
+  >({
+    method: "post",
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/members`,
+    data: { userId: params.userId },
+  })
+
+export const removeGroupMember = async (params: {
+  workspaceId: string
+  groupId: string
+  userId: string
+}) =>
+  await getApiClient().request<ApiTypes.RemoveGroupMemberOutputOutput, undefined>({
+    method: "delete",
+    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/members/${params.userId}`,
+  })
 
 export const addGroupCoach = async (params: {
   workspaceId: string
@@ -111,11 +155,6 @@ export const listGroups = async (params: {
   })
 }
 
-// The group page: the list row plus each student's current abonements and
-// risk signal (empty / null when the caller only reads the group), canEdit.
-export type GroupDetails = ApiTypes.GetGroupOutputOutput
-export type GroupDetailsMember = GroupDetails["members"][number]
-
 export const getGroup = async (params: {
   workspaceId: string
   groupId: string
@@ -172,6 +211,8 @@ export const updateGroup = async (
     gymId?: string
     coachId?: string
     directionId?: string | null
+    // The card's `updatedAt`: a stale one answers 409 STALE_UPDATE.
+    expectedUpdatedAt?: string
   } & GroupBookingFields,
 ) => {
   const { workspaceId, groupId, ...patch } = params
@@ -269,29 +310,6 @@ export const deleteGroup = async (params: {
   return await getApiClient().request<{ status: "deleted" }, undefined>({
     method: "delete",
     url: `/workspaces/${params.workspaceId}/groups/${params.groupId}`,
-  })
-}
-
-// Atomic replace of a group's full member list. Use this from edit-group
-// flows instead of looping add+remove client-side; the server diffs and
-// applies in one transaction so a flaky network can't half-sync.
-export const syncGroupMembers = async (params: {
-  workspaceId: string
-  groupId: string
-  userIds: string[]
-}) => {
-  return await getApiClient().request<
-    {
-      groupId: string
-      addedCount: number
-      removedCount: number
-      memberCount: number
-    },
-    { userIds: string[] }
-  >({
-    method: "patch",
-    url: `/workspaces/${params.workspaceId}/groups/${params.groupId}/members`,
-    data: { userIds: params.userIds },
   })
 }
 

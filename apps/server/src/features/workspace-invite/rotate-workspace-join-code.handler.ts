@@ -7,7 +7,7 @@ import { rotateJoinCode } from '../../domains/workspace/join-code.store'
 import { buildJoinQrPngDataUrl } from '../../domains/workspace/join-qr'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -37,7 +37,7 @@ export class RotateWorkspaceJoinCodeHandler
         roleName,
         isSuperAdmin,
     }: RotateWorkspaceJoinCodeFeature) {
-        await assertWorkspaceAdmin(
+        await assertSportLead(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Сменить код клуба может только администратор клуба',

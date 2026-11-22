@@ -1,7 +1,7 @@
 import { localDateInTz } from '../../features/attendance/attendance-utils'
 import { DEMO_ACCOUNTS, DEMO_CLUB_KEY } from './demo-accounts'
 import { GROUPS } from './demo-club.catalog'
-import { revenueTrend } from '../../features/get-workspace-stats/revenue'
+import { revenueTrend } from '../metrics/revenue'
 import { type ForecastSubscription, renewalHistory } from '../analytics/forecast'
 import { buildDemoClubPlan, demoUuid, type DemoClubPlan } from './demo-club.plan'
 import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'

@@ -360,7 +360,7 @@ export const environment = {
             setupFee: get('PLATFORM_SETUP_FEE').default(4990).asIntPositive(),
         }),
         // The platform's own YooKassa shop (not a club's). Both set = clubs pay
-        // by card on the «Тариф» page and renewals are charged automatically;
+        // by card on the «Подписка ClubSpace» page and renewals are charged automatically;
         // either missing = the feature is off. Webhook URL to register in the
         // shop: <ROOT_URL>/payments/webhooks/platform/yookassa (deploy/README.md).
         yookassa: {

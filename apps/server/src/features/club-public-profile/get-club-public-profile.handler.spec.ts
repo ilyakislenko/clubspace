@@ -20,6 +20,7 @@ const WORKSPACE = {
     publicDescription: 'Лучший зал',
     logoKey: null as string | null,
     isListed: false,
+    updatedAt: new Date('2026-11-14T10:00:00.000Z'),
 }
 
 const build = (workspace: typeof WORKSPACE | null = WORKSPACE) => {
@@ -64,7 +65,9 @@ const run = (
     )
 
 describe('getClubPublicProfile', () => {
-    it.each(['coach', 'user'])('refuses a %s', async (roleName) => {
+    // The head coach runs the sport side (every group writable) but the
+    // public page is club-admin (owner/admin) territory.
+    it.each(['head_coach', 'coach', 'user'])('refuses a %s', async (roleName) => {
         const { handler, prisma } = build()
         await expect(
             run(handler, { userId: 'u1', roleName }),
@@ -72,12 +75,15 @@ describe('getClubPublicProfile', () => {
         expect(prisma.workspacePublicSlug.create).not.toHaveBeenCalled()
     })
 
-    it('lets the owner without a member row in', async () => {
-        const { handler } = build()
-        await expect(
-            run(handler, { userId: 'owner', roleName: null }),
-        ).resolves.toMatchObject({ slug: 'akademiya-bzhzh' })
-    })
+    it.each([null, 'head_coach'])(
+        'lets the owner in, whatever their member row says (%s)',
+        async (roleName) => {
+            const { handler } = build()
+            await expect(
+                run(handler, { userId: 'owner', roleName }),
+            ).resolves.toMatchObject({ slug: 'akademiya-bzhzh' })
+        },
+    )
 
     it('404s when the club is gone', async () => {
         const { handler } = build(null)
@@ -99,6 +105,7 @@ describe('getClubPublicProfile', () => {
             isListed: false,
             pageUrl: 'https://app.club.example/c/akademiya-bzhzh',
             joinPageUrl: 'https://app.club.example/join/ABCD2345',
+            updatedAt: '2026-11-14T10:00:00.000Z',
         })
         expect(files.getPresignedGetUrl).not.toHaveBeenCalled()
     })

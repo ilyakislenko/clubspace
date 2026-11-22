@@ -1,29 +1,23 @@
 "use client"
 
-import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import { useWorkspaceRealtime } from "../../../../shared/realtime/useWorkspaceRealtime"
 import {
   getWorkspaceStats,
   type WorkspaceStats,
 } from "../../../../shared/api/stats"
-import {
-  getLeaderboard,
-  type Leaderboard,
-} from "../../../../shared/api/leaderboard"
 import { listPendingUsers } from "../../../../shared/api/members"
 import { listAtRiskMembers } from "../../../../shared/api/retention"
-import { listRenewalCandidates } from "../../../../shared/api/subscriptions"
 import {
-  actionMetaFor,
-  formatActor,
-  targetTypeLabel,
-} from "../../../../features/audit/audit-meta"
+  listAwaitingPayment,
+  listPendingFreezeRequests,
+  type PendingFreezeRequests,
+} from "../../../../shared/api/subscriptions"
 import { AT_RISK_REFRESH_MS } from "../../../../shared/lib/at-risk"
 import { errorMessage } from "../../../../shared/lib/error-message"
-import { isWorkspaceAdmin } from "../../../../shared/lib/permissions"
+import { hasAccess, isClubAdmin, isSportLead } from "../../../../shared/lib/permissions"
 import { useThrottledCallback } from "../../../../shared/lib/throttle"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import {
@@ -31,156 +25,134 @@ import {
   useWorkspaceFeatures,
 } from "../../../../shared/lib/use-workspace-features"
 import { useVocabulary } from "../../../../shared/lib/vocabulary"
-import { agree, cap, countForm, fromFirstSession } from "@clubspace/ui-kit/brand"
-import { pluralRu } from "../../../../shared/lib/plural-ru"
+import { cap } from "@clubspace/ui-kit/brand"
 import { formatAmount } from "../../../../features/subscriptions/subscription-display"
 import { OnboardingChecklist } from "../../../../features/billing/OnboardingChecklist"
-
-const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" }
-
-const formatRelative = (iso: string) => {
-  const ms = Date.now() - new Date(iso).getTime()
-  if (ms < 60_000) return "только что"
-  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)} мин назад`
-  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)} ч назад`
-  return `${Math.floor(ms / 86_400_000)} дн назад`
-}
+import { DecisionList } from "../../../../features/dashboard/DecisionList"
+import { AttendanceBlock, MoneyBlock } from "../../../../features/dashboard/Figures"
+import { TodayClasses } from "../../../../features/dashboard/TodayClasses"
+import { useTodayClasses } from "../../../../features/dashboard/use-today-classes"
 
 const numberFmt = new Intl.NumberFormat("ru-RU")
 const formatMoney = (amount: number, currency: string | null) =>
   currency ? formatAmount(amount, currency) : numberFmt.format(amount)
 
-const monthFmt = new Intl.DateTimeFormat("ru-RU", { month: "short" })
-// "2026-07" → "июл" (with the year appended in January so a 6-month window
-// spanning a year boundary stays readable).
-const formatMonth = (key: string) => {
-  const [year, month] = key.split("-").map(Number)
-  const label = monthFmt.format(new Date(year, month - 1, 1))
-  return month === 1 ? `${label} ${String(year).slice(2)}` : label
+// Best-effort counts: a failed request drops its row, not the page.
+const countOrNull = async (load: () => Promise<number>): Promise<number | null> => {
+  try {
+    return await load()
+  } catch {
+    return null
+  }
 }
 
+/**
+ * «Сегодня» by exceptions (docs/design/2026-11-08-admin-cleanup.md §4): what
+ * waits for a decision, today's classes, then — for club admins — the money
+ * and, for leads, attendance. A coach sees their own rows and classes only;
+ * every number is a glossary metric (B2).
+ */
 export default function WorkspaceOverviewPage() {
   const params = useParams<{ workspaceId: string }>()
   const vocabulary = useVocabulary()
-  const actionMeta = useMemo(() => actionMetaFor(vocabulary), [vocabulary])
   const workspaceId = params?.workspaceId
-  const canAdmin = isWorkspaceAdmin(useMyMembership(workspaceId))
-  // Blocks of a section the club switched off (video at a fitness club,
-  // abonements, attendance) are not shown, as the menu hides them.
+  const membership = useMyMembership(workspaceId)
+  const canAdmin = isClubAdmin(membership)
+  const canLead = isSportLead(membership)
+  // Sport leads and direction managers: the content library, attendance.
+  const isLead = hasAccess(membership, "lead")
   const features = useWorkspaceFeatures(workspaceId)
   const showSubscriptions = featureOn(features, "subscription")
   const showAttendance = featureOn(features, "attendance")
   const showVideos = featureOn(features, "videos")
 
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
-  const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
-  const [renewalsDue, setRenewalsDue] = useState<number | null>(null)
   const [atRisk, setAtRisk] = useState<number | null>(null)
   const [pendingCount, setPendingCount] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [awaitingCount, setAwaitingCount] = useState<number | null>(null)
+  const [freezes, setFreezes] = useState<PendingFreezeRequests | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Refetch stats + leaderboard. Doesn't toggle `loading` so a live refresh
-  // updates the cards in place instead of blanking the page.
-  const load = useCallback(async () => {
+  const loadStats = useCallback(async () => {
     if (!workspaceId) return
-    await Promise.all([
-      (async () => {
-        try {
-          setStats(await getWorkspaceStats({ workspaceId }))
-          setError(null)
-        } catch (err) {
-          setError(errorMessage(err, "Не удалось загрузить статистику."))
-        } finally {
-          setLoading(false)
-        }
-      })(),
-      // Best-effort side panel — a failure must not blank the dashboard.
-      (async () => {
-        try {
-          setLeaderboard(await getLeaderboard({ workspaceId, period: "month" }))
-        } catch {
-          setLeaderboard(null)
-        }
-      })(),
-      // Best-effort: the card is only shown to admins (see below).
-      (async () => {
-        try {
-          const res = await listPendingUsers({ workspaceId })
-          setPendingCount(res.data.length)
-        } catch {
-          setPendingCount(null)
-        }
-      })(),
-    ])
+    try {
+      setStats(await getWorkspaceStats({ workspaceId }))
+      setError(null)
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось загрузить данные."))
+    }
   }, [workspaceId])
 
-  // Admin-only endpoint — own effect so the membership resolving doesn't
-  // re-run the stats/leaderboard load above.
-  const loadRenewals = useCallback(async () => {
-    if (!workspaceId || !canAdmin) return
-    try {
-      const res = await listRenewalCandidates({ workspaceId })
-      setRenewalsDue(res.data.length)
-    } catch {
-      setRenewalsDue(null)
-    }
-  }, [workspaceId, canAdmin])
+  // The rows whose lists depend on the role wait for the membership.
+  const role = membership ? `${canLead}:${showSubscriptions}` : null
+  const loadRows = useCallback(async () => {
+    if (!workspaceId || role === null) return
+    const [pending, awaiting, freezes] = await Promise.all([
+      // Approving members and the debt list are the sport leads'.
+      canLead ? countOrNull(async () => (await listPendingUsers({ workspaceId })).total) : null,
+      canLead && showSubscriptions
+        ? countOrNull(async () => (await listAwaitingPayment({ workspaceId, perPage: 1 })).members)
+        : null,
+      // Every coach decides the requests of their own groups' members.
+      showSubscriptions ? listPendingFreezeRequests({ workspaceId }).catch(() => null) : null,
+    ])
+    setPendingCount(pending)
+    setAwaitingCount(awaiting)
+    setFreezes(freezes)
+    // `role` stands for canLead + showSubscriptions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, role])
 
-  // Best-effort and visible to all staff (the server scopes it for coaches).
+  // «Кому позвонить», the same number as the list header and the apps (the
+  // server scopes it for coaches). Only the summary is needed.
   const loadAtRisk = useCallback(async () => {
     if (!workspaceId) return
-    try {
-      const res = await listAtRiskMembers({ workspaceId })
-      setAtRisk(res.summary.total)
-    } catch {
-      setAtRisk(null)
-    }
+    setAtRisk(
+      await countOrNull(async () => (await listAtRiskMembers({ workspaceId, perPage: 1 })).summary.total),
+    )
   }, [workspaceId])
 
   useEffect(() => {
-    void loadRenewals()
-  }, [loadRenewals])
-
-  useEffect(() => {
+    void loadStats()
     void loadAtRisk()
-  }, [loadAtRisk])
+  }, [loadStats, loadAtRisk])
 
   useEffect(() => {
-    if (!workspaceId) return
-    setLoading(true)
-    void load()
-  }, [workspaceId, load])
+    void loadRows()
+  }, [loadRows])
 
   // The at-risk list recomputes club-wide, so its refetch is throttled.
-  const refreshAtRisk = useThrottledCallback(
-    () => void loadAtRisk(),
-    AT_RISK_REFRESH_MS,
+  const refreshAtRisk = useThrottledCallback(() => void loadAtRisk(), AT_RISK_REFRESH_MS)
+
+  useWorkspaceRealtime(workspaceId, ["members", "attendance", "subscription", "freeze-requests"], () => {
+    void loadStats()
+    void loadRows()
+    refreshAtRisk()
+  })
+
+  const classes = useTodayClasses(
+    workspaceId,
+    membership ? !(canLead || isLead) : undefined,
   )
 
-  // Live-refresh as members join/leave, check in, buy abonements, get promoted…
-  useWorkspaceRealtime(
-    workspaceId,
-    [
-      "members",
-      "attendance",
-      "leaderboard",
-      "subscription",
-      "announcements",
-      "ranks",
-    ],
-    () => {
-      void load()
-      void loadRenewals()
-      refreshAtRisk()
-    },
-  )
+  const decisions = {
+    call: atRisk,
+    renew: canLead && showSubscriptions ? (stats?.retention.renewalsDue ?? null) : null,
+    awaiting: awaitingCount,
+    join: pendingCount,
+    freeze: freezes?.total ?? null,
+    video: isLead && showVideos && stats ? stats.counts.videos - stats.counts.videosReady : null,
+  }
+  const money = canAdmin && showSubscriptions ? (stats?.revenue ?? null) : null
+  // A failed schedule keeps its block (with the error), never reads as «no classes».
+  const showClasses = classes.status === "failed" || (classes.status === "ready" && classes.items.length > 0)
+  const hasDecisions = Object.values(decisions).some((n) => n !== null && n > 0)
+  const attendance = isLead && showAttendance ? stats : null
+  const settled = !!stats && membership !== null && classes.status !== "loading"
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Обзор клуба</h1>
-      </div>
+      <h1 className="text-2xl font-semibold">Сегодня</h1>
 
       {canAdmin && workspaceId && <OnboardingChecklist workspaceId={workspaceId} />}
 
@@ -190,600 +162,54 @@ export default function WorkspaceOverviewPage() {
         </p>
       )}
 
-      {stats?.revenue && showSubscriptions && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-medium">Финансы</h2>
-          {/* Money in 4 columns only from xl: below that a card is too narrow
-              for «1 306 100 ₽» in text-3xl once the sidebar is expanded. */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              label="Регулярный доход в месяц"
-              value={formatMoney(stats.revenue.mrr, stats.revenue.currency)}
-              // A «с первого занятия» abonement has no term yet: nothing to
-              // spread over 30 days until that first visit (revenue.ts).
-              subtitle={`действующие абонементы в пересчёте на 30 дней; абонементы «${fromFirstSession(vocabulary)}» входят после ${agree(vocabulary.session, "первой", "первого")} ${vocabulary.session.gen}`}
-              loading={loading}
+      {workspaceId && (hasDecisions || showClasses) && (
+        <div className={`grid items-start gap-6 ${hasDecisions && showClasses ? "lg:grid-cols-2" : ""}`}>
+          <DecisionList
+            workspaceId={workspaceId}
+            counts={decisions}
+            awaitingAmount={
+              stats?.revenue && stats.revenue.awaitingPayment.amount > 0
+                ? formatMoney(stats.revenue.awaitingPayment.amount, stats.revenue.currency)
+                : null
+            }
+            freezeRequests={freezes?.data ?? []}
+          />
+          {classes.status === "failed" ? (
+            <section className="space-y-2">
+              <h2 className="text-sm font-medium">{cap(vocabulary.session.nomPl)} сегодня</h2>
+              <p className="rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-destructive">
+                Не удалось загрузить расписание на сегодня.
+              </p>
+            </section>
+          ) : classes.status === "ready" && classes.items.length > 0 ? (
+            <TodayClasses
+              workspaceId={workspaceId}
+              today={classes.today}
+              nowMin={classes.nowMin}
+              items={classes.items}
             />
-            <StatCard
-              label="Выручка за 30 дней"
-              value={formatMoney(
-                stats.revenue.revenue30d,
-                stats.revenue.currency,
-              )}
-              subtitle="фактически оплачено"
-              loading={loading}
-            />
-            <StatCard
-              label="Активные абонементы"
-              value={stats.revenue.activeSubscriptions}
-              loading={loading}
-              href={`/workspace/${workspaceId}/subscriptions`}
-            />
-            <StatCard
-              label="Ожидают оплаты"
-              value={formatMoney(
-                stats.revenue.awaitingPayment.amount,
-                stats.revenue.currency,
-              )}
-              subtitle={`не оплачено абонементов: ${stats.revenue.awaitingPayment.count}`}
-              tone={stats.revenue.awaitingPayment.count > 0 ? "warn" : "default"}
-              loading={loading}
-              href={`/workspace/${workspaceId}/subscriptions`}
-            />
-          </div>
-
-          <div className="grid items-start gap-4 lg:grid-cols-2">
-            <RevenueTrend
-              data={stats.revenue.trend}
-              currency={stats.revenue.currency}
-            />
-            <PlanBreakdown
-              data={stats.revenue.byPlan}
-              currency={stats.revenue.currency}
-            />
-          </div>
-        </section>
+          ) : null}
+        </div>
       )}
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium">Продления и удержание</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard
-            label="Ученики"
-            value={stats?.counts.members}
-            loading={loading}
-            href={`/workspace/${workspaceId}/users`}
-          />
-          {canAdmin && showSubscriptions && (
-            <StatCard
-              label="К продлению"
-              value={renewalsDue ?? undefined}
-              subtitle="заканчиваются занятия / доступ"
-              loading={loading}
-              href={`/workspace/${workspaceId}/subscriptions`}
+      {settled && !hasDecisions && !showClasses && (
+        <p className="text-sm text-muted-foreground">
+          Сегодня нет {vocabulary.session.genPl}, и ничего не ждёт решения.
+        </p>
+      )}
+
+      {workspaceId && (money || attendance) && (
+        <div className={`grid items-start gap-6 ${money && attendance ? "lg:grid-cols-2" : ""}`}>
+          {money && (
+            <MoneyBlock
+              workspaceId={workspaceId}
+              revenue={money}
+              format={(amount) => formatMoney(amount, money.currency)}
             />
           )}
-          {canAdmin && pendingCount !== null && (
-            <StatCard
-              label="Заявки"
-              value={pendingCount}
-              subtitle="ожидают одобрения"
-              loading={loading}
-              tone={pendingCount > 0 ? "warn" : "default"}
-              href={`/workspace/${workspaceId}/users`}
-            />
-          )}
-          <StatCard
-            label="Под риском"
-            value={atRisk ?? undefined}
-            subtitle="могут уйти — позвоните"
-            loading={loading}
-            tone="warn"
-            href={`/workspace/${workspaceId}/retention`}
-          />
-          <StatCard
-            label="Неактивны за месяц"
-            value={stats?.retention.inactiveMembers30d}
-            subtitle="без отметок 30 дней"
-            loading={loading}
-            tone="warn"
-            href={`/workspace/${workspaceId}/users?filter=inactive`}
-          />
-          {showSubscriptions && (
-            <>
-              <StatCard
-                label="Доступ истекает"
-                value={stats?.retention.expiringSoon}
-                subtitle="в ближайшие 14 дней"
-                loading={loading}
-                tone="warn"
-                href={`/workspace/${workspaceId}/users?filter=expiring`}
-              />
-              <StatCard
-                label="Доступ закончился"
-                value={stats?.retention.expiredAccess}
-                subtitle="требуют продления"
-                loading={loading}
-                tone="danger"
-                href={`/workspace/${workspaceId}/users?filter=expired`}
-              />
-            </>
-          )}
-        </div>
-      </section>
-
-      {stats && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-medium">Сегодня</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              label={`${cap(vocabulary.session.genPl)} сегодня по расписанию`}
-              value={stats.today.sessions}
-              loading={loading}
-            />
-            {showAttendance && (
-              <StatCard
-                label="Отметок сегодня"
-                value={stats.today.checkins}
-                subtitle="учеников отметилось"
-                loading={loading}
-              />
-            )}
-            <StatCard
-              label="Новые участники"
-              value={stats.today.newMembers}
-              subtitle="вступили сегодня"
-              loading={loading}
-              href={`/workspace/${workspaceId}/users`}
-            />
-            {stats.today.revenue !== null && (
-              <StatCard
-                label="Выручка сегодня"
-                value={formatMoney(stats.today.revenue, stats.today.currency)}
-                loading={loading}
-              />
-            )}
-          </div>
-        </section>
-      )}
-
-      <section className="space-y-2" hidden={!showAttendance}>
-        <h2 className="text-sm font-medium">Посещаемость</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <StatCard
-            label="Активны за неделю"
-            value={stats?.activity.activeMembers7d}
-            subtitle={
-              stats && stats.counts.members > 0
-                ? `${Math.round(
-                    (stats.activity.activeMembers7d / stats.counts.members) *
-                      100,
-                  )}% учеников были на ${vocabulary.session.prep}`
-                : undefined
-            }
-            loading={loading}
-          />
-          <StatCard
-            label="Активны за месяц"
-            value={stats?.activity.activeMembers30d}
-            subtitle={
-              stats && stats.counts.members > 0
-                ? `${Math.round(
-                    (stats.activity.activeMembers30d / stats.counts.members) *
-                      100,
-                  )}% учеников были на ${vocabulary.session.prep}`
-                : undefined
-            }
-            loading={loading}
-          />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard
-            label={`${cap(vocabulary.session.nomPl)} за неделю`}
-            value={stats?.attendance.sessions7d}
-            subtitle={
-              stats ? `${stats.attendance.sessions30d} за месяц` : undefined
-            }
-            loading={loading}
-          />
-          <StatCard
-            label="Отметок за неделю"
-            value={stats?.attendance.checkins7d}
-            subtitle={
-              stats ? `${stats.attendance.checkins30d} за месяц` : undefined
-            }
-            loading={loading}
-          />
-          <StatCard
-            label="Уникальных за месяц"
-            value={stats?.attendance.distinctAttendees30d}
-            subtitle="учеников отметилось"
-            loading={loading}
-          />
-        </div>
-        {stats && <AttendanceTrend data={stats.attendance.trend} />}
-      </section>
-
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium">Последние действия</h2>
-          <Link
-            href={`/workspace/${workspaceId}/audit`}
-            className="text-xs text-primary hover:underline"
-          >
-            Открыть историю →
-          </Link>
-        </div>
-
-        {loading && (
-          <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, idx) => (
-              <div
-                key={idx}
-                className="h-12 animate-pulse rounded-md border border-border bg-muted"
-              />
-            ))}
-          </div>
-        )}
-
-        {!loading && stats && stats.recentEvents.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Событий пока нет.
-          </p>
-        )}
-
-        {!loading && stats && stats.recentEvents.length > 0 && (
-          <ul className="divide-y divide-border rounded-lg border border-border">
-            {stats.recentEvents.map((event) => (
-              <li
-                key={event.id}
-                className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
-              >
-                <div className="min-w-0">
-                  <div className="font-medium">
-                    {actionMeta[event.action]?.label ?? event.action}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatActor(event)}
-                    {" · "}
-                    {targetTypeLabel(event.targetType)}
-                  </div>
-                </div>
-                <time className="text-xs text-muted-foreground">
-                  {formatRelative(event.createdAt)}
-                </time>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="space-y-2" hidden={!showVideos}>
-        <h2 className="text-sm font-medium">Видео</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard
-            label="Видео"
-            value={stats?.counts.videos}
-            subtitle={
-              stats ? `${stats.counts.videosReady} готово к просмотру` : undefined
-            }
-            loading={loading}
-            href={`/workspace/${workspaceId}/videos`}
-          />
-          <StatCard
-            label="Курсы"
-            value={stats?.counts.courses}
-            loading={loading}
-            href={`/workspace/${workspaceId}/content`}
-          />
-          <StatCard
-            label="Не готово"
-            value={
-              stats
-                ? Math.max(0, stats.counts.videos - stats.counts.videosReady)
-                : undefined
-            }
-            subtitle="в обработке или с ошибкой"
-            loading={loading}
-          />
-          <StatCard
-            label="Смотрели видео"
-            value={stats?.activity.videoViewers7d}
-            subtitle={
-              stats ? `${stats.activity.videoViewers30d} за месяц` : undefined
-            }
-            loading={loading}
-          />
-          <StatCard
-            label="Досмотров за неделю"
-            value={stats?.activity.completions7d}
-            subtitle="видео отмечены просмотренными"
-            loading={loading}
-          />
-        </div>
-      </section>
-
-      {leaderboard?.enabled && leaderboard.entries.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-medium">Топ по посещаемости за месяц</h2>
-          <ol className="divide-y divide-border rounded-lg border border-border">
-            {leaderboard.entries.slice(0, 10).map((entry) => (
-              <li
-                key={entry.userId}
-                className="flex items-center justify-between gap-3 p-3 text-sm"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="w-6 shrink-0 text-center font-semibold tabular-nums">
-                    {MEDAL[entry.rank] ?? entry.rank}
-                  </span>
-                  <span className="truncate">{entry.name}</span>
-                </div>
-                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {entry.checkins} {countForm(entry.checkins, vocabulary.session, pluralRu)}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
-
-      <section className="space-y-2" hidden={!showVideos}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium">Топ видео за неделю</h2>
-          <Link
-            href={`/workspace/${workspaceId}/videos`}
-            className="text-xs text-primary hover:underline"
-          >
-            Все видео →
-          </Link>
-        </div>
-
-        {loading && (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <div
-                key={idx}
-                className="h-12 animate-pulse rounded-md border border-border bg-muted"
-              />
-            ))}
-          </div>
-        )}
-
-        {!loading && stats && stats.topVideos7d.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            За последнюю неделю никто ничего не смотрел.
-          </p>
-        )}
-
-        {!loading && stats && stats.topVideos7d.length > 0 && (
-          <ol className="divide-y divide-border rounded-lg border border-border">
-            {stats.topVideos7d.map((video, idx) => {
-              const completionPct =
-                video.viewers > 0
-                  ? Math.round((video.completions / video.viewers) * 100)
-                  : 0
-              return (
-                <li key={video.id} className="p-3 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <Link
-                      href={`/workspace/${workspaceId}/videos/${video.id}`}
-                      className="min-w-0 flex-1 truncate font-medium hover:underline"
-                    >
-                      <span className="text-muted-foreground">
-                        {idx + 1}.{" "}
-                      </span>
-                      {video.title}
-                    </Link>
-                    <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground tabular-nums">
-                      <span>{video.viewers} зрит.</span>
-                      <span>{completionPct}% досмотр</span>
-                    </div>
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
-        )}
-      </section>
-    </div>
-  )
-}
-
-// Six-month revenue bars. Pure CSS — no chart lib. Heights are relative to the
-// tallest month; a month with 0 keeps a hairline so the axis stays continuous.
-const weekFmt = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "2-digit",
-})
-const formatWeek = (ymd: string) => {
-  const [y, m, d] = ymd.split("-").map(Number)
-  return weekFmt.format(new Date(y, m - 1, d))
-}
-
-// Weekly check-ins over the last 8 weeks — matches the revenue trend so the
-// dashboard's two charts read as one system.
-function AttendanceTrend({ data }: { data: { week: string; checkins: number }[] }) {
-  const max = Math.max(1, ...data.map((d) => d.checkins))
-  const any = data.some((d) => d.checkins > 0)
-  return (
-    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
-      <div className="text-xs uppercase text-muted-foreground">
-        Отметки по неделям
-      </div>
-      {!any ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          За последние 8 недель отметок не было.
-        </p>
-      ) : (
-        <div className="flex h-32 gap-2">
-          {data.map((d) => (
-            <div
-              key={d.week}
-              className="flex flex-1 flex-col items-center gap-1"
-              title={`Неделя с ${formatWeek(d.week)}: ${d.checkins}`}
-            >
-              <div className="relative w-full flex-1">
-                <div
-                  className="absolute inset-x-0 bottom-0 rounded-t bg-primary/80 transition-all"
-                  style={{
-                    height: `${Math.max(2, Math.round((d.checkins / max) * 100))}%`,
-                  }}
-                />
-              </div>
-              <span className="text-[10px] text-muted-foreground">
-                {formatWeek(d.week)}
-              </span>
-            </div>
-          ))}
+          {attendance && <AttendanceBlock stats={attendance} />}
         </div>
       )}
     </div>
   )
-}
-
-function RevenueTrend({
-  data,
-  currency,
-}: {
-  data: { month: string; revenue: number }[]
-  currency: string | null
-}) {
-  const max = Math.max(1, ...data.map((d) => d.revenue))
-  const hasSales = data.some((d) => d.revenue > 0)
-  // The current month is still running: a short bar there is not a drop.
-  const now = new Date()
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-  return (
-    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
-      <div className="text-xs uppercase text-muted-foreground">
-        Выручка по месяцам
-      </div>
-      {!hasSales ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          Продаж за последние 6 месяцев не было.
-        </p>
-      ) : (
-        // Columns stretch to the full chart height (no items-end): a bar's
-        // percentage height needs a parent with a resolved height, and the
-        // absolutely placed bar measures against the column's track.
-        <div className="flex h-32 gap-2">
-          {data.map((d) => {
-            const running = d.month === currentMonth
-            return (
-              <div
-                key={d.month}
-                className="flex flex-1 flex-col items-center gap-1"
-                title={`${formatMonth(d.month)}${running ? " (месяц ещё идёт)" : ""}: ${formatMoney(d.revenue, currency)}`}
-              >
-                <div className="relative w-full flex-1">
-                  <div
-                    className={`absolute inset-x-0 bottom-0 rounded-t transition-all ${running ? "bg-primary/35" : "bg-primary/80"}`}
-                    style={{
-                      height: `${Math.max(2, Math.round((d.revenue / max) * 100))}%`,
-                    }}
-                  />
-                </div>
-                <span className="text-[10px] text-muted-foreground">
-                  {formatMonth(d.month)}
-                  {running && " · идёт"}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Which tariffs drove the last 30 days of sales. Each row shows count + revenue
-// with a proportional bar so the mix is scannable at a glance.
-function PlanBreakdown({
-  data,
-  currency,
-}: {
-  data: { planId: string; planName: string; count: number; revenue: number }[]
-  currency: string | null
-}) {
-  const max = Math.max(1, ...data.map((d) => d.revenue))
-  return (
-    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
-      <div className="text-xs uppercase text-muted-foreground">
-        Продажи за 30 дней
-      </div>
-      {data.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          Продаж за последние 30 дней не было.
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {data.map((row) => (
-            <li key={row.planId} className="space-y-1">
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="min-w-0 truncate">{row.planName}</span>
-                <span className="shrink-0 text-muted-foreground tabular-nums">
-                  {row.count}× · {formatMoney(row.revenue, currency)}
-                </span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary/80"
-                  style={{ width: `${Math.round((row.revenue / max) * 100)}%` }}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
-}
-
-const TONE_TEXT: Record<"default" | "warn" | "danger", string> = {
-  default: "",
-  warn: "text-amber-600 dark:text-amber-500",
-  danger: "text-destructive",
-}
-
-function StatCard({
-  label,
-  value,
-  subtitle,
-  loading,
-  href,
-  tone = "default",
-}: {
-  label: string
-  value: number | string | undefined
-  subtitle?: string
-  loading: boolean
-  href?: string
-  tone?: "default" | "warn" | "danger"
-}) {
-  const body = (
-    <div className="h-full space-y-1 rounded-lg border border-border bg-card p-4">
-      <div className="text-xs uppercase text-muted-foreground">{label}</div>
-      <div
-        className={`whitespace-nowrap text-3xl font-semibold tabular-nums ${TONE_TEXT[tone]}`}
-      >
-        {loading ? (
-          <span className="inline-block h-8 w-12 animate-pulse rounded bg-muted" />
-        ) : (
-          (value ?? 0)
-        )}
-      </div>
-      {subtitle && (
-        <div className="text-xs text-muted-foreground">{subtitle}</div>
-      )}
-    </div>
-  )
-
-  if (href) {
-    return (
-      <Link href={href} className="block transition hover:opacity-90">
-        {body}
-      </Link>
-    )
-  }
-  return body
 }

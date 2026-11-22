@@ -61,7 +61,6 @@ export default function CoachesAnalyticsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">{cap(vocabulary.coach.nomPl)}</h1>
         <p className="text-sm text-muted-foreground">
           Сколько учеников ходит к каждому {vocabulary.coach.dat}, сколько остаётся через 3
           месяца и как продлевают абонементы.
@@ -91,10 +90,10 @@ export default function CoachesAnalyticsPage() {
         <>
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
-              <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
+              <thead className="bg-muted text-left text-xs font-medium text-muted-foreground">
                 <tr>
                   <th className="p-3">{cap(vocabulary.coach.nom)}</th>
-                  <th className="p-3 text-right">Активные ученики</th>
+                  <th className="p-3 text-right">Были на {vocabulary.session.prepPl} за 30 дней</th>
                   <th className="p-3 text-right">Удержание 3 мес</th>
                   <th className="p-3 text-right">Продления</th>
                   <th className="p-3 text-right">На {vocabulary.session.prep} в среднем</th>
@@ -142,7 +141,7 @@ export default function CoachesAnalyticsPage() {
             </table>
           </div>
           <p className="text-xs text-muted-foreground">
-            Активные — были на {vocabulary.session.prep} за последние 30 дней. Удержание — доля
+            Удержание — доля
             учеников, начавших больше 3 месяцев назад, которые ходят и сейчас.{" "}
             {cap(vocabulary.session.nomPl)} и посещаемость — за {data?.weeks ?? 8} недель. «Лучшее
             удержание» отмечаем, когда учеников для оценки не меньше{" "}

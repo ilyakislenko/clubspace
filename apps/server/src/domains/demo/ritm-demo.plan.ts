@@ -450,7 +450,7 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         createdAt: at(ago(314), '12:00'),
         convertedAt: at(ago(300), '12:00'),
         autopayEnabled: false,
-        notes: 'Демо-студия для показов: тариф бесплатно, все модули включены (docs/demo.md)',
+        notes: 'Демо-студия для показов: подписка ClubSpace бесплатно, все модули включены (docs/demo.md)',
     }
     plan.moduleEntitlements = (['VIDEO', 'ONLINE_PAYMENTS', 'BRANDED_APP'] as const).map((module) => ({
         workspaceId,
@@ -1075,8 +1075,8 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
             if (last && last.tariff.price > 0) last.isPaid = false
         })
     // The rest of those whose abonement ends soon by days renew the same way
-    // in the last days, so only part of the studio shows in «К продлению» and
-    // «Доступ истекает», as in a healthy studio.
+    // in the last days, so only part of the studio shows in «Продлить», as in
+    // a healthy studio.
     for (const p of persons) {
         if (fixedPeople.has(p) || p.archetype !== 'regular' || p.stopYmd || p.subs.some((s) => s.pending)) continue
         const live = liveSub(p)
@@ -1606,7 +1606,7 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
                 `, группа [group:${groupId(p.groups[0])}]: ${advice[reason]}.`,
         ),
         '',
-        'Начните с первого: чем дольше пауза, тем труднее вернуться. После звонка отметьте его в «Кому позвонить» — список обновится.',
+        'Начните с первого: чем дольше пауза, тем труднее вернуться. После звонка отметьте его в «Удержание → Позвонить» — список обновится.',
     ].join('\n')
     const askedAt = at(ago(1), '21:05')
     plan.aiChatConversations.push({

@@ -33,7 +33,7 @@ const request = (over: Record<string, unknown> = {}) => ({
     ...over,
 })
 
-const deps = (o: { denied?: boolean; open?: boolean; latest?: unknown } = {}) => {
+const deps = (o: { open?: boolean; latest?: unknown } = {}) => {
     const prisma = {
         user: {
             findUnique: jest
@@ -51,9 +51,18 @@ const deps = (o: { denied?: boolean; open?: boolean; latest?: unknown } = {}) =>
             findMany: jest.fn().mockResolvedValue([request()]),
         },
     }
+    // Onboarding help is a club-admin (owner/admin) matter; a head coach resolves
+    // to the sport-lead 'admin' scope and is still refused.
     const rbac = {
-        resolveCoachScope: jest.fn().mockResolvedValue({ kind: o.denied ? 'coach' : 'admin' }),
-        canWriteAllGroups: jest.fn().mockReturnValue(!o.denied),
+        resolveCoachScope: jest
+            .fn()
+            .mockImplementation(async (p: { userId: string; workspaceId: string }) => ({
+                scope: 'admin',
+                userId: p.userId,
+                workspaceId: p.workspaceId,
+                workspaceOwnerId: 'owner-1',
+            })),
+        canWriteAllGroups: jest.fn().mockReturnValue(true),
     }
     const billing = {
         pricing: { setupFee: 4990 },
@@ -103,8 +112,8 @@ describe('onboarding help', () => {
         })
     })
 
-    it('only the club admin asks or reads', async () => {
-        const d = deps({ denied: true })
+    it('a head coach neither asks nor reads, even with every group in scope', async () => {
+        const d = deps()
         const request = new RequestWorkspaceOnboardingHelpHandler(
             d.prisma as never,
             d.rbac as never,
@@ -112,13 +121,29 @@ describe('onboarding help', () => {
             d.audit as never,
         )
         await expect(
-            request.execute(new RequestWorkspaceOnboardingHelpFeature({}, 'w1', 'u2', 'coach', false)),
+            request.execute(new RequestWorkspaceOnboardingHelpFeature({}, 'w1', 'u2', 'head_coach', false)),
         ).rejects.toBeInstanceOf(ForbiddenError)
         const get = new GetWorkspaceOnboardingHelpHandler(d.prisma as never, d.rbac as never, d.billing as never)
-        await expect(get.execute(new GetWorkspaceOnboardingHelpFeature('w1', 'u2', 'coach', false))).rejects.toBeInstanceOf(
+        await expect(get.execute(new GetWorkspaceOnboardingHelpFeature('w1', 'u2', 'head_coach', false))).rejects.toBeInstanceOf(
             ForbiddenError,
         )
         expect(d.prisma.onboardingHelpRequest.create).not.toHaveBeenCalled()
+    })
+
+    it('the owner asks and reads, whatever their member row says', async () => {
+        const d = deps()
+        const request = new RequestWorkspaceOnboardingHelpHandler(
+            d.prisma as never,
+            d.rbac as never,
+            d.billing as never,
+            d.audit as never,
+        )
+        await request.execute(new RequestWorkspaceOnboardingHelpFeature({}, 'w1', 'owner-1', 'head_coach', false))
+        expect(d.prisma.onboardingHelpRequest.create).toHaveBeenCalled()
+        const get = new GetWorkspaceOnboardingHelpHandler(d.prisma as never, d.rbac as never, d.billing as never)
+        await expect(
+            get.execute(new GetWorkspaceOnboardingHelpFeature('w1', 'owner-1', 'head_coach', false)),
+        ).resolves.toMatchObject({ setupFee: { amount: 4990 } })
     })
 
     it('the console lists and closes requests; nobody else can', async () => {

@@ -112,7 +112,7 @@ export function ChapterHeaderRow({
             type="button"
             onClick={() => chapter && setEditing(true)}
             disabled={!chapter}
-            className={`flex-1 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+            className={`flex-1 py-1.5 text-left text-xs font-semibold transition-colors ${
               chapter
                 ? "text-muted-foreground hover:bg-muted hover:text-foreground"
                 : "italic text-muted-foreground/60"

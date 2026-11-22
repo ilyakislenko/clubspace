@@ -8,7 +8,7 @@ import {
 } from '../../domains/payments/payment-credentials'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { BadRequestError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { loadPaymentSettingsView } from './payment-settings-view'
@@ -34,7 +34,7 @@ export class UpdatePaymentSettingsHandler
     ) {}
 
     async execute(f: UpdatePaymentSettingsFeature) {
-        await assertWorkspaceAdmin(this.rbac, {
+        await assertClubAdmin(this.rbac, {
             userId: f.invokerUserId,
             workspaceId: f.workspaceId,
             roleName: f.roleName,

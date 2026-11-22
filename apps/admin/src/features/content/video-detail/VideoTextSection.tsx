@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Button, Label } from "@clubspace/ui-kit/ui"
 
 import { errorMessage } from "../../../shared/lib/error-message"
+import { pluralRu } from "../../../shared/lib/plural-ru"
+import { confirmDialog } from "../../../shared/ui/confirm-dialog"
 import {
   getVideoTextStatus,
   regenerateVideoText,
@@ -60,10 +62,23 @@ export function VideoTextSection({ workspaceId, videoId, onChanged, onError }: P
   }, [pending, load])
 
   const regenerate = async (what: { chapters: boolean; subtitles: boolean }) => {
-    const message = what.chapters
-      ? "Автоматические главы будут удалены и созданы заново. Ручные главы не трогаем. Продолжить?"
-      : "Автоматические субтитры будут удалены и созданы заново из расшифровки. Загруженные вручную не трогаем. Продолжить?"
-    if (!window.confirm(message)) return
+    if (!status) return
+    const auto = what.chapters ? status.chapters.auto : status.subtitles.auto
+    const removed =
+      auto === 0
+        ? null
+        : what.chapters
+          ? `${auto} ${pluralRu(auto, "автоматическая глава удалится", "автоматические главы удалятся", "автоматических глав удалятся")}.`
+          : `${auto} ${pluralRu(auto, "автоматическая дорожка субтитров удалится", "автоматические дорожки субтитров удалятся", "автоматических дорожек субтитров удалятся")}.`
+    const remade = what.chapters
+      ? "Сервер сделает главы заново по расшифровке."
+      : "Сервер сделает субтитры заново по расшифровке, загруженные вручную останутся."
+    const ok = await confirmDialog({
+      title: what.chapters ? "Пересоздать главы?" : "Пересоздать субтитры?",
+      description: removed ? `${removed} ${remade}` : remade,
+      confirmLabel: "Пересоздать",
+    })
+    if (!ok) return
     setSubmitting(true)
     try {
       await regenerateVideoText({ workspaceId, videoId, data: what })

@@ -33,10 +33,19 @@ const ACCEPTED = {
     status: { upToDate: true, acceptBy: null, required: false },
 }
 
-const build = (o: { denied?: boolean; state?: unknown } = {}) => {
+const build = (o: { state?: unknown } = {}) => {
+    // Club-admin gate first (owner/admin); a head coach resolves to the
+    // sport-lead 'admin' scope and is still refused there.
     const rbac = {
-        resolveCoachScope: jest.fn().mockResolvedValue({ scope: 'admin' }),
-        canWriteAllGroups: jest.fn().mockReturnValue(!o.denied),
+        resolveCoachScope: jest
+            .fn()
+            .mockImplementation(async (p: { userId: string; workspaceId: string }) => ({
+                scope: 'admin',
+                userId: p.userId,
+                workspaceId: p.workspaceId,
+                workspaceOwnerId: 'owner',
+            })),
+        canWriteAllGroups: jest.fn().mockReturnValue(true),
     }
     const legal = {
         getState: jest
@@ -54,13 +63,14 @@ const run = (
     userId = 'owner',
     versions = CURRENT,
     isSuperAdmin = false,
+    roleName = 'admin',
 ) =>
     handler.execute(
         new AcceptWorkspaceLegalFeature(
             versions,
             'w1',
             userId,
-            'admin',
+            roleName,
             isSuperAdmin,
             '10.0.0.1',
             'Safari',
@@ -68,10 +78,20 @@ const run = (
     )
 
 describe('AcceptWorkspaceLegalHandler', () => {
-    it('refuses a coach before reading anything', async () => {
-        const { handler, legal } = build({ denied: true })
-        await expect(run(handler, 'coach')).rejects.toBeInstanceOf(ForbiddenError)
+    it('refuses a head coach before reading anything, even with every group in scope', async () => {
+        const { handler, legal } = build()
+        await expect(
+            run(handler, 'hc-1', CURRENT, false, 'head_coach'),
+        ).rejects.toThrow('только его владелец')
         expect(legal.getState).not.toHaveBeenCalled()
+    })
+
+    it('lets the owner accept, whatever their member row says', async () => {
+        const { handler, legal } = build()
+        await run(handler, 'owner', CURRENT, false, 'head_coach')
+        expect(legal.accept).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: 'owner', source: 'OWNER' }),
+        )
     })
 
     it('refuses an admin who is not the owner, and a platform admin', async () => {
@@ -83,6 +103,8 @@ describe('AcceptWorkspaceLegalHandler', () => {
             const err = await run(handler, userId, CURRENT, superAdmin).catch((e) => e)
             expect(err).toBeInstanceOf(ForbiddenError)
             expect(err.message).toContain('только его владелец')
+            // Past the club-admin gate; refused by the owner-only check.
+            expect(legal.getState).toHaveBeenCalled()
             expect(legal.accept).not.toHaveBeenCalled()
         }
     })

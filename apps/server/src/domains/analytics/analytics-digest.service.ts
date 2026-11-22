@@ -2,15 +2,15 @@ import { Injectable, Logger } from '@nestjs/common'
 
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
-import { WORKSPACE_ADMINS } from '../../shared/decorators/roles.decorator'
+import { CLUB_ADMINS } from '../../shared/decorators/roles.decorator'
 import { escapeHtml } from '../../shared/utils/escape-html'
 import { NotificationProducerService } from '../notifications/services/notification-producer.service'
 import { NotificationsService } from '../notifications/services/notifications.service'
+import { loadCallList } from '../retention/call-list'
 import { findClubsDue } from '../scheduler/clubs-due'
 import { claimDispatch, releaseDispatch } from '../scheduler/dispatch-claims'
 import {
     type AnalyticsScope,
-    loadChurnReport,
     loadCohortReport,
     loadForecastReport,
     loadOccupancyReport,
@@ -66,8 +66,8 @@ export class AnalyticsDigestService {
         now: Date,
     ): Promise<number> {
         const p = { workspaceId: ws.id, scope: WHOLE_CLUB, now }
-        const [churn, forecast, occupancy, cohorts, admins] = await Promise.all([
-            loadChurnReport(this.prisma, p),
+        const [callList, forecast, occupancy, cohorts, admins] = await Promise.all([
+            loadCallList(this.prisma, p),
             loadForecastReport(this.prisma, p),
             loadOccupancyReport(this.prisma, p),
             loadCohortReport(this.prisma, p),
@@ -75,14 +75,19 @@ export class AnalyticsDigestService {
                 where: {
                     workspaceId: ws.id,
                     status: 'ACTIVE',
-                    role: { name: { in: WORKSPACE_ADMINS } },
+                    role: { name: { in: CLUB_ADMINS } },
                 },
                 select: { userId: true },
             }),
         ])
         // Nothing to say about a club without students yet.
-        if (forecast.members === 0) return 0
-        const digest = buildWeeklyDigest({ churn, forecast, occupancy, cohorts })
+        if (forecast.students === 0) return 0
+        const digest = buildWeeklyDigest({
+            callList: callList.entries,
+            forecast,
+            occupancy,
+            cohorts,
+        })
 
         const recipientIds = [...new Set([ws.ownerId, ...admins.map((a) => a.userId)])]
         const [users, optedOut] = await Promise.all([
@@ -101,6 +106,10 @@ export class AnalyticsDigestService {
             : null
         const topic = `${ws.name}: аналитика за неделю`
 
+        // The push opens the page of the action it names; there is no
+        // «Отчёты» hub page, the first report for club admins (the digest's
+        // readers) is the forecast.
+        const firstAction = digest.actions[0]
         let sent = 0
         for (const u of users) {
             if (off.has(u.id)) continue
@@ -110,8 +119,8 @@ export class AnalyticsDigestService {
                 kind: ANALYTICS_DIGEST_KIND,
                 refId,
                 topic,
-                message: `${digest.facts[0]}. Что сделать: ${digest.actions[0]?.text ?? 'откройте «Аналитику»'}`,
-                link: base ? `${base}/analytics` : null,
+                message: `${digest.facts[0]}. Что сделать: ${firstAction?.text ?? 'откройте «Отчёты»'}`,
+                link: base ? `${base}/${firstAction?.path ?? 'analytics/forecast'}` : null,
                 workspaceId: ws.id,
                 metadata: { workspaceId: ws.id, weekYmd },
             })

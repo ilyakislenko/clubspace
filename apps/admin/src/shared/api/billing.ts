@@ -1,6 +1,7 @@
 import type { ApiTypes } from "@clubspace/api-client"
 
 import { getApiClient } from "./client"
+import { cachedRead, invalidateReads } from "./read-cache"
 
 // Platform billing of the club (what the club pays ClubSpace) — not the club's
 // own abonements, which live in subscriptions.ts.
@@ -35,11 +36,21 @@ export type WorkspaceLegal = WorkspaceBillingPage["legal"]
 export type AcceptWorkspaceLegalBody = ApiTypes.AcceptWorkspaceLegalInputDto
 export type AcceptWorkspaceLegalResult = ApiTypes.AcceptWorkspaceLegalOutputOutput
 
-export const getWorkspaceBilling = async (p: { workspaceId: string }) =>
-  getApiClient().request<WorkspaceBillingPage>({
-    method: "get",
-    url: `/workspaces/${p.workspaceId}/billing`,
-  })
+// The banner in the shell and the billing page ask at once: shared while in
+// flight, never kept.
+export const getWorkspaceBilling = (p: { workspaceId: string }) =>
+  cachedRead(`billing:${p.workspaceId}`, () =>
+    getApiClient().request<WorkspaceBillingPage>({
+      method: "get",
+      url: `/workspaces/${p.workspaceId}/billing`,
+    }),
+  )
+
+// After a billing write the next read must not join a request sent before it.
+const billingChanged = <T>(workspaceId: string, result: T, ...more: string[]): T => {
+  invalidateReads(`billing:${workspaceId}`, ...more)
+  return result
+}
 
 // Card payment of the next period (1 or 12 months — also how renewals are
 // charged from then on). The browser goes on to `confirmationUrl` (YooKassa),
@@ -76,32 +87,44 @@ export const listBillingPayments = async (p: { workspaceId: string }) =>
     url: `/workspaces/${p.workspaceId}/billing/payments`,
   })
 
-// Connect (true) or disconnect (false) a paid module.
+// Connect (true) or disconnect (false) a paid module. A module gates app
+// sections, which the settings and the club list report.
 export const setBillingModule = async (p: {
   workspaceId: string
   module: BillingModuleCode
   enabled: boolean
 }) =>
-  getApiClient().request<SetBillingModuleResult, SetBillingModuleBody>({
-    method: "post",
-    url: `/workspaces/${p.workspaceId}/billing/modules`,
-    data: { module: p.module, enabled: p.enabled },
-  })
+  billingChanged(
+    p.workspaceId,
+    await getApiClient().request<SetBillingModuleResult, SetBillingModuleBody>({
+      method: "post",
+      url: `/workspaces/${p.workspaceId}/billing/modules`,
+      data: { module: p.module, enabled: p.enabled },
+    }),
+    `settings:${p.workspaceId}`,
+    "workspaces",
+  )
 
 // Forgets the saved card: renewals are no longer charged automatically.
 export const removeBillingCard = async (p: { workspaceId: string }) =>
-  getApiClient().request<RemoveBillingCardResult>({
-    method: "delete",
-    url: `/workspaces/${p.workspaceId}/billing/payment-method`,
-  })
+  billingChanged(
+    p.workspaceId,
+    await getApiClient().request<RemoveBillingCardResult>({
+      method: "delete",
+      url: `/workspaces/${p.workspaceId}/billing/payment-method`,
+    }),
+  )
 
 // How renewals are charged (1 or 12 months) — without paying now.
 export const setBillingPeriod = async (p: { workspaceId: string; periodMonths: 1 | 12 }) =>
-  getApiClient().request<SetBillingPeriodResult, SetBillingPeriodBody>({
-    method: "put",
-    url: `/workspaces/${p.workspaceId}/billing/period`,
-    data: { periodMonths: p.periodMonths },
-  })
+  billingChanged(
+    p.workspaceId,
+    await getApiClient().request<SetBillingPeriodResult, SetBillingPeriodBody>({
+      method: "put",
+      url: `/workspaces/${p.workspaceId}/billing/period`,
+      data: { periodMonths: p.periodMonths },
+    }),
+  )
 
 // The club owner accepts the editions they were shown (owner only; 409 when
 // the editions changed meanwhile). Returns the club's new legal status.
@@ -110,11 +133,14 @@ export const acceptWorkspaceLegal = async (p: {
   offerVersion: string
   dpaVersion: string
 }) =>
-  getApiClient().request<AcceptWorkspaceLegalResult, AcceptWorkspaceLegalBody>({
-    method: "post",
-    url: `/workspaces/${p.workspaceId}/billing/legal`,
-    data: { offerVersion: p.offerVersion, dpaVersion: p.dpaVersion },
-  })
+  billingChanged(
+    p.workspaceId,
+    await getApiClient().request<AcceptWorkspaceLegalResult, AcceptWorkspaceLegalBody>({
+      method: "post",
+      url: `/workspaces/${p.workspaceId}/billing/legal`,
+      data: { offerVersion: p.offerVersion, dpaVersion: p.dpaVersion },
+    }),
+  )
 
 export const getWorkspaceOnboarding = async (p: { workspaceId: string }) =>
   getApiClient().request<WorkspaceOnboarding>({
@@ -131,8 +157,8 @@ export const getSelfServeConfig = async () =>
 
 export const createSelfServeWorkspace = async (
   body: CreateSelfServeWorkspaceBody,
-) =>
-  getApiClient().request<
+) => {
+  const created = await getApiClient().request<
     CreateSelfServeWorkspaceResult,
     CreateSelfServeWorkspaceBody
   >({
@@ -140,3 +166,6 @@ export const createSelfServeWorkspace = async (
     url: "/self-serve/workspaces",
     data: body,
   })
+  invalidateReads("workspaces")
+  return created
+}

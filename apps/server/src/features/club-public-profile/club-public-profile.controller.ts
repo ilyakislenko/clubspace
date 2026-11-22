@@ -8,7 +8,7 @@ import {
 } from '../../shared/decorators/current-user.decorator'
 import {
     Roles,
-    WORKSPACE_ADMINS,
+    CLUB_ADMINS,
 } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
@@ -56,7 +56,7 @@ export class ClubPublicProfileController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: ClubPublicProfileOutputDto })
     async getClubPublicProfile(
         @Param('workspaceId') workspaceId: string,
@@ -76,7 +76,7 @@ export class ClubPublicProfileController {
     }
 
     @Put()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: UpdateClubPublicProfileOutputDto })
     async updateClubPublicProfile(
         @Param('workspaceId') workspaceId: string,
@@ -98,7 +98,7 @@ export class ClubPublicProfileController {
     }
 
     @Post('logo-upload')
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: CreateClubLogoUploadOutputDto })
     async createClubLogoUpload(
         @Param('workspaceId') workspaceId: string,

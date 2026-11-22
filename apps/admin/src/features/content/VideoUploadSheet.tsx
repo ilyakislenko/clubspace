@@ -18,6 +18,8 @@ import {
 
 import { createCategory, type CategoryResponse } from "../../shared/api/categories"
 import { errorMessage } from "../../shared/lib/error-message"
+import { isClubAdmin } from "../../shared/lib/permissions"
+import { useMyMembership } from "../../shared/lib/use-my-membership"
 import { readTrialLimit } from "../billing/billing-view"
 import { type PlaylistResponse } from "../../shared/api/playlists"
 import { createTag, type TagResponse } from "../../shared/api/tags"
@@ -76,6 +78,8 @@ export function VideoUploadSheet({
   onTagCreated,
   onCategoryCreated,
 }: Props) {
+  // «Подписка ClubSpace» is the club admins' page.
+  const canOpenBilling = isClubAdmin(useMyMembership(workspaceId))
   const router = useRouter()
 
   const [videoTitle, setVideoTitle] = useState("")
@@ -93,7 +97,7 @@ export function VideoUploadSheet({
     message?: string
     videoId?: string
     progress?: number
-    // The failure was a trial cap: point at «Тариф», where paying lifts it.
+    // The failure was a trial cap: point at «Подписка ClubSpace», where paying lifts it.
     trialLimit?: boolean
   }>({ status: "idle" })
   const uploadAbortRef = useRef<AbortController | null>(null)
@@ -522,7 +526,7 @@ export function VideoUploadSheet({
                 <div className="space-y-4">
                   {Object.entries(tagsByType).map(([type, items]) => (
                     <div key={type} className="space-y-2">
-                      <div className="text-xs font-semibold uppercase text-muted-foreground">
+                      <div className="text-xs font-semibold text-muted-foreground">
                         {type}
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
@@ -696,14 +700,14 @@ export function VideoUploadSheet({
                   }
                 >
                   {uploadState.message}
-                  {uploadState.trialLimit && (
+                  {uploadState.trialLimit && canOpenBilling && (
                     <>
                       {" "}
                       <Link
                         href={`/workspace/${workspaceId}/billing`}
                         className="font-medium underline underline-offset-4"
                       >
-                        Открыть «Тариф»
+                        Открыть «Подписка ClubSpace»
                       </Link>
                     </>
                   )}

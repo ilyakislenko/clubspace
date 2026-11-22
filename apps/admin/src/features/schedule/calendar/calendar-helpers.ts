@@ -3,15 +3,9 @@
 // "YYYY-MM-DD" and every time a wall-clock minute of that day, so nothing here
 // depends on the browser's timezone. Weeks start on Monday.
 
-export type CalendarView = "day" | "week" | "month" | "year" | "agenda"
+export type CalendarView = "day" | "week" | "month" | "agenda"
 
-export const CALENDAR_VIEWS: readonly CalendarView[] = [
-  "day",
-  "week",
-  "month",
-  "year",
-  "agenda",
-]
+const CALENDAR_VIEWS: readonly CalendarView[] = ["day", "week", "month", "agenda"]
 
 export const isCalendarView = (v: unknown): v is CalendarView =>
   typeof v === "string" && (CALENDAR_VIEWS as readonly string[]).includes(v)
@@ -102,10 +96,6 @@ export const viewRange = (
     }
     case "agenda":
       return { from: startOfMonthYmd(anchor), to: endOfMonthYmd(anchor) }
-    case "year": {
-      const y = anchor.slice(0, 4)
-      return { from: `${y}-01-01`, to: `${y}-12-31` }
-    }
   }
 }
 
@@ -138,8 +128,6 @@ export const navigateAnchor = (
     case "month":
     case "agenda":
       return addMonthsYmd(anchor, direction)
-    case "year":
-      return addMonthsYmd(anchor, 12 * direction)
   }
 }
 
@@ -240,8 +228,6 @@ export const rangeLabel = (view: CalendarView, anchor: string): string => {
     case "month":
     case "agenda":
       return `1–${ymdParts(endOfMonthYmd(anchor)).d} ${MONTHS_GEN[ymdParts(anchor).m]} ${anchor.slice(0, 4)}`
-    case "year":
-      return anchor.slice(0, 4)
   }
 }
 
@@ -330,65 +316,59 @@ export const yToMinute = (y: number, range: HourRange): number =>
 // Horizontal slot of a block inside its day column, as fractions of the width.
 export type BlockPlace = { left: number; width: number }
 
-// Side-by-side columns for overlapping items of one day: items are clustered
-// into runs that overlap transitively, each run is split into the fewest
-// columns (first column whose last item ended), and an item stretches over the
-// free columns to its right.
-export const layoutDay = <T extends { key: string; startMin: number; endMin: number }>(
-  items: readonly T[],
-): Map<string, BlockPlace> => {
+type Timed = { key: string; startMin: number; endMin: number }
+
+// Items of one day that overlap transitively, split into the fewest lanes
+// (each item goes to the first lane whose last item has ended).
+export type DayRun<T extends Timed> = { startMin: number; endMin: number; lanes: T[][] }
+
+export const dayRuns = <T extends Timed>(items: readonly T[]): DayRun<T>[] => {
   const sorted = [...items].sort(
     (a, b) => a.startMin - b.startMin || b.endMin - a.endMin || a.key.localeCompare(b.key),
   )
-  const out = new Map<string, BlockPlace>()
-  let cluster: T[] = []
-  let clusterEnd = -1
-
-  const flush = () => {
-    if (cluster.length === 0) return
-    const columns: T[][] = []
-    const columnOf = new Map<string, number>()
-    for (const it of cluster) {
-      let placed = columns.findIndex(
-        (col) => col[col.length - 1].endMin <= it.startMin,
-      )
-      if (placed === -1) {
-        columns.push([it])
-        placed = columns.length - 1
-      } else {
-        columns[placed].push(it)
-      }
-      columnOf.set(it.key, placed)
-    }
-    const n = columns.length
-    for (const it of cluster) {
-      const col = columnOf.get(it.key) ?? 0
-      let span = 1
-      for (let c = col + 1; c < n; c++) {
-        const blocked = columns[c].some(
-          (o) => o.startMin < it.endMin && it.startMin < o.endMin,
-        )
-        if (blocked) break
-        span++
-      }
-      out.set(it.key, { left: col / n, width: span / n })
-    }
-    cluster = []
-    clusterEnd = -1
-  }
-
+  const runs: DayRun<T>[] = []
   for (const it of sorted) {
-    if (cluster.length > 0 && it.startMin >= clusterEnd) flush()
-    cluster.push(it)
-    clusterEnd = Math.max(clusterEnd, it.endMin)
+    const run = runs[runs.length - 1]
+    if (!run || it.startMin >= run.endMin) {
+      runs.push({ startMin: it.startMin, endMin: it.endMin, lanes: [[it]] })
+      continue
+    }
+    run.endMin = Math.max(run.endMin, it.endMin)
+    const lane = run.lanes.find((l) => l[l.length - 1].endMin <= it.startMin)
+    if (lane) lane.push(it)
+    else run.lanes.push([it])
   }
-  flush()
+  return runs
+}
+
+// A week day column draws at most this many classes side by side. A third
+// lane is ≈47 px at 1440 px (a block with no text left), so from three
+// parallel classes on the run is drawn as a list (TimeGridView).
+export const MAX_SIDE_BY_SIDE = 2
+
+// Side-by-side columns for overlapping items of one day: each run's lanes
+// share the width, and an item stretches over the free lanes to its right.
+export const layoutDay = <T extends Timed>(items: readonly T[]): Map<string, BlockPlace> => {
+  const out = new Map<string, BlockPlace>()
+  for (const { lanes } of dayRuns(items)) {
+    const n = lanes.length
+    lanes.forEach((lane, col) => {
+      for (const it of lane) {
+        let span = 1
+        for (let c = col + 1; c < n; c++) {
+          if (lanes[c].some((o) => o.startMin < it.endMin && it.startMin < o.endMin)) break
+          span++
+        }
+        out.set(it.key, { left: col / n, width: span / n })
+      }
+    })
+  }
   return out
 }
 
-// What a block can show at its width in px. A week day of «Все залы» splits
-// between up to six classes running side by side, and a 25–45 px sliver cut
-// every line to «Д…» / «1…». "start" keeps the start time alone, "bare" the
+// What a block can show at its width in px. Two classes side by side in a
+// narrow week column (a small screen) leave 25–45 px slivers that cut every
+// line to «Д…» / «1…». "start" keeps the start time alone, "bare" the
 // coloured block alone; the hover tip, the screen-reader label and the click
 // (class details) still carry the whole class.
 export type BlockFit = "full" | "start" | "bare"

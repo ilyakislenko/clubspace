@@ -641,6 +641,21 @@ the one the policy was built from — for example a server whose `ROOT_URL` is
 not `NEXT_PUBLIC_API_URL`, or a CDN in front of storage that is not in
 `S3_ACCELERATE_URL`. Fix the address rather than widening the policy.
 
+**`ROOT_URL` and `NEXT_PUBLIC_API_URL` must name the same origin.** The server
+hands out HLS playlist URLs under its `ROOT_URL` (runtime), the admin and app
+allow media only from the API address baked into their bundle at build. If
+they differ, video preview silently fails in the browser while every container
+looks healthy. Compose derives both from `DOMAIN` / `PUBLIC_PORT_SUFFIX`, so
+never set either one on its own; the way to get them apart is to change
+`DOMAIN` and restart without rebuilding `admin` and `client`. Two checks catch
+it (`check_api_origin` in `deploy/lib/common.sh`: the server container's
+`ROOT_URL` against the `media-src` the running `admin` and `client` send):
+`update.sh` rolls the update back on a mismatch (a web app that does not answer
+after three tries is only reported — the container checks cover a crash), and
+`healthcheck.sh` alerts (`api-origin`) within five minutes of a manual `up`. The
+message names both addresses and the fix: `docker compose -f
+docker-compose.prod.yml --env-file .env.production up -d --build admin client`.
+
 ## Verify
 
 ```bash
@@ -792,7 +807,8 @@ to S3, runs the one-off data migrations from `apps/server/scripts/` **only when
 the database still has the shape they migrate from** (detected per script —
 e.g. `WorkspaceBilling.planId` still present), runs `prisma db push` with the
 new image, switches containers and smoke-checks: server healthy and `/healthz`
-inside the container, worker and web apps running without restarts. Any
+inside the container, worker and web apps running without restarts, and the
+web apps' policy allowing the server's `ROOT_URL` (see Content-Security-Policy). Any
 failure puts the previous images and checkout back and alerts; success alerts
 too. Downtime is the seconds each container takes to restart (longer when a
 data migration has to stop the apps first).
@@ -882,7 +898,7 @@ out:
   store buttons and «Открыть в браузере», and shows the code for manual entry.
   An unknown or rotated code gets a friendly «Приглашение не найдено» (404).
 - `/c/<slug>` and `/clubs` — the public page and the catalog of clubs that
-  enabled «Показывать клуб в каталоге» in the admin («Публичная страница»).
+  enabled «Показывать клуб в каталоге» in the admin («Настройки → Профиль клуба»).
   Unlisted clubs answer 404 there and never appear in search.
 - `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`
   — Universal Links / App Links for `/join/*`, `application/json`, 404 until
@@ -972,7 +988,7 @@ now return a list of current abonements instead of one.
 
 ### Card payments and autopay of clubs (platform YooKassa shop)
 
-Clubs pay ClubSpace by card on the «Тариф» page; the card is saved and each
+Clubs pay ClubSpace by card on the «Подписка ClubSpace» page; the card is saved and each
 renewal is charged a day before the paid period ends (retries within
 `PLATFORM_GRACE_DAYS`, the owner gets an e-mail and a push each time). Off until
 the platform's own shop is configured — then only the console's «отметить оплату»
@@ -996,7 +1012,7 @@ works, as before.
    the owner to `<ADMIN_URL>/workspace/<id>/billing`.
 4. `docker compose … up -d` — the schema change is additive (`PlatformPayment`,
    new nullable/defaulted columns), `db push` applies it without data loss.
-5. Check: the club's «Тариф» page shows «Оплатить картой»; the platform console
+5. Check: the club's «Подписка ClubSpace» page shows «Оплатить картой»; the platform console
    card shows the payments list, «Повторить списание сейчас», refunds and the
    autopay switch.
 
@@ -1045,7 +1061,7 @@ Clubs buy ClubSpace under a public offer and a data processing instruction
 (`app.<domain>/legal/offer`, `/legal/dpa`, `/legal/requisites`; drafts — see
 `docs/legal/README.md`). The club owner's acceptance (who, when, IP, editions)
 is recorded at self-serve sign-up, by the console («владелец уже принял
-оферту»), on the owner's first card payment, or on the «Тариф» page.
+оферту»), on the owner's first card payment, or on the «Подписка ClubSpace» page.
 
 1. Fill the seller's requisites in `.env.production` (`PLATFORM_SELLER_*`, see
    `.env.production.example`). Until NAME, INN, OGRNIP, ADDRESS, BANK_NAME, BIK
@@ -1069,7 +1085,7 @@ as before and is archived `PLATFORM_ARCHIVE_AFTER_DAYS` after suspension
 (hidden from members and the public listing; nothing deleted).
 
 «Пробный период с картой» (off by default, `PLATFORM_CARD_TRIAL_ENABLED`; the
-console switches it per club): the owner binds a card on «Тариф». YooKassa saves
+console switches it per club): the owner binds a card on «Подписка ClubSpace». YooKassa saves
 a card only with a real payment (`save_payment_method`; zero-amount payments are
 refused and the separate payment-methods API needs a manager to enable it), so
 the card is bound with a `PLATFORM_CARD_CHECK_AMOUNT` (1 ₽) payment that is
@@ -1227,7 +1243,8 @@ next code and, while mail is down, answers with an explicit "почта врем
 `clubspace-healthcheck`, installed by `bootstrap.sh`) and alerts to Telegram
 and/or e-mail — no paid service: public `/healthz` (and, when it fails, whether
 the server container itself still answers), `/readyz` (database, Redis, SMTP),
-every compose service running and not unhealthy, disk usage of `/`, Docker's
+every compose service running and not unhealthy, the admin/app policy allowing
+the server's `ROOT_URL` (`api-origin`, video preview), disk usage of `/`, Docker's
 data dir and `BACKUP_DIR` (`ALERT_DISK_PERCENT`, 85), age of the last S3 backup
 (`ALERT_BACKUP_MAX_AGE_HOURS`, 30), the local backup failure markers, and the
 TLS certificates of all five names (`ALERT_CERT_MIN_DAYS`, 14). A failing check

@@ -6,7 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { Roles, STAFF_ROLES } from '../../shared/decorators/roles.decorator'
+import { CLUB_ADMINS, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -31,7 +31,7 @@ export class ListAuditEventsController {
     constructor(private bus: FeaturesBus) {}
 
     @Get()
-    @Roles(STAFF_ROLES)
+    @Roles(CLUB_ADMINS)
     @ZodResponse({ type: ListAuditEventsOutput })
     async listEvents(
         @Param('workspaceId') workspaceId: string,

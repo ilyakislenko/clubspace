@@ -78,10 +78,6 @@ describe('who may promote ranks', () => {
                 .post(`${base}/members/${studentId}/rank`)
                 .set(...actor.auth)
                 .send({ ladderId, levelId: levelIds[1] }),
-            promoteMembers: await http()
-                .post(`${base}/rank-ladders/${ladderId}/promotions`)
-                .set(...actor.auth)
-                .send({ userIds: [studentId], levelId: levelIds[0] }),
             createGrading: await http()
                 .post(`${base}/rank-gradings`)
                 .set(...actor.auth)

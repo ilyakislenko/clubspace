@@ -23,8 +23,6 @@ export const AiTokenOutputSchema = z.object({
     revokedAt: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),
     createdBy: z.object({ id: z.string().uuid(), name: z.string() }),
-    // Admins revoke any token of the club, a direction manager their own.
-    canRevoke: z.boolean(),
 })
 export type AiTokenOutput = z.infer<typeof AiTokenOutputSchema>
 

@@ -12,6 +12,7 @@ import {
 } from "../../shared/api/platform"
 import { errorMessage } from "../../shared/lib/error-message"
 import { formatShortDate } from "../billing/billing-view"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 
 const ABOUT: Record<PlatformDemoClubId, string> = {
   academy: "«ACADEMY» — клуб единоборств (Томск + Северск)",
@@ -48,9 +49,13 @@ export function PlatformDemoClub({
 
   const reset = async () => {
     if (
-      !window.confirm(
-        `Сбросить демо-клуб ${demo?.name ?? ""}? Все изменения в нём пропадут, клуб будет создан заново с сегодняшними датами. Другие клубы, в том числе второй демо-клуб, не затрагиваются.`,
-      )
+      !(await confirmDialog({
+        title: demo ? `Сбросить демо-клуб ${demo.name}?` : "Сбросить демо-клуб?",
+        description:
+          "Все изменения в нём пропадут, клуб будет создан заново с сегодняшними датами. Другие клубы, в том числе второй демо-клуб, не затрагиваются.",
+        confirmLabel: "Сбросить демо",
+        destructive: true,
+      }))
     ) {
       return
     }

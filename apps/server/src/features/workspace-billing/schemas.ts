@@ -14,7 +14,7 @@ import type { PlatformTier } from '../../domains/billing/platform-pricing.config
 import { environment } from '../../environments/environment'
 import type { PlatformPayment } from '../../infrastructure/prisma'
 
-// Platform billing shapes shared by the club's own «Тариф» page and the
+// Platform billing shapes shared by the club's own «Подписка ClubSpace» page and the
 // platform console. Whole rubles throughout.
 
 export const WorkspaceBillingStatusSchema = z.enum([

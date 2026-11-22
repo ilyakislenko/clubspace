@@ -1,15 +1,17 @@
-import React, { useCallback, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import {
   listAtRiskMembers,
-  type AtRiskContact,
+  type AtRiskMember,
   type AtRiskReason,
 } from "../../shared/api/retention"
 import { useAuth } from "../../shared/auth-context"
 import { useVocabulary } from "../../shared/use-vocabulary"
+import { invalidateResource } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
+import { errorMessage } from "../../shared/error-message"
 import {
   CenteredColumn,
   DASHBOARD_WIDTH,
@@ -26,11 +28,15 @@ import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-
 import { AtRiskMemberCard } from "./AtRiskMemberCard"
 import {
   applyContact,
+  AT_RISK_RESOURCE,
+  callListKey,
   isStaffWorkspace,
+  mergePages,
   REASON_LABEL,
   REASON_ORDER,
-  visibleEntries,
 } from "./retention-helpers"
+
+const PER_PAGE = 50
 
 export function AtRiskMembersScreen() {
   const theme = useTheme()
@@ -41,20 +47,35 @@ export function AtRiskMembersScreen() {
   const keyboardScroll = useKeepFocusedInputVisible(scrollRef)
   const [reason, setReason] = useState<AtRiskReason | null>(null)
   const [showSnoozed, setShowSnoozed] = useState(false)
+  // Pages after the first («Показать ещё»), for the current view only.
+  const [more, setMore] = useState<AtRiskMember[]>([])
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [moreError, setMoreError] = useState<string | null>(null)
 
   const workspaceId = workspace?.workspaceId
   const staff = isStaffWorkspace(workspace)
-  // Its own key, not an `attendance:` one: Home keeps this resource mounted for
-  // the app's lifetime, and an attendance invalidation would re-run the whole
-  // engine on every check-in in the club.
+  // The same list as the admin page and the dashboard: the server scopes it
+  // to the caller. Its own key, not an `attendance:` one, so a check-in
+  // somewhere in the club doesn't refetch it.
+  const key =
+    workspaceId && staff ? callListKey(workspaceId, showSnoozed, reason) : null
   const list = useCachedResource(
-    workspaceId && staff ? `atrisk:${workspaceId}:mine` : null,
+    key,
     useCallback(
       async () =>
-        await listAtRiskMembers({ workspaceId: workspaceId!, scope: "mine" }),
-      [workspaceId],
+        await listAtRiskMembers({
+          workspaceId: workspaceId!,
+          snoozed: showSnoozed,
+          reason: showSnoozed ? undefined : (reason ?? undefined),
+          perPage: PER_PAGE,
+        }),
+      [workspaceId, showSnoozed, reason],
     ),
   )
+  useEffect(() => {
+    setMore([])
+    setMoreError(null)
+  }, [key])
 
   if (!workspace) return null
 
@@ -67,7 +88,8 @@ export function AtRiskMembersScreen() {
   }
 
   const data = list.data
-  const rows = data ? visibleEntries(data, reason, showSnoozed) : []
+  const rows = data ? mergePages(data.data, more) : []
+  const hasMore = !!data && rows.length < data.total
 
   const chips: { key: AtRiskReason | null; label: string; count: number }[] = [
     { key: null, label: "Все", count: data?.summary.total ?? 0 },
@@ -78,8 +100,33 @@ export function AtRiskMembersScreen() {
     })),
   ]
 
-  const onContacted = (userId: string, contact: AtRiskContact) =>
-    list.mutate((prev) => applyContact(prev, userId, contact))
+  const loadMore = async () => {
+    if (!data || loadingMore) return
+    setLoadingMore(true)
+    setMoreError(null)
+    try {
+      const res = await listAtRiskMembers({
+        workspaceId: workspace.workspaceId,
+        snoozed: showSnoozed,
+        reason: showSnoozed ? undefined : (reason ?? undefined),
+        curPage: Math.floor(rows.length / PER_PAGE) + 1,
+        perPage: PER_PAGE,
+      })
+      setMore((prev) => [...prev, ...res.data])
+    } catch (err) {
+      setMoreError(errorMessage(err, "Не удалось загрузить ещё"))
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  // Off this list at once; the home card and every other view refetch (the
+  // server dropped its cached list when the contact was logged).
+  const onContacted = (userId: string) => {
+    list.mutate((prev) => applyContact(prev, userId))
+    setMore((prev) => prev.filter((m) => m.userId !== userId))
+    invalidateResource(AT_RISK_RESOURCE, workspace.workspaceId)
+  }
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -103,7 +150,7 @@ export function AtRiskMembersScreen() {
               <ErrorRetry message={list.error} onRetry={list.refetch} />
             )}
 
-            {data && (
+            {data && !showSnoozed && (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -144,16 +191,31 @@ export function AtRiskMembersScreen() {
               </ResponsiveGrid>
             )}
 
+            {hasMore && (
+              <Pressable
+                onPress={() => void loadMore()}
+                disabled={loadingMore}
+                accessibilityRole="button"
+                style={styles.toggle}
+              >
+                <Text style={styles.toggleText}>
+                  {loadingMore ? "Загружаем…" : "Показать ещё"}
+                </Text>
+              </Pressable>
+            )}
+            {moreError && <Text style={styles.empty}>{moreError}</Text>}
+
             {data && rows.length === 0 && (
               <View style={styles.emptyBox}>
                 <Text style={styles.empty}>
-                  Все ученики на связи. Список обновляется сам — загляните на
-                  следующей неделе.
+                  {showSnoozed
+                    ? "За две недели ни с кем не связывались."
+                    : "Все ученики на связи. Список обновляется сам — загляните на следующей неделе."}
                 </Text>
               </View>
             )}
 
-            {data && data.summary.snoozed > 0 && (
+            {data && (showSnoozed || data.summary.snoozed > 0) && (
               <Pressable
                 onPress={() => setShowSnoozed((v) => !v)}
                 accessibilityRole="button"

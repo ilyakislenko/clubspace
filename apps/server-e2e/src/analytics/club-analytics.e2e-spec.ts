@@ -146,7 +146,7 @@ describe('club analytics', () => {
         const m1 = await student(gA.id, gA.slotId, coachA.id)
         const m2 = await student(gB.id, gB.slotId, coachB.id)
 
-        await http().post(`${base(w)}/refresh`).set(...ownerActor.auth).expect(201)
+        await refreshAndWait(w, ownerActor)
 
         return {
             w,
@@ -168,25 +168,46 @@ describe('club analytics', () => {
     const get = (w: string, path: string, actor: Actor, query = '') =>
         http().get(`${base(w)}/${path}${query}`).set(...actor.auth)
 
-    const churnIds = async (w: string, actor: Actor, query = '') => {
-        const res = await get(w, 'churn', actor, query).expect(200)
+    // «Кому позвонить» lives in at-risk-members (one list, B1).
+    const callList = (w: string, actor: Actor, query = '') =>
+        http().get(`/workspaces/${w}/at-risk-members${query}`).set(...actor.auth)
+
+    const callListIds = async (w: string, actor: Actor, query = '') => {
+        const res = await callList(w, actor, query).expect(200)
         return res.body.data.map((m: { userId: string }) => m.userId).sort()
     }
 
-    it('gives the owner the whole club with scores, reasons and money at stake', async () => {
+    // «Пересчитать» queues the rebuild (202) and the API's own worker runs it;
+    // wait until the risk snapshot is newer than the one the 202 reported.
+    // Pressed again right away it is fresh (200) and queues nothing.
+    async function refreshAndWait(w: string, actor: Actor) {
+        const res = await http().post(`${base(w)}/refresh`).set(...actor.auth).expect(202)
+        expect(res.body.status).toBe('queued')
+        const before = res.body.riskComputedAt as string | null
+        const deadline = Date.now() + 20_000
+        for (;;) {
+            const run = await ctx.prisma.analyticsRun.findUnique({ where: { workspaceId: w } })
+            const at = run?.riskComputedAt?.toISOString() ?? null
+            if (at && run?.historyComputedAt && at !== before) break
+            if (Date.now() > deadline) throw new Error('analytics refresh did not finish in 20 s')
+            await new Promise((r) => setTimeout(r, 100))
+        }
+        const again = await http().post(`${base(w)}/refresh`).set(...actor.auth).expect(200)
+        expect(again.body.status).toBe('fresh')
+    }
+
+    it('gives the owner the whole club with scores and money at stake', async () => {
         const c = await setup()
-        expect(await churnIds(c.w, c.ownerActor)).toEqual([c.m1.id, c.m2.id].sort())
-        const res = await get(c.w, 'churn', c.ownerActor).expect(200)
+        expect(await callListIds(c.w, c.ownerActor)).toEqual([c.m1.id, c.m2.id].sort())
+        const res = await callList(c.w, c.ownerActor).expect(200)
         const m = res.body.data[0]
+        // Live reason: the abonement ran out 10 days ago; score from the snapshot.
+        expect(m.reason).toBe('lapsed')
         expect(m.score).toBeGreaterThanOrEqual(60)
         expect(m.level).toBe('high')
         // One 5 000 ₽ abonement paid 40 days ago: 2 months → 2 500 ₽/мес.
         expect(m.monthlySpend).toBe(2500)
-        expect(m.reasons.map((r: { code: string }) => r.code)).toEqual(
-            expect.arrayContaining(['absent', 'expired']),
-        )
-        expect(m.canContact).toBe(true)
-        expect(res.body.summary).toMatchObject({ total: 2, high: 2, moneyAtStake: 5000 })
+        expect(res.body.summary).toMatchObject({ total: 2, lapsed: 2, high: 2, moneyAtStake: 5000 })
 
         const occupancy = await get(c.w, 'occupancy', c.ownerActor).expect(200)
         expect(occupancy.body.slots).toHaveLength(2)
@@ -196,33 +217,36 @@ describe('club analytics', () => {
         expect(cohorts.body.cohorts.reduce((s: number, x: { size: number }) => s + x.size, 0)).toBe(4)
 
         const forecast = await get(c.w, 'forecast', c.ownerActor).expect(200)
-        expect(forecast.body).toMatchObject({ members: 4, currency: 'RUB' })
+        // The live student count: the dashboard's «Ученики» (staff excluded).
+        expect(forecast.body).toMatchObject({ students: 4, currency: 'RUB' })
         expect(forecast.body.horizons[0]).toMatchObject({ days: 30, potential: 10000 })
     })
 
     it('narrows the owner to a direction filter', async () => {
         const c = await setup()
-        expect(await churnIds(c.w, c.ownerActor, `?directionId=${c.bjj}`)).toEqual([c.m1.id])
+        expect(await callListIds(c.w, c.ownerActor, `?directionId=${c.bjj}`)).toEqual([c.m1.id])
     })
 
     it('shows a coach only their own groups on every screen', async () => {
         const c = await setup()
-        expect(await churnIds(c.w, c.coachA)).toEqual([c.m1.id])
+        expect(await callListIds(c.w, c.coachA)).toEqual([c.m1.id])
+        // The call list stays on the coach's own groups even with read-all.
+        await ctx.prisma.workspace.update({ where: { id: c.w }, data: { coachSeesAllGroups: true } })
+        expect(await callListIds(c.w, c.coachA)).toEqual([c.m1.id])
+        expect((await callList(c.w, c.coachA).expect(200)).body.data[0].monthlySpend).toBeNull()
         const occupancy = await get(c.w, 'occupancy', c.coachA).expect(200)
         expect(occupancy.body.slots.map((s: { groupId: string }) => s.groupId)).toEqual([c.gA.id])
-        const coaches = await get(c.w, 'coaches', c.coachA).expect(200)
-        expect(coaches.body.coaches.map((x: { coachId: string }) => x.coachId)).toEqual([c.coachAId])
-        const forecast = await get(c.w, 'forecast', c.coachA).expect(200)
-        expect(forecast.body.members).toBe(2)
+        // Coaches comparison is for sport leads, the forecast for club admins.
+        await get(c.w, 'coaches', c.coachA).expect(403)
+        await get(c.w, 'forecast', c.coachA).expect(403)
         // Asking for another coach's direction yields nothing, not their data.
-        expect(await churnIds(c.w, c.coachA, `?directionId=${c.mma}`)).toEqual([])
+        expect(await callListIds(c.w, c.coachA, `?directionId=${c.mma}`)).toEqual([])
     })
 
     it('shows a direction manager only the groups of their direction', async () => {
         const c = await setup()
-        expect(await churnIds(c.w, c.manager)).toEqual([c.m2.id])
-        const coaches = await get(c.w, 'coaches', c.manager).expect(200)
-        expect(coaches.body.coaches.map((x: { coachId: string }) => x.coachId)).toEqual([c.coachBId])
+        expect(await callListIds(c.w, c.manager)).toEqual([c.m2.id])
+        await get(c.w, 'coaches', c.manager).expect(403)
         const cohorts = await get(c.w, 'cohorts', c.manager).expect(200)
         expect(cohorts.body.cohorts.reduce((s: number, x: { size: number }) => s + x.size, 0)).toBe(2)
     })
@@ -230,7 +254,8 @@ describe('club analytics', () => {
     it('refuses plain members everywhere and coaches the refresh', async () => {
         const c = await setup()
         const member = await signIn(ctx, c.m1.email!)
-        for (const path of ['churn', 'cohorts', 'occupancy', 'coaches', 'forecast']) {
+        await callList(c.w, member).expect(403)
+        for (const path of ['cohorts', 'occupancy', 'coaches', 'forecast']) {
             await get(c.w, path, member).expect(403)
         }
         await http().post(`${base(c.w)}/refresh`).set(...member.auth).expect(403)
@@ -243,7 +268,8 @@ describe('club analytics', () => {
             ownerMembership: false,
         })
         const otherActor = await signIn(ctx, otherOwner.email)
-        for (const path of ['churn', 'cohorts', 'occupancy', 'coaches', 'forecast']) {
+        await callList(c.w, otherActor).expect(403)
+        for (const path of ['cohorts', 'occupancy', 'coaches', 'forecast']) {
             await get(c.w, path, otherActor).expect(403)
         }
         await http().post(`${base(c.w)}/refresh`).set(...otherActor.auth).expect(403)
@@ -251,12 +277,13 @@ describe('club analytics', () => {
         const foreignGym = await ctx.prisma.gym.create({
             data: { workspaceId: other.id, name: 'Чужой', address: 'ул. Другая, 2' },
         })
-        for (const path of ['churn', 'cohorts', 'occupancy', 'coaches', 'forecast']) {
+        await callList(c.w, c.ownerActor, `?gymId=${foreignGym.id}`).expect(404)
+        for (const path of ['cohorts', 'occupancy', 'coaches', 'forecast']) {
             await get(c.w, path, c.ownerActor, `?gymId=${foreignGym.id}`).expect(404)
         }
         // The other club's own screens are empty: nothing leaks across.
-        await http().post(`${base(other.id)}/refresh`).set(...otherActor.auth).expect(201)
-        expect(await churnIds(other.id, otherActor)).toEqual([])
+        await refreshAndWait(other.id, otherActor)
+        expect(await callListIds(other.id, otherActor)).toEqual([])
     })
 
     it('sends the owners digest once per club per week, honouring the opt-out', async () => {

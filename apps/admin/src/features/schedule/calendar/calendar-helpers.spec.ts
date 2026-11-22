@@ -3,6 +3,7 @@ import {
   addMonthsYmd,
   chunkRange,
   dayLabel,
+  dayRuns,
   findConflicts,
   formatRange,
   isCalendarView,
@@ -54,7 +55,6 @@ describe("calendar days", () => {
     expect(viewRange("day", "2026-11-04")).toEqual({ from: "2026-11-04", to: "2026-11-04" })
     expect(viewRange("week", "2026-11-04")).toEqual({ from: "2026-11-02", to: "2026-11-08" })
     expect(viewRange("agenda", "2026-11-04")).toEqual({ from: "2026-11-01", to: "2026-11-30" })
-    expect(viewRange("year", "2026-11-04")).toEqual({ from: "2026-01-01", to: "2026-12-31" })
     expect(viewRange("month", "2026-11-04").from).toBe("2026-10-26")
   })
 
@@ -70,7 +70,6 @@ describe("calendar days", () => {
     expect(navigateAnchor("week", "2026-11-04", -1)).toBe("2026-10-28")
     expect(navigateAnchor("month", "2026-11-04", 1)).toBe("2026-12-04")
     expect(navigateAnchor("agenda", "2026-11-04", -1)).toBe("2026-10-04")
-    expect(navigateAnchor("year", "2026-11-04", 1)).toBe("2027-11-04")
   })
 
   it("labels in Russian", () => {
@@ -81,7 +80,7 @@ describe("calendar days", () => {
     expect(rangeLabel("week", "2026-12-30")).toBe("28 декабря 2026 – 3 января 2027")
     expect(rangeLabel("day", "2026-11-04")).toBe("среда, 4 ноября 2026")
     expect(rangeLabel("month", "2026-02-10")).toBe("1–28 февраля 2026")
-    expect(rangeLabel("year", "2026-02-10")).toBe("2026")
+    expect(isCalendarView("year")).toBe(false)
     expect(isCalendarView("week")).toBe(true)
     expect(isCalendarView("list")).toBe(false)
   })
@@ -141,6 +140,21 @@ describe("time grid", () => {
       { key: "d", startMin: 640, endMin: 700 },
     ])
     expect(layout.get("d")).toEqual({ left: 1 / 3, width: 2 / 3 })
+  })
+
+  it("groups a day into runs of overlapping items, as many lanes as run at once", () => {
+    const runs = dayRuns([
+      { key: "a", startMin: 1080, endMin: 1170 },
+      { key: "b", startMin: 1080, endMin: 1140 },
+      { key: "c", startMin: 1110, endMin: 1200 },
+      { key: "d", startMin: 1140, endMin: 1230 },
+      { key: "e", startMin: 1260, endMin: 1320 },
+    ])
+    expect(runs.map((r) => [r.startMin, r.endMin, r.lanes.length])).toEqual([
+      [1080, 1230, 3],
+      [1260, 1320, 1],
+    ])
+    expect(runs[0].lanes.flat().map((it) => it.key).sort()).toEqual(["a", "b", "c", "d"])
   })
 })
 

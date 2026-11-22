@@ -201,7 +201,7 @@ export function PlaylistFormSheet({
           <SheetDescription>
             {isCreate
               ? "Заполните основные поля — позже их можно будет отредактировать."
-              : "Slug менять нельзя — он используется в ссылках."}
+              : "Адрес в ссылке менять нельзя: по нему открывают курс."}
           </SheetDescription>
         </SheetHeader>
 
@@ -212,22 +212,22 @@ export function PlaylistFormSheet({
               id="playlist-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder={isCreate ? "Closed Guard" : undefined}
+              placeholder={isCreate ? "Например: Базовый курс" : undefined}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="playlist-slug">Slug</Label>
+            <Label htmlFor="playlist-slug">Адрес в ссылке</Label>
             {isCreate ? (
               <>
                 <Input
                   id="playlist-slug"
                   value={slug}
                   onChange={(event) => setSlug(event.target.value)}
-                  placeholder="closed-guard"
+                  placeholder="bazovyj-kurs"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Будет в URL курса. Изменить позже нельзя.
+                  Часть ссылки на курс. Изменить позже нельзя.
                 </p>
               </>
             ) : (
@@ -241,7 +241,7 @@ export function PlaylistFormSheet({
               id="playlist-level"
               value={level}
               onChange={(event) => setLevel(event.target.value)}
-              placeholder="beginner / intermediate / advanced"
+              placeholder="Например: начальный"
             />
           </div>
 
@@ -262,7 +262,7 @@ export function PlaylistFormSheet({
               id="playlist-tags"
               value={tags}
               onChange={(event) => setTags(event.target.value)}
-              placeholder={isCreate ? "guard, fundamentals" : undefined}
+              placeholder={isCreate ? "Например: основы, техника" : undefined}
             />
           </div>
 

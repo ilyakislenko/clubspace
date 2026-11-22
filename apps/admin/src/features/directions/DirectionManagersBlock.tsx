@@ -14,6 +14,7 @@ import type { WorkspaceMember } from "../../shared/api/members"
 import { errorMessage } from "../../shared/lib/error-message"
 import { formatMemberLabel, matchesMemberQuery } from "../groups/helpers"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { cap } from "@clubspace/ui-kit/brand"
 
 // Only a plain coach can run a direction — admins/head coaches already manage
@@ -21,7 +22,7 @@ import { cap } from "@clubspace/ui-kit/brand"
 export const isDirectionManagerCandidate = (m: WorkspaceMember): boolean =>
   m.roleName === "coach" && !m.isOwner
 
-const managerLabel = (m: DirectionManager): string =>
+export const managerLabel = (m: DirectionManager): string =>
   [m.firstname, m.lastname].filter(Boolean).join(" ").trim() || m.email || "—"
 
 type Props = {
@@ -29,23 +30,26 @@ type Props = {
   direction: Direction
   managers: DirectionManager[]
   coaches: WorkspaceMember[]
+  // Ranks are named in the copy only where the club has them switched on.
+  ranksOn: boolean
   onChanged: () => void | Promise<void>
-  onError: (message: string | null) => void
 }
 
-/** «Руководители» of one direction: assigned coaches + picker to add more. */
+/** «Руководители» of one direction (in its editor): assigned coaches + picker
+ * to add more. Changes save at once, apart from the form's «Сохранить». */
 export function DirectionManagersBlock({
   workspaceId,
   direction,
   managers,
   coaches,
+  ranksOn,
   onChanged,
-  onError,
 }: Props) {
   const vocabulary = useVocabulary()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState("")
+  const [error, setError] = useState<string | null>(null)
 
   const assigned = new Set(managers.map((m) => m.userId))
   const candidates = coaches.filter((c) => !assigned.has(c.userId))
@@ -59,7 +63,7 @@ export function DirectionManagersBlock({
   const assign = async (userId: string) => {
     close()
     setBusy(true)
-    onError(null)
+    setError(null)
     try {
       await assignDirectionManager({
         workspaceId,
@@ -67,38 +71,43 @@ export function DirectionManagersBlock({
       })
       await onChanged()
     } catch (err) {
-      onError(errorMessage(err, "Не удалось назначить руководителя"))
+      setError(errorMessage(err, "Не удалось назначить руководителя"))
     } finally {
       setBusy(false)
     }
   }
 
   const remove = async (m: DirectionManager) => {
-    if (
-      !window.confirm(
-        `Снять ${managerLabel(m)} с руководства направлением «${direction.name}»?`,
-      )
-    )
-      return
+    const confirmed = await confirmDialog({
+      title: `Снять ${managerLabel(m)} с руководства направлением «${direction.name}»?`,
+      description: `${cap(vocabulary.coach.nom)} останется в клубе и в своих группах, но перестанет вести группы, события и объявления направления.`,
+      confirmLabel: "Снять",
+      destructive: true,
+    })
+    if (!confirmed) return
     setBusy(true)
-    onError(null)
+    setError(null)
     try {
       await removeDirectionManager({ workspaceId, managerId: m.id })
       await onChanged()
     } catch (err) {
-      onError(errorMessage(err, "Не удалось снять руководителя"))
+      setError(errorMessage(err, "Не удалось снять руководителя"))
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="space-y-1.5">
-      <div className="text-xs text-muted-foreground">Руководители</div>
+    <div className="space-y-2">
+      <div>
+        <div className="text-sm font-medium">Руководители</div>
+        <p className="text-xs text-muted-foreground">
+          {cap(vocabulary.coach.nom)}, который сам ведёт группы,
+          {ranksOn ? " ранги, аттестации," : ""} события и объявления этого направления.
+        </p>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        {managers.length === 0 && !open && (
-          <span className="text-muted-foreground">Не назначены</span>
-        )}
         {managers.map((m) => (
           <span
             key={m.id}

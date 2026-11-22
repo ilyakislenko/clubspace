@@ -3,23 +3,16 @@
 // and the weekly digest build the same numbers.
 import { localDateInTz } from '../../features/attendance/attendance-utils'
 import { displayName } from '../../features/attendance/schemas'
-import {
-    type MemberGuardianOutput,
-    memberGuardiansSelect,
-    serializeMemberGuardians,
-} from '../../features/dependents/schemas'
-import type { PrismaService } from '../../infrastructure/prisma'
+import { analyticsScopeMemberWhere } from './analytics-scope'
+import type { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
-import { addDaysYmd, DAY_MS, dbDateToYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
-import {
-    CHURN_REASON_CODES,
-    CHURN_RULES,
-    type ChurnLevel,
-    churnLevel,
-    type ChurnReason,
-} from './churn-score'
+import { expectedRevenue, type RevenueHorizon } from '../metrics/expected-revenue'
+import { loadMonthlyRecurringIncome } from '../metrics/revenue'
+import { countStudents } from '../metrics/students'
+import { addDaysYmd, dbDateToYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
+import { churnLevel } from './churn-score'
 import { type CoachStat, computeCoachStats } from './coach-stats'
-import { averageRetention, buildCohorts, type Cohort, mergeVisitSpans } from './cohorts'
+import { addMonthsYmd, averageRetention, buildCohorts, type Cohort, COHORT_MONTHS } from './cohorts'
 import { clubRenewalRate, FORECAST_RULES, type TrialConversion, trialConversion } from './forecast'
 import {
     buildHeatmap,
@@ -41,9 +34,6 @@ export type AnalyticsScope = {
     includeGroupless: boolean
 }
 
-// A contact younger than this keeps a member in «Связались».
-export const CONTACT_FRESH_DAYS = 14
-export const CHURN_LIST_MIN_SCORE = CHURN_RULES.levels.medium
 export const COACH_WINDOW_WEEKS = 12
 
 const inScope = (scope: AnalyticsScope, groupIds: readonly string[]): boolean =>
@@ -52,168 +42,14 @@ const inScope = (scope: AnalyticsScope, groupIds: readonly string[]): boolean =>
 const loadRun = (prisma: PrismaService, workspaceId: string) =>
     prisma.analyticsRun.findUnique({ where: { workspaceId } })
 
-const parseReasons = (raw: unknown): ChurnReason[] =>
-    Array.isArray(raw)
-        ? raw.flatMap((r) => {
-              const x = r as Partial<ChurnReason>
-              return typeof x.text === 'string' &&
-                  typeof x.points === 'number' &&
-                  (CHURN_REASON_CODES as readonly string[]).includes(x.code ?? '')
-                  ? [{ code: x.code!, points: x.points, text: x.text }]
-                  : []
-          })
-        : []
-
-// ---- «Кому позвонить сегодня» ----
-
-export type ChurnEntry = {
-    userId: string
-    firstname: string | null
-    lastname: string | null
-    email: string | null
-    phone: string | null
-    guardians: MemberGuardianOutput[]
-    groups: { id: string; name: string; gymId: string | null; gymName: string | null }[]
-    score: number
-    level: ChurnLevel
-    reasons: ChurnReason[]
-    monthlySpend: number
-    currency: string | null
-    lastVisitAt: Date | null
-    lastContact: {
-        id: string
-        at: Date
-        byName: string
-        note: string | null
-        reason: string | null
-        signals: string[]
-    } | null
-    contactedRecently: boolean
-}
-
-export type ChurnReport = {
-    computedAt: Date | null
-    entries: ChurnEntry[]
-    summary: {
-        total: number
-        high: number
-        medium: number
-        moneyAtStake: number
-        currency: string | null
-        contactedRecently: number
-    }
-}
-
-export const loadChurnReport = async (
-    prisma: PrismaService,
-    p: { workspaceId: string; scope: AnalyticsScope; now: Date; minScore?: number },
-): Promise<ChurnReport> => {
-    const minScore = p.minScore ?? CHURN_LIST_MIN_SCORE
-    const [run, rows] = await Promise.all([
-        loadRun(prisma, p.workspaceId),
-        prisma.analyticsMemberSnapshot.findMany({
-            where: { workspaceId: p.workspaceId, score: { gte: Math.max(1, minScore) } },
-        }),
-    ])
-    const kept = rows.filter((r) => inScope(p.scope, r.groupIds))
-    const userIds = kept.map((r) => r.userId)
-    const groupIds = [...new Set(kept.flatMap((r) => r.groupIds))]
-    const [users, groups, contacts] = await Promise.all([
-        prisma.user.findMany({
-            where: { id: { in: userIds } },
-            select: {
-                id: true,
-                firstname: true,
-                lastname: true,
-                email: true,
-                phone: true,
-                dependentOf: memberGuardiansSelect,
-            },
-        }),
-        prisma.group.findMany({
-            where: { id: { in: groupIds }, workspaceId: p.workspaceId },
-            select: { id: true, name: true, gymId: true, gym: { select: { name: true } } },
-        }),
-        prisma.memberRetentionContact.findMany({
-            where: { workspaceId: p.workspaceId, userId: { in: userIds } },
-            orderBy: { createdAt: 'desc' },
-            distinct: ['userId'],
-            select: {
-                id: true,
-                userId: true,
-                createdAt: true,
-                note: true,
-                reason: true,
-                signals: true,
-                contactedBy: { select: { firstname: true, lastname: true, email: true } },
-            },
-        }),
-    ])
-    const userById = new Map(users.map((u) => [u.id, u]))
-    const groupById = new Map(groups.map((g) => [g.id, g]))
-    const contactByUser = new Map(contacts.map((c) => [c.userId, c]))
-    const freshFrom = p.now.getTime() - CONTACT_FRESH_DAYS * DAY_MS
-
-    const entries: ChurnEntry[] = []
-    for (const r of kept) {
-        const u = userById.get(r.userId)
-        if (!u) continue
-        const c = contactByUser.get(r.userId)
-        entries.push({
-            userId: r.userId,
-            firstname: u.firstname,
-            lastname: u.lastname,
-            email: u.email,
-            phone: u.phone,
-            guardians: serializeMemberGuardians(u.dependentOf),
-            groups: r.groupIds
-                .filter((id) => p.scope.groupIds === null || p.scope.groupIds.has(id))
-                .flatMap((id) => {
-                    const g = groupById.get(id)
-                    return g
-                        ? [{ id: g.id, name: g.name, gymId: g.gymId, gymName: g.gym?.name ?? null }]
-                        : []
-                }),
-            score: r.score,
-            level: churnLevel(r.score),
-            reasons: parseReasons(r.reasons),
-            monthlySpend: r.monthlySpend,
-            currency: r.currency,
-            lastVisitAt: r.lastVisitAt,
-            lastContact: c
-                ? {
-                      id: c.id,
-                      at: c.createdAt,
-                      byName: displayName(c.contactedBy),
-                      note: c.note,
-                      reason: c.reason,
-                      signals: c.signals,
-                  }
-                : null,
-            contactedRecently: !!c && c.createdAt.getTime() >= freshFrom,
-        })
-    }
-    entries.sort(
-        (a, b) =>
-            Number(a.contactedRecently) - Number(b.contactedRecently) ||
-            b.score - a.score ||
-            b.monthlySpend - a.monthlySpend ||
-            displayName(a).localeCompare(displayName(b), 'ru'),
-    )
-
-    const open = entries.filter((e) => !e.contactedRecently)
-    return {
-        computedAt: run?.riskComputedAt ?? null,
-        entries,
-        summary: {
-            total: open.length,
-            high: open.filter((e) => e.level === 'high').length,
-            medium: open.filter((e) => e.level === 'medium').length,
-            moneyAtStake: open.reduce((sum, e) => sum + e.monthlySpend, 0),
-            currency: open.find((e) => e.currency)?.currency ?? null,
-            contactedRecently: entries.length - open.length,
-        },
-    }
+// The visit-stat rows of a scope's groups; group-less ones only when the scope
+// takes them.
+const visitStatScopeWhere = (scope: AnalyticsScope): Prisma.AnalyticsMemberGroupStatWhereInput => {
+    const groups = scope.groupIds
+        ? { groupId: { in: [...scope.groupIds] } }
+        : { groupId: { not: null } }
+    if (!scope.includeGroupless) return groups
+    return scope.groupIds ? { OR: [groups, { groupId: null }] } : {}
 }
 
 // ---- Cohorts ----
@@ -228,16 +64,35 @@ export const loadCohortReport = async (
     prisma: PrismaService,
     p: { workspaceId: string; scope: AnalyticsScope; now: Date },
 ): Promise<CohortReport> => {
-    const [run, ws, stats] = await Promise.all([
+    // One visit span per member over the scope's groups, summed in SQL, and
+    // only members whose first visit can fall into the cohort window: its
+    // first month in any time zone is after the UTC month COHORT_MONTHS ago
+    // (buildCohorts makes the exact club-local cut).
+    const since = ymdToDbDate(
+        addMonthsYmd(`${localDateInTz(p.now, 'UTC').slice(0, 7)}-01`, -COHORT_MONTHS),
+    )
+    const [run, ws, spans] = await Promise.all([
         loadRun(prisma, p.workspaceId),
         prisma.workspace.findUniqueOrThrow({
             where: { id: p.workspaceId },
             select: { timezone: true },
         }),
-        prisma.analyticsMemberGroupStat.findMany({ where: { workspaceId: p.workspaceId } }),
+        prisma.analyticsMemberGroupStat.groupBy({
+            by: ['userId'],
+            where: { workspaceId: p.workspaceId, ...visitStatScopeWhere(p.scope) },
+            _min: { firstVisitAt: true },
+            _max: { lastVisitAt: true },
+            _sum: { visits: true },
+            having: { firstVisitAt: { _min: { gte: since } } },
+        }),
     ])
     const cohorts = buildCohorts(
-        mergeVisitSpans(stats, p.scope.groupIds, p.scope.includeGroupless),
+        spans.map((s) => ({
+            userId: s.userId,
+            firstVisitAt: s._min.firstVisitAt!,
+            lastVisitAt: s._max.lastVisitAt!,
+            visits: s._sum.visits ?? 0,
+        })),
         { now: p.now, tz: ws.timezone },
     )
     return {
@@ -356,8 +211,12 @@ export const loadCoachReport = async (
                 user: { select: { firstname: true, lastname: true, email: true } },
             },
         }),
+        // Only the scope's groups: every coach's groups are among them.
         prisma.analyticsMemberGroupStat.findMany({
-            where: { workspaceId: p.workspaceId, groupId: { not: null } },
+            where: {
+                workspaceId: p.workspaceId,
+                ...visitStatScopeWhere({ groupIds: p.scope.groupIds, includeGroupless: false }),
+            },
         }),
         prisma.analyticsMemberSnapshot.findMany({
             where: { workspaceId: p.workspaceId },
@@ -437,12 +296,16 @@ export const loadCoachReport = async (
 
 // ---- Forecast ----
 
+// `students` and `mrr` are the live glossary metrics over the scope's
+// students (the same functions as the dashboard, so the unfiltered forecast
+// shows the dashboard's numbers); the horizons, the renewal share and the
+// risk money come from the hourly snapshot.
 export type ForecastReport = {
     computedAt: Date | null
     currency: string | null
-    members: number
-    monthlyRecurring: number
-    horizons: { days: number; potential: number; expected: number; atRisk: number }[]
+    students: number
+    mrr: number
+    horizons: RevenueHorizon[]
     renewal: {
         clubRate: number
         clubSample: number
@@ -452,6 +315,7 @@ export type ForecastReport = {
         scopeSample: number
         usesDefault: boolean
     }
+    // Average monthly spend (180 days) of the scope's high-risk students.
     highRiskMoney: number
     trial: TrialConversion
 }
@@ -460,10 +324,21 @@ export const loadForecastReport = async (
     prisma: PrismaService,
     p: { workspaceId: string; scope: AnalyticsScope; now: Date },
 ): Promise<ForecastReport> => {
-    const [run, rows, formerRows] = await Promise.all([
+    const memberWhere = p.scope.groupIds === null ? undefined : analyticsScopeMemberWhere(p.scope)
+    const workspace = await prisma.workspace.findUniqueOrThrow({
+        where: { id: p.workspaceId },
+        select: { ownerId: true },
+    })
+    const [run, rows, formerRows, students, mrr] = await Promise.all([
         loadRun(prisma, p.workspaceId),
         prisma.analyticsMemberSnapshot.findMany({ where: { workspaceId: p.workspaceId } }),
         prisma.analyticsFormerMember.findMany({ where: { workspaceId: p.workspaceId } }),
+        countStudents(prisma, {
+            workspaceId: p.workspaceId,
+            ownerId: workspace.ownerId,
+            ...(memberWhere ? { where: memberWhere } : {}),
+        }),
+        loadMonthlyRecurringIncome(prisma, p.workspaceId, p.now, memberWhere),
     ])
     const kept = rows.filter((r) => inScope(p.scope, r.groupIds))
     const sum = (f: (r: (typeof kept)[number]) => number) => kept.reduce((s, r) => s + f(r), 0)
@@ -473,22 +348,13 @@ export const loadForecastReport = async (
     const former = formerRows.filter((r) => inScope(p.scope, r.groupIds))
     const due = sum((r) => r.renewalsDue) + former.reduce((s, r) => s + r.renewalsDue, 0)
     const done = sum((r) => r.renewalsDone) + former.reduce((s, r) => s + r.renewalsDone, 0)
-    const horizon = (days: number, potential: number, expected: number) => ({
-        days,
-        potential,
-        expected,
-        atRisk: potential - expected,
-    })
     const currencies = kept.flatMap((r) => (r.currency ? [r.currency] : []))
     return {
         computedAt: run?.riskComputedAt ?? null,
-        currency: currencies[0] ?? null,
-        members: kept.length,
-        monthlyRecurring: sum((r) => r.monthlySpend),
-        horizons: [
-            horizon(30, sum((r) => r.potential30), sum((r) => r.expected30)),
-            horizon(90, sum((r) => r.potential90), sum((r) => r.expected90)),
-        ],
+        currency: mrr.currency ?? currencies[0] ?? null,
+        students,
+        mrr: mrr.amount,
+        horizons: expectedRevenue(kept),
         renewal: {
             clubRate: run?.clubRenewalRate ?? FORECAST_RULES.defaultRenewalRate,
             clubSample: run?.renewalSample ?? 0,

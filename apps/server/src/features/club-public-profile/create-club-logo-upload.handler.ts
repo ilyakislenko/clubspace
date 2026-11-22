@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import { clubLogoKeyPrefix } from '../../domains/workspace/club-logo'
 import { FilesService } from '../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -33,7 +33,7 @@ export class CreateClubLogoUploadHandler
         roleName,
         isSuperAdmin,
     }: CreateClubLogoUploadFeature) {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             { userId: invokerUserId, workspaceId, roleName, isSuperAdmin },
             'Публичную страницу клуба настраивает только администратор',

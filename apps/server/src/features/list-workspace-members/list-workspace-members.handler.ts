@@ -1,10 +1,17 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { notAttendedWhere } from '../../domains/metrics/attendance'
+import { memberRosterWhere } from '../../domains/metrics/students'
 import {
     currentSubscriptionOrderBy,
     currentSubscriptionWhere,
     subscriptionScopeSelect,
 } from '../../domains/subscriptions/current-subscriptions'
+import {
+    owesPaymentWhere,
+    renewalDueUserIds,
+} from '../../domains/subscriptions/renewal-rules'
+import { userSearchWhere } from '../../domains/users/user-search'
 import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { STAFF_ROLES } from '../../shared/decorators/roles.decorator'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -12,7 +19,6 @@ import {
     memberGuardiansSelect,
     serializeMemberGuardians,
 } from '../dependents/schemas'
-import { notAwaitingFirstVisitWhere } from '../manage-announcements/renewal-segment'
 import {
     ListWorkspaceMembersFeature,
     ListWorkspaceMembersFeatureResponse,
@@ -20,83 +26,35 @@ import {
     MEMBERS_DEFAULT_PER_PAGE,
 } from './list-workspace-members.feature'
 
-const MS_1D = 24 * 3600 * 1000
-// More words than this in a search add nothing but query cost.
-const MAX_SEARCH_TERMS = 5
-
-// Every word of the query must appear in the member's name, e-mail or phone,
-// or in one of a child's guardians' (the guardian is who the club knows).
+// Every word of the query must match the member (userSearchWhere).
 export const memberSearchWhere = (
     q: string,
 ): Prisma.WorkspaceMemberWhereInput[] =>
-    q
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, MAX_SEARCH_TERMS)
-        .map((term) => {
-            const contains = { contains: term, mode: 'insensitive' as const }
-            const person: Prisma.UserWhereInput[] = [
-                { firstname: contains },
-                { lastname: contains },
-                { email: contains },
-                { phone: contains },
-            ]
-            return {
-                user: {
-                    OR: [
-                        ...person,
-                        {
-                            dependentOf: {
-                                some: {
-                                    guardian: { status: 'ACTIVE', OR: person },
-                                },
-                            },
-                        },
-                    ],
-                },
-            }
-        })
+    userSearchWhere(q).map((user) => ({ user }))
 
-// The dashboard retention segments (get-workspace-stats): ACTIVE students —
-// neither the owner nor staff — whose access lapsed, lapses within 14 days
-// (not a pending abonement's provisional window), or who haven't checked in
-// for 30 days (never included).
-export const memberAccessWhere = (
+// The roster segments, one definition each (shared with the screens that
+// count them): «Кончается абонемент» = the «Удержание → Продлить» list,
+// «Должники» = members with an unpaid abonement (the «Ожидают оплаты» list),
+// «Не были 30 дней» = students without a check-in in 30 days.
+export const memberAccessWhere = async (
+    prisma: PrismaService,
     access: NonNullable<ListWorkspaceMembersInput['access']>,
     ctx: { workspaceId: string; workspaceOwnerId: string; now: Date },
-): Prisma.WorkspaceMemberWhereInput | null => {
-    if (access === 'all') return null
+): Promise<Prisma.WorkspaceMemberWhereInput | null> => {
     const { workspaceId, workspaceOwnerId, now } = ctx
-    const student: Prisma.WorkspaceMemberWhereInput = {
-        status: 'ACTIVE',
-        NOT: [
-            { role: { name: { in: [...STAFF_ROLES] } } },
-            { userId: workspaceOwnerId },
-        ],
-    }
-    if (access === 'expired') {
-        return { ...student, accessUntil: { lt: now } }
-    }
-    if (access === 'expiring') {
-        return {
-            ...student,
-            accessUntil: {
-                gte: now,
-                lt: new Date(now.getTime() + 14 * MS_1D),
-            },
-            ...notAwaitingFirstVisitWhere,
-        }
-    }
-    return {
-        ...student,
-        user: {
-            attendanceRecords: {
-                none: {
-                    workspaceId,
-                    markedAt: { gte: new Date(now.getTime() - 30 * MS_1D) },
+    switch (access) {
+        case 'all':
+            return null
+        case 'renew':
+            return {
+                userId: {
+                    in: await renewalDueUserIds(prisma, workspaceId, now),
                 },
-            },
-        },
+            }
+        case 'unpaid':
+            return owesPaymentWhere
+        case 'inactive':
+            return notAttendedWhere(workspaceId, workspaceOwnerId, now)
     }
 }
 
@@ -179,13 +137,16 @@ export class ListWorkspaceMembersHandler
         const perPage = payload.perPage ?? MEMBERS_DEFAULT_PER_PAGE
 
         const filters: Prisma.WorkspaceMemberWhereInput[] = [
+            // INVITED rows belong to the "ожидают приглашения" panel.
+            memberRosterWhere(workspaceId),
+            ...(scopedUserIds ? [{ userId: { in: scopedUserIds } }] : []),
             ...(payload.q ? memberSearchWhere(payload.q) : []),
         ]
-        const accessWhere = memberAccessWhere(payload.access ?? 'all', {
-            workspaceId,
-            workspaceOwnerId: ctx.workspaceOwnerId,
-            now,
-        })
+        const accessWhere = await memberAccessWhere(
+            this.prisma,
+            payload.access ?? 'all',
+            { workspaceId, workspaceOwnerId: ctx.workspaceOwnerId, now },
+        )
         if (accessWhere) filters.push(accessWhere)
         if (payload.staffOnly) {
             filters.push({
@@ -196,13 +157,7 @@ export class ListWorkspaceMembersHandler
             })
         }
 
-        const where: Prisma.WorkspaceMemberWhereInput = {
-            workspaceId,
-            // INVITED rows belong to the "ожидают приглашения" panel.
-            status: { not: 'INVITED' },
-            ...(scopedUserIds ? { userId: { in: scopedUserIds } } : {}),
-            ...(filters.length > 0 ? { AND: filters } : {}),
-        }
+        const where: Prisma.WorkspaceMemberWhereInput = { AND: filters }
 
         const [members, total] = await Promise.all([
             this.prisma.workspaceMember.findMany({
@@ -236,134 +191,47 @@ export class ListWorkspaceMembersHandler
                             ...subscriptionScopeSelect,
                         },
                     },
+                    // Unpaid abonements, by the «Должники» rule.
+                    _count: {
+                        select: {
+                            subscriptions: {
+                                where: owesPaymentWhere.subscriptions.some,
+                            },
+                        },
+                    },
                 },
             }),
             this.prisma.workspaceMember.count({ where }),
         ])
 
-        // Aggregated progress for this page's members only, scoped to this
-        // workspace's videos.
-        const userIds = members.map((m) => m.user.id)
-        const [
-            completedRows,
-            inProgressRows,
-            lastTouches,
-            lastCheckInRows,
-            workspaceVideoTotal,
-        ] = await Promise.all([
-            userIds.length > 0
-                ? this.prisma.videoWatched.groupBy({
-                      by: ['userId'],
-                      where: {
-                          workspaceId,
-                          userId: { in: userIds },
-                          completed: true,
-                      },
-                      _count: { _all: true },
-                  })
-                : [],
-            userIds.length > 0
-                ? this.prisma.videoWatched.groupBy({
-                      by: ['userId'],
-                      where: {
-                          workspaceId,
-                          userId: { in: userIds },
-                          completed: false,
-                          position: { gt: 0 },
-                      },
-                      _count: { _all: true },
-                  })
-                : [],
-            // Latest VideoWatched row per user, with the video title — gives us
-            // both the "last activity" timestamp and a concrete signal of what
-            // the student is studying right now.
-            userIds.length > 0
-                ? this.prisma.videoWatched.findMany({
-                      where: {
-                          workspaceId,
-                          userId: { in: userIds },
-                      },
-                      orderBy: [{ userId: 'asc' }, { watchedAt: 'desc' }],
-                      distinct: ['userId'],
-                      select: {
-                          userId: true,
-                          watchedAt: true,
-                          video: { select: { id: true, title: true } },
-                      },
-                  })
-                : [],
-            // Most recent attendance check-in per member — the churn signal the
-            // dashboard's "inactive 30d" card counts. null = never attended.
-            userIds.length > 0
-                ? this.prisma.attendanceRecord.groupBy({
-                      by: ['userId'],
-                      where: { workspaceId, userId: { in: userIds } },
-                      _max: { markedAt: true },
-                  })
-                : [],
-            this.prisma.video.count({
-                where: { workspaceId, status: 'ready' },
-            }),
-        ])
-
-        const completedByUser = new Map(
-            completedRows.map((row) => [row.userId, row._count._all]),
-        )
-        const inProgressByUser = new Map(
-            inProgressRows.map((row) => [row.userId, row._count._all]),
-        )
-        const lastByUser = new Map(
-            lastTouches.map((row) => [row.userId, row]),
-        )
-        const lastCheckInByUser = new Map(
-            lastCheckInRows.map((row) => [row.userId, row._max.markedAt]),
-        )
-
         return {
-            data: members.map((member) => {
-                const last = lastByUser.get(member.user.id)
-                return {
-                    id: member.id,
-                    userId: member.user.id,
-                    email: member.user.email,
-                    firstname: member.user.firstname,
-                    lastname: member.user.lastname,
-                    isDependent: member.user.email === null,
-                    guardians: serializeMemberGuardians(member.user.dependentOf),
-                    status: member.status,
-                    roleName: member.role.name,
-                    isOwner: member.user.id === ctx.workspaceOwnerId,
-                    accessUntil: member.accessUntil
-                        ? member.accessUntil.toISOString()
-                        : null,
-                    abonements: member.subscriptions.map((s) => ({
-                        planName: s.plan.name,
-                        classesRemaining: s.classesRemaining,
-                        classesTotal: s.classesTotal,
-                        endDate: s.endDate ? s.endDate.toISOString() : null,
-                        directions: s.directions.map((d) => d.direction),
-                    })),
-                    createdAt: member.createdAt.toISOString(),
-                    lastCheckInAt:
-                        lastCheckInByUser.get(member.user.id)?.toISOString() ??
-                        null,
-                    watchedCount: completedByUser.get(member.user.id) ?? 0,
-                    inProgressCount: inProgressByUser.get(member.user.id) ?? 0,
-                    lastWatchedAt: last?.watchedAt
-                        ? last.watchedAt.toISOString()
-                        : null,
-                    lastWatchedVideo: last?.video
-                        ? {
-                              id: last.video.id,
-                              title: last.video.title,
-                          }
-                        : null,
-                }
-            }),
+            data: members.map((member) => ({
+                id: member.id,
+                userId: member.user.id,
+                email: member.user.email,
+                firstname: member.user.firstname,
+                lastname: member.user.lastname,
+                isDependent: member.user.email === null,
+                guardians: serializeMemberGuardians(member.user.dependentOf),
+                status: member.status,
+                roleName: member.role.name,
+                isOwner: member.user.id === ctx.workspaceOwnerId,
+                accessUntil: member.accessUntil
+                    ? member.accessUntil.toISOString()
+                    : null,
+                abonements: member.subscriptions.map((s) => ({
+                    planName: s.plan.name,
+                    classesRemaining: s.classesRemaining,
+                    classesTotal: s.classesTotal,
+                    endDate: s.endDate ? s.endDate.toISOString() : null,
+                    directions: s.directions.map((d) => d.direction),
+                })),
+                owesPayment: member._count.subscriptions > 0,
+                createdAt: member.createdAt.toISOString(),
+            })),
             total,
             curPage,
             perPage,
-            workspaceVideoTotal,
         }
     }
 }

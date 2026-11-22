@@ -1,14 +1,20 @@
 "use client"
 
+import { MoreHorizontal } from "lucide-react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { MemberSubscriptionPanel } from "../../../../../../features/subscriptions/MemberSubscriptionPanel"
+import { canOpenMemberSubscriptions } from "../../../../../../features/subscriptions/panel-access"
 import { MemberRankPanel } from "../../../../../../features/ranks/MemberRankPanel"
 
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -24,6 +30,7 @@ import {
 import { errorMessage } from "../../../../../../shared/lib/error-message"
 import {
   getMemberProgress,
+  removeWorkspaceMember,
   updateMemberProfile,
   type MemberProgress,
 } from "../../../../../../shared/api/members"
@@ -34,23 +41,29 @@ import {
   formatRelativeDays,
 } from "../../../../../../shared/lib/member-activity"
 import {
+  canActOnRole,
+  isClubAdmin,
   isDirectionManager,
+  isSportLead,
   isStaff,
-  isWorkspaceAdmin,
 } from "../../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../../shared/lib/member-status"
 import { formatPhone } from "../../../../../../shared/lib/phone"
 import { formatRoleName } from "../../../../../../shared/lib/role-labels"
 import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
 import { useMyMembership } from "../../../../../../shared/lib/use-my-membership"
+import { fetchMe } from "../../../../../../shared/api/me"
 import {
   featureOn,
   useWorkspaceFeatures,
 } from "../../../../../../shared/lib/use-workspace-features"
 import { GuardianContacts } from "../../../../../../features/users/GuardianContacts"
+import { MemberAccessDialog } from "../../../../../../features/users/MemberAccessDialog"
+import { abonementEnd, accessDiffers } from "../../../../../../features/users/member-access"
 import { ProfileEditForm } from "../../../../../../features/users/ProfileEditForm"
 import { MemberNotesPanel } from "../../../../../../features/users/MemberNotesPanel"
 import { MemberAttendancePanel } from "../../../../../../features/users/MemberAttendancePanel"
+import { confirmDialog } from "../../../../../../shared/ui/confirm-dialog"
 
 const formatName = (m: MemberProgress["member"]): string => {
   const full = [m.firstname, m.lastname].filter(Boolean).join(" ").trim()
@@ -64,26 +77,32 @@ const formatPosition = (sec: number): string => {
   return `${m}:${String(s).padStart(2, "0")}`
 }
 
-const formatAccessLabel = (iso: string | null): string => {
-  if (!iso) return "Без ограничения"
+// App access (WorkspaceMember.accessUntil), shown only when it differs from
+// the abonements' end (member-access).
+const appAccessLabel = (iso: string | null): string => {
+  if (!iso) return "Доступ к приложению без ограничения"
   const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return "Без ограничения"
-  const expired = d < new Date()
   const fmt = d.toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
     year: "numeric",
   })
-  return expired ? `Истёк ${fmt}` : `Доступ до ${fmt}`
+  return d < new Date()
+    ? `Доступ к приложению истёк ${fmt}`
+    : `Доступ к приложению до ${fmt}`
 }
 
 export default function MemberProgressPage() {
   const params = useParams<{ workspaceId: string; userId: string }>()
+  const router = useRouter()
   const vocabulary = useVocabulary()
   const workspaceId = params?.workspaceId
   const userId = params?.userId
   const myMembership = useMyMembership(workspaceId)
-  const canManageProfile = isWorkspaceAdmin(myMembership)
+  // Notes, profile and attendance are the sport leads'; roles and tariffs
+  // are the club admins'.
+  const canManageProfile = isSportLead(myMembership)
+  const canAdmin = isClubAdmin(myMembership)
   // Direction managers promote on their directions' ladders (the server lists
   // only those ladders and that rank history to them).
   // The ranks block only where the club has ranks switched on.
@@ -100,6 +119,24 @@ export default function MemberProgressPage() {
   const [savingRole, setSavingRole] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
+  const [accessOpen, setAccessOpen] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  // Who is looking: only needed below the sport-lead tier, where the
+  // abonements of one's own row are out of scope.
+  const [viewerUserId, setViewerUserId] = useState<string | null>(null)
+  const needsViewer = isStaff(myMembership) && !isSportLead(myMembership)
+  useEffect(() => {
+    if (!needsViewer) return
+    let cancelled = false
+    fetchMe()
+      .then((me) => {
+        if (!cancelled) setViewerUserId(me.id)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [needsViewer])
 
   useEffect(() => {
     if (!workspaceId || !userId) return
@@ -109,13 +146,9 @@ export default function MemberProgressPage() {
 
     void (async () => {
       try {
-        const [progress, rolesResp] = await Promise.all([
-          getMemberProgress({ workspaceId, userId }),
-          listRoles({ workspaceId }).catch(() => ({ data: [] as Role[] })),
-        ])
+        const progress = await getMemberProgress({ workspaceId, userId })
         if (cancelled) return
         setData(progress)
-        setRoles(rolesResp.data)
       } catch (err) {
         if (cancelled) return
         setLoadError(
@@ -130,6 +163,18 @@ export default function MemberProgressPage() {
       cancelled = true
     }
   }, [workspaceId, userId])
+
+  // The role list is the club admins' (the server refuses everyone else).
+  useEffect(() => {
+    if (!workspaceId || !canAdmin) return
+    let cancelled = false
+    listRoles({ workspaceId })
+      .then((res) => !cancelled && setRoles(res.data))
+      .catch(() => !cancelled && setRoles([]))
+    return () => {
+      cancelled = true
+    }
+  }, [workspaceId, canAdmin])
 
   // Silent re-read (no skeleton) so the header's access status follows an
   // assignment made in the subscription panel without remounting the panels.
@@ -189,12 +234,12 @@ export default function MemberProgressPage() {
     if (!workspaceId || !userId || !data) return
     if (newRoleId === data.member.roleId) return
     const newRole = roles.find((r) => r.id === newRoleId)
-    if (
-      !window.confirm(
-        `Назначить роль «${formatRoleName(newRole?.name ?? "", vocabulary)}»? Это изменит доступ участника к админке.`,
-      )
-    )
-      return
+    const ok = await confirmDialog({
+      title: `Назначить роль «${formatRoleName(newRole?.name ?? "", vocabulary)}»?`,
+      description: "Это изменит доступ участника к админке.",
+      confirmLabel: "Назначить",
+    })
+    if (!ok) return
     setSavingRole(true)
     setActionError(null)
     try {
@@ -221,6 +266,26 @@ export default function MemberProgressPage() {
       )
     } finally {
       setSavingRole(false)
+    }
+  }
+
+  const handleRemove = async () => {
+    if (!workspaceId || !userId || !data) return
+    const ok = await confirmDialog({
+      title: `Удалить ${formatName(data.member)} из клуба?`,
+      description: `Записи на ${vocabulary.session.nomPl} отменятся, места в группах и заявки на заморозку пропадут. Абонементы останутся в истории продаж клуба. Вернуться человек сможет по новому приглашению или по коду клуба.`,
+      confirmLabel: "Удалить из клуба",
+      destructive: true,
+    })
+    if (!ok) return
+    setRemoving(true)
+    setActionError(null)
+    try {
+      await removeWorkspaceMember({ workspaceId, userId })
+      router.push(`/workspace/${workspaceId}/users`)
+    } catch (err) {
+      setActionError(errorMessage(err, "Не удалось удалить участника."))
+      setRemoving(false)
     }
   }
 
@@ -263,6 +328,14 @@ export default function MemberProgressPage() {
       : 0
   const accessExpired =
     member.accessUntil !== null && new Date(member.accessUntil) < new Date()
+  const endOfAbonements = abonementEnd(data.currentAbonements)
+  const showAccess =
+    !member.isOwner && accessDiffers(member.accessUntil, endOfAbonements)
+  // Access override and removal: the sport leads', staff rows the club admins'.
+  const canEditMember =
+    !member.isOwner &&
+    canManageProfile &&
+    canActOnRole(myMembership, member.roleName)
 
   // The panel (own fetch, adds achievements) supersedes the compact progress
   // list below, so only one «Посещаемость» block is ever on screen.
@@ -285,6 +358,33 @@ export default function MemberProgressPage() {
               Ребёнок
             </span>
           )}
+          {canEditMember && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto"
+                  disabled={removing}
+                  aria-label="Действия с участником"
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setAccessOpen(true)}>
+                  Изменить доступ к приложению
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onSelect={() => void handleRemove()}
+                >
+                  Удалить из клуба
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           {member.email && (
@@ -293,22 +393,39 @@ export default function MemberProgressPage() {
               <span>·</span>
             </>
           )}
-          <span>{memberStatusLabel(member.status)}</span>
-          <span>·</span>
+          {/* The membership's status only when it is not the normal one. */}
+          {member.status !== "ACTIVE" && (
+            <>
+              <span>{memberStatusLabel(member.status)}</span>
+              <span>·</span>
+            </>
+          )}
           <span>{formatRoleName(member.roleName, vocabulary)}</span>
           <span>·</span>
-          <span
-            className={
-              accessExpired
-                ? "font-medium text-destructive"
-                : member.accessUntil
-                  ? "text-foreground"
-                  : ""
-            }
-          >
-            {formatAccessLabel(member.accessUntil)}
-          </span>
-          <span>·</span>
+          {showAccess && (
+            <>
+              {canEditMember ? (
+                <button
+                  type="button"
+                  onClick={() => setAccessOpen(true)}
+                  className={`underline-offset-2 hover:underline ${
+                    accessExpired ? "font-medium text-destructive" : "text-foreground"
+                  }`}
+                >
+                  {appAccessLabel(member.accessUntil)}
+                </button>
+              ) : (
+                <span
+                  className={
+                    accessExpired ? "font-medium text-destructive" : "text-foreground"
+                  }
+                >
+                  {appAccessLabel(member.accessUntil)}
+                </span>
+              )}
+              <span>·</span>
+            </>
+          )}
           <span>
             добавлен{" "}
             {new Date(member.createdAt).toLocaleDateString("ru-RU", {
@@ -324,14 +441,34 @@ export default function MemberProgressPage() {
         />
       </div>
 
-      {!member.isOwner && isStaff(myMembership) && workspaceId && userId && (
-        <MemberSubscriptionPanel
+      {canEditMember && workspaceId && userId && (
+        <MemberAccessDialog
+          open={accessOpen}
+          onOpenChange={setAccessOpen}
           workspaceId={workspaceId}
           userId={userId}
-          isAdmin={canManageProfile}
-          onAssigned={() => void refreshMember()}
+          accessUntil={member.accessUntil}
+          abonementEnd={endOfAbonements}
+          onSaved={(accessUntil) =>
+            setData((prev) =>
+              prev ? { ...prev, member: { ...prev.member, accessUntil } } : prev,
+            )
+          }
         />
       )}
+
+      {!member.isOwner &&
+        workspaceId &&
+        userId &&
+        canOpenMemberSubscriptions(myMembership, viewerUserId, userId) && (
+          <MemberSubscriptionPanel
+            workspaceId={workspaceId}
+            userId={userId}
+            isAdmin={canManageProfile}
+            canCreatePlans={canAdmin}
+            onAssigned={() => void refreshMember()}
+          />
+        )}
 
       {canPromote && workspaceId && userId && (
         <MemberRankPanel workspaceId={workspaceId} userId={userId} />
@@ -359,7 +496,8 @@ export default function MemberProgressPage() {
         <div className="space-y-2 rounded-lg border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">
             <div className="text-sm font-medium">Профиль</div>
-            {!editingProfile && (
+            {/* A staff member's profile is the club admins' to edit. */}
+            {!editingProfile && canActOnRole(myMembership, member.roleName) && (
               <Button
                 type="button"
                 size="sm"
@@ -370,7 +508,7 @@ export default function MemberProgressPage() {
               </Button>
             )}
           </div>
-          {editingProfile ? (
+          {editingProfile && canActOnRole(myMembership, member.roleName) ? (
             <ProfileEditForm
               initial={{
                 firstname: member.firstname ?? "",
@@ -421,14 +559,15 @@ export default function MemberProgressPage() {
         </div>
       )}
 
-      {!member.isOwner && canManageProfile && roles.length > 0 && (
+      {!member.isOwner && canAdmin && roles.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4">
           <div className="text-sm">
             <div className="font-medium">Роль в клубе</div>
             <div className="text-xs text-muted-foreground">
               Определяет доступ к админке: ученик — только мобильное
               приложение, {vocabulary.coach.nom} — свои группы,{" "}
-              {vocabulary.headCoach.nom} и администратор — всё.
+              {vocabulary.headCoach.nom} — участники, группы и расписание
+              всего клуба, администратор — всё, включая деньги и настройки.
             </div>
           </div>
           <div className="ml-auto w-56">
@@ -454,7 +593,7 @@ export default function MemberProgressPage() {
 
       {groups.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-4">
-          <div className="mb-2 text-xs uppercase text-muted-foreground">
+          <div className="mb-2 text-xs text-muted-foreground">
             Группы
           </div>
           <div className="flex flex-wrap gap-2">
@@ -499,7 +638,7 @@ export default function MemberProgressPage() {
 
         <div className="mt-4 grid gap-6 sm:grid-cols-3">
           <div>
-            <div className="text-xs uppercase text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               Просмотрено
             </div>
             <div className="text-3xl font-semibold tabular-nums">
@@ -519,7 +658,7 @@ export default function MemberProgressPage() {
             </div>
           </div>
           <div>
-            <div className="text-xs uppercase text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               В процессе
             </div>
             <div className="text-3xl font-semibold tabular-nums">
@@ -530,7 +669,7 @@ export default function MemberProgressPage() {
             </div>
           </div>
           <div>
-            <div className="text-xs uppercase text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               Последний урок
             </div>
             {summary.lastWatchedVideo ? (

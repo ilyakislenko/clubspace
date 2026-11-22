@@ -11,13 +11,14 @@ import {
     serializeFeatureLock,
 } from '../../domains/workspace/feature-locks'
 import { PrismaService } from '../../infrastructure/prisma'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import {
     BadRequestError,
     ForbiddenError,
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
+import { claimUnchanged } from '../../shared/utils/optimistic-concurrency'
 import { workspaceBookingSettingsSelect } from '../class-bookings/group-booking-fields'
 import {
     UpdateWorkspaceSettingsFeature,
@@ -60,7 +61,7 @@ export class UpdateWorkspaceSettingsHandler
     }: UpdateWorkspaceSettingsFeature) {
         // Settings now include who may join without approval, so the handler
         // checks the role itself instead of trusting the route decorator alone.
-        await assertWorkspaceAdmin(this.rbac, {
+        await assertClubAdmin(this.rbac, {
             userId: invokerUserId,
             workspaceId,
             roleName,
@@ -110,23 +111,33 @@ export class UpdateWorkspaceSettingsHandler
         // coachSeesAllGroups + every *Enabled flag are plain boolean columns —
         // spread the payload straight in (Prisma ignores `undefined`, so absent
         // toggles aren't touched). timezone is pulled out for its validation.
-        const { timezone, ...flags } = payload
-        const updated = await this.prisma.workspace.update({
-            where: { id: workspaceId },
-            data: {
-                ...flags,
-                ...(timezone !== undefined ? { timezone } : {}),
-            },
-            select: {
-                id: true,
-                name: true,
-                coachSeesAllGroups: true,
-                coachesMarkAnyClass: true,
-                timezone: true,
-                joinAutoApprove: true,
-                ...featureFlagSelect,
-                ...workspaceBookingSettingsSelect,
-            },
+        const { timezone, expectedUpdatedAt, ...flags } = payload
+        const changes = {
+            ...flags,
+            ...(timezone !== undefined ? { timezone } : {}),
+        }
+        const updated = await this.prisma.$transaction(async (tx) => {
+            await claimUnchanged(expectedUpdatedAt, (expected) =>
+                tx.workspace.updateMany({
+                    where: { id: workspaceId, updatedAt: expected },
+                    data: { updatedAt: new Date() },
+                }),
+            )
+            return tx.workspace.update({
+                where: { id: workspaceId },
+                data: changes,
+                select: {
+                    id: true,
+                    name: true,
+                    coachSeesAllGroups: true,
+                    coachesMarkAnyClass: true,
+                    timezone: true,
+                    joinAutoApprove: true,
+                    updatedAt: true,
+                    ...featureFlagSelect,
+                    ...workspaceBookingSettingsSelect,
+                },
+            })
         })
 
         await this.audit.record({
@@ -135,11 +146,12 @@ export class UpdateWorkspaceSettingsHandler
             targetId: workspaceId,
             workspaceId,
             actorId: invokerUserId,
-            metadata: { changes: payload },
+            metadata: { changes },
         })
 
         return {
             ...updated,
+            updatedAt: updated.updatedAt.toISOString(),
             lockedFeatures: locks.map(serializeFeatureLock),
         }
     }

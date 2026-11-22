@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { isHttpUrl } from '../../shared/utils/http-url'
+import { ExpectedUpdatedAtField } from '../../shared/utils/optimistic-concurrency'
 import { ClubAboutOutputSchema } from './schemas'
 
 // Control characters (tabs, NUL, DEL…) can make a URL parse differently in
@@ -41,9 +42,16 @@ export const UpdateClubAboutFeatureInputSchema = z.object({
         )
         .max(10),
     rules: z.string().trim().max(10000).nullable(),
+    // Compared with «О клубе»'s own `updatedAt` (never saved = null: omit it).
+    ...ExpectedUpdatedAtField,
 })
 
-export const UpdateClubAboutFeatureOutputSchema = ClubAboutOutputSchema
+// «О клубе» lives on the club row: the save also reports the row's new
+// version, which the profile form's other parts (public page, time zone) send
+// as their `expectedUpdatedAt`.
+export const UpdateClubAboutFeatureOutputSchema = ClubAboutOutputSchema.extend({
+    clubUpdatedAt: z.iso.datetime(),
+})
 
 export class UpdateClubAboutFeature {
     constructor(

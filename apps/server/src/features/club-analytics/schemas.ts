@@ -1,15 +1,12 @@
 import { z } from 'zod'
 
 import type {
-    ChurnEntry,
     CoachReport,
     CohortReport,
     ForecastReport,
     OccupancyReport,
     OccupancySlot,
 } from '../../domains/analytics/analytics-reports'
-import { CHURN_REASON_CODES } from '../../domains/analytics/churn-score'
-import { MemberGuardianSchema } from '../dependents/schemas'
 
 // Filters every analytics screen takes; ids outside the club are a 404.
 export const AnalyticsFilterSchema = z.object({
@@ -21,84 +18,6 @@ export const AnalyticsFilterSchema = z.object({
 export type AnalyticsFilter = z.infer<typeof AnalyticsFilterSchema>
 
 const iso = (d: Date | null): string | null => d?.toISOString() ?? null
-
-// ---- «Кому позвонить сегодня» ----
-
-export const ChurnRiskMemberSchema = z.object({
-    userId: z.string().uuid(),
-    firstname: z.string().nullable(),
-    lastname: z.string().nullable(),
-    email: z.string().nullable(),
-    phone: z.string().nullable(),
-    guardians: z.array(MemberGuardianSchema),
-    groups: z.array(
-        z.object({
-            id: z.string().uuid(),
-            name: z.string(),
-            gymId: z.string().uuid().nullable(),
-            gymName: z.string().nullable(),
-        }),
-    ),
-    score: z.number().int(),
-    level: z.enum(['high', 'medium', 'low']),
-    reasons: z.array(
-        z.object({
-            code: z.enum(CHURN_REASON_CODES),
-            points: z.number().int(),
-            text: z.string(),
-        }),
-    ),
-    // Average monthly spend: what the club loses per month if they leave.
-    monthlySpend: z.number().int(),
-    currency: z.string().nullable(),
-    lastVisitAt: z.iso.datetime().nullable(),
-    lastContact: z
-        .object({
-            id: z.string().uuid(),
-            at: z.iso.datetime(),
-            byName: z.string(),
-            note: z.string().nullable(),
-        })
-        .nullable(),
-    // A «Связались» younger than 14 days: listed under the contacted ones.
-    contactedRecently: z.boolean(),
-    canContact: z.boolean(),
-})
-
-export const ChurnRiskSummarySchema = z.object({
-    total: z.number().int(),
-    high: z.number().int(),
-    medium: z.number().int(),
-    moneyAtStake: z.number().int(),
-    currency: z.string().nullable(),
-    contactedRecently: z.number().int(),
-})
-
-export const serializeChurnRiskMember = (e: ChurnEntry, canContact: boolean) => ({
-    userId: e.userId,
-    firstname: e.firstname,
-    lastname: e.lastname,
-    email: e.email,
-    phone: e.phone,
-    guardians: e.guardians,
-    groups: e.groups,
-    score: e.score,
-    level: e.level,
-    reasons: e.reasons,
-    monthlySpend: e.monthlySpend,
-    currency: e.currency,
-    lastVisitAt: iso(e.lastVisitAt),
-    lastContact: e.lastContact
-        ? {
-              id: e.lastContact.id,
-              at: e.lastContact.at.toISOString(),
-              byName: e.lastContact.byName,
-              note: e.lastContact.note,
-          }
-        : null,
-    contactedRecently: e.contactedRecently,
-    canContact,
-})
 
 // ---- Cohorts ----
 
@@ -262,8 +181,11 @@ export const serializeCoachReport = (r: CoachReport) => ({
 export const RevenueForecastSchema = z.object({
     computedAt: z.iso.datetime().nullable(),
     currency: z.string().nullable(),
-    members: z.number().int(),
-    monthlyRecurring: z.number().int(),
+    // `students_total` and `mrr` over the filtered students (glossary B2): the
+    // dashboard's numbers when no filter is set.
+    students: z.number().int(),
+    mrr: z.number().int(),
+    // `expected_revenue_30d` / `expected_revenue_90d`.
     horizons: z.array(
         z.object({
             days: z.number().int(),

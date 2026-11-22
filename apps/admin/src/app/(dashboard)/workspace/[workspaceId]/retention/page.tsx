@@ -1,362 +1,75 @@
 "use client"
 
-import Link from "next/link"
 import { useParams } from "next/navigation"
-import { Fragment, useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 
-import {
-  Button,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@clubspace/ui-kit/ui"
+import { isSportLead } from "../../../../../shared/lib/permissions"
+import { useMyMembershipState } from "../../../../../shared/lib/use-my-membership"
+import { CallList } from "./call-list"
+import { RenewList } from "./renew-list"
 
-import {
-  listGroups,
-  listGyms,
-  type Gym,
-  type GroupSummary,
-} from "../../../../../shared/api/groups"
-import {
-  listAtRiskMembers,
-  logAtRiskContact,
-  type AtRiskList,
-  type AtRiskMember,
-  type AtRiskReason,
-} from "../../../../../shared/api/retention"
-import {
-  AT_RISK_CHIP,
-  AT_RISK_LABEL,
-  AT_RISK_REFRESH_MS,
-  filterAtRisk,
-} from "../../../../../shared/lib/at-risk"
-import { errorMessage } from "../../../../../shared/lib/error-message"
-import { formatRelativeDays } from "../../../../../shared/lib/member-activity"
-import { useThrottledCallback } from "../../../../../shared/lib/throttle"
-import { formatPhone } from "../../../../../shared/lib/phone"
-import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
-import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
-import { groupOptionLabel } from "../../../../../shared/lib/group-label"
-import { useVocabulary } from "../../../../../shared/lib/vocabulary"
+type Tab = "call" | "renew"
 
-const ALL = "all"
-
-const CHIPS: { key: AtRiskReason | null; label: string }[] = [
-  { key: null, label: "Все" },
-  { key: "lapsed", label: "Абонемент кончился" },
-  { key: "newcomer", label: "Новички" },
-  { key: "absent", label: "Давно не были" },
-  { key: "declining", label: "Реже, чем раньше" },
+const TABS: { id: Tab; label: string }[] = [
+  { id: "call", label: "Позвонить" },
+  { id: "renew", label: "Продлить" },
 ]
 
-const memberName = (m: AtRiskMember) =>
-  [m.firstname, m.lastname].filter(Boolean).join(" ") || m.email || "—"
-
+// Retention: «Позвонить» (the call list, every staff role in its scope) and
+// «Продлить» (renewals and unpaid abonements — the sport leads', club-wide).
+// ?tab=renew opens the second tab (the dashboard tile links there).
 export default function RetentionPage() {
-  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
+  const { membership, failed } = useMyMembershipState(workspaceId)
+  const canRenew = isSportLead(membership)
+  const [tab, setTab] = useState<Tab>("call")
 
-  const [list, setList] = useState<AtRiskList | null>(null)
-  const [gyms, setGyms] = useState<Gym[]>([])
-  const [groups, setGroups] = useState<GroupSummary[]>([])
-  const [gymId, setGymId] = useState(ALL)
-  const [groupId, setGroupId] = useState(ALL)
-  const [reason, setReason] = useState<AtRiskReason | null>(null)
-  const [showSnoozed, setShowSnoozed] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [note, setNote] = useState("")
-  const [saving, setSaving] = useState(false)
-
-  const load = useCallback(async () => {
-    if (!workspaceId) return
-    try {
-      setList(
-        await listAtRiskMembers({
-          workspaceId,
-          gymId: gymId === ALL ? undefined : gymId,
-          groupId: groupId === ALL ? undefined : groupId,
-        }),
-      )
-      setError(null)
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось загрузить список."))
-    } finally {
-      setLoading(false)
+  // Read from window, not useSearchParams, to avoid a Suspense boundary.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "renew") {
+      setTab("renew")
     }
-  }, [workspaceId, gymId, groupId])
+  }, [])
 
-  useEffect(() => {
-    setLoading(true)
-    void load()
-  }, [load])
-
-  // Filters are best-effort: the list works without them.
-  useEffect(() => {
-    if (!workspaceId) return
-    void listGyms({ workspaceId })
-      .then((res) => setGyms(res.data))
-      .catch(() => setGyms([]))
-    void listGroups({ workspaceId })
-      .then((res) => setGroups(res.data))
-      .catch(() => setGroups([]))
-  }, [workspaceId])
-
-  const refresh = useThrottledCallback(() => void load(), AT_RISK_REFRESH_MS)
-  useWorkspaceRealtime(
-    workspaceId,
-    ["members", "attendance", "subscription"],
-    refresh,
-  )
-
-  const visibleGroups =
-    gymId === ALL ? groups : groups.filter((g) => g.gym?.id === gymId)
-
-  const startEditing = (userId: string) => {
-    setEditingId(userId)
-    setNote("")
-    setError(null)
+  const switchTab = (next: Tab) => {
+    setTab(next)
+    const url = new URL(window.location.href)
+    if (next === "renew") url.searchParams.set("tab", "renew")
+    else url.searchParams.delete("tab")
+    window.history.replaceState(window.history.state, "", url)
   }
 
-  const save = async (m: AtRiskMember) => {
-    if (!workspaceId || saving) return
-    setSaving(true)
-    setError(null)
-    try {
-      await logAtRiskContact({
-        workspaceId,
-        userId: m.userId,
-        note: note.trim() || null,
-      })
-      setEditingId(null)
-      await load()
-    } catch (err) {
-      setError(errorMessage(err, "Не удалось сохранить отметку."))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const summary = list?.summary
-  const count = (key: AtRiskReason | null) =>
-    summary ? (key === null ? summary.total : summary[key]) : 0
-  const rows = filterAtRisk(list?.data ?? [], reason, showSnoozed)
+  // ?tab=renew waits for the role instead of flashing the call list; if the
+  // role can't be read, the call list (every staff role's) shows instead.
+  if (tab === "renew" && !membership && !failed) return null
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Кто пропадает</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Ученики, которые могут уйти. Один звонок {vocabulary.coach.gen} заметно продлевает
-          членство.
-        </p>
-      </div>
-
-      {error && (
-        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-        </p>
-      )}
-
-      <div className="flex flex-wrap gap-3">
-        <div className="w-56">
-          <Select
-            value={gymId}
-            onValueChange={(v) => {
-              setGymId(v)
-              setGroupId(ALL)
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Зал" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Все залы</SelectItem>
-              {gyms.map((g) => (
-                <SelectItem key={g.id} value={g.id}>
-                  {g.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-56">
-          <Select value={groupId} onValueChange={setGroupId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Группа" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Все группы</SelectItem>
-              {visibleGroups.map((g) => (
-                <SelectItem key={g.id} value={g.id}>
-                  {groupOptionLabel(g)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {CHIPS.map((c) => (
-          <button
-            key={c.label}
-            type="button"
-            onClick={() => setReason(c.key)}
-            className={`rounded-full px-3 py-1 text-sm ${
-              reason === c.key
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-foreground hover:bg-muted/70"
-            }`}
-          >
-            {c.label} · {count(c.key)}
-          </button>
-        ))}
-        <label className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={showSnoozed}
-            onChange={(e) => setShowSnoozed(e.target.checked)}
-          />
-          Показать отработанных ({summary?.snoozed ?? 0})
-        </label>
-      </div>
-
-      {loading ? (
-        <div className="space-y-2">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="h-14 animate-pulse rounded-lg border border-border bg-muted"
-            />
+      {canRenew && (
+        <div role="tablist" aria-label="Удержание" className="flex border-b border-border">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => switchTab(t.id)}
+              className={`relative -mb-px px-4 py-2 text-sm font-medium transition-colors ${
+                tab === t.id
+                  ? "border-b-2 border-primary text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t.label}
+            </button>
           ))}
         </div>
-      ) : rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Сейчас никто не под риском.
-        </p>
+      )}
+      {canRenew && tab === "renew" && workspaceId ? (
+        <RenewList workspaceId={workspaceId} />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="p-3">Участник</th>
-                <th className="p-3">Причина</th>
-                <th className="p-3">Что видно</th>
-                <th className="p-3">Группы</th>
-                <th className="p-3">Телефон</th>
-                <th className="p-3">Последний контакт</th>
-                <th className="p-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {rows.map((m) => (
-                <Fragment key={m.userId}>
-                <tr className="align-top">
-                  <td className="p-3">
-                    <Link
-                      href={`/workspace/${workspaceId}/users/${m.userId}`}
-                      className="font-medium hover:underline"
-                    >
-                      {memberName(m)}
-                    </Link>
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${AT_RISK_CHIP[m.reason]}`}
-                    >
-                      {AT_RISK_LABEL[m.reason]}
-                    </span>
-                  </td>
-                  <td className="min-w-64 p-3">{m.factsText}</td>
-                  <td className="p-3 text-xs text-muted-foreground">
-                    {m.groups
-                      .map((g) => groupOptionLabel(g))
-                      .join(", ")}
-                  </td>
-                  <td className="whitespace-nowrap p-3">
-                    {m.phone ? (
-                      <a
-                        href={`tel:${m.phone}`}
-                        className="text-primary hover:underline"
-                      >
-                        {formatPhone(m.phone)}
-                      </a>
-                    ) : m.guardians.length === 0 ? (
-                      <span className="italic text-muted-foreground">
-                        не указан
-                      </span>
-                    ) : null}
-                    <GuardianContacts
-                      guardians={m.guardians}
-                      className="mt-1 whitespace-normal text-xs text-muted-foreground"
-                    />
-                  </td>
-                  <td className="p-3 text-xs text-muted-foreground">
-                    {m.lastContact
-                      ? `${formatRelativeDays(m.lastContact.at)} — ${m.lastContact.byName}${
-                          m.lastContact.note ? ` «${m.lastContact.note}»` : ""
-                        }`
-                      : "—"}
-                  </td>
-                  <td className="p-3">
-                    {m.canContact && editingId !== m.userId ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => startEditing(m.userId)}
-                      >
-                        Связались
-                      </Button>
-                    ) : null}
-                  </td>
-                </tr>
-                {editingId === m.userId && (
-                  // A row of its own: inside the last cell the note pushed the
-                  // table past the right edge on a 1440 screen.
-                  <tr>
-                    <td colSpan={7} className="px-3 pb-3 pt-0">
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <Input
-                          value={note}
-                          onChange={(e) => setNote(e.target.value)}
-                          placeholder="Заметка (необязательно)"
-                          maxLength={500}
-                          className="max-w-md"
-                          autoFocus
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => void save(m)}
-                          disabled={saving}
-                        >
-                          {saving ? "Сохраняю…" : "Сохранить"}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => setEditingId(null)}
-                          disabled={saving}
-                        >
-                          Отмена
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <CallList />
       )}
     </div>
   )

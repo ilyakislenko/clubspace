@@ -12,7 +12,7 @@ import {
 import { ymdToDbDate } from '../../../domains/subscriptions/freeze-dates'
 import type { Prisma } from '../../../infrastructure/prisma'
 import { localDateInTz } from '../../attendance/attendance-utils'
-import { awaitingPaymentWhere } from '../../get-workspace-stats/revenue'
+import { awaitingPaymentWhere } from '../../../domains/subscriptions/renewal-rules'
 import { capResult, defineTool, McpToolContext, McpToolError, pageInput, paginate } from '../mcp-tool'
 import {
     assertDirectionArg,
@@ -326,7 +326,7 @@ export const memberProfileTool = defineTool({
         })
         const entry = risk[0]
         let unpaid: Record<string, unknown> | null = null
-        if (scope.isAdmin) {
+        if (scope.seesMoney) {
             const debts = await prisma.subscription.findMany({
                 where: { ...awaitingPaymentWhere(scope.workspaceId), workspaceMemberId: member.id },
                 select: { amountPaid: true, currency: true },
@@ -357,7 +357,7 @@ export const memberProfileTool = defineTool({
                     frozenOrFreezePlanned: s.freezes.length > 0,
                     directions: s.directions.map((d) => d.direction.name),
                     isPaid: s.isPaid,
-                    ...(scope.isAdmin ? { amount: s.amountPaid, currency: s.currency } : {}),
+                    ...(scope.seesMoney ? { amount: s.amountPaid, currency: s.currency } : {}),
                 })),
                 attendance: {
                     visits30d,
@@ -393,7 +393,7 @@ export const atRiskMembersTool = defineTool({
     name: 'at_risk_members',
     title: 'Кто может уйти',
     description:
-        'Ученики в зоне риска оттока (тот же список, что «Кто пропадает» в админке): ' +
+        'Ученики в зоне риска оттока (тот же список, что «Удержание → Позвонить» в админке): ' +
         'lapsed — абонемент закончился и не продлён, newcomer — новичок не закрепился, absent — давно не приходил, declining — стал ходить реже. ' +
         'Для каждого — причина, пояснение, последний визит, группы и когда с ним последний раз связывались. ' +
         'По умолчанию без тех, с кем недавно связывались (snoozed). Постранично.',

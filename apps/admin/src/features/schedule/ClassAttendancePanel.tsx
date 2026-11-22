@@ -94,7 +94,7 @@ export function ClassAttendancePanel({
   return (
     <div className="space-y-2 rounded-md border border-border p-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-xs uppercase text-muted-foreground">
+        <div className="text-xs font-medium text-muted-foreground">
           Посещаемость
         </div>
         {roster && (

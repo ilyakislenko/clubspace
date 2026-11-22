@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { PlatformPaymentsService } from '../../domains/billing/services/platform-payments.service'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
     SetWorkspaceBillingPeriodFeature,
@@ -19,7 +19,7 @@ export class SetWorkspaceBillingPeriodHandler
     ) {}
 
     async execute(f: SetWorkspaceBillingPeriodFeature): Promise<SetWorkspaceBillingPeriodFeatureResponse> {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,

@@ -1,10 +1,10 @@
 import {
-    loadChurnReport,
     loadCoachReport,
     loadCohortReport,
     loadForecastReport,
     loadOccupancyReport,
 } from './analytics-reports'
+import { averageRetention, buildCohorts, type GroupVisitStat, mergeVisitSpans } from './cohorts'
 
 const DAY = 24 * 3600_000
 const NOW = new Date('2026-11-02T05:00:00.000Z')
@@ -43,108 +43,107 @@ const makePrisma = () => ({
     analyticsRun: { findUnique: jest.fn().mockResolvedValue(RUN) },
     analyticsMemberSnapshot: { findMany: jest.fn().mockResolvedValue([]) },
     analyticsFormerMember: { findMany: jest.fn().mockResolvedValue([]) },
-    analyticsMemberGroupStat: { findMany: jest.fn().mockResolvedValue([]) },
+    analyticsMemberGroupStat: {
+        findMany: jest.fn().mockResolvedValue([]),
+        groupBy: jest.fn().mockResolvedValue([]),
+    },
     analyticsSlotOccurrence: { findMany: jest.fn().mockResolvedValue([]) },
-    workspace: { findUniqueOrThrow: jest.fn().mockResolvedValue({ timezone: 'Asia/Tomsk' }) },
+    workspace: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ timezone: 'Asia/Tomsk', ownerId: 'owner' }),
+    },
+    workspaceMember: { count: jest.fn().mockResolvedValue(0) },
+    subscription: { findMany: jest.fn().mockResolvedValue([]) },
     user: { findMany: jest.fn().mockResolvedValue([]) },
     group: { findMany: jest.fn().mockResolvedValue([]) },
     groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
     classSubstitution: { findMany: jest.fn().mockResolvedValue([]) },
-    memberRetentionContact: { findMany: jest.fn().mockResolvedValue([]) },
 })
 
-const person = (id: string, firstname: string) => ({
-    id,
-    firstname,
-    lastname: null,
-    email: null,
-    phone: null,
-    dependentOf: [],
-})
-
-describe('loadChurnReport', () => {
-    it('lists the scope’s members, contacted ones last, with the money at stake', async () => {
-        const prisma = makePrisma()
-        prisma.analyticsMemberSnapshot.findMany.mockResolvedValue([
-            snapshot('a', { score: 65 }),
-            snapshot('b', { score: 90, groupIds: ['g1', 'g2'] }),
-            snapshot('c', { score: 80 }),
-            snapshot('other', { groupIds: ['g2'] }),
-        ])
-        prisma.user.findMany.mockResolvedValue([person('a', 'Анна'), person('b', 'Борис'), person('c', 'Вера')])
-        prisma.group.findMany.mockResolvedValue([
-            { id: 'g1', name: 'Вечер', gymId: 'gym', gym: { name: 'Юпитер' } },
-            { id: 'g2', name: 'Утро', gymId: null, gym: null },
-        ])
-        prisma.memberRetentionContact.findMany.mockResolvedValue([
-            {
-                id: 'c1',
-                userId: 'c',
-                createdAt: ago(3),
-                note: 'позвонили',
-                reason: 'absent',
-                signals: ['absent'],
-                contactedBy: { firstname: 'Ольга', lastname: null, email: null },
-            },
-            {
-                id: 'c2',
-                userId: 'a',
-                createdAt: ago(20),
-                note: null,
-                reason: null,
-                signals: [],
-                contactedBy: { firstname: null, lastname: null, email: 'x@y.z' },
-            },
-        ])
-
-        const r = await loadChurnReport(prisma as never, { workspaceId: 'ws', scope: ONLY_G1, now: NOW })
-
-        expect(prisma.analyticsMemberSnapshot.findMany).toHaveBeenCalledWith({
-            where: { workspaceId: 'ws', score: { gte: 35 } },
+// Prisma's where/having over AnalyticsMemberGroupStat rows, for the shapes
+// the reports send (workspaceId, groupId in / not null / null, OR; _min).
+type StatWhere = Record<string, unknown> & { OR?: StatWhere[] }
+const matchesGroup = (groupId: string | null, cond: unknown): boolean => {
+    if (cond === null) return groupId === null
+    const c = cond as { in?: string[]; not?: null }
+    if (c.in) return groupId !== null && c.in.includes(groupId)
+    if ('not' in c) return groupId !== null
+    throw new Error(`unexpected groupId condition ${JSON.stringify(cond)}`)
+}
+const matchesStat = (row: GroupVisitStat & { workspaceId: string }, where: StatWhere): boolean =>
+    (where.workspaceId === undefined || where.workspaceId === row.workspaceId) &&
+    (!('groupId' in where) || matchesGroup(row.groupId, where.groupId)) &&
+    (!where.OR || where.OR.some((w) => matchesStat(row, w)))
+const groupStatsBy = (rows: GroupVisitStat[]) =>
+    jest.fn(async (args: { where: StatWhere; having: { firstVisitAt: { _min: { gte: Date } } } }) => {
+        const byUser = new Map<string, GroupVisitStat[]>()
+        for (const r of rows.filter((r) => matchesStat({ ...r, workspaceId: 'ws' }, args.where))) {
+            byUser.set(r.userId, [...(byUser.get(r.userId) ?? []), r])
+        }
+        return [...byUser].flatMap(([userId, list]) => {
+            const first = new Date(Math.min(...list.map((r) => r.firstVisitAt.getTime())))
+            if (first < args.having.firstVisitAt._min.gte) return []
+            return [
+                {
+                    userId,
+                    _min: { firstVisitAt: first },
+                    _max: { lastVisitAt: new Date(Math.max(...list.map((r) => r.lastVisitAt.getTime()))) },
+                    _sum: { visits: list.reduce((s, r) => s + r.visits, 0) },
+                },
+            ]
         })
-        expect(r.entries.map((e) => [e.userId, e.contactedRecently])).toEqual([
-            ['b', false],
-            ['a', false],
-            ['c', true],
-        ])
-        // Groups outside the scope are not shown.
-        expect(r.entries[0].groups).toEqual([{ id: 'g1', name: 'Вечер', gymId: 'gym', gymName: 'Юпитер' }])
-        expect(r.entries[0].reasons).toEqual([{ code: 'absent', points: 40, text: 'Не был 50 дней' }])
-        expect(r.entries[1].lastContact).toMatchObject({ byName: 'x@y.z' })
-        expect(r.summary).toEqual({
-            total: 2,
-            high: 2,
-            medium: 0,
-            moneyAtStake: 10000,
-            currency: 'RUB',
-            contactedRecently: 1,
-        })
-        expect(r.computedAt).toBe(RUN.riskComputedAt)
     })
-
-    it('is empty before the first snapshot', async () => {
-        const prisma = makePrisma()
-        prisma.analyticsRun.findUnique.mockResolvedValue(null)
-        const r = await loadChurnReport(prisma as never, { workspaceId: 'ws', scope: WHOLE, now: NOW, minScore: 0 })
-        expect(r.computedAt).toBeNull()
-        expect(r.entries).toEqual([])
-        expect(prisma.analyticsMemberSnapshot.findMany.mock.calls[0][0].where.score).toEqual({ gte: 1 })
-    })
-})
 
 describe('loadCohortReport', () => {
+    const stat = (userId: string, groupId: string | null, first: number, last: number): GroupVisitStat => ({
+        userId,
+        groupId,
+        firstVisitAt: ago(first),
+        lastVisitAt: ago(last),
+        visits: 3,
+    })
+
     it('merges the visits of the scope’s groups into cohorts', async () => {
         const prisma = makePrisma()
-        prisma.analyticsMemberGroupStat.findMany.mockResolvedValue([
-            { userId: 'a', groupId: 'g1', firstVisitAt: ago(100), lastVisitAt: ago(5), visits: 9 },
-            { userId: 'a', groupId: null, firstVisitAt: ago(300), lastVisitAt: ago(299), visits: 1 },
-            { userId: 'b', groupId: 'g2', firstVisitAt: ago(100), lastVisitAt: ago(90), visits: 2 },
+        prisma.analyticsMemberGroupStat.groupBy = groupStatsBy([
+            stat('a', 'g1', 100, 5),
+            stat('a', null, 300, 299),
+            stat('b', 'g2', 100, 90),
         ])
         const r = await loadCohortReport(prisma as never, { workspaceId: 'ws', scope: ONLY_G1, now: NOW })
         expect(r.cohorts).toHaveLength(1)
         expect(r.cohorts[0]).toMatchObject({ size: 1 })
         expect(r.average[0]).toEqual({ offset: 1, rate: 1, eligible: 1 })
         expect(r.computedAt).toBe(RUN.historyComputedAt)
+    })
+
+    it('gives the numbers of the per-member merge for every kind of scope', async () => {
+        // First visits from 3 years ago to today, in and out of the window,
+        // with group-less visits that move a member's first visit earlier.
+        const rows: GroupVisitStat[] = []
+        const groups = ['g1', 'g2', 'g3', null]
+        for (let i = 0; i < 160; i++) {
+            const first = (i * 7) % 1100
+            rows.push(stat(`u${i}`, groups[i % 4], first, Math.max(0, first - ((i * 13) % 400))))
+            if (i % 3 === 0) rows.push(stat(`u${i}`, groups[(i + 1) % 4], first + 40, first))
+        }
+        const scopes = [
+            WHOLE,
+            { groupIds: null, includeGroupless: false },
+            ONLY_G1,
+            { groupIds: new Set(['g1', 'g3']), includeGroupless: true },
+            { groupIds: new Set<string>(), includeGroupless: false },
+        ]
+        for (const scope of scopes) {
+            const prisma = makePrisma()
+            prisma.analyticsMemberGroupStat.groupBy = groupStatsBy(rows)
+            const r = await loadCohortReport(prisma as never, { workspaceId: 'ws', scope, now: NOW })
+            const expected = buildCohorts(mergeVisitSpans(rows, scope.groupIds, scope.includeGroupless), {
+                now: NOW,
+                tz: 'Asia/Tomsk',
+            })
+            expect(r.cohorts).toEqual(expected)
+            expect(r.average).toEqual(averageRetention(expected))
+        }
     })
 })
 
@@ -279,19 +278,30 @@ describe('loadCoachReport', () => {
 })
 
 describe('loadForecastReport', () => {
-    it('sums the scope’s members', async () => {
+    // A 30-day paid abonement held now: 6 000 a month.
+    const current = {
+        amountPaid: 6000,
+        currency: 'RUB',
+        isPaid: true,
+        startDate: ago(10),
+        endDate: new Date(NOW.getTime() + 20 * DAY),
+    }
+
+    it('sums the scope’s snapshot rows; students and income are the live metrics of the scope', async () => {
         const prisma = makePrisma()
         prisma.analyticsMemberSnapshot.findMany.mockResolvedValue([
             snapshot('a'),
             snapshot('b', { score: 10, monthlySpend: 4000, currency: null, trialStartedAt: ago(30), trialConvertedAt: ago(28) }),
             snapshot('other', { groupIds: ['g2'] }),
         ])
+        prisma.workspaceMember.count.mockResolvedValue(2)
+        prisma.subscription.findMany.mockResolvedValue([current])
         const r = await loadForecastReport(prisma as never, { workspaceId: 'ws', scope: ONLY_G1, now: NOW })
         expect(r).toEqual({
             computedAt: RUN.riskComputedAt,
             currency: 'RUB',
-            members: 2,
-            monthlyRecurring: 9000,
+            students: 2,
+            mrr: 6000,
             horizons: [
                 { days: 30, potential: 10000, expected: 2000, atRisk: 8000 },
                 { days: 90, potential: 30000, expected: 4000, atRisk: 26000 },
@@ -300,6 +310,17 @@ describe('loadForecastReport', () => {
             highRiskMoney: 5000,
             trial: { trials: 1, converted: 1, rate: 1, medianDaysToPay: 2 },
         })
+        // Both live figures narrow to the students of the scope's groups.
+        const inGroups = { user: { groupMemberships: { some: { groupId: { in: ['g1'] } } } } }
+        expect(prisma.workspaceMember.count.mock.calls[0][0].where.AND).toContainEqual(inGroups)
+        expect(prisma.subscription.findMany.mock.calls[0][0].where.workspaceMember).toEqual(inGroups)
+    })
+
+    it('the whole club reads every student and every current abonement', async () => {
+        const prisma = makePrisma()
+        await loadForecastReport(prisma as never, { workspaceId: 'ws', scope: WHOLE, now: NOW })
+        expect(prisma.workspaceMember.count.mock.calls[0][0].where).not.toHaveProperty('AND')
+        expect(prisma.subscription.findMany.mock.calls[0][0].where).not.toHaveProperty('workspaceMember')
     })
 
     it('counts the scope’s former students in the renewal share and trials, not in money', async () => {
@@ -332,8 +353,9 @@ describe('loadForecastReport', () => {
         const r = await loadForecastReport(prisma as never, { workspaceId: 'ws', scope: ONLY_G1, now: NOW })
         expect(r.renewal).toMatchObject({ scopeRate: 9 / 12, scopeSample: 12 })
         expect(r.trial).toMatchObject({ trials: 1, converted: 0 })
-        expect(r.members).toBe(1)
-        expect(r.monthlyRecurring).toBe(5000)
+        // Money and the horizons are about the ones still here.
+        expect(r.horizons[0]).toMatchObject({ potential: 5000, expected: 1000 })
+        expect(r.highRiskMoney).toBe(5000)
     })
 
     it('falls back to the default rate without a run', async () => {
@@ -347,6 +369,6 @@ describe('loadForecastReport', () => {
             scopeSample: 0,
             usesDefault: true,
         })
-        expect(r.members).toBe(0)
+        expect(r.students).toBe(0)
     })
 })

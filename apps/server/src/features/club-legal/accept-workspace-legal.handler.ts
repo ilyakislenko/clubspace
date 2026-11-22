@@ -1,7 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { ClubLegalService } from '../../domains/billing/services/club-legal.service'
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import {
     ConflictError,
     ForbiddenError,
@@ -17,7 +17,7 @@ export const OWNER_ONLY_MESSAGE =
     'Принять договор-оферту и поручение за клуб может только его владелец'
 
 // The club owner accepts the current offer + DPA editions (the banner or the
-// «Тариф» page). The owner is the club's party to the contract, so nobody
+// «Подписка ClubSpace» page). The owner is the club's party to the contract, so nobody
 // else accepts for the club — not another admin, not a platform admin.
 @Feature(AcceptWorkspaceLegalFeature)
 export class AcceptWorkspaceLegalHandler
@@ -30,7 +30,7 @@ export class AcceptWorkspaceLegalHandler
     ) {}
 
     async execute(f: AcceptWorkspaceLegalFeature): Promise<AcceptWorkspaceLegalFeatureResponse> {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,

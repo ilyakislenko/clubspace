@@ -7,7 +7,7 @@ const { secret, hash } = generateAiToken()
 
 type Opts = {
     token?: Record<string, unknown> | null
-    role?: 'owner' | 'admin' | 'manager' | 'coach'
+    role?: 'owner' | 'admin' | 'head_coach' | 'manager' | 'coach'
     blocked?: boolean
     bus?: { execute: jest.Mock }
 }
@@ -48,7 +48,11 @@ const setup = (opts: Opts = {}) => {
             findUnique: jest.fn().mockResolvedValue(
                 role === 'owner'
                     ? null
-                    : { status: 'ACTIVE', accessUntil: null, role: { name: role === 'admin' ? 'admin' : 'coach' } },
+                    : {
+                          status: 'ACTIVE',
+                          accessUntil: null,
+                          role: { name: role === 'manager' ? 'coach' : role },
+                      },
             ),
         },
         directionManager: {
@@ -114,8 +118,12 @@ describe('McpServerService — auth and transport', () => {
         expect(s.prisma.aiAccessToken.findUnique.mock.calls[0][0].where).toEqual({ tokenHash: hash })
     })
 
+    // ИИ-токены are the club admins'; a creator who is (or became) a head coach,
+    // direction manager or coach takes the token's access with them.
     it('answers 403 when the creator lost their rights or the club is closed', async () => {
-        expect((await setup({ role: 'coach' }).request('ping')).status).toBe(403)
+        for (const role of ['head_coach', 'manager', 'coach'] as const) {
+            expect((await setup({ role }).request('ping')).status).toBe(403)
+        }
         const closed = await setup({ token: { workspace: { name: 'Клуб', isActive: false, billing: null } } }).request('ping')
         expect(closed.status).toBe(403)
         expect(closed.body).toMatchObject({ error: { code: JSONRPC.FORBIDDEN } })
@@ -169,16 +177,15 @@ describe('McpServerService — methods', () => {
         expect((res.body as { result: { instructions: string } }).result.instructions).toContain('обезличено')
     })
 
-    it('lists the money tools for admin scope only', async () => {
-        const names = async (role: Opts['role']) =>
-            ((await setup({ role }).request('tools/list')).body as { result: { tools: { name: string }[] } }).result.tools.map(
+    it('lists the money tools to a club admin', async () => {
+        for (const role of ['owner', 'admin'] as const) {
+            const res = await setup({ role }).request('tools/list')
+            const names = (res.body as { result: { tools: { name: string }[] } }).result.tools.map(
                 (t) => t.name,
             )
-        expect(await names('admin')).toContain('revenue_report')
-        const manager = await names('manager')
-        expect(manager).toContain('search_members')
-        expect(manager).not.toContain('revenue_report')
-        expect(manager).not.toContain('renewals_due')
+            expect(names).toContain('revenue_report')
+            expect(names).toContain('search_members')
+        }
     })
 
     it('answers unknown methods and tools with JSON-RPC errors', async () => {
@@ -237,60 +244,60 @@ describe('McpServerService — methods', () => {
 
     it('tags the tariff in renewals and debts too (an archived one included) without naming the member', async () => {
         const P = '11111111-1111-4111-8111-111111111111'
+        // Debts come through the admin list (the bus); renewals from the one
+        // renewal rule over the roster (renewal-rules).
         const bus = {
-            execute: jest
-                .fn()
-                .mockResolvedValueOnce({
-                    data: [
-                        {
-                            userId: 'm1',
-                            firstname: 'Иван',
-                            lastname: 'Петров',
-                            email: 'ivan@x.ru',
-                            reason: 'low_classes',
-                            classesRemaining: 1,
-                            classesTotal: 8,
-                            accessUntil: null,
-                            planId: P,
-                            planName: 'Старый тариф',
-                            endDate: null,
-                            directions: [],
-                        },
-                        {
-                            userId: 'm2',
-                            firstname: null,
-                            lastname: null,
-                            email: null,
-                            reason: 'access_expiring',
-                            classesRemaining: null,
-                            classesTotal: null,
-                            accessUntil: '2026-11-05T00:00:00.000Z',
-                            planId: null,
-                            planName: null,
-                            endDate: null,
-                            directions: [],
-                        },
-                    ],
-                })
-                .mockResolvedValueOnce({
-                    total: 1,
-                    data: [
-                        {
-                            subscriptionId: 's1',
-                            userId: 'm1',
-                            memberName: 'Иван Петров',
-                            memberPhone: '+79990000000',
-                            planId: P,
-                            planName: 'Старый тариф',
-                            amount: 5000,
-                            currency: 'RUB',
-                            startDate: null,
-                            createdAt: '2026-10-01T10:00:00.000Z',
-                        },
-                    ],
-                }),
+            execute: jest.fn().mockResolvedValueOnce({
+                total: 1,
+                data: [
+                    {
+                        subscriptionId: 's1',
+                        userId: 'm1',
+                        memberName: 'Иван Петров',
+                        memberPhone: '+79990000000',
+                        planId: P,
+                        planName: 'Старый тариф',
+                        amount: 5000,
+                        currency: 'RUB',
+                        startDate: null,
+                        createdAt: '2026-10-01T10:00:00.000Z',
+                    },
+                ],
+            }),
         }
         const s = setup({ bus })
+        Object.assign(s.prisma.workspaceMember, {
+            findMany: jest.fn().mockResolvedValue([
+                {
+                    userId: 'm1',
+                    accessUntil: null,
+                    user: {
+                        firstname: 'Иван',
+                        lastname: 'Петров',
+                        email: 'ivan@x.ru',
+                        phone: '+79990000000',
+                        dependentOf: [],
+                    },
+                    subscriptions: [
+                        {
+                            status: 'ACTIVE',
+                            startDate: new Date(Date.now() - 86_400_000),
+                            endDate: null,
+                            classesRemaining: 1,
+                            classesTotal: 8,
+                            plan: { id: P, name: 'Старый тариф' },
+                            directions: [],
+                        },
+                    ],
+                },
+                {
+                    userId: 'm2',
+                    accessUntil: new Date(Date.now() + 2 * 86_400_000),
+                    user: { firstname: null, lastname: null, email: null, phone: null, dependentOf: [] },
+                    subscriptions: [],
+                },
+            ]),
+        })
         const structured = async (name: string) => {
             const res = await s.request('tools/call', { name, arguments: {} })
             return (res.body as { result: { structuredContent: { items: Record<string, unknown>[] } } }).result
@@ -306,7 +313,6 @@ describe('McpServerService — methods', () => {
     })
 
     it.each([
-        ['money for a direction manager', 'manager', 'revenue_report', {}, 'администратора'],
         ['invalid arguments', 'owner', 'schedule', { from: 'вчера' }, 'Некорректные аргументы'],
         ['a bad member ref', 'owner', 'member_profile', { member: 'Иван' }, 'ref'],
     ] as const)('returns %s as an audited tool error', async (_label, role, name, args, text) => {

@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     type RoleName,
-    WORKSPACE_ADMINS,
+    SPORT_LEADS,
 } from '../decorators/roles.decorator'
 import { ForbiddenError, NotFoundError } from '../errors/shared.errors'
 import { cap, type ClubVocabulary, loadClubVocabulary } from '../utils/club-vocabulary'
@@ -81,7 +81,7 @@ export class RbacService {
             return { ...baseCtx, scope: 'admin' }
         }
 
-        if (roleName && WORKSPACE_ADMINS.includes(roleName as RoleName)) {
+        if (roleName && SPORT_LEADS.includes(roleName as RoleName)) {
             return { ...baseCtx, scope: 'admin' }
         }
 

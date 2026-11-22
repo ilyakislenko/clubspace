@@ -6,6 +6,7 @@ import { Button } from "@clubspace/ui-kit/ui"
 
 import { setBillingModule, type BillingModule } from "../../shared/api/billing"
 import { errorMessage } from "../../shared/lib/error-message"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { formatAmount } from "../subscriptions/subscription-display"
 import { LEGAL_SECTION_ID } from "./BillingLegalSection"
 import {
@@ -47,7 +48,7 @@ export function BillingModuleAction({
   const run = async () => {
     if (!action) return
     const question = moduleActionConfirm(action, m, { currency, cardLast4, currentPeriodEnd })
-    if (question && !window.confirm(question)) return
+    if (question && !(await confirmDialog(question))) return
     setBusy(true)
     setError(null)
     try {

@@ -6,7 +6,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import { WORKSPACE_ADMINS, Roles } from '../../shared/decorators/roles.decorator'
+import { SPORT_LEADS, Roles } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -26,7 +26,7 @@ export class CreateGymController {
     constructor(private bus: FeaturesBus) {}
 
     @Post()
-    @Roles(WORKSPACE_ADMINS)
+    @Roles(SPORT_LEADS)
     @ZodResponse({ type: CreateGymOutput })
     async create(
         @Param('workspaceId') workspaceId: string,

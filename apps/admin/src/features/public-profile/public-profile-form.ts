@@ -1,8 +1,13 @@
+import { CreateClubLogoUploadInputSchema } from "@clubspace/api-client/schemas"
+
 import type {
   ClubLogoUploadInput,
   ClubPublicProfile,
   ClubPublicProfileInput,
 } from "../../shared/api/public-profile"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
+
+const L = FORM_LIMITS.clubProfile
 
 export type PublicProfileDraft = {
   slug: string
@@ -12,14 +17,14 @@ export type PublicProfileDraft = {
   isListed: boolean
 }
 
-// Mirrors the server: lowercase Latin letters and digits, words joined by
-// single hyphens, 3–64 characters. Checked here so a typo is explained before
-// the round trip.
+// Mirrors the server's isValidPublicSlug: lowercase Latin letters and digits,
+// words joined by single hyphens, at least 3 characters. Checked here so a
+// typo is explained before the round trip. The minimum and the pattern live
+// in a server refine, which the contract does not carry; the maximum does.
+const SLUG_MIN = 3
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-export const DESCRIPTION_MAX = 2000
-export const LOGO_MAX_BYTES = 2 * 1024 * 1024
 export const LOGO_CONTENT_TYPES: readonly ClubLogoUploadInput["contentType"][] =
-  ["image/jpeg", "image/png", "image/webp"]
+  CreateClubLogoUploadInputSchema.properties.contentType.enum
 
 export const profileToDraft = (p: ClubPublicProfile): PublicProfileDraft => ({
   slug: p.slug,
@@ -41,11 +46,11 @@ export const validatePublicProfileDraft = (
   d: PublicProfileDraft,
 ): string | null => {
   const slug = d.slug.trim().toLowerCase()
-  if (slug.length < 3 || slug.length > 64 || !SLUG_PATTERN.test(slug)) {
-    return "Адрес страницы: 3–64 символа — строчные латинские буквы и цифры, слова через дефис"
+  if (slug.length < SLUG_MIN || slug.length > L.slug.max || !SLUG_PATTERN.test(slug)) {
+    return `Адрес страницы: ${SLUG_MIN}–${L.slug.max} символа — строчные латинские буквы и цифры, слова через дефис`
   }
-  if (d.description.trim().length > DESCRIPTION_MAX) {
-    return `Описание — не длиннее ${DESCRIPTION_MAX} символов`
+  if (d.description.trim().length > L.description.max) {
+    return `Описание — не длиннее ${L.description.max} символов`
   }
   return null
 }
@@ -63,8 +68,11 @@ export const logoUploadFor = (file: {
   if (!isLogoContentType(file.type)) {
     return { ok: false, error: "Логотип — картинка JPEG, PNG или WebP" }
   }
-  if (file.size > LOGO_MAX_BYTES) {
-    return { ok: false, error: "Логотип должен быть не больше 2 МБ" }
+  if (file.size > L.logoBytes.max) {
+    return {
+      ok: false,
+      error: `Логотип должен быть не больше ${L.logoBytes.max / 1024 / 1024} МБ`,
+    }
   }
   return { ok: true, input: { contentType: file.type, contentLength: file.size } }
 }

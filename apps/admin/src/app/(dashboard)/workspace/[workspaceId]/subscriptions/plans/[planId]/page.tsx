@@ -22,8 +22,7 @@ import { errorMessage } from "../../../../../../../shared/lib/error-message"
 import { pluralRu } from "../../../../../../../shared/lib/plural-ru"
 import { useVocabulary } from "../../../../../../../shared/lib/vocabulary"
 
-// The tariff page (behind the section's AdminOrDirectionManagerGate; the
-// server opens it on the same terms as editing the tariff).
+// The tariff page (behind the section's ClubAdminGate: tariffs are money).
 export default function WorkspacePlanPage() {
   const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string; planId: string }>()
@@ -157,7 +156,7 @@ export default function WorkspacePlanPage() {
         ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
-              <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
+              <thead className="bg-muted text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="p-3">Ученик</th>
                   <th className="p-3">Срок</th>

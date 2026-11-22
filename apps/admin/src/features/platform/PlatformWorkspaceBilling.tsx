@@ -21,6 +21,7 @@ import {
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
 import { pluralRu } from "../../shared/lib/plural-ru"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { formatAmount } from "../subscriptions/subscription-display"
 import {
   BANNER_TONE_CLASS,
@@ -164,7 +165,17 @@ export function PlatformWorkspaceBilling({
 
   // «Повторить списание сейчас»: the due renewal from the saved card, now.
   const retryCharge = async () => {
-    if (!window.confirm(`Списать оплату с сохранённой карты клуба «${workspace.name}» сейчас?`)) {
+    const view = card?.billing
+    const saved = view?.autopay.card
+    if (
+      !(await confirmDialog({
+        title: `Списать оплату с карты клуба «${workspace.name}» сейчас?`,
+        description: view
+          ? `Спишем ${formatAmount(view.quote.total, view.quote.currency)} с сохранённой карты${saved?.last4 ? ` •••• ${saved.last4}` : ""}.`
+          : "Спишем очередной платёж с сохранённой карты клуба.",
+        confirmLabel: "Списать",
+      }))
+    ) {
       return
     }
     setBusy(true)
@@ -200,7 +211,16 @@ export function PlatformWorkspaceBilling({
     const amount = parseRefundAmount(refund.amount, refund.max)
     if (amount === null) return
     const sum = formatAmount(amount === "full" ? refund.max : amount, refund.currency)
-    if (!window.confirm(`Вернуть клубу «${workspace.name}» ${sum} на карту?`)) return
+    if (
+      !(await confirmDialog({
+        title: `Вернуть клубу «${workspace.name}» ${sum}?`,
+        description: "Деньги вернутся на карту, с которой клуб платил. Отменить возврат будет нельзя.",
+        confirmLabel: "Вернуть деньги",
+        destructive: true,
+      }))
+    ) {
+      return
+    }
     setBusy(true)
     setError(null)
     try {

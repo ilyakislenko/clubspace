@@ -36,7 +36,7 @@ export const StartWorkspaceBillingCheckoutInputSchema = z.object({
 })
 export const StartWorkspaceBillingCheckoutOutputSchema = z.object({
     payment: PlatformPaymentSchema,
-    // YooKassa's payment page; it returns to the «Тариф» page.
+    // YooKassa's payment page; it returns to the «Подписка ClubSpace» page.
     confirmationUrl: z.string(),
 })
 export class StartWorkspaceBillingCheckoutFeature extends WorkspaceBillingCommand {

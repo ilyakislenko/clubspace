@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { CallListCacheService } from '../../domains/retention/call-list-cache.service'
 import { loadWorkspaceRisk } from '../../domains/retention/load-workspace-risk'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -18,6 +19,7 @@ export class LogAtRiskContactHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly rbac: RbacService,
+        private readonly callLists: CallListCacheService,
     ) {}
 
     async execute({
@@ -65,6 +67,8 @@ export class LogAtRiskContactHandler
                 },
             },
         })
+        // Off «Кому позвонить» on every surface at the next read.
+        await this.callLists.invalidate(workspaceId)
 
         return serializeRetentionContact(row)
     }

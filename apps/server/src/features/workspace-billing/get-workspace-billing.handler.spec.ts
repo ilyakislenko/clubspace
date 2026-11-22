@@ -94,7 +94,7 @@ const state = (row: Record<string, unknown> = {}) => ({
 })
 
 const build = (
-    o: { denied?: boolean; ws?: unknown; row?: Record<string, unknown> } = {},
+    o: { ws?: unknown; row?: Record<string, unknown> } = {},
 ) => {
     const prisma = {
         workspace: {
@@ -103,9 +103,18 @@ const build = (
                 .mockResolvedValue('ws' in o ? o.ws : { id: 'w1' }),
         },
     }
+    // Resolves the scope the way RbacService does: a head coach (like an
+    // admin) runs every group; only the caller decides who is a club admin.
     const rbac = {
-        resolveCoachScope: jest.fn().mockResolvedValue({ scope: 'admin' }),
-        canWriteAllGroups: jest.fn().mockReturnValue(!o.denied),
+        resolveCoachScope: jest.fn(
+            async (p: { userId: string; workspaceId: string; roleName: string | null }) => ({
+                scope: p.roleName === 'coach' ? 'coach_own_only' : 'admin',
+                userId: p.userId,
+                workspaceId: p.workspaceId,
+                workspaceOwnerId: 'u1',
+            }),
+        ),
+        canWriteAllGroups: jest.fn((ctx: { scope: string }) => ctx.scope === 'admin'),
     }
     const billing = {
         enabled: true,
@@ -138,14 +147,29 @@ const build = (
     return { handler, billing }
 }
 
-const run = (handler: GetWorkspaceBillingHandler, userId = 'u1') =>
-    handler.execute(new GetWorkspaceBillingFeature('w1', userId, 'coach', false))
+type Caller = { userId: string; roleName: string }
+// The owner (u1) passes whatever their member row says.
+const OWNER: Caller = { userId: 'u1', roleName: 'head_coach' }
+const ADMIN: Caller = { userId: 'u2', roleName: 'admin' }
+const HEAD_COACH: Caller = { userId: 'u3', roleName: 'head_coach' }
+
+const run = (handler: GetWorkspaceBillingHandler, caller: Caller = OWNER) =>
+    handler.execute(new GetWorkspaceBillingFeature('w1', caller.userId, caller.roleName, false))
 
 describe('GetWorkspaceBillingHandler', () => {
-    it('refuses a coach (workspace-admin only)', async () => {
-        const { handler, billing } = build({ denied: true })
-        await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
+    it('refuses a head coach, even one who runs every group (club admins only)', async () => {
+        const { handler, billing } = build()
+        await expect(run(handler, HEAD_COACH)).rejects.toBeInstanceOf(ForbiddenError)
         expect(billing.getState).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ['an admin', ADMIN],
+        ['the owner', OWNER],
+    ])('shows the billing to %s', async (_, caller) => {
+        const { handler, billing } = build()
+        await expect(run(handler, caller)).resolves.toMatchObject({ enabled: true })
+        expect(billing.getState).toHaveBeenCalledTimes(1)
     })
 
     it('404s on a missing club', async () => {
@@ -280,7 +304,7 @@ describe('GetWorkspaceBillingHandler', () => {
             },
             canAccept: true,
         })
-        const admin = await run(handler, 'u2')
+        const admin = await run(handler, ADMIN)
         expect(admin.legal.canAccept).toBe(false)
     })
 

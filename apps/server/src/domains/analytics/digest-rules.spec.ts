@@ -1,6 +1,5 @@
+import type { CallListEntry } from '../retention/call-list'
 import type {
-    ChurnEntry,
-    ChurnReport,
     CohortReport,
     ForecastReport,
     OccupancyReport,
@@ -26,7 +25,7 @@ describe('analyticsDigestSlot', () => {
     })
 })
 
-const entry = (over: Partial<ChurnEntry>): ChurnEntry => ({
+const entry = (over: Partial<CallListEntry>): CallListEntry => ({
     userId: 'u',
     firstname: 'Иван',
     lastname: 'Петров',
@@ -34,14 +33,26 @@ const entry = (over: Partial<ChurnEntry>): ChurnEntry => ({
     phone: null,
     guardians: [],
     groups: [],
+    reason: 'lapsed',
+    signals: ['lapsed'],
+    factsText: 'Абонемент закончился',
+    facts: {
+        lastVisitAt: null,
+        daysSinceLastVisit: null,
+        firstVisitAt: null,
+        visitsLast14d: 0,
+        recentPerWeek: 0,
+        baselinePerWeek: 0,
+        lapseKind: 'expired',
+        lapsedAt: null,
+        planName: null,
+    },
+    lastContact: null,
+    snoozed: false,
     score: 70,
     level: 'high',
-    reasons: [{ code: 'expired', points: 25, text: 'Абонемент закончился' }],
     monthlySpend: 5000,
     currency: 'RUB',
-    lastVisitAt: null,
-    lastContact: null,
-    contactedRecently: false,
     ...over,
 })
 
@@ -65,30 +76,17 @@ const slot = (over: Partial<OccupancySlot>): OccupancySlot => ({
 })
 
 const reports = (over: {
-    entries?: ChurnEntry[]
+    entries?: CallListEntry[]
     occupancy?: Partial<OccupancyReport>
     trial?: ForecastReport['trial']
     cohorts?: CohortReport['cohorts']
 }) => {
-    const entries = over.entries ?? []
-    const open = entries.filter((e) => !e.contactedRecently)
-    const churn: ChurnReport = {
-        computedAt: null,
-        entries,
-        summary: {
-            total: open.length,
-            high: open.filter((e) => e.level === 'high').length,
-            medium: 0,
-            moneyAtStake: open.reduce((s, e) => s + e.monthlySpend, 0),
-            currency: 'RUB',
-            contactedRecently: entries.length - open.length,
-        },
-    }
+    const callList = over.entries ?? []
     const forecast: ForecastReport = {
         computedAt: null,
         currency: 'RUB',
-        members: 40,
-        monthlyRecurring: 200000,
+        students: 40,
+        mrr: 200000,
         horizons: [
             { days: 30, potential: 100000, expected: 70000, atRisk: 30000 },
             { days: 90, potential: 300000, expected: 180000, atRisk: 120000 },
@@ -108,7 +106,7 @@ const reports = (over: {
         ...over.occupancy,
     }
     const cohorts: CohortReport = { computedAt: null, cohorts: over.cohorts ?? [], average: [] }
-    return { churn, forecast, occupancy, cohorts }
+    return { callList, forecast, occupancy, cohorts }
 }
 
 const nbsp = (s: string) => s.replace(/\s/g, ' ')
@@ -119,7 +117,7 @@ describe('buildWeeklyDigest', () => {
         expect(d.facts.map(nbsp)).toEqual([
             'Под риском ухода никого — ученики ходят стабильно',
             'Прогноз продлений на 30 дней: 70 000 ₽ из 100 000 ₽ возможных (продлевают 70%)',
-            'Активных учеников: 40, вместе они платят 200 000 ₽ в месяц',
+            'Учеников: 40, регулярный доход в месяц — 200 000 ₽',
         ])
         expect(d.actions.map((a) => a.path)).toEqual(['analytics/cohorts', 'analytics/coaches'])
     })
@@ -129,8 +127,8 @@ describe('buildWeeklyDigest', () => {
             reports({
                 entries: [
                     entry({ userId: 'a', firstname: 'Анна', lastname: null }),
-                    entry({ userId: 'b', firstname: 'Борис', lastname: null, reasons: [] }),
-                    entry({ userId: 'c', firstname: 'Вера', lastname: null, contactedRecently: true }),
+                    entry({ userId: 'b', firstname: 'Борис', lastname: null, reason: 'absent' }),
+                    entry({ userId: 'c', firstname: 'Вера', lastname: null, snoozed: true }),
                 ],
                 occupancy: {
                     strongest: [slot({})],
@@ -154,8 +152,8 @@ describe('buildWeeklyDigest', () => {
             'Из пришедших впервые в августе через месяц ходят 80% (8 из 10)',
         ])
         expect(d.actions.map((a) => [nbsp(a.text), a.path])).toEqual([
-            ['Позвоните сегодня: Анна, Борис — на кону 10 000 ₽ в месяц', 'analytics/churn'],
-            ['Предложите продление 1 ученику: абонемент закончился или заканчивается', 'analytics/churn'],
+            ['Позвоните сегодня: Анна, Борис — на кону 10 000 ₽ в месяц', 'retention'],
+            ['Предложите продление 1 ученику: абонемент закончился', 'retention'],
             ['Добавьте занятие', 'analytics/occupancy'],
         ])
     })

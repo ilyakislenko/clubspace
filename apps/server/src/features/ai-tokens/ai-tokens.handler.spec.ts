@@ -20,10 +20,11 @@ import {
     RevokeAiTokenHandler,
 } from './ai-tokens.handler'
 
-type Role = 'owner' | 'admin' | 'manager' | 'coach' | 'user'
+type Role = 'owner' | 'admin' | 'head_coach' | 'manager' | 'coach' | 'user'
 
 const MEMBER_ROLE: Record<Exclude<Role, 'owner'>, string> = {
     admin: 'admin',
+    head_coach: 'head_coach',
     manager: 'coach',
     coach: 'coach',
     user: 'user',
@@ -108,26 +109,20 @@ describe('ListAiTokensHandler', () => {
         const s = list('admin')
         const res = await s.run()
         expect(s.prisma.aiAccessToken.findMany.mock.calls[0][0].where).toEqual({ workspaceId: 'w1' })
-        expect(res.data[0]).toMatchObject({ id: 't1', state: 'active', canRevoke: true })
+        expect(res.data[0]).toMatchObject({ id: 't1', state: 'active' })
         expect(res.canUsePersonalData).toBe(false)
         expect(res.personalDataWarning.version).toBe(AI_PERSONAL_DATA_WARNING.version)
-    })
-
-    it('shows a direction manager only their own tokens', async () => {
-        const s = list('manager')
-        await s.run()
-        expect(s.prisma.aiAccessToken.findMany.mock.calls[0][0].where).toEqual({
-            workspaceId: 'w1',
-            createdById: 'manager',
-        })
     })
 
     it('lets only the owner use personal data', async () => {
         expect((await list('owner').run()).canUsePersonalData).toBe(true)
     })
 
-    it.each<Role>(['coach', 'user'])('refuses a %s', async (role) => {
-        await expect(list(role).run()).rejects.toBeInstanceOf(ForbiddenError)
+    // ИИ-токены are a system setting: a head coach or direction manager is refused.
+    it.each<Role>(['head_coach', 'manager', 'coach', 'user'])('refuses a %s', async (role) => {
+        const s = list(role)
+        await expect(s.run()).rejects.toBeInstanceOf(ForbiddenError)
+        expect(s.prisma.aiAccessToken.findMany).not.toHaveBeenCalled()
     })
 })
 
@@ -143,13 +138,13 @@ describe('CreateAiTokenHandler', () => {
     }
 
     it('stores only the hash and returns the secret once', async () => {
-        const s = create('manager')
+        const s = create('admin')
         const res = await s.run()
         const data = s.prisma.aiAccessToken.create.mock.calls[0][0].data
         expect(res.secret).toMatch(/^csai_/)
         expect(data.tokenHash).toBe(hashAiToken(res.secret))
         expect(JSON.stringify(data)).not.toContain(res.secret)
-        expect(data).toMatchObject({ workspaceId: 'w1', createdById: 'manager', scopes: ['read'], dataMode: 'PSEUDONYMIZED' })
+        expect(data).toMatchObject({ workspaceId: 'w1', createdById: 'admin', scopes: ['read'], dataMode: 'PSEUDONYMIZED' })
         expect(data.expiresAt.getTime()).toBeGreaterThan(Date.now() + 89 * 24 * 3600_000)
         expect(s.prisma.aiDataTransferAcceptance.create).not.toHaveBeenCalled()
         expect(s.audit.record.mock.calls.map((c) => c[0].action)).toEqual(['ai.tokenCreate'])
@@ -216,7 +211,7 @@ describe('CreateAiTokenHandler', () => {
         ).rejects.toBeInstanceOf(BadRequestError)
     })
 
-    it.each<Role>(['coach', 'user'])('refuses a %s', async (role) => {
+    it.each<Role>(['head_coach', 'manager', 'coach', 'user'])('refuses a %s', async (role) => {
         const s = create(role)
         await expect(s.run()).rejects.toBeInstanceOf(ForbiddenError)
         expect(s.prisma.aiAccessToken.create).not.toHaveBeenCalled()
@@ -239,11 +234,12 @@ describe('RevokeAiTokenHandler', () => {
         expect(s.audit.record.mock.calls[0][0]).toMatchObject({ action: 'ai.tokenRevoke', targetId: 't1' })
     })
 
-    it('lets a direction manager revoke their own token only', async () => {
-        await expect(revoke('manager').run()).resolves.toMatchObject({ state: 'revoked' })
-        const other = revoke('manager', tokenRow({ createdById: 'someone' }))
-        await expect(other.run()).rejects.toBeInstanceOf(ForbiddenError)
-        expect(other.prisma.aiAccessToken.update).not.toHaveBeenCalled()
+    it('refuses a head coach or direction manager even their own token', async () => {
+        for (const role of ['head_coach', 'manager'] as const) {
+            const s = revoke(role, tokenRow({ createdById: role }))
+            await expect(s.run()).rejects.toBeInstanceOf(ForbiddenError)
+            expect(s.prisma.aiAccessToken.update).not.toHaveBeenCalled()
+        }
     })
 
     it('is a no-op on an already revoked token', async () => {

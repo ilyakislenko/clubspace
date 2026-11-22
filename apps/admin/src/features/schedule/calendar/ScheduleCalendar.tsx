@@ -57,7 +57,6 @@ import { MoveDialog, type MoveScope } from "./MoveDialog"
 import { TimeGridView } from "./TimeGridView"
 import { UndoToast, type Toast } from "./UndoToast"
 import type { DragTarget } from "./use-grid-drag"
-import { YearView } from "./YearView"
 
 const STORAGE_KEY = "clubspace:schedule-calendar"
 const DEFAULT_HOURS: HourRange = { from: 8, to: 22 }
@@ -79,8 +78,8 @@ const browserTz = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone
 let toastSeq = 0
 
 /**
- * «Занятия»: the club's schedule as a calendar (volt's big calendar ported to
- * ClubSpace) — day / week / month / year / list, drag a class to move it,
+ * «Расписание»: the club's schedule as a calendar (volt's big calendar ported
+ * to ClubSpace) — day / week / month / list, drag a class to move it,
  * pull its bottom edge to change the duration, click an empty cell to add one.
  */
 export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
@@ -214,19 +213,24 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
 
   // ---- who may do what ------------------------------------------------------
   // Owner / admin / head coach: everything. A direction manager: classes of
-  // their directions. A plain coach: reads their own groups only.
-  const canManageGroup = useCallback(
-    (g: { direction: { id: string } | null }) =>
-      scope.isAdmin || (scope.isDirectionManager && !!g.direction && scope.canManageDirection(g.direction.id)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scope.isAdmin, scope.isDirectionManager, scope.managedDirectionIds],
+  // their directions. Anyone: the groups they coach (primary or assistant) —
+  // the server's assertCanWriteGroup. A plain coach sees only those.
+  const coachedGroupIds = useMemo(
+    () => new Set(groups.filter((g) => meId && g.coaches.some((c) => c.userId === meId)).map((g) => g.id)),
+    [groups, meId],
   )
-  const ownGroupIds = useMemo(() => {
-    if (scope.isAdmin || scope.isDirectionManager) return null
-    return new Set(
-      groups.filter((g) => meId && g.coaches.some((c) => c.userId === meId)).map((g) => g.id),
-    )
-  }, [scope.isAdmin, scope.isDirectionManager, groups, meId])
+  const canManageGroup = useCallback(
+    (g: { id: string; direction: { id: string } | null }) =>
+      scope.isSportLead ||
+      coachedGroupIds.has(g.id) ||
+      (scope.isDirectionManager && !!g.direction && scope.canManageDirection(g.direction.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scope.isSportLead, scope.isDirectionManager, scope.managedDirectionIds, coachedGroupIds],
+  )
+  const ownGroupIds = useMemo(
+    () => (scope.isSportLead || scope.isDirectionManager ? null : coachedGroupIds),
+    [scope.isSportLead, scope.isDirectionManager, coachedGroupIds],
+  )
   const creatableGroups = useMemo(() => groups.filter((g) => canManageGroup(g)), [groups, canManageGroup])
   // A cell of a hall column offers only that hall's groups.
   const createGroups = useMemo(
@@ -426,9 +430,9 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">{cap(vocabulary.session.nomPl)}</h1>
+        <h1 className="text-2xl font-semibold">Расписание</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Расписание всех групп и событий клуба. Перетащите {vocabulary.session.acc}, чтобы перенести{" "}
+          Все группы и события клуба. Перетащите {vocabulary.session.acc}, чтобы перенести{" "}
           {agree(vocabulary.session, "её", "его")}, потяните за нижний край — чтобы изменить длительность,
           нажмите на пустую клетку — чтобы добавить {vocabulary.session.acc}.
         </p>
@@ -470,17 +474,6 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
           <TimeGridView {...gridProps} days={[anchor]} halls={halls} />
         ) : view === "month" ? (
           <MonthView anchor={anchor} items={items} today={today} onOpenItem={openItem} onOpenDay={openDay} onDrop={requestMove} />
-        ) : view === "year" ? (
-          <YearView
-            anchor={anchor}
-            items={items}
-            today={today}
-            onOpenDay={openDay}
-            onOpenMonth={(d) => {
-              setAnchor(d)
-              setView("month")
-            }}
-          />
         ) : (
           <AgendaView
             items={items.filter((it) => it.date >= range.from && it.date <= range.to)}
@@ -510,7 +503,14 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
           setDetailsKey(null)
           showToast({
             tone: "success",
-            message: `«${item.title}» ${slotLabel(item)} отменено`,
+            message:
+              exception.fromDate === exception.untilDate && exception.slotId !== null
+                ? `«${item.title}» ${slotLabel(item)} отменено`
+                : `«${item.title}»: ${exception.slotId === null ? `все ${vocabulary.session.nomPl}` : `${vocabulary.session.nomPl} в ${formatHm(item.startMin)}`} отменены ${
+                    exception.fromDate === exception.untilDate
+                      ? dayMonth(exception.fromDate)
+                      : `с ${dayMonth(exception.fromDate)} по ${dayMonth(exception.untilDate)}`
+                  }`,
             // A booking class has already released its places — no cheap undo.
             undo: item.session.booking
               ? undefined
@@ -531,6 +531,12 @@ export function ScheduleCalendar({ workspaceId }: { workspaceId: string }) {
           void reloadGroups()
         }}
         onChanged={() => void refresh()}
+        onScheduleChanged={(message) => {
+          setDetailsKey(null)
+          showToast({ tone: "success", message })
+          void refresh()
+          void reloadGroups()
+        }}
       />
 
       <MoveDialog

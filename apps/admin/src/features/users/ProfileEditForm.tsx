@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react"
 
 import { Button, Input, Label } from "@clubspace/ui-kit/ui"
+import { useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 
 type Props = {
@@ -42,6 +43,7 @@ export function ProfileEditForm({
     (initial.email !== undefined &&
       email.trim().toLowerCase() !== initial.email.toLowerCase()) ||
     (initial.phone !== undefined && phone.trim() !== initial.phone)
+  useDirtyGuard(dirty)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -106,7 +108,7 @@ export function ProfileEditForm({
             placeholder="+7 900 000-00-00"
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            По нему {vocabulary.coach.nom} звонит в списке «Кто пропадает».
+            По нему {vocabulary.coach.nom} звонит из списка «Удержание» → «Позвонить».
           </p>
         </div>
       )}

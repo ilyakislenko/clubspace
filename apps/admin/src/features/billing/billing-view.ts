@@ -1,5 +1,6 @@
 import { pluralRu } from "../../shared/lib/plural-ru"
 import { formatAmount } from "../subscriptions/subscription-display"
+import type { ConfirmOptions } from "../../shared/ui/confirm-dialog"
 
 // Pure helpers for the «Тариф» page, the billing banners and the platform
 // console. Unit-tested in billing-view.spec.ts.
@@ -190,16 +191,16 @@ export const billingBanner = (
     return {
       tone: "danger",
       text: billing.archivedAt
-        ? `Клуб в архиве с ${formatDay(billing.archivedAt)}: участники его не видят, все данные сохранены. Оплатите тариф — клуб вернётся.`
-        : "Клуб приостановлен: участники не могут пользоваться приложением. Оплатите тариф, чтобы вернуть доступ.",
+        ? `Клуб в архиве с ${formatDay(billing.archivedAt)}: участники его не видят, все данные сохранены. Оплатите подписку ClubSpace — клуб вернётся.`
+        : "Клуб приостановлен: участники не могут пользоваться приложением. Оплатите подписку ClubSpace, чтобы вернуть доступ.",
     }
   }
   if (billing.status === "PAST_DUE") {
     return {
       tone: "danger",
       text: billing.suspendsAt
-        ? `Оплаченный период закончился. ${formatDay(billing.suspendsAt)} клуб будет приостановлен — оплатите тариф.`
-        : "Оплаченный период закончился — оплатите тариф.",
+        ? `Оплаченный период закончился. ${formatDay(billing.suspendsAt)} клуб будет приостановлен — оплатите подписку ClubSpace.`
+        : "Оплаченный период закончился — оплатите подписку ClubSpace.",
     }
   }
   if (billing.status === "TRIAL" && billing.trialEndsAt) {
@@ -209,7 +210,7 @@ export const billingBanner = (
         tone: "warning",
         text:
           days <= 0
-            ? "Пробный период закончился — оплатите тариф, чтобы клуб продолжил работать."
+            ? "Пробный период закончился — оплатите подписку ClubSpace, чтобы клуб продолжил работать."
             : `Пробный период закончится через ${days} ${pluralRu(days, "день", "дня", "дней")} (${formatDay(billing.trialEndsAt)}). Неподключённые модули после него отключатся.`,
       }
     }
@@ -307,7 +308,7 @@ export const readTrialLimit = (error: unknown): TrialLimitReached | null => {
   return {
     limit,
     message:
-      message || "Достигнут лимит пробного периода. Оплатите тариф, чтобы снять ограничение.",
+      message || "Достигнут лимит пробного периода. Оплатите подписку ClubSpace, чтобы снять ограничение.",
   }
 }
 
@@ -506,7 +507,7 @@ export const paymentReturnBanner = (
     case "PENDING":
       return {
         tone: "info",
-        text: "Платёж обрабатывается — как только банк его подтвердит, тариф обновится. Обновите страницу через пару минут.",
+        text: "Платёж обрабатывается — как только банк его подтвердит, подписка обновится. Обновите страницу через пару минут.",
       }
     case "REFUNDED":
       return { tone: "info", text: "Платёж возвращён." }
@@ -542,24 +543,33 @@ export const MODULE_ACTION_LABEL: Record<ModuleActionKind, string> = {
   restore: "Не отключать",
 }
 
-// The confirm() text before a module change, or null when none is needed
+// The confirmation dialog before a module change, or null when none is needed
 // (connecting for free / onto the next bill, keeping a module on).
 export const moduleActionConfirm = (
   action: ModuleActionKind,
   m: { name: string; connectPrice: number | null },
   ctx: { currency: string; cardLast4: string | null; currentPeriodEnd: string | null },
-): string | null => {
+): ConfirmOptions | null => {
   if (action === "connect") {
     if (m.connectPrice === null || m.connectPrice <= 0) return null
     const how = ctx.cardLast4
       ? `с карты •••• ${ctx.cardLast4}`
       : "— откроется страница оплаты"
-    return `Подключить модуль «${m.name}»? Будет списано ${formatAmount(m.connectPrice, ctx.currency)} за остаток оплаченного периода ${how}.`
+    return {
+      title: `Подключить модуль «${m.name}»?`,
+      description: `Будет списано ${formatAmount(m.connectPrice, ctx.currency)} за остаток оплаченного периода ${how}.`,
+      confirmLabel: "Подключить",
+    }
   }
   if (action === "disconnect") {
-    return ctx.currentPeriodEnd
-      ? `Отключить модуль «${m.name}»? Модуль отключится ${formatDay(ctx.currentPeriodEnd)} — до этого он работает, деньги за оплаченный период не возвращаются.`
-      : `Отключить модуль «${m.name}»? Он отключится сразу.`
+    return {
+      title: `Отключить модуль «${m.name}»?`,
+      description: ctx.currentPeriodEnd
+        ? `Модуль отключится ${formatDay(ctx.currentPeriodEnd)} — до этого он работает, деньги за оплаченный период не возвращаются.`
+        : "Модуль отключится сразу.",
+      confirmLabel: "Отключить",
+      destructive: true,
+    }
   }
   return null
 }

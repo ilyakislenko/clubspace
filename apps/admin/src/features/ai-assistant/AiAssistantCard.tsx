@@ -12,8 +12,10 @@ import {
   revokeAiToken,
 } from "../../shared/api/ai-tokens"
 import { writeToClipboard } from "../../shared/lib/clipboard"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputClsFull } from "../../shared/lib/input-class"
+import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import {
   AI_DATA_MODE_LABEL,
   AI_TOKEN_STATE_LABEL,
@@ -37,9 +39,9 @@ const fmt = (iso: string | null) =>
 type DataMode = "PSEUDONYMIZED" | "PERSONAL"
 
 // «ИИ-ассистент»: tokens an AI client (Claude, ChatGPT, Cursor) uses to read the
-// club over MCP. A token reads as its creator — admins the whole club, a
-// руководитель направления their directions — and only the owner can let
-// names and contacts through, after accepting the transfer warning.
+// club over MCP. Only club admins issue them (a token reads the whole club as
+// its creator), and only the owner can let names and contacts through, after
+// accepting the transfer warning.
 export function AiAssistantCard({ workspaceId }: { workspaceId: string }) {
   const [state, setState] = useState<AiTokensList | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -100,7 +102,16 @@ export function AiAssistantCard({ workspaceId }: { workspaceId: string }) {
   }
 
   const revoke = async (tokenId: string, tokenName: string) => {
-    if (!window.confirm(`Отозвать токен «${tokenName}»? Ассистент сразу потеряет доступ.`)) return
+    if (
+      !(await confirmDialog({
+        title: `Отозвать токен «${tokenName}»?`,
+        description: "Ассистент, подключённый с этим токеном, сразу потеряет доступ к данным клуба.",
+        confirmLabel: "Отозвать",
+        destructive: true,
+      }))
+    ) {
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -119,7 +130,7 @@ export function AiAssistantCard({ workspaceId }: { workspaceId: string }) {
   return (
     <section className="space-y-5 rounded-lg border border-border bg-card p-5">
       <div>
-        <h2 className="text-lg font-semibold">ИИ-ассистент</h2>
+        <h3 className="font-semibold">ИИ-ассистент</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Подключите клуб к Claude, ChatGPT или Cursor и спрашивайте обычными
           словами: «кто может уйти в этом месяце», «выручка по направлениям»,
@@ -193,7 +204,7 @@ export function AiAssistantCard({ workspaceId }: { workspaceId: string }) {
           <h3 className="text-sm font-semibold">Новый токен</h3>
           <label className="block space-y-1 text-sm">
             <span className="text-muted-foreground">Название (чтобы отличать токены)</span>
-            <input className={inputClsFull} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+            <input className={inputClsFull} maxLength={FORM_LIMITS.aiToken.name.max} value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <div className="space-y-1 text-sm">
             <span className="text-muted-foreground">Данные участников</span>
@@ -295,7 +306,7 @@ export function AiAssistantCard({ workspaceId }: { workspaceId: string }) {
                     {t.expiresAt ? fmt(t.expiresAt) : "отзыва"} · последний запрос {fmt(t.lastUsedAt)}
                   </div>
                 </div>
-                {t.canRevoke && t.state === "active" && (
+                {t.state === "active" && (
                   <Button
                     type="button"
                     size="sm"

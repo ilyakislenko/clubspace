@@ -2162,6 +2162,10 @@ model Plan {
   courseAudiences CourseAudience[]
   payments      Payment[]
 
+  // The edit form's version (optimistic concurrency, admin cleanup F10). The
+  // default backfills existing rows on `db push`.
+  updatedAt DateTime @default(now()) @updatedAt
+
   @@index([workspaceId])
 }
 
@@ -3179,7 +3183,7 @@ model DemoRequest {
 // instruction (apps/client /legal/offer, /legal/dpa; docs/legal/README.md).
 // SIGNUP: the owner created the club in the self-serve wizard. CONSOLE: the
 // platform operator created the club and attests the owner accepted (signed
-// offline). OWNER: the owner accepted an edition on the «Тариф» page or the
+// offline). OWNER: the owner accepted an edition on the «Подписка ClubSpace» page or the
 // banner. PAYMENT: the owner's first card payment.
 enum ClubLegalAcceptanceSource {
   SIGNUP
@@ -3219,7 +3223,7 @@ model ClubLegalAcceptance {
   @@index([workspaceId, acceptedAt])
 }
 
-// Who started the payment: the club's owner/admin on the «Тариф» page, the
+// Who started the payment: the club's owner/admin on the «Подписка ClubSpace» page, the
 // renewal job, or the platform operator («повторить сейчас»).
 enum PlatformPaymentInitiator {
   OWNER

@@ -45,14 +45,14 @@ describe('trial limits', () => {
         expect(fitsTrialStorage(1.9 * GB, undefined, 2)).toBe(true)
         expect(fitsTrialStorage(2 * GB, undefined, 2)).toBe(false)
         expect(trialStorageMessage(2, 1.9 * GB)).toBe(
-            'В пробном периоде можно хранить до 2 ГБ видео, загружено 1,9 ГБ — этот файл не помещается. Оплатите тариф, чтобы снять ограничение.',
+            'В пробном периоде можно хранить до 2 ГБ видео, загружено 1,9 ГБ — этот файл не помещается. Оплатите подписку ClubSpace, чтобы снять ограничение.',
         )
     })
 
     it('viewing: refused once the monthly hours are watched', () => {
         expect(withinTrialViewing(10 * 3600 - 1, 10)).toBe(true)
         expect(withinTrialViewing(10 * 3600, 10)).toBe(false)
-        expect(trialViewingMessage(10)).toContain('Оплатите тариф, чтобы снять ограничение')
+        expect(trialViewingMessage(10)).toContain('Оплатите подписку ClubSpace, чтобы снять ограничение')
     })
 
     it('reminder days parse, dedupe and sort; out of range stops the boot', () => {

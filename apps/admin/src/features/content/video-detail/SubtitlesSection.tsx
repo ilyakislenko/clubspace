@@ -6,6 +6,7 @@ import { Button, Input, Label } from "@clubspace/ui-kit/ui"
 
 import { errorMessage } from "../../../shared/lib/error-message"
 import { safeExternalUrl } from "../../../shared/lib/safe-url"
+import { useDirtyGuard } from "../../../shared/lib/use-dirty-guard"
 import {
   createSubtitle,
   createSubtitleUpload,
@@ -47,6 +48,8 @@ export function SubtitlesSection({
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [preview, setPreview] = useState<SubtitleCues | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  // Leaving mid-upload, or with a track name typed for the next file, loses it.
+  useDirtyGuard(subUploading || subLabel.trim() !== "")
 
   const togglePreview = async (subtitleId: string) => {
     if (previewId === subtitleId) {

@@ -1,6 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
-import { assertWorkspaceAdmin } from '../../shared/access/assert-admin-scope'
+import { assertClubAdmin } from '../../shared/access/assert-admin-scope'
 import { RbacService } from '../../shared/services/rbac.service'
 import { buildClubImportTemplate } from './club-import-fields'
 import { GetClubImportTemplateFeature } from './club-import.feature'
@@ -14,7 +14,7 @@ export class GetClubImportTemplateHandler
     constructor(private readonly rbac: RbacService) {}
 
     async execute(f: GetClubImportTemplateFeature): Promise<string> {
-        await assertWorkspaceAdmin(
+        await assertClubAdmin(
             this.rbac,
             {
                 userId: f.invokerUserId,

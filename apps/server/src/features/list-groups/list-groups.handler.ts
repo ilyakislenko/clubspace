@@ -6,7 +6,11 @@ import {
     ListGroupsFeature,
     ListGroupsFeatureResponse,
 } from './list-groups.feature'
-import { groupRowInclude, serializeGroupRow } from './schemas'
+import {
+    clubToday,
+    groupListRowInclude,
+    serializeGroupListRow,
+} from './schemas'
 
 @Feature(ListGroupsFeature)
 export class ListGroupsHandler
@@ -51,11 +55,13 @@ export class ListGroupsHandler
                     : {}),
             },
             orderBy: { createdAt: 'asc' },
-            include: groupRowInclude(new Date()),
+            include: groupListRowInclude(
+                await clubToday(this.prisma, workspaceId),
+            ),
         })
 
         return {
-            data: groups.map(serializeGroupRow),
+            data: groups.map(serializeGroupListRow),
             total: groups.length,
         }
     }
