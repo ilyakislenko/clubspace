@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
-  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -22,6 +21,7 @@ import {
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { Pressable } from "../../shared/components/Pressable"
+import { RefreshControl } from "../../shared/components/RefreshControl"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { AddToPlanModal } from "../study-plans/AddToPlanModal"

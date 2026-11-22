@@ -2,7 +2,6 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useCallback, useMemo, useState } from "react"
 import {
   ActivityIndicator,
-  RefreshControl,
   SectionList,
   StyleSheet,
   Text,
@@ -20,6 +19,7 @@ import {
 } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { Pressable } from "../../shared/components/Pressable"
+import { RefreshControl } from "../../shared/components/RefreshControl"
 import { TextInput } from "../../shared/components/TextInput"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
