@@ -38,6 +38,7 @@ const EXPECTED_ALLOW_EXPIRED_ACCESS = [
     'club-about/club-about.controller.ts getClubAbout',
     // «Оплатить онлайн» on the lock screen: paying is how access comes back.
     'online-payments/my-payments.controller.ts getOnlinePurchaseOptions',
+    'online-payments/my-payments.controller.ts getCheckoutQuote',
     'online-payments/my-payments.controller.ts getMyPayment',
     'online-payments/payments.controller.ts createPayment',
 ]
@@ -203,9 +204,11 @@ const EXPECTED_CLUB_ADMIN_FEATURES = [
     'CreateAiTokenFeature',
     'CreateClubLogoUploadFeature',
     'CreateDirectionFeature',
+    'CreateDiscountFeature',
     'CreatePlanFeature',
     'CreateRefundFeature',
     'DeleteDirectionFeature',
+    'DeleteDiscountFeature',
     'DeletePaymentSettingsFeature',
     'DeletePlanFeature',
     'DeleteRefundFeature',
@@ -224,6 +227,7 @@ const EXPECTED_CLUB_ADMIN_FEATURES = [
     'ListAuditEventsFeature',
     'ListClubImportRowsFeature',
     'ListDirectionManagersFeature',
+    'ListDiscountsFeature',
     'ListPaymentJournalFeature',
     'ListRolesFeature',
     'ListWorkspaceBillingPaymentsFeature',
@@ -239,6 +243,7 @@ const EXPECTED_CLUB_ADMIN_FEATURES = [
     'UpdateClubAboutFeature',
     'UpdateClubPublicProfileFeature',
     'UpdateDirectionFeature',
+    'UpdateDiscountFeature',
     'UpdateMemberRoleFeature',
     'UpdatePaymentSettingsFeature',
     'UpdatePlanFeature',
@@ -249,9 +254,9 @@ const EXPECTED_CLUB_ADMIN_FEATURES = [
 describe('route tier consistency', () => {
     it('scans enough routes to be meaningful', () => {
         expect(routes.length).toBeGreaterThanOrEqual(199) // real count (+ club-about GET/PUT, + 11 rank-grading/readiness/progress routes, + 5 freeze-request routes)
-        // real counts: 42 money/system routes assert CLUB_ADMINS (+ 3 AI-token
+        // real counts: 46 money/system routes assert CLUB_ADMINS (+ 3 AI-token
         // and the role list gated otherwise); 17 roster/ops routes SPORT_LEADS
-        expect(routes.filter((r) => r.check === 'CLUB_ADMINS').length).toBeGreaterThanOrEqual(42)
+        expect(routes.filter((r) => r.check === 'CLUB_ADMINS').length).toBeGreaterThanOrEqual(46)
         expect(routes.filter((r) => r.check === 'SPORT_LEADS').length).toBeGreaterThanOrEqual(17)
     })
 
@@ -259,6 +264,18 @@ describe('route tier consistency', () => {
         expect(
             [...new Set(routes.filter((r) => r.tier === 'CLUB_ADMINS').map((r) => r.feature))].sort(),
         ).toEqual(EXPECTED_CLUB_ADMIN_FEATURES)
+    })
+
+    // Discounts (docs/design/2026-11-15-discounts.md §3.7): definitions are
+    // club money (pinned above); the sale form's options go with selling
+    // (every coaching role); the member's checkout quote is a member route
+    // (no @Roles, act-as accepted like checkout).
+    it('discount routes keep their tiers', () => {
+        const routeOf = (feature: string) => routes.find((r) => r.feature === feature)
+        expect(routeOf('ListSaleDiscountsFeature')?.tier).toBe('COACHING_ROLES')
+        expect(handlerByFeature.has('GetCheckoutQuoteFeature')).toBe(true)
+        expect(routeOf('GetCheckoutQuoteFeature')).toBeDefined()
+        expect(routeOf('GetCheckoutQuoteFeature')?.tier).toBeNull()
     })
 
     it('no route uses a removed tier name', () => {

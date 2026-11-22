@@ -128,11 +128,16 @@ describe('cross-club isolation', () => {
     // then the same URLs must succeed for someone entitled to them. Only GETs
     // whose sole parameter is {workspaceId} are checked — everything else
     // carries a deliberately absent sub-resource id and would 404 for anyone.
+    // The member's checkout quote is the one exception: it needs a tariff or a
+    // ticket (exactly one, a query the spec can't fill) and the owner never
+    // buys, so it answers 400 to the owner by design; the outsider sweep below
+    // still covers it.
     it('is not vacuous: the victim club\'s own owner gets through', async () => {
         const ownReads = OPERATIONS.filter(
             (op) =>
                 op.method === 'GET' &&
-                (op.path.match(/\{[^}]+\}/g) ?? []).length === 1,
+                (op.path.match(/\{[^}]+\}/g) ?? []).length === 1 &&
+                op.path !== '/workspaces/{workspaceId}/me/checkout-quote',
         )
         expect(ownReads.length).toBeGreaterThan(8)
 

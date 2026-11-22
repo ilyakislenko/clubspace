@@ -4,7 +4,8 @@ import {
     currentSubscriptionOrderBy,
     currentSubscriptionWhere,
 } from '../../domains/subscriptions/current-subscriptions'
-import { loadJournalPeople, loadJournalRows } from '../../domains/payments/journal'
+import { FORMER_STAFF_NAME } from '../../domains/discounts/priced-by'
+import { type JournalRow, loadJournalPeople, loadJournalRows } from '../../domains/payments/journal'
 import { localDateInTz } from '../attendance/attendance-utils'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -27,6 +28,14 @@ const joinCells = (values: ReadonlyArray<string | number | null>) =>
 // the UTC day (a Novosibirsk payment at 04:30 is that day, not the day before).
 const day = (d: Date | null | undefined, tz: string) =>
     d ? localDateInTz(d, tz) : ''
+
+// «Семейная», «Разовая» for a one-off only, «Семейная + разовая» for both.
+const discountLabel = (r: JournalRow): string => {
+    const named = r.discount.named > 0 ? r.discountName : null
+    if (named && r.discount.oneOff > 0) return `${named} + разовая`
+    if (named) return named
+    return r.discount.oneOff > 0 ? 'Разовая' : ''
+}
 
 @Injectable()
 export class ExportService {
@@ -159,7 +168,8 @@ export class ExportService {
     // The payments journal as a file: every row of the «Платежи» view (same
     // filters, same order: newest payment first), refunds negative from
     // phase B. The same sales as the dashboard's revenue (revenue.ts) —
-    // abonements, former members' too, and paid event tickets.
+    // abonements, former members' too, and paid event tickets — with each
+    // sale's list price and discount (docs/design/2026-11-15-discounts.md §7).
     async paymentsCsv(
         caller: {
             workspaceId: string
@@ -187,6 +197,10 @@ export class ExportService {
                 'Email',
                 'Тариф / событие',
                 'Сумма',
+                'Цена по тарифу',
+                'Скидка',
+                'Название скидки',
+                'Дал скидку',
                 'Валюта',
                 'Способ оплаты',
                 'Отметил / вернул',
@@ -202,6 +216,13 @@ export class ExportService {
                 r.itemName,
                 // A refund is money out: negative, so the column sums to the net.
                 r.kind === 'refund' ? -r.amount : r.amount,
+                r.listPrice ?? '',
+                // The total discount, positive; empty without one (and on refunds).
+                r.discount.total > 0 ? r.discount.total : '',
+                discountLabel(r),
+                r.pricedById && r.discount.total > 0
+                    ? (people.names.get(r.pricedById) ?? FORMER_STAFF_NAME)
+                    : '',
                 r.currency,
                 r.method ? PAYMENT_METHOD_LABELS[r.method] : '',
                 r.markedById ? (people.names.get(r.markedById) ?? '') : '',

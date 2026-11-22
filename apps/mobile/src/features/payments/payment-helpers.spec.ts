@@ -1,13 +1,24 @@
 import {
   PENDING_TEXT,
   POLL_WINDOW_MS,
+  discountedPriceText,
+  memberDiscountText,
+  offerPrice,
+  oneOffLine,
+  onlinePlanOffer,
   paymentIdFromUrl,
   paymentStatusLine,
   planPriceText,
   planTermsText,
   renewalNote,
+  PROMO_QUOTE_AT_ONCE,
+  promoQuotePlan,
+  saleOptionLabel,
+  saleOptionsForPlan,
   shouldKeepPolling,
 } from "./payment-helpers"
+
+const rub = (n: string) => `${n}\u00A0₽`
 
 describe("planPriceText", () => {
   it("formats whole roubles with a thousands gap", () => {
@@ -144,5 +155,205 @@ describe("paymentIdFromUrl", () => {
     expect(paymentIdFromUrl("https://app.example.com/payment/")).toBeNull()
     expect(paymentIdFromUrl("https://app.example.com/x/payment/abc")).toBeNull()
     expect(paymentIdFromUrl("https://app.example.com/payment/a/b")).toBeNull()
+  })
+})
+
+describe("promoQuotePlan", () => {
+  const ids = (n: number) => Array.from({ length: n }, (_, i) => `p${i + 1}`)
+
+  it("quotes every tariff of a club with more than ten, a few at a time", () => {
+    const { batches, deferred } = promoQuotePlan(ids(12))
+    expect(batches.flat()).toEqual(ids(12))
+    expect(batches.map((b) => b.length)).toEqual([5, 5, 2])
+    expect(deferred).toBe(false)
+  })
+
+  it("quotes the first batch and leaves the rest for their own «Оплатить»", () => {
+    const { batches, deferred } = promoQuotePlan(ids(20))
+    expect(batches.flat()).toEqual(ids(PROMO_QUOTE_AT_ONCE))
+    expect(deferred).toBe(true)
+  })
+
+  it("quotes nothing for no tariffs", () => {
+    expect(promoQuotePlan([])).toEqual({ batches: [], deferred: false })
+  })
+})
+
+describe("offerPrice", () => {
+  const promo = { name: "Весна", code: "ВЕСНА", isFamily: false, endsOn: "2027-03-31" }
+
+  it("strikes the list price and names the promo code with its end day", () => {
+    expect(
+      offerPrice({ listPrice: 4000, amount: 3500, currency: "RUB", discount: promo }),
+    ).toEqual({
+      amount: rub("3\u202F500"),
+      listPrice: rub("4\u202F000"),
+      note: "Промокод ВЕСНА · до 31 марта",
+    })
+  })
+
+  it("calls the family discount by its kind, without an end day when open", () => {
+    expect(
+      offerPrice({
+        listPrice: 4000,
+        amount: 3600,
+        currency: "RUB",
+        discount: { name: "Семейная", code: null, isFamily: true, endsOn: null },
+      }).note,
+    ).toBe("Семейная скидка")
+  })
+
+  it("names a staff discount", () => {
+    expect(
+      offerPrice({
+        listPrice: 4000,
+        amount: 3400,
+        currency: "RUB",
+        discount: { name: "Студенческая", code: null, isFamily: false, endsOn: null },
+      }).note,
+    ).toBe("Скидка «Студенческая»")
+  })
+
+  it("shows the plain price without a discount or when nothing is saved", () => {
+    expect(
+      offerPrice({ listPrice: 4000, amount: 4000, currency: "RUB", discount: null }),
+    ).toEqual({ amount: rub("4\u202F000"), listPrice: null, note: null })
+    expect(
+      offerPrice({ listPrice: 4000, amount: 4000, currency: "RUB", discount: promo }),
+    ).toEqual({ amount: rub("4\u202F000"), listPrice: null, note: null })
+  })
+})
+
+describe("onlinePlanOffer", () => {
+  it("reads the options' discount name as the family discount", () => {
+    expect(
+      onlinePlanOffer({ price: 4000, amount: 3600, currency: "RUB", discountName: "Семейная" }),
+    ).toEqual({
+      amount: rub("3\u202F600"),
+      listPrice: rub("4\u202F000"),
+      note: "Семейная скидка",
+    })
+    expect(
+      onlinePlanOffer({ price: 4000, amount: 4000, currency: "RUB", discountName: null }),
+    ).toEqual({ amount: rub("4\u202F000"), listPrice: null, note: null })
+  })
+})
+
+describe("discountedPriceText", () => {
+  const base = {
+    currency: "RUB",
+    discountName: null,
+    discountAmount: 0,
+    oneOffDiscount: 0,
+  }
+
+  it("names a club discount with its size", () => {
+    expect(
+      discountedPriceText({ ...base, discountName: "Семейная", discountAmount: 400 }),
+    ).toBe("скидка «Семейная» −400\u00A0₽")
+  })
+
+  it("shows a one-off reduction with who set the price", () => {
+    expect(
+      discountedPriceText({
+        ...base,
+        oneOffDiscount: 1000,
+        pricedBy: { name: "Петров" },
+      }),
+    ).toBe(`разовая скидка ${rub("1\u202F000")} · Петров`)
+  })
+
+  it("joins both parts; the member's read has no name", () => {
+    expect(
+      discountedPriceText({
+        ...base,
+        discountName: "ВЕСНА",
+        discountAmount: 500,
+        oneOffDiscount: 200,
+        pricedBy: { name: "Петров" },
+      }),
+    ).toBe("скидка «ВЕСНА» −500\u00A0₽ · разовая скидка 200\u00A0₽ · Петров")
+    expect(discountedPriceText({ ...base, oneOffDiscount: 200 })).toBe(
+      "разовая скидка 200\u00A0₽",
+    )
+  })
+
+  it("is null for a sale at the price (or sold before prices were kept)", () => {
+    expect(discountedPriceText(base)).toBeNull()
+    expect(discountedPriceText({ ...base, pricedBy: { name: "Петров" } })).toBeNull()
+  })
+})
+
+describe("memberDiscountText", () => {
+  it("names the club discount only", () => {
+    expect(memberDiscountText({ discountName: "Семейная" })).toBe(
+      "со скидкой «Семейная»",
+    )
+    expect(memberDiscountText({ discountName: null })).toBeNull()
+  })
+})
+
+describe("oneOffLine", () => {
+  it("shows how much below the price the typed amount is", () => {
+    expect(oneOffLine(4000, 3000, "RUB")).toBe(
+      `Разовая скидка −${rub("1\u202F000")} к цене по тарифу — будет видна в «Платежах»`,
+    )
+  })
+
+  it("stays hidden at or above the price and for an invalid amount", () => {
+    expect(oneOffLine(4000, 4000, "RUB")).toBeNull()
+    expect(oneOffLine(4000, 4500, "RUB")).toBeNull()
+    expect(oneOffLine(4000, null, "RUB")).toBeNull()
+  })
+})
+
+describe("saleOptionLabel", () => {
+  it("reads size and the priced amount", () => {
+    expect(
+      saleOptionLabel(
+        { name: "Семейная", kind: "PERCENT", value: 10 },
+        { amount: 3600, currency: "RUB" },
+      ),
+    ).toBe(`Семейная −10% — ${rub("3\u202F600")}`)
+    expect(
+      saleOptionLabel(
+        { name: "Весна", kind: "FIXED", value: 500 },
+        { amount: 3500, currency: "RUB" },
+      ),
+    ).toBe(`Весна −500\u00A0₽ — ${rub("3\u202F500")}`)
+  })
+})
+
+describe("saleOptionsForPlan", () => {
+  const item = (planId: string, listPrice: number, amount: number) => ({
+    planId,
+    eventId: null,
+    listPrice,
+    amount,
+    currency: "RUB",
+  })
+  const options = [
+    { discountId: "s", isFamily: false, items: [item("p1", 4000, 3400)] },
+    { discountId: "x", isFamily: false, items: [item("p2", 2000, 1800)] },
+    {
+      discountId: "f",
+      isFamily: true,
+      items: [item("p1", 4000, 3600), item("p2", 2000, 1800)],
+    },
+  ]
+
+  it("keeps the options with an item for the tariff, family first", () => {
+    expect(
+      saleOptionsForPlan(options, "p1").map((o) => [o.option.discountId, o.item.amount]),
+    ).toEqual([
+      ["f", 3600],
+      ["s", 3400],
+    ])
+    expect(saleOptionsForPlan(options, "p3")).toEqual([])
+  })
+
+  it("narrows to items priced from a sale's own list price", () => {
+    expect(saleOptionsForPlan(options, "p1", 4000)).toHaveLength(2)
+    expect(saleOptionsForPlan(options, "p1", 4500)).toEqual([])
   })
 })

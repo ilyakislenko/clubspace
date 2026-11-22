@@ -13,6 +13,9 @@ import {
   defaultRefundMethod,
   emptyText,
   entryAmount,
+  entryDiscountNote,
+  entryPriceFacts,
+  discountsLine,
   entryTitle,
   entryWhat,
   formatEntryAt,
@@ -62,6 +65,11 @@ const entry = (patch: Partial<PaymentJournalEntry> = {}): PaymentJournalEntry =>
   online: null,
   reason: null,
   refundOf: null,
+  listPrice: null,
+  discountName: null,
+  discountAmount: 0,
+  oneOffDiscount: 0,
+  pricedBy: null,
   ...patch,
 })
 
@@ -76,6 +84,7 @@ const totals = (patch: Partial<PaymentJournalTotals> = {}): PaymentJournalTotals
     { method: "TRANSFER", received: 80000, refunded: 0, count: 5 },
     { method: "CARD", received: 40000, refunded: 0, count: 2 },
   ],
+  discounted: { count: 0, amount: 0, oneOffAmount: 0 },
   ...patch,
 })
 
@@ -108,6 +117,9 @@ describe("period presets", () => {
       method: undefined,
       kind: undefined,
       markedById: undefined,
+      discounted: undefined,
+      discountId: undefined,
+      pricedById: undefined,
       gymId: undefined,
       directionId: undefined,
       groupId: undefined,
@@ -148,13 +160,15 @@ describe("URL state", () => {
       method: "CASH" as const,
       kind: "refund" as const,
       markedById: ID2,
+      pricedById: ID2,
+      discounted: true,
       scope: { gymId: ANALYTICS_ALL, directionId: ID, groupId: ANALYTICS_ALL, coachId: ANALYTICS_ALL },
       q: " Иван ",
       entry: `sub:${ID}`,
     }
     const search = journalSearch(state)
     expect(search).toBe(
-      `?from=2026-11-01&to=2026-11-15&method=CASH&kind=refund&markedById=${ID2}&directionId=${ID}&q=%D0%98%D0%B2%D0%B0%D0%BD&entry=sub%3A${ID}`,
+      `?from=2026-11-01&to=2026-11-15&method=CASH&kind=refund&markedById=${ID2}&discounted=1&pricedById=${ID2}&directionId=${ID}&q=%D0%98%D0%B2%D0%B0%D0%BD&entry=sub%3A${ID}`,
     )
     expect(parseJournalSearch(search)).toEqual({ ...state, q: "Иван" })
   })
@@ -175,6 +189,20 @@ describe("URL state", () => {
     expect(parseJournalSearch(`?q=${"я".repeat(150)}`).q).toHaveLength(100)
   })
 
+  it("keeps one discount filter: a discount's id wins over «Со скидкой»", () => {
+    expect(parseJournalSearch(`?discounted=1&discountId=${ID}`)).toMatchObject({
+      discounted: false,
+      discountId: ID,
+    })
+    expect(parseJournalSearch("?discounted=true").discounted).toBe(false)
+    expect(parseJournalSearch("?discountId=x&pricedById=y")).toEqual(EMPTY_JOURNAL_STATE)
+    expect(journalFilters({ ...EMPTY_JOURNAL_STATE, discountId: ID })).toMatchObject({
+      discounted: undefined,
+      discountId: ID,
+    })
+    expect(journalFilters({ ...EMPTY_JOURNAL_STATE, discounted: true }).discounted).toBe(true)
+  })
+
   it("counts the panel's filters and knows when anything narrows the rows", () => {
     expect(panelFilterCount(EMPTY_JOURNAL_STATE)).toBe(0)
     expect(isFiltered(EMPTY_JOURNAL_STATE)).toBe(false)
@@ -189,6 +217,8 @@ describe("URL state", () => {
     }
     expect(panelFilterCount(scoped)).toBe(2)
     expect(panelFilterCount({ ...scoped, kind: "payment" })).toBe(3)
+    expect(panelFilterCount({ ...scoped, discountId: ID, pricedById: ID2 })).toBe(4)
+    expect(isFiltered({ ...EMPTY_JOURNAL_STATE, discounted: true })).toBe(true)
     expect(isFiltered({ ...EMPTY_JOURNAL_STATE, kind: "refund" })).toBe(true)
     expect(emptyText(scoped)).toBe("Ничего не нашлось — измените фильтры")
     expect(isFiltered({ ...EMPTY_JOURNAL_STATE, method: "NONE" })).toBe(true)
@@ -225,6 +255,45 @@ describe("rows", () => {
     expect(refundedNote(entry())).toBeNull()
     expect(plain(refundedNote(entry({ refundedAmount: 1000 })))).toBe("возвращено 1 000 ₽")
     expect(refundedNote(entry({ kind: "refund", refundedAmount: 1000 }))).toBeNull()
+  })
+
+  it("notes a payment's discount under its amount, with who set the price", () => {
+    const who = { userId: ID2, name: "Петров" }
+    expect(entryDiscountNote(entry())).toBeNull()
+    expect(
+      plain(entryDiscountNote(entry({ listPrice: 4000, discountName: "Семейная", discountAmount: 400, pricedBy: who }))),
+    ).toBe("скидка «Семейная» −400 ₽")
+    expect(plain(entryDiscountNote(entry({ listPrice: 4000, oneOffDiscount: 1000, pricedBy: who })))).toBe(
+      "Разовая скидка 1 000 ₽ · Петров",
+    )
+    expect(
+      plain(
+        entryDiscountNote(
+          entry({
+            listPrice: 4000,
+            discountName: "ВЕСНА",
+            discountAmount: 500,
+            oneOffDiscount: 200,
+            pricedBy: who,
+          }),
+        ),
+      ),
+    ).toBe("скидка «ВЕСНА» −500 ₽ и разовая 200 ₽ · Петров")
+    // Online: nobody set the price by hand.
+    expect(plain(entryDiscountNote(entry({ discountName: "ВЕСНА", discountAmount: 500 })))).toBe(
+      "скидка «ВЕСНА» −500 ₽",
+    )
+    expect(entryDiscountNote(entry({ kind: "refund", oneOffDiscount: 1000 }))).toBeNull()
+  })
+
+  it("lists the price facts only when the list price is known", () => {
+    expect(entryPriceFacts(entry())).toEqual([])
+    expect(
+      entryPriceFacts(entry({ amount: 3600, listPrice: 4000, discountName: "Семейная", discountAmount: 400 })).map(
+        (f) => `${f.label}: ${plain(f.value)}`,
+      ),
+    ).toEqual(["Цена по тарифу: 4 000 ₽", "Скидка: «Семейная» −400 ₽", "Получено: 3 600 ₽"])
+    expect(entryPriceFacts(entry({ source: "ticket", listPrice: 4000 }))[0].label).toBe("Цена билета")
   })
 
   it("shows the time on the club's clock, the year only when it differs", () => {
@@ -271,6 +340,16 @@ describe("summary", () => {
       ),
     ).toBe("Наличные 3 000 ₽ · Не указан 5 000 ₽")
     expect(methodsLine(totals({ byMethod: [] }))).toBeNull()
+  })
+
+  it("adds the discounts given only when there are any, apart from the net", () => {
+    expect(discountsLine(totals())).toBeNull()
+    expect(
+      plain(discountsLine(totals({ discounted: { count: 31, amount: 12400, oneOffAmount: 3400 } }))),
+    ).toBe("Скидки: 12 400 ₽ по 31 оплате, из них разовые 3 400 ₽")
+    expect(plain(discountsLine(totals({ discounted: { count: 2, amount: 800, oneOffAmount: 0 } })))).toBe(
+      "Скидки: 800 ₽ по 2 оплатам",
+    )
   })
 
   it("titles the unapplied strip with its count", () => {

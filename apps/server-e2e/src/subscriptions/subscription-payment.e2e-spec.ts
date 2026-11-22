@@ -83,6 +83,11 @@ describe('marking an abonement as paid', () => {
             paidAt: null,
             paymentMethod: null,
             amountPaid: 4500,
+            // The tariff price is recorded next to the agreed amount; the
+            // difference is a one-off discount (derived, never stored).
+            listPrice: 400000,
+            discountAmount: 0,
+            oneOffDiscount: 400000 - 4500,
         })
 
         const before = await stats(ownerActor.auth, workspace.id)
@@ -115,10 +120,13 @@ describe('marking an abonement as paid', () => {
             isPaid: true,
             amountPaid: 4500,
             paymentMethod: 'CARD',
+            listPrice: 400000,
+            oneOffDiscount: 400000 - 4500,
         })
         expect(paid.body.subscription.paidAt).not.toBeNull()
 
         const after = await stats(ownerActor.auth, workspace.id)
+        // Revenue is still the amount actually received, never minus a discount.
         expect(after.body.revenue.revenue30d).toBe(4500)
         expect(after.body.revenue.awaitingPayment).toEqual({
             students: 0,

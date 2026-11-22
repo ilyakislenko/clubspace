@@ -1,4 +1,10 @@
 jest.mock('../../infrastructure/prisma', () => ({ PrismaService: class {} }))
+jest.mock('../../domains/discounts/discounts', () => ({
+    ...jest.requireActual('../../domains/discounts/discounts'),
+    priceStaffSale: jest.fn(),
+}))
+
+import { priceStaffSale } from '../../domains/discounts/discounts'
 
 import {
     BadRequestError,
@@ -55,6 +61,11 @@ const reg = (over: Record<string, unknown> = {}) => ({
     paymentMethod: null,
     markedPaidById: null,
     refundedAmount: 0,
+    listPrice: null,
+    discountId: null,
+    discountName: null,
+    discountAmount: 0,
+    pricedById: null,
     createdAt: new Date('2026-11-01T10:00:00Z'),
     user,
     ...over,
@@ -98,6 +109,11 @@ describe('ListEventRegistrationsHandler', () => {
     const prisma = (rows: unknown[] = [], event: unknown = { id: 'e1', capacity: 2, price: 1500, currency: 'RUB' }) => ({
         workspaceEvent: { findFirst: jest.fn().mockResolvedValue(event) },
         eventRegistration: { findMany: jest.fn().mockResolvedValue(rows) },
+        user: {
+            findMany: jest.fn().mockResolvedValue([
+                { id: 'coach-1', firstname: 'Пётр', lastname: 'Петров', email: 'p@x' },
+            ]),
+        },
     })
     const run = (p: unknown, r: unknown) =>
         new ListEventRegistrationsHandler(p as never, r as never).execute(
@@ -150,28 +166,65 @@ describe('ListEventRegistrationsHandler', () => {
         expect(out.booked).toBe(2)
         expect(out.paid).toEqual({ count: 1, amount: 1500 })
     })
+
+    it('shows each paid ticket’s price facts and who set the amount', async () => {
+        const rows = [
+            reg({ isPaid: true, amountPaid: 1000, currency: 'RUB', listPrice: 1500, pricedById: 'coach-1' }),
+            reg({ id: 'r2', userId: 'm2', isPaid: true, amountPaid: 1200, currency: 'RUB', listPrice: 1500, pricedById: 'gone', discountId: 'd1', discountName: 'Семейная', discountAmount: 150 }),
+        ]
+        const out = await run(prisma(rows, { id: 'e1', capacity: 3, price: 1500, currency: 'RUB' }), rbac('coach'))
+        const byId = new Map(out.data.map((r) => [r.id, r]))
+        expect(byId.get('r1')).toMatchObject({
+            listPrice: 1500,
+            oneOffDiscount: 500,
+            pricedBy: { userId: 'coach-1', name: 'Пётр Петров' },
+        })
+        expect(byId.get('r2')).toMatchObject({
+            discountName: 'Семейная',
+            discountAmount: 150,
+            oneOffDiscount: 150,
+            pricedBy: { userId: 'gone', name: 'Бывший сотрудник' },
+        })
+    })
 })
 
 describe('MarkEventRegistrationPaidHandler', () => {
+    beforeEach(() => (priceStaffSale as jest.Mock).mockReset())
     const event = (over: Record<string, unknown> = {}) => ({
         id: 'e1',
         title: 'Мастер-класс',
         price: 1500,
         currency: 'RUB',
         directionId: BJJ,
+        workspace: { timezone: 'Asia/Tomsk' },
         ...over,
     })
     const prisma = (row: unknown) => {
-        const after = row ? { ...(row as object), isPaid: true, amountPaid: 1500, currency: 'RUB', paymentMethod: 'TRANSFER' } : null
-        return {
+        const p = {
             eventRegistration: {
                 findFirst: jest.fn().mockResolvedValue(row),
                 updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-                findUniqueOrThrow: jest.fn().mockResolvedValue(after),
+                // What the mark wrote, read back.
+                findUniqueOrThrow: jest.fn(async () => ({
+                    ...(row as object),
+                    ...p.eventRegistration.updateMany.mock.calls[0]?.[0].data,
+                })),
+            },
+            user: {
+                findMany: jest.fn().mockResolvedValue([
+                    { id: 'staff', firstname: 'Пётр', lastname: 'Петров', email: 'p@x' },
+                ]),
             },
         }
+        return row ? p : { ...p, eventRegistration: { ...p.eventRegistration, findUniqueOrThrow: jest.fn() } }
     }
-    const run = (p: unknown, r: unknown, invoker = 'staff') => {
+    const run = (
+        p: unknown,
+        r: unknown,
+        invoker = 'staff',
+        payload: ConstructorParameters<typeof MarkEventRegistrationPaidFeature>[0] = { method: 'TRANSFER' },
+        role = 'coach',
+    ) => {
         const s = services()
         // The lock's transaction client is the mocked Prisma itself.
         s.registrations.withEventLock.mockImplementation(
@@ -185,11 +238,11 @@ describe('MarkEventRegistrationPaidHandler', () => {
             s.realtime as never,
         ).execute(
             new MarkEventRegistrationPaidFeature(
-                { method: 'TRANSFER' },
+                payload,
                 'w1',
                 'r1',
                 invoker,
-                'coach',
+                role,
                 false,
             ),
         )
@@ -210,6 +263,12 @@ describe('MarkEventRegistrationPaidHandler', () => {
             currency: 'RUB',
             paymentMethod: 'TRANSFER',
             markedPaidById: 'staff',
+            // The price facts: the event's price, no discount, who priced it.
+            listPrice: 1500,
+            discountId: null,
+            discountName: null,
+            discountAmount: 0,
+            pricedById: 'staff',
         })
         expect(call.data.paidAt).toBeInstanceOf(Date)
         expect(audit.record).toHaveBeenCalledWith(
@@ -217,6 +276,68 @@ describe('MarkEventRegistrationPaidHandler', () => {
         )
         expect(registrations.invalidate).toHaveBeenCalledWith('w1')
         expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['payments'])
+        expect(priceStaffSale).not.toHaveBeenCalled()
+    })
+
+    it('any role that may mark may type the amount; it is recorded as a one-off discount', async () => {
+        for (const role of ['coach', 'head_coach']) {
+            const p = prisma(reg({ event: event() }))
+            const { out, audit } = run(p, rbac('coach'), 'staff', { method: 'CASH', amount: 1000 }, role)
+            const res = await out
+            expect(p.eventRegistration.updateMany.mock.calls[0][0].data).toMatchObject({
+                amountPaid: 1000,
+                listPrice: 1500,
+                pricedById: 'staff',
+            })
+            expect(res).toMatchObject({
+                oneOffDiscount: 500,
+                pricedBy: { userId: 'staff', name: 'Пётр Петров' },
+            })
+            expect(audit.record.mock.calls[0][0]).toMatchObject({
+                actorId: 'staff',
+                metadata: { listPrice: 1500, amount: 1000, oneOff: 500 },
+            })
+        }
+    })
+
+    it('prices a picked discount under the event lock and records it', async () => {
+        const p = prisma(reg({ event: event() }))
+        ;(priceStaffSale as jest.Mock).mockResolvedValue({
+            amount: 1350,
+            discountAmount: 150,
+            discountId: 'd1',
+            discountName: 'Семейная',
+        })
+        const { out, audit } = run(p, rbac('admin'), 'staff', { method: 'CASH', discountId: 'd1' })
+        await out
+        expect(priceStaffSale).toHaveBeenCalledWith(p, {
+            workspaceId: 'w1',
+            discountId: 'd1',
+            userId: 'm1',
+            item: { planId: null, eventId: 'e1', listPrice: 1500, currency: 'RUB' },
+            now: expect.any(Date),
+            timezone: 'Asia/Tomsk',
+        })
+        expect(p.eventRegistration.updateMany.mock.calls[0][0].data).toMatchObject({
+            amountPaid: 1350,
+            discountId: 'd1',
+            discountName: 'Семейная',
+            discountAmount: 150,
+        })
+        const meta = audit.record.mock.calls[0][0].metadata
+        expect(meta).toMatchObject({ discountName: 'Семейная', discountAmount: 150 })
+        expect(meta).not.toHaveProperty('oneOff')
+    })
+
+    it('a refused discount marks nothing', async () => {
+        const p = prisma(reg({ event: event() }))
+        ;(priceStaffSale as jest.Mock).mockRejectedValue(
+            new BadRequestError({ message: 'Скидка «Весна» не действует на это событие' }),
+        )
+        await expect(
+            run(p, rbac('admin'), 'staff', { method: 'CASH', discountId: 'd1' }).out,
+        ).rejects.toThrow('не действует на это событие')
+        expect(p.eventRegistration.updateMany).not.toHaveBeenCalled()
     })
 
     it('a second mark changes nothing and records nothing', async () => {
@@ -292,6 +413,11 @@ describe('UnmarkEventRegistrationPaidHandler', () => {
                 currency: null,
                 paymentMethod: null,
                 markedPaidById: null,
+                listPrice: null,
+                discountId: null,
+                discountName: null,
+                discountAmount: 0,
+                pricedById: null,
             },
         })
         expect(audit.record).toHaveBeenCalledWith(

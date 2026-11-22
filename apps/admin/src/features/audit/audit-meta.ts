@@ -27,6 +27,9 @@ import {
   CreditCard,
   RotateCcw,
   Layers,
+  Percent,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react"
 
 import {
@@ -415,6 +418,15 @@ export const actionMetaFor = (
     icon: Trash2,
     tone: "red",
   },
+  "discount.create": { label: "Скидка создана", icon: Percent, tone: "green" },
+  "discount.update": { label: "Скидка изменена", icon: Pencil, tone: "indigo" },
+  "discount.archive": { label: "Скидка в архиве", icon: Archive, tone: "amber" },
+  "discount.restore": {
+    label: "Скидка возвращена из архива",
+    icon: ArchiveRestore,
+    tone: "blue",
+  },
+  "discount.delete": { label: "Скидка удалена", icon: Trash2, tone: "red" },
   "workspace.rotateJoinCode": {
     label: "Код клуба сменён",
     icon: RefreshCw,
@@ -732,6 +744,23 @@ export const META_KEY_LABEL: Record<string, string> = {
   paymentAmount: "Сумма платежа",
   refundedTotal: "Возвращено",
   listPrice: "Цена по тарифу",
+  // A sale's discount (member.assignSubscription, member.markSubscriptionPaid,
+  // event.markRegistrationPaid, payment.succeeded): the named part and the
+  // one-off remainder the actor set.
+  discountName: "Скидка",
+  discountAmount: "Размер скидки",
+  oneOff: "Разовая скидка",
+  // A discount's snapshot (discount.create / archive / restore / delete);
+  // `name` and the size share the labels above and parseMetadata.
+  code: "Промокод",
+  isFamily: "Семейная",
+  allPlans: "Все тарифы",
+  plans: "Тарифы",
+  events: "Платные события",
+  startsOn: "Действует с",
+  endsOn: "Действует до",
+  maxUses: "Не больше раз",
+  oncePerMember: "Один раз на ученика",
   paid: "Оплачено",
   periodMonths: "Месяцев",
   startDate: "Начало",
@@ -765,6 +794,7 @@ export const META_KEY_LABEL: Record<string, string> = {
   method: "Способ оплаты",
   kind: "Показывать",
   q: "Поиск",
+  discounted: "Со скидкой",
   // A refund (payment.refund / payment.refundDelete); amount, currency,
   // method, reason and provider share the labels above.
   target: "Возврат за",
@@ -890,6 +920,19 @@ const FIELD_LABEL: Record<string, string> = {
   scheduleEnabled: "раздел «Расписание»",
   groupsEnabled: "раздел «Группы»",
   eventsEnabled: "раздел «События»",
+  // A discount (discount.update `changes`: { field: { from, to } }).
+  kind: "вид скидки",
+  value: "размер",
+  currency: "валюта",
+  code: "промокод",
+  isFamily: "семейная",
+  allPlans: "все тарифы",
+  plans: "тарифы",
+  events: "платные события",
+  startsOn: "действует с",
+  endsOn: "действует до",
+  maxUses: "не больше раз",
+  oncePerMember: "один раз на ученика",
 }
 
 // Course edits naming a video or a chapter. The server resolves most of them
@@ -932,7 +975,12 @@ const ENUM_LABEL: Record<string, Record<string, string>> = {
     ONLINE: "онлайн",
     NONE: "не указан",
   },
-  kind: { payment: "только оплаты", refund: "только возвраты" },
+  kind: {
+    payment: "только оплаты",
+    refund: "только возвраты",
+    PERCENT: "процент",
+    FIXED: "сумма",
+  },
   target: {
     abonement: "абонемент",
     ticket: "событие",
@@ -990,6 +1038,12 @@ const changeList = (changes: Record<string, unknown>, v: ClubVocabulary): string
   const parts = Object.entries(changes).flatMap(([k, value]) => {
     const label = fieldLabel(k, v)
     if (!label) return []
+    // An edit's before → after (discount.update).
+    if (value && typeof value === "object" && "from" in value && "to" in value) {
+      const word = (x: unknown): string =>
+        typeof x === "boolean" ? (x ? "да" : "нет") : (formatMetaValue(k, x, v) ?? "—")
+      return [`${label}: ${word(value.from)} → ${word(value.to)}`]
+    }
     if (typeof value === "boolean") return [`${label}: ${value ? "вкл." : "выкл."}`]
     if (value === null || value === "") return [`${label}: убрано`]
     if (isId(value) || typeof value !== "string") return [`${label}: изменено`]
@@ -1059,7 +1113,22 @@ export const parseMetadata = (
   vocabulary: ClubVocabulary,
 ): Array<{ key: string; label: string; value: string }> => {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return []
-  return Object.entries(metadata as Record<string, unknown>).flatMap(([key, raw]) => {
+  const meta = metadata as Record<string, unknown>
+  // A discount's snapshot (discount.create / archive / restore / delete): the
+  // size reads «−10%» / «−500 ₽»; its kind, currency and active flag are
+  // folded into that or said by the action.
+  const discountKind = meta.kind === "PERCENT" || meta.kind === "FIXED" ? meta.kind : null
+  return Object.entries(meta).flatMap(([key, raw]) => {
+    if (discountKind && (key === "kind" || key === "currency" || key === "isActive")) return []
+    // A sale without a named discount records 0: nothing to say.
+    if (key === "discountAmount" && raw === 0) return []
+    if (discountKind && key === "value" && typeof raw === "number") {
+      const unit =
+        discountKind === "PERCENT"
+          ? "%"
+          : ` ${ENUM_LABEL.currency[String(meta.currency)] ?? String(meta.currency ?? "")}`
+      return [{ key, label: "Размер", value: `−${raw.toLocaleString("ru-RU")}${unit}` }]
+    }
     const courseItem = COURSE_ITEM_CHANGE[key]
     if (courseItem) {
       return typeof raw === "string" && !isId(raw)
@@ -1109,6 +1178,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   export: "Выгрузки",
   platform: "Платформа",
   payment: "Платежи",
+  discount: "Скидки",
   ai: "ИИ-ассистент",
 }
 

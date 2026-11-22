@@ -8,6 +8,12 @@ export const OnlinePlanOutputSchema = z.object({
     name: z.string(),
     description: z.string().nullable(),
     price: z.number().int(),
+    // What this member pays now: the price with the family discount when it
+    // applies (docs/design/2026-11-15-discounts.md §3.3), else the price. A
+    // promo code is quoted by get-checkout-quote.
+    amount: z.number().int(),
+    // The discount in `amount` (null: none).
+    discountName: z.string().nullable(),
     currency: z.string(),
     durationDays: z.number().int(),
     classCount: z.number().int().nullable(),

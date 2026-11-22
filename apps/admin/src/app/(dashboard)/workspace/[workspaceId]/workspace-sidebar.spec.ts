@@ -45,6 +45,7 @@ describe("workspace sidebar", () => {
     expect(itemOf(m("admin"), "reports")?.path).toBe("analytics/forecast")
     expect(itemOf(m("admin"), "subscriptions")?.matchPaths).toEqual([
       "subscriptions",
+      "subscriptions/discounts",
       "subscriptions/payments",
     ])
   })

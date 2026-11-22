@@ -17,6 +17,12 @@ import {
   type Plan,
   type Subscription,
 } from "../../shared/api/subscriptions"
+import { listSaleDiscounts, type SaleDiscountOption } from "../../shared/api/discounts"
+import {
+  discountChoices,
+  oneOffLine,
+  preselectedChoice,
+} from "../discounts/discount-view"
 import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { inputCls } from "../../shared/lib/input-class"
@@ -95,8 +101,12 @@ export function MemberSubscriptionPanel({
   const [error, setError] = useState<string | null>(null)
   const [planId, setPlanId] = useState("")
   const [startDate, setStartDate] = useState("")
-  // What the sale is recorded at: the plan price unless changed (a discount).
+  // What the sale is recorded at: the price of the chosen discount or the
+  // tariff unless changed (a one-off reduction, a part-payment).
   const [amountText, setAmountText] = useState("")
+  // «Скидка» of the sale ("" = none); the options are the server's, priced.
+  const [discountId, setDiscountId] = useState("")
+  const [saleOptions, setSaleOptions] = useState<SaleDiscountOption[]>([])
   const [paid, setPaid] = useState(true)
   // How a sale recorded as paid was paid; set from the last pick on choosing
   // a tariff (read in the browser only).
@@ -114,6 +124,14 @@ export function MemberSubscriptionPanel({
       setPlans(planRes.data)
       setSubs(subRes)
       setError(null)
+      // Only a seller asks which discounts apply; without them the forms
+      // simply show no «Скидка».
+      if (subRes.permissions.canManage) {
+        const options = await listSaleDiscounts({ workspaceId, userId })
+          .then((r) => r.options)
+          .catch(() => [])
+        setSaleOptions(options)
+      }
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить абонементы"))
     }
@@ -125,11 +143,24 @@ export function MemberSubscriptionPanel({
 
   const amount = parseIntInput(amountText, SALE_AMOUNT)
 
+  const choicesFor = (id: string) => (id ? discountChoices(saleOptions, { planId: id }) : [])
+
   const choosePlan = (id: string) => {
     setPlanId(id)
     const plan = plans.find((p) => p.id === id)
-    setAmountText(plan ? String(plan.price) : "")
+    const choices = choicesFor(id)
+    const preset = preselectedChoice(choices)
+    setDiscountId(preset)
+    const priced = choices.find((c) => c.discountId === preset)?.amount
+    setAmountText(plan ? String(priced ?? plan.price) : "")
     setPaymentMethod(lastPaymentMethod())
+  }
+
+  const chooseDiscount = (id: string) => {
+    setDiscountId(id)
+    const priced = choicesFor(planId).find((c) => c.discountId === id)?.amount
+    const plan = plans.find((p) => p.id === planId)
+    setAmountText(String(priced ?? plan?.price ?? ""))
   }
 
   const assign = async () => {
@@ -143,6 +174,7 @@ export function MemberSubscriptionPanel({
           planId,
           startDate: startDate || undefined,
           amountPaid: amount,
+          ...(discountId ? { discountId } : {}),
           paid,
           ...(paid ? { paymentMethod } : {}),
         },
@@ -151,6 +183,7 @@ export function MemberSubscriptionPanel({
       setPlanId("")
       setStartDate("")
       setAmountText("")
+      setDiscountId("")
       setPaid(true)
       await load()
       onAssigned?.()
@@ -186,8 +219,9 @@ export function MemberSubscriptionPanel({
 
   const markPaid = async (
     subscriptionId: string,
-    received: number,
+    received: number | null,
     method: ClubPaymentMethod,
+    discount: string | null,
   ) => {
     setPayBusy(true)
     try {
@@ -195,7 +229,11 @@ export function MemberSubscriptionPanel({
         workspaceId,
         userId,
         subscriptionId,
-        data: { amount: received, method },
+        data: {
+          method,
+          ...(received !== null ? { amount: received } : {}),
+          ...(discount ? { discountId: discount } : {}),
+        },
       })
       setPayingId(null)
       await load()
@@ -245,6 +283,30 @@ export function MemberSubscriptionPanel({
   const renewFrom = selectedPlan
     ? renewFromForPlan(selectedPlan, abonements)
     : null
+  const saleChoices = choicesFor(planId)
+  const saleChoice = saleChoices.find((c) => c.discountId === discountId)
+  const salePriced = saleChoice?.amount ?? selectedPlan?.price ?? null
+  const saleOneOff =
+    salePriced !== null && selectedPlan ? oneOffLine(salePriced, amount, selectedPlan.currency) : null
+
+  // «Отметить оплату» of one sale: a discount only while it has none and
+  // recorded its tariff price (the server reprices from that price).
+  const payForm = (s: Subscription) => (
+    <MarkPaidForm
+      key={s.id}
+      amount={s.amountPaid}
+      currency={s.currency}
+      basePrice={s.listPrice !== null ? s.listPrice - s.discountAmount : null}
+      choices={
+        s.discountId === null && s.listPrice !== null
+          ? discountChoices(saleOptions, { planId: s.planId }, s.listPrice)
+          : []
+      }
+      busy={payBusy}
+      onSubmit={(received, method, discount) => void markPaid(s.id, received, method, discount)}
+      onCancel={() => setPayingId(null)}
+    />
+  )
 
   // «Продлить»: prefill the sale with this abonement's tariff and the day it
   // can be continued from.
@@ -326,16 +388,7 @@ export function MemberSubscriptionPanel({
           )}
         </div>
 
-        {canManage && payingId === a.id && (
-          <MarkPaidForm
-            key={a.id}
-            amount={a.amountPaid}
-            currency={a.currency}
-            busy={payBusy}
-            onSubmit={(received, method) => void markPaid(a.id, received, method)}
-            onCancel={() => setPayingId(null)}
-          />
-        )}
+        {canManage && payingId === a.id && payForm(a)}
 
         {isPending(a) && (
           <p className="text-xs text-muted-foreground">
@@ -416,6 +469,21 @@ export function MemberSubscriptionPanel({
               </option>
             ))}
           </select>
+          {saleChoices.length > 0 && (
+            <select
+              className={`${inputCls} min-w-0 flex-1 basis-48`}
+              aria-label="Скидка"
+              value={discountId}
+              onChange={(e) => chooseDiscount(e.target.value)}
+            >
+              <option value="">Без скидки</option>
+              {saleChoices.map((c) => (
+                <option key={c.discountId} value={c.discountId}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             className={inputCls}
             type="date"
@@ -465,6 +533,14 @@ export function MemberSubscriptionPanel({
             <p className="basis-full text-xs text-destructive">
               Введите сумму от {SALE_AMOUNT.min} до {SALE_AMOUNT.max.toLocaleString("ru-RU")}
             </p>
+          )}
+          {saleChoices.some((c) => c.isFamily) && (
+            <p className="basis-full text-xs text-muted-foreground">
+              У члена семьи есть действующий абонемент
+            </p>
+          )}
+          {saleOneOff && (
+            <p className="basis-full text-xs text-muted-foreground">{saleOneOff}</p>
           )}
           {selectedPlan?.startsOnFirstVisit && (
             <p className="basis-full text-xs text-muted-foreground">
@@ -530,16 +606,7 @@ export function MemberSubscriptionPanel({
         !currentIds.has(payingId) &&
         (() => {
           const row = subs.history.find((h) => h.id === payingId)
-          return row ? (
-            <MarkPaidForm
-              key={row.id}
-              amount={row.amountPaid}
-              currency={row.currency}
-              busy={payBusy}
-              onSubmit={(received, method) => void markPaid(row.id, received, method)}
-              onCancel={() => setPayingId(null)}
-            />
-          ) : null
+          return row ? payForm(row) : null
         })()}
 
       {subs && <FreezeHistory freezes={subs.freezes} history={subs.history} />}

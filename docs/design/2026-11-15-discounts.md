@@ -915,6 +915,88 @@ One PR «Скидки», after E1 phase B and E6 (it extends E1's journal, CSV a
 - **Codes are not secrets.** Refusal reasons are specific for a better experience. Quotes are throttled at
   20 a minute per user.
 
+### S1 (implementation)
+
+- `discountApplies` returns `{ reason, message } | null` instead of a bare text: `reason`
+  (`archived | expired | scheduled | scope | currency | free`) lets the checkout word its own
+  `promoCodeNote`; `message` is the staff sale's 400. A currency mismatch reads «Скидка «X» указана в
+  другой валюте…», an archived one «Скидка «X» в архиве».
+- The domain is split into `discount-rules.ts` (pure), `discount-uses.ts`, `family.ts`,
+  `discounts.ts` (`discountRuleSelect`/`toDiscountRule`, `lockDiscount`, `resolveAutomaticDiscount`,
+  `priceStaffSale` = lock → applies → family → uses → price, shared by the three staff writers) and
+  `priced-by.ts` (`pricedBy` names; a missing user reads «Бывший сотрудник»).
+- Assign now prices and grants in one transaction (`grantFromPlanInTx`), so the discount lock and
+  the `maxUses` count commit with the sale. An unknown tariff is answered 404 by the handler.
+- Mark-paid prices inside `SubscriptionService.markPaid`'s transaction (`discountId` param). The
+  `pricedById` switch compares the received amount with the agreed one.
+- A ticket's price facts belong to its mark: unmarking a ticket clears them (an unpaid ticket holds
+  no discount use). An abonement's survive unmarking — they are its agreed price.
+- `pricedBy` is on `SubscriptionOutput` and `EventRegistrant` everywhere, filled only by staff reads
+  (`listMemberSubscriptions`, `listEventRegistrations`, the ticket mark output); the member's own read
+  leaves it null. It is set whenever `pricedById` is, clients decide when to show it.
+- `ListDiscountsQuery.archived=true` lists archived discounts **alongside** active ones (the list
+  shows «В архиве» muted), not instead of them.
+- `byStaff` reads the window's priced paid rows and splits them with `saleDiscount` in memory
+  (a `groupBy` sum can't apply the per-row `max(0, …)` cap); ≤ a year of one club's staff sales.
+- `deleteDiscount` refuses while **any** row references the discount (a cancelled unpaid sale too:
+  not a use, but the FK `Restrict` would refuse it anyway).
+- A staff sale's use count ignores open online checkouts (they are not sales; online limits are soft
+  by design).
+
+### S2 (implementation)
+
+- A code whose start date hasn't come yet gets its own note «Промокод ещё не действует» (refused at
+  checkout like every note but «Семейная скидка выгоднее»); §3.3 listed no text for it.
+- Pending-payment reuse: the checkout reads the member's latest open payment for the item first (its
+  promo use is excluded from the count — it is the one a tap would reuse), prices the item, and reuses
+  that payment only when its `amount` and `discountId` equal the new price; otherwise it makes a new one.
+  Same effect as adding both to the reuse `where`, but the exclusion needs the id before pricing.
+- «Со скидкой» compares `amountPaid < listPrice` in the database through Prisma field references, so the
+  journal where-builders take the client's `fields`. `totals[].discounted` is summed row by row
+  (`saleDiscount` caps the named part, so it isn't a sum of columns). Refund rows are left out whenever
+  `discounted`, `discountId` or `pricedById` is set.
+- `getOnlinePurchaseOptions` prices each card with `priceOnlineItem` (no code), the same function the
+  checkouts charge by.
+
+### S3 (implementation)
+
+- «Кто давал скидки» also stays on screen when a non-default period is picked and has no rows («За
+  этот период сотрудники скидок не давали»), so its period select never disappears under the user.
+  With the default 30 days and no rows it is hidden, as designed.
+- The period select is one shared `features/payments/PeriodPicker.tsx` (the journal's presets and
+  custom range), used by «Платежи» and «Кто давал скидки».
+- Mark-paid of an **abonement** preselects nothing (the seller already agreed the price); a **ticket**
+  mark preselects the family option (it is the sale moment). An option's « — N ₽» is shown only when the
+  server priced it from the same list price the sale recorded; otherwise the entry shows name and size
+  only and the server reprices.
+- The entry panel names a ticket's list price «Цена билета» (an abonement's: «Цена по тарифу»).
+- Audit: a discount snapshot shows «Размер −10% / −500 ₽» instead of kind/value/currency; edits read
+  «поле: было → стало»; a sale's `discountAmount: 0` is hidden.
+- `listSaleDiscounts` is requested only when the member list says `canManage` (and on opening a
+  ticket's form), so a role that can't sell never triggers a 403.
+
+### S4 (implementation)
+
+- Two small shared pieces in `features/payments/`: `PromoCodeField.tsx` («Есть промокод?» → input +
+  «Применить», note in the warning tone) and `OfferPriceText.tsx` (the struck list price), used by the
+  tariff cards and the ticket sheet.
+- Tariff cards: one reason shared by every quoted tariff («Промокод не найден») shows under the field;
+  reasons that differ («не действует на этот тариф», «Вы уже использовали…», «Семейная скидка
+  выгоднее…») show on their card. Editing the code drops the applied quotes, so «Оплатить» never sends
+  a code the member no longer sees. `promoCode` is sent only where the quote applied it.
+- Price notes: «Промокод X · до D», «Семейная скидка» (the options' `discountName` is always the family
+  one), «Скидка «X»» otherwise.
+- «Применить» quotes every card, up to 15 (5 requests at a time), not «at most the 10 shown»: card 11+
+  would otherwise show no promo result. Past 15 (the 20-a-minute throttle) the rest are quoted on
+  demand: the card's first «Оплатить» quotes it and shows the price, the next tap pays; a muted line
+  under the field says so.
+- Coach screen: the «Скидка» picker is a chip row like «Способ оплаты». Mark-paid offers options only
+  when the sale has no discount and a `listPrice`, and only items priced from that same list price.
+  Mark-paid preselects nothing (the price was agreed at the sale), as in the admin form; a sale
+  preselects the family option.
+- The one-off line compares the typed amount with the picked option's amount, else the tariff price
+  (sell) or the sale's `listPrice − discountAmount` (mark-paid).
+
 ## 13. Implementation slices
 
 Server slice S1 commits the schema, `domains/discounts/*` and every DTO and controller first, with the

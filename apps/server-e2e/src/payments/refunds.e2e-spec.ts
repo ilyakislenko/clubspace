@@ -159,6 +159,8 @@ describe('refunds', () => {
                 refunded: 1000,
                 net: 3000,
                 byMethod: [{ method: 'CASH', received: 4000, refunded: 1000, count: 1 }],
+                // Sold at the tariff price: no discount; a refund never makes one.
+                discounted: { count: 0, amount: 0, oneOffAmount: 0 },
             },
         ])
         expect(list.body.totals[0].net).toBe(after.revenue30d)
@@ -172,7 +174,8 @@ describe('refunds', () => {
             .set(...c.ownerActor.auth)
             .expect(200)
         const rows = csv.text.split(/\r?\n/).slice(1).filter(Boolean)
-        expect(rows.map((r) => r.split(';').slice(1, 2).concat(r.split(';')[5], r.split(';')[9]))).toEqual([
+        // Вид, Сумма and «Причина возврата» (the 14th column, after the discount ones).
+        expect(rows.map((r) => r.split(';').slice(1, 2).concat(r.split(';')[5], r.split(';')[13]))).toEqual([
             ['Возврат', '-1000', 'Пропустил две недели'],
             ['Оплата', '4000', ''],
         ])

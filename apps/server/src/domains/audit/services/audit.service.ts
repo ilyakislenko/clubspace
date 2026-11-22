@@ -104,6 +104,13 @@ export type AuditAction =
     | 'payment.succeeded'
     | 'payment.refund'
     | 'payment.refundDelete'
+    // Club discounts (docs/design/2026-11-15-discounts.md §3.4): update carries
+    // `{ name, changes: { field: { from, to } } }`, the others a snapshot.
+    | 'discount.create'
+    | 'discount.update'
+    | 'discount.archive'
+    | 'discount.restore'
+    | 'discount.delete'
     // These carry the affected club's workspaceId, so they land in that club's
     // journal too — an owner can see who created and handed over their club.
     | 'workspace.create'
@@ -181,6 +188,7 @@ export type AuditTargetType =
     | 'event'
     | 'aiToken'
     | 'aiChat'
+    | 'discount'
 
 @Injectable()
 export class AuditService {

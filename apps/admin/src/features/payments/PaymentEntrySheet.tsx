@@ -35,6 +35,7 @@ import {
   entryTitle,
   entryWhat,
   formatEntryAt,
+  entryPriceFacts,
   methodLabel,
   refundIdOf,
   subjectRefundable,
@@ -318,6 +319,11 @@ function EntryDetails({
         {entry.kind === "refund" && <Fact label="За что">{entry.itemName}</Fact>}
         <Fact label="Когда">{formatEntryAt(entry.at, timezone)}</Fact>
         <Fact label="Способ">{methodLabel(entry.method)}</Fact>
+        {entryPriceFacts(entry).map((f) => (
+          <Fact key={f.label} label={f.label}>
+            {f.value}
+          </Fact>
+        ))}
         {entry.markedBy && (
           <Fact label={entry.kind === "refund" ? "Вернул" : "Отметил"}>{entry.markedBy.name}</Fact>
         )}

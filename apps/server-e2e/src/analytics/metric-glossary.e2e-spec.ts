@@ -229,6 +229,34 @@ describe('metric glossary', () => {
         expect(forecast.mrr).toBe(stats.revenue.mrr)
     })
 
+    // discounts_given (docs/design/2026-11-15-discounts.md §3.5): s1's 6 000
+    // abonement was sold at 4 500 (a 1 000 «Семейная» and a 500 one-off).
+    // Revenue keeps reading what was charged; the discount is shown beside it,
+    // never subtracted again.
+    it('a discounted sale: revenue is the charged amount, discounts_given the difference', async () => {
+        const { w, ownerActor } = await setup()
+        const get = (path: string) =>
+            http()
+                .get(`/workspaces/${w}${path}`)
+                .set(...ownerActor.auth)
+                .expect(200)
+                .then((r) => r.body)
+        const s1Sale = await ctx.prisma.subscription.findFirstOrThrow({
+            where: { workspaceId: w, amountPaid: 6000, durationDays: 30, isPaid: true, status: 'ACTIVE' },
+        })
+        await ctx.prisma.subscription.update({
+            where: { id: s1Sale.id },
+            data: { amountPaid: 4500, listPrice: 6000, discountName: 'Семейная', discountAmount: 1000 },
+        })
+        const [stats, journal] = await Promise.all([get('/stats'), get('/payment-journal')])
+        // revenue_30d: 18 000 − 1 500 not charged.
+        expect(stats.revenue.revenue30d).toBe(16500)
+        // The journal's default «Итого» is still revenue_30d.
+        expect(journal.totals[0].net).toBe(stats.revenue.revenue30d)
+        // discounts_given = list − charged, named and one-off parts.
+        expect(journal.totals[0].discounted).toEqual({ count: 1, amount: 1500, oneOffAmount: 500 })
+    })
+
     it('keeps club money for club admins: a head coach gets the counts without it', async () => {
         const { w } = await setup()
         const lead = await addMember(ctx, { workspaceId: w, role: RolesEnum.HEAD_COACH })

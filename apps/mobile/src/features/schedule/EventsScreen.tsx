@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Linking,
@@ -36,6 +36,11 @@ import { spotsLine } from "./class-booking-helpers"
 import { foreignTzSuffix } from "./schedule-helpers"
 import { bookedLine, eventViewer, priceLabel } from "./event-helpers"
 import { openPaymentPage } from "../payments/open-payment-page"
+import { OfferPriceText } from "../payments/OfferPriceText"
+import { offerPrice } from "../payments/payment-helpers"
+import { PromoCodeField } from "../payments/PromoCodeField"
+import { getCheckoutQuote, type CheckoutQuote } from "../../shared/api/payments"
+import { Sheet, useSheetAction } from "../../shared/components/Sheet"
 import { fetchMe } from "../../shared/api/me"
 import type { DeltaItem, DeltaOp } from "../../shared/cache/cache-events"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
@@ -103,7 +108,8 @@ function EventRegistrationBlock({
   const { showToast } = useToast()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [paying, setPaying] = useState(false)
+  // The confirm sheet (price, promo code, «Оплатить N ₽») is open.
+  const [checkout, setCheckout] = useState(false)
   const reg = event.registration
   if (!reg || !workspace) return null
   const mine = reg.mine
@@ -180,32 +186,6 @@ function EventRegistrationBlock({
     )
   }
 
-  // Same flow as buying an abonement online: the provider's page, then its
-  // return URL (/payment/<id>) shows how it went.
-  const payOnline = async () => {
-    if (!mine || paying) return
-    setPaying(true)
-    setError(null)
-    try {
-      const { payment, confirmationUrl } = await payEventRegistrationOnline({
-        workspaceId: workspace.workspaceId,
-        registrationId: mine.id,
-      })
-      try {
-        await openPaymentPage(confirmationUrl)
-        onPaymentStarted(payment.id)
-      } catch {
-        showToast("Не удалось открыть страницу оплаты", "error")
-      }
-    } catch (e) {
-      // The server explains why (already paid, no place, no provider, …).
-      setError(errorMessage(e, "Не удалось начать оплату"))
-      onChanged()
-    } finally {
-      setPaying(false)
-    }
-  }
-
   return (
     <View style={styles.regBlock}>
       <Text style={styles.regPrice}>
@@ -237,20 +217,26 @@ function EventRegistrationBlock({
       {error && <Text style={styles.regError}>{error}</Text>}
       {canPayOnline && (
         <Pressable
-          onPress={() => void payOnline()}
-          disabled={paying || busy}
+          onPress={() => setCheckout(true)}
+          disabled={busy}
           accessibilityRole="button"
           style={[styles.regButton, styles.regButtonPrimary]}
         >
-          {paying ? (
-            <ActivityIndicator color={theme.colors.accentText} />
-          ) : (
-            <Text style={styles.regButtonPrimaryText}>
-              Оплатить онлайн ·{" "}
-              {priceLabel(event.price ?? null, event.currency ?? "RUB")}
-            </Text>
-          )}
+          <Text style={styles.regButtonPrimaryText}>
+            Оплатить онлайн ·{" "}
+            {priceLabel(event.price ?? null, event.currency ?? "RUB")}
+          </Text>
         </Pressable>
+      )}
+      {checkout && mine && (
+        <EventCheckoutSheet
+          workspaceId={workspace.workspaceId}
+          title={event.title}
+          registrationId={mine.id}
+          onClosed={() => setCheckout(false)}
+          onPaymentStarted={onPaymentStarted}
+          onRefused={onChanged}
+        />
       )}
       {paidOnline && !started && (
         // The money went through the app: the club refunds it.
@@ -292,6 +278,170 @@ function EventRegistrationBlock({
           </Pressable>
         ))}
     </View>
+  )
+}
+
+// «Оплата билета»: the price the member pays now (the family discount
+// applied by the server), the «Есть промокод?» row, and «Оплатить N ₽» — the
+// final amount and the discount's terms are on screen before the provider's
+// page opens, and the server charges exactly that or refuses.
+function EventCheckoutSheet({
+  workspaceId,
+  title,
+  registrationId,
+  onClosed,
+  onPaymentStarted,
+  onRefused,
+}: {
+  workspaceId: string
+  title: string
+  registrationId: string
+  onClosed: () => void
+  onPaymentStarted: (paymentId: string) => void
+  // The server refused the payment: the card re-reads the place.
+  onRefused: () => void
+}) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
+  const { showToast } = useToast()
+  const sheet = useSheetAction({ initiallyOpen: true, onClosed })
+  const [base, setBase] = useState<CheckoutQuote | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [promo, setPromo] = useState<{
+    code: string
+    quote: CheckoutQuote
+  } | null>(null)
+  const [promoNote, setPromoNote] = useState<string | null>(null)
+  const [quoting, setQuoting] = useState(false)
+  const [paying, setPaying] = useState(false)
+  const [payError, setPayError] = useState<string | null>(null)
+  // Bumped by every apply / edit: a late quote for an old code is dropped.
+  const promoRun = useRef(0)
+
+  const loadBase = useCallback(async () => {
+    setLoadError(null)
+    try {
+      setBase(await getCheckoutQuote({ workspaceId, registrationId }))
+    } catch (e) {
+      setLoadError(errorMessage(e, "Не удалось узнать цену"))
+    }
+  }, [workspaceId, registrationId])
+
+  useEffect(() => {
+    void loadBase()
+  }, [loadBase])
+
+  const applyPromo = async (code: string) => {
+    const run = ++promoRun.current
+    setQuoting(true)
+    setPromo(null)
+    setPromoNote(null)
+    setPayError(null)
+    try {
+      const quote = await getCheckoutQuote({
+        workspaceId,
+        registrationId,
+        promoCode: code,
+      })
+      if (run !== promoRun.current) return
+      setPromo({ code, quote })
+      setPromoNote(quote.promoCodeNote)
+    } catch (e) {
+      if (run !== promoRun.current) return
+      setPromoNote(errorMessage(e, "Не удалось проверить промокод"))
+    } finally {
+      if (run === promoRun.current) setQuoting(false)
+    }
+  }
+
+  const editPromo = () => {
+    promoRun.current++
+    setQuoting(false)
+    setPromo(null)
+    setPromoNote(null)
+  }
+
+  const quote = promo?.quote ?? base
+  // Sent only when the quote applied it: an unusable code would be refused.
+  const promoCode = promo?.quote.discount?.code ? promo.code : undefined
+  const offer = quote
+    ? offerPrice({
+        listPrice: quote.listPrice,
+        amount: quote.amount,
+        currency: quote.currency,
+        discount: quote.discount,
+      })
+    : null
+
+  const pay = async () => {
+    if (!quote || paying) return
+    setPaying(true)
+    setPayError(null)
+    try {
+      const { payment, confirmationUrl } = await payEventRegistrationOnline({
+        workspaceId,
+        registrationId,
+        data: promoCode ? { promoCode } : {},
+      })
+      // iOS can't open the browser over a sheet that is still dismissing.
+      sheet.run(() => {
+        openPaymentPage(confirmationUrl).then(
+          () => onPaymentStarted(payment.id),
+          () => showToast("Не удалось открыть страницу оплаты", "error"),
+        )
+      })
+    } catch (e) {
+      // The server explains why (already paid, no place, the code, …).
+      setPayError(errorMessage(e, "Не удалось начать оплату"))
+      onRefused()
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  return (
+    <Sheet title="Оплата билета" {...sheet.sheetProps}>
+      <View style={styles.checkout}>
+        <Text style={styles.checkoutTitle}>{title}</Text>
+        {loadError && !quote ? (
+          <ErrorRetry message={loadError} onRetry={() => void loadBase()} />
+        ) : !offer ? (
+          <ActivityIndicator color={theme.colors.accent} />
+        ) : (
+          <>
+            <OfferPriceText offer={offer} style={styles.checkoutPrice} />
+            {offer.note && (
+              <Text style={styles.checkoutDiscount}>{offer.note}</Text>
+            )}
+            <PromoCodeField
+              busy={quoting}
+              note={promoNote}
+              onApply={(code) => void applyPromo(code)}
+              onEdit={editPromo}
+            />
+            {payError && <Text style={styles.regError}>{payError}</Text>}
+            <Pressable
+              onPress={() => void pay()}
+              disabled={paying || quoting}
+              accessibilityRole="button"
+              style={[
+                styles.regButton,
+                styles.regButtonPrimary,
+                quoting && styles.checkoutDisabled,
+              ]}
+            >
+              {paying ? (
+                <ActivityIndicator color={theme.colors.accentText} />
+              ) : (
+                <Text style={styles.regButtonPrimaryText}>
+                  Оплатить {offer.amount}
+                </Text>
+              )}
+            </Pressable>
+          </>
+        )}
+      </View>
+    </Sheet>
   )
 }
 
@@ -636,4 +786,13 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
   },
+  checkout: { gap: theme.spacing(2) },
+  checkoutTitle: { ...theme.typography.bodyStrong, color: theme.colors.text },
+  checkoutPrice: { fontSize: 22, fontWeight: "700", color: theme.colors.text },
+  checkoutDiscount: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: theme.colors.success,
+  },
+  checkoutDisabled: { opacity: 0.5 },
 })

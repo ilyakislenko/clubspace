@@ -43,6 +43,11 @@ const row = (over: Partial<PaymentJournalEntry> = {}): PaymentJournalEntry => ({
   online: null,
   reason: null,
   refundOf: null,
+  listPrice: null,
+  discountName: null,
+  discountAmount: 0,
+  oneOffDiscount: 0,
+  pricedBy: null,
   ...over,
 })
 
@@ -117,6 +122,35 @@ describe("PaymentEntrySheet", () => {
     expect(screen.getByText("Наличные")).toBeTruthy()
     expect(screen.getByText("Анна Ли")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Вернуть деньги" })).toBeTruthy()
+  })
+
+  it("shows the list price, the discount and the one-off part with who set it", async () => {
+    getEntry.mockResolvedValue(
+      detail({
+        amount: 2600,
+        listPrice: 4000,
+        discountName: "Семейная",
+        discountAmount: 400,
+        oneOffDiscount: 1000,
+        pricedBy: { userId: "c2", name: "Пётр Петров" },
+      }),
+    )
+    renderSheet({ entryId: "sub:s1" })
+    await screen.findByText("Абонемент «БЖЖ 12»")
+    const fact = (label: string) =>
+      screen.getByText(label).nextElementSibling?.textContent?.replace(/\s/g, " ")
+    expect(fact("Цена по тарифу")).toBe("4 000 ₽")
+    expect(fact("Скидка")).toBe("«Семейная» −400 ₽")
+    expect(fact("Разовая скидка")).toBe("1 000 ₽ · Пётр Петров")
+    expect(fact("Получено")).toBe("2 600 ₽")
+  })
+
+  it("shows no price facts for a sale from before they were recorded", async () => {
+    getEntry.mockResolvedValue(detail())
+    renderSheet({ entryId: "sub:s1" })
+    await screen.findByText("Абонемент «БЖЖ 12»")
+    expect(screen.queryByText("Цена по тарифу")).toBeNull()
+    expect(screen.queryByText("Получено")).toBeNull()
   })
 
   it("names a former member without a link", async () => {

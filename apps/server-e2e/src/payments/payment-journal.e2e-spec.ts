@@ -187,6 +187,8 @@ describe('payments journal', () => {
                     { method: 'CARD', received: 1500, refunded: 0, count: 1 },
                     { method: 'ONLINE', received: 4500, refunded: 0, count: 1 },
                 ],
+                // Two one-offs: the owner's 500 and the admin's 1 000 (not part of net).
+                discounted: { count: 2, amount: 1500, oneOffAmount: 1500 },
             },
         ])
         expect(res.body.unapplied).toEqual({ total: 0, data: [] })
@@ -279,11 +281,11 @@ describe('payments journal', () => {
                 .expect(200)
             const rows = csv.text.split(/\r?\n/).slice(1).filter(Boolean)
             expect(rows).toHaveLength(list.body.total)
-            // Сумма is the 6th column, Источник the 11th.
+            // Сумма is the 6th column, Источник the 15th (after the discount columns).
             expect(rows.map((r) => r.split(';')[5])).toEqual(
                 (list.body.data as Entry[]).map((e) => String(e.amount)),
             )
-            expect(rows.map((r) => r.split(';')[10])).toEqual(
+            expect(rows.map((r) => r.split(';')[14])).toEqual(
                 (list.body.data as Entry[]).map((e) => (e.source === 'ticket' ? 'Событие' : 'Абонемент')),
             )
             expect(csv.headers['content-disposition']).toMatch(/filename="payments-\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}\.csv"/)
@@ -291,5 +293,116 @@ describe('payments journal', () => {
         expect(
             await ctx.prisma.auditEvent.count({ where: { workspaceId: c.workspace.id, action: 'export.payments' } }),
         ).toBe(3)
+    })
+
+    // docs/design/2026-11-15-discounts.md §3.5, §7: every amount under the
+    // tariff price is a one-off with who set it; «Со скидкой», one discount and
+    // «Дал скидку» narrow rows, totals and the CSV alike; «Итого» stays revenue.
+    it('discounts: one-offs with who priced them, the three filters, the summary and the CSV columns', async () => {
+        const c = await club()
+        const s = await sell(c)
+
+        const all = await journal(c, c.ownerActor).expect(200)
+        const byId = new Map((all.body.data as Array<Entry & Record<string, unknown>>).map((e) => [e.id, e]))
+        // Sold as paid at 4 000 of 4 500 by the owner.
+        expect(byId.get(`sub:${s.transferId}`)).toMatchObject({
+            listPrice: 4500,
+            discountName: null,
+            discountAmount: 0,
+            oneOffDiscount: 500,
+            pricedBy: { userId: c.owner.id },
+        })
+        // Sold on credit at the price, then marked received 3 500 by the
+        // admin: the marker set the amount.
+        expect(byId.get(`sub:${s.cashId}`)).toMatchObject({ listPrice: 4500, oneOffDiscount: 1000, pricedBy: { userId: c.admin.id } })
+        // Online and the card ticket at the price: no discount, nobody named.
+        expect(byId.get(`reg:${s.registrationId}`)).toMatchObject({ listPrice: 1500, oneOffDiscount: 0, pricedBy: null })
+        expect(all.body.totals[0]).toMatchObject({ net: 13500, discounted: { count: 2, amount: 1500, oneOffAmount: 1500 } })
+
+        const discounted = await journal(c, c.ownerActor, { discounted: 'true' }).expect(200)
+        expect((discounted.body.data as Entry[]).map((e) => e.id).sort()).toEqual(
+            [`sub:${s.cashId}`, `sub:${s.transferId}`].sort(),
+        )
+        expect(discounted.body.totals[0]).toMatchObject({ received: 7500, discounted: { count: 2, amount: 1500 } })
+        const byAdmin = await journal(c, c.ownerActor, { pricedById: c.admin.id }).expect(200)
+        expect((byAdmin.body.data as Entry[]).map((e) => e.id)).toEqual([`sub:${s.cashId}`])
+
+        // A named discount, sold by the admin, then filtered by it.
+        const discount = await ctx
+            .http()
+            .post(`/workspaces/${c.workspace.id}/discounts`)
+            .set(...c.ownerActor.auth)
+            .send({ name: 'Студенческая', kind: 'PERCENT', value: 15 })
+            .expect(201)
+        const { user: student } = await addMember(ctx, { workspaceId: c.workspace.id })
+        const named = await ctx
+            .http()
+            .post(`/workspaces/${c.workspace.id}/members/${student.id}/subscription`)
+            .set(...c.adminActor.auth)
+            .send({ planId: c.plan.id, discountId: discount.body.id, paid: true, paymentMethod: 'CARD' })
+            .expect(201)
+        const byDiscount = await journal(c, c.ownerActor, { discountId: discount.body.id }).expect(200)
+        expect(byDiscount.body.data).toEqual([
+            expect.objectContaining({
+                id: `sub:${named.body.subscription.id}`,
+                amount: 3825,
+                discountName: 'Студенческая',
+                discountAmount: 675,
+                oneOffDiscount: 0,
+                pricedBy: expect.objectContaining({ userId: c.admin.id }),
+            }),
+        ])
+        // Archived: still a filter (past sales keep its label).
+        await ctx
+            .http()
+            .patch(`/workspaces/${c.workspace.id}/discounts/${discount.body.id}`)
+            .set(...c.ownerActor.auth)
+            .send({ isActive: false })
+            .expect(200)
+        const archived = await journal(c, c.ownerActor, { discountId: discount.body.id }).expect(200)
+        expect(archived.body.data.map((e: Entry) => e.id)).toEqual([`sub:${named.body.subscription.id}`])
+        await ctx
+            .http()
+            .get(`/workspaces/${c.workspace.id}/exports/payments.csv`)
+            .query({ discountId: discount.body.id })
+            .set(...c.ownerActor.auth)
+            .expect(200)
+        // Another club's discount is a 404.
+        const elsewhere = await createWorkspace(ctx, { name: 'Другой клуб' })
+        const foreign = await ctx.prisma.discount.create({
+            data: {
+                workspaceId: elsewhere.workspace.id,
+                name: 'Чужая',
+                kind: 'PERCENT',
+                value: 5,
+                createdById: elsewhere.owner.id,
+            },
+        })
+        await journal(c, c.ownerActor, { discountId: foreign.id }).expect(404)
+        await journal(c, c.ownerActor, { discountId: '00000000-0000-4000-8000-000000000000' }).expect(404)
+
+        // The default «Итого» is still «Выручка за 30 дней».
+        const after = await journal(c, c.ownerActor).expect(200)
+        const stats = await ctx.http().get(`/workspaces/${c.workspace.id}/stats`).set(...c.ownerActor.auth).expect(200)
+        expect(after.body.totals[0].net).toBe(stats.body.revenue.revenue30d)
+        expect(after.body.totals[0].discounted).toEqual({ count: 3, amount: 2175, oneOffAmount: 1500 })
+
+        const csv = await ctx
+            .http()
+            .get(`/workspaces/${c.workspace.id}/exports/payments.csv`)
+            .query({ discounted: 'true' })
+            .set(...c.ownerActor.auth)
+            .expect(200)
+        const [header, ...rows] = csv.text.split(/\r?\n/).filter(Boolean)
+        expect(header.split(';').slice(5, 10)).toEqual(['Сумма', 'Цена по тарифу', 'Скидка', 'Название скидки', 'Дал скидку'])
+        expect(rows).toHaveLength(3)
+        const cells = rows.map((r) => r.split(';').slice(5, 9))
+        expect(cells).toEqual(
+            expect.arrayContaining([
+                ['3825', '4500', '675', 'Студенческая'],
+                ['3500', '4500', '1000', 'Разовая'],
+                ['4000', '4500', '500', 'Разовая'],
+            ]),
+        )
     })
 })

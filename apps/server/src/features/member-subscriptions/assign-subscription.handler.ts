@@ -8,6 +8,8 @@ import {
     scopeDirectionIds,
     subscriptionScopeIdsSelect,
 } from '../../domains/subscriptions/current-subscriptions'
+import { saleDiscount, priceSale } from '../../domains/discounts/discount-rules'
+import { priceStaffSale } from '../../domains/discounts/discounts'
 import { SubscriptionService } from '../../domains/subscriptions/services/subscription.service'
 import {
     isSubscriptionUsable,
@@ -100,14 +102,16 @@ export class AssignSubscriptionHandler
             select: {
                 isActive: true,
                 price: true,
+                currency: true,
                 directions: { select: { directionId: true } },
             },
         })
+        if (!plan) throw new NotFoundError({ message: 'Тариф не найден' })
 
         if (!isAdmin) {
             // Archived tariffs stay sellable only by an admin (a coach sees
             // them in history, not in the list).
-            if (plan && !plan.isActive) {
+            if (!plan.isActive) {
                 throw new BadRequestError({
                     message: 'Этот тариф в архиве — выберите действующий',
                 })
@@ -119,7 +123,7 @@ export class AssignSubscriptionHandler
                 const today = localDateInTz(now, workspace.timezone)
                 // Bounded by the end of the live abonement this sale renews
                 // (same scope as the tariff); other directions don't count.
-                const scope = plan ? scopeDirectionIds(plan) : []
+                const scope = scopeDirectionIds(plan)
                 let latest = today
                 for (const current of member.subscriptions) {
                     if (!sameScope(scopeDirectionIds(current), scope)) continue
@@ -144,18 +148,46 @@ export class AssignSubscriptionHandler
             ? wallClockToUtc(`${f.payload.startDate}T00:00`, workspace.timezone)
             : undefined
 
-        const { subscription, accessUntil } =
-            await this.subscriptions.grantFromPlan({
-                workspaceId: f.workspaceId,
-                workspaceMemberId: member.id,
-                planId: f.payload.planId,
-                startDate,
-                amountPaid: f.payload.amountPaid,
-                paid: f.payload.paid,
-                paymentMethod: f.payload.paymentMethod,
-                markedPaidById: f.invokerUserId,
-                source: 'MANUAL',
-            })
+        // The price, the picked discount (locked, its uses counted) and the
+        // abonement commit together, so `maxUses` holds under parallel sales.
+        const { subscription, accessUntil, priced } = await this.prisma.$transaction(
+            async (tx) => {
+                const priced = f.payload.discountId
+                    ? await priceStaffSale(tx, {
+                          workspaceId: f.workspaceId,
+                          discountId: f.payload.discountId,
+                          userId: f.userId,
+                          item: {
+                              planId: f.payload.planId,
+                              eventId: null,
+                              listPrice: plan.price,
+                              currency: plan.currency,
+                          },
+                          now,
+                          timezone: workspace.timezone,
+                      })
+                    : priceSale({ listPrice: plan.price, currency: plan.currency, discount: null })
+                const granted = await this.subscriptions.grantFromPlanInTx(tx, {
+                    workspaceId: f.workspaceId,
+                    workspaceMemberId: member.id,
+                    planId: f.payload.planId,
+                    startDate,
+                    now,
+                    amountPaid: f.payload.amountPaid ?? priced.amount,
+                    listPrice: plan.price,
+                    discountId: priced.discountId,
+                    discountName: priced.discountName,
+                    discountAmount: priced.discountAmount,
+                    pricedById: f.invokerUserId,
+                    paid: f.payload.paid,
+                    paymentMethod: f.payload.paymentMethod,
+                    markedPaidById: f.invokerUserId,
+                    source: 'MANUAL',
+                })
+                return { ...granted, priced }
+            },
+        )
+        const { oneOff } = saleDiscount(subscription)
 
         await this.audit.record({
             action: 'member.assignSubscription',
@@ -170,8 +202,13 @@ export class AssignSubscriptionHandler
                 paid: subscription.isPaid,
                 method: subscription.paymentMethod,
                 currency: subscription.currency,
-                // The plan's list price next to the amount, so a coach discount shows.
-                listPrice: plan?.price ?? null,
+                // The price facts: the list price, the named discount and the
+                // one-off remainder the seller typed (the actor).
+                listPrice: plan.price,
+                discountId: priced.discountId,
+                discountName: priced.discountName,
+                discountAmount: priced.discountAmount,
+                ...(oneOff > 0 ? { oneOff } : {}),
                 // Club-local days, like the dates on the abonement card.
                 startDate: subscription.startDate
                     ? localDateInTz(subscription.startDate, workspace.timezone)

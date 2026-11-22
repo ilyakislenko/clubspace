@@ -7,6 +7,12 @@ export const MarkEventRegistrationPaidInputSchema = z.object({
     // Paid at the club: cash, a transfer or a card on the terminal. ONLINE is
     // set by the payment webhook only.
     method: ClubPaymentMethodSchema,
+    // A club discount picked from listSaleDiscounts (with `eventId`).
+    discountId: z.string().uuid().optional(),
+    // What was actually received; omitted = the event's price (with the
+    // discount). Any role that may mark may type it, as for abonements; a
+    // reduction is recorded as a one-off discount with who set it.
+    amount: z.number().int().min(0).max(10_000_000).optional(),
 })
 export const MarkEventRegistrationPaidOutputSchema = EventRegistrantSchema
 

@@ -4833,6 +4833,10 @@ export type CancelEventRegistrationOutputOutput = {
     createdAt: string;
 };
 
+export type PayEventRegistrationOnlineInput = {
+    promoCode?: string;
+};
+
 export type EventTicketCheckoutOutputOutput = {
     payment: {
         id: string;
@@ -4876,6 +4880,15 @@ export type EventRegistrationsOutputOutput = {
         currency: string | null;
         refundedAmount: number;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        listPrice: number | null;
+        discountId: string | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
         promotedAt: string | null;
         cancelledAt: string | null;
         createdAt: string;
@@ -4884,6 +4897,8 @@ export type EventRegistrationsOutputOutput = {
 
 export type MarkEventRegistrationPaidInput = {
     method: 'CASH' | 'TRANSFER' | 'CARD';
+    discountId?: string;
+    amount?: number;
 };
 
 export type MarkEventRegistrationPaidOutputOutput = {
@@ -4899,6 +4914,15 @@ export type MarkEventRegistrationPaidOutputOutput = {
     currency: string | null;
     refundedAmount: number;
     paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+    listPrice: number | null;
+    discountId: string | null;
+    discountName: string | null;
+    discountAmount: number;
+    oneOffDiscount: number;
+    pricedBy: {
+        userId: string;
+        name: string;
+    } | null;
     promotedAt: string | null;
     cancelledAt: string | null;
     createdAt: string;
@@ -4917,6 +4941,15 @@ export type UnmarkEventRegistrationPaidOutputOutput = {
     currency: string | null;
     refundedAmount: number;
     paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+    listPrice: number | null;
+    discountId: string | null;
+    discountName: string | null;
+    discountAmount: number;
+    oneOffDiscount: number;
+    pricedBy: {
+        userId: string;
+        name: string;
+    } | null;
     promotedAt: string | null;
     cancelledAt: string | null;
     createdAt: string;
@@ -5719,6 +5752,7 @@ export type AwaitingPaymentOutputOutput = {
 export type AssignSubscriptionInput = {
     planId: string;
     startDate?: string;
+    discountId?: string;
     amountPaid?: number;
     paid?: boolean;
     paymentMethod?: 'CASH' | 'TRANSFER' | 'CARD';
@@ -5737,6 +5771,15 @@ export type AssignSubscriptionOutputOutput = {
         amountPaid: number;
         currency: string;
         refundedAmount: number;
+        listPrice: number | null;
+        discountId: string | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5768,6 +5811,15 @@ export type MemberSubscriptionsOutputOutput = {
         amountPaid: number;
         currency: string;
         refundedAmount: number;
+        listPrice: number | null;
+        discountId: string | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5809,6 +5861,15 @@ export type MemberSubscriptionsOutputOutput = {
         amountPaid: number;
         currency: string;
         refundedAmount: number;
+        listPrice: number | null;
+        discountId: string | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5852,6 +5913,15 @@ export type CancelSubscriptionOutputOutput = {
     amountPaid: number;
     currency: string;
     refundedAmount: number;
+    listPrice: number | null;
+    discountId: string | null;
+    discountName: string | null;
+    discountAmount: number;
+    oneOffDiscount: number;
+    pricedBy: {
+        userId: string;
+        name: string;
+    } | null;
     isPaid: boolean;
     paidAt: string | null;
     paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5869,6 +5939,7 @@ export type CancelSubscriptionOutputOutput = {
 
 export type MarkSubscriptionPaidInput = {
     amount?: number;
+    discountId?: string;
     method?: 'CASH' | 'TRANSFER' | 'CARD';
 };
 
@@ -5885,6 +5956,15 @@ export type MarkSubscriptionPaidOutputOutput = {
         amountPaid: number;
         currency: string;
         refundedAmount: number;
+        listPrice: number | null;
+        discountId: string | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5914,6 +5994,15 @@ export type UnmarkSubscriptionPaidOutputOutput = {
         amountPaid: number;
         currency: string;
         refundedAmount: number;
+        listPrice: number | null;
+        discountId: string | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5959,6 +6048,15 @@ export type FreezeSubscriptionOutputOutput = {
         amountPaid: number;
         currency: string;
         refundedAmount: number;
+        listPrice: number | null;
+        discountId: string | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -6000,6 +6098,15 @@ export type EndSubscriptionFreezeOutputOutput = {
         amountPaid: number;
         currency: string;
         refundedAmount: number;
+        listPrice: number | null;
+        discountId: string | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -6030,6 +6137,15 @@ export type MySubscriptionOutputOutput = {
         amountPaid: number;
         currency: string;
         refundedAmount: number;
+        listPrice: number | null;
+        discountId: string | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -6086,6 +6202,15 @@ export type MySubscriptionOutputOutput = {
         amountPaid: number;
         currency: string;
         refundedAmount: number;
+        listPrice: number | null;
+        discountId: string | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -8050,6 +8175,7 @@ export type CheckPaymentConnectionOutputOutput = {
 
 export type CreatePaymentInput = {
     planId: string;
+    promoCode?: string;
 };
 
 export type CreatePaymentOutputOutput = {
@@ -8108,6 +8234,14 @@ export type ListPaymentJournalOutputOutput = {
             at: string;
             amount: number;
         } | null;
+        listPrice: number | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
     }>;
     total: number;
     curPage: number;
@@ -8123,6 +8257,11 @@ export type ListPaymentJournalOutputOutput = {
             refunded: number;
             count: number;
         }>;
+        discounted: {
+            count: number;
+            amount: number;
+            oneOffAmount: number;
+        };
     }>;
     unapplied: {
         total: number;
@@ -8180,6 +8319,14 @@ export type PaymentJournalEntryDetailOutputOutput = {
         at: string;
         amount: number;
     } | null;
+    listPrice: number | null;
+    discountName: string | null;
+    discountAmount: number;
+    oneOffDiscount: number;
+    pricedBy: {
+        userId: string;
+        name: string;
+    } | null;
     refunds: Array<{
         id: string;
         kind: 'payment' | 'refund';
@@ -8215,6 +8362,14 @@ export type PaymentJournalEntryDetailOutputOutput = {
             id: string;
             at: string;
             amount: number;
+        } | null;
+        listPrice: number | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
         } | null;
     }>;
     memberHasCard: boolean;
@@ -8334,6 +8489,14 @@ export type CreateRefundOutputOutput = {
             at: string;
             amount: number;
         } | null;
+        listPrice: number | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
     };
     sale: {
         id: string;
@@ -8371,6 +8534,14 @@ export type CreateRefundOutputOutput = {
             at: string;
             amount: number;
         } | null;
+        listPrice: number | null;
+        discountName: string | null;
+        discountAmount: number;
+        oneOffDiscount: number;
+        pricedBy: {
+            userId: string;
+            name: string;
+        } | null;
         refunds: Array<{
             id: string;
             kind: 'payment' | 'refund';
@@ -8407,6 +8578,14 @@ export type CreateRefundOutputOutput = {
                 at: string;
                 amount: number;
             } | null;
+            listPrice: number | null;
+            discountName: string | null;
+            discountAmount: number;
+            oneOffDiscount: number;
+            pricedBy: {
+                userId: string;
+                name: string;
+            } | null;
         }>;
         memberHasCard: boolean;
         fullRefundCancelsRegistration: boolean;
@@ -8417,6 +8596,169 @@ export type DeleteRefundOutputOutput = {
     status: 'deleted';
 };
 
+export type ListDiscountsOutputOutput = {
+    data: Array<{
+        id: string;
+        name: string;
+        kind: 'PERCENT' | 'FIXED';
+        value: number;
+        currency: string | null;
+        code: string | null;
+        isFamily: boolean;
+        allPlans: boolean;
+        plans: Array<{
+            id: string;
+            name: string;
+        }>;
+        events: boolean;
+        startsOn: string | null;
+        endsOn: string | null;
+        maxUses: number | null;
+        oncePerMember: boolean;
+        isActive: boolean;
+        status: 'active' | 'scheduled' | 'expired' | 'exhausted' | 'archived';
+        uses: number;
+        given: Array<{
+            currency: string;
+            amount: number;
+        }>;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    byStaff: Array<{
+        userId: string;
+        name: string;
+        currency: string;
+        oneOff: {
+            count: number;
+            amount: number;
+        };
+        named: {
+            count: number;
+            amount: number;
+        };
+    }>;
+};
+
+export type CreateDiscountInput = {
+    name: string;
+    kind: 'PERCENT' | 'FIXED';
+    value: number;
+    currency?: string | null;
+    code?: string | null;
+    isFamily?: boolean;
+    allPlans?: boolean;
+    planIds?: Array<string>;
+    events?: boolean;
+    startsOn?: string | null;
+    endsOn?: string | null;
+    maxUses?: number | null;
+    oncePerMember?: boolean;
+};
+
+export type DiscountOutputOutput = {
+    id: string;
+    name: string;
+    kind: 'PERCENT' | 'FIXED';
+    value: number;
+    currency: string | null;
+    code: string | null;
+    isFamily: boolean;
+    allPlans: boolean;
+    plans: Array<{
+        id: string;
+        name: string;
+    }>;
+    events: boolean;
+    startsOn: string | null;
+    endsOn: string | null;
+    maxUses: number | null;
+    oncePerMember: boolean;
+    isActive: boolean;
+    status: 'active' | 'scheduled' | 'expired' | 'exhausted' | 'archived';
+    uses: number;
+    given: Array<{
+        currency: string;
+        amount: number;
+    }>;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type UpdateDiscountInput = {
+    name?: string;
+    kind?: 'PERCENT' | 'FIXED';
+    value?: number;
+    currency?: string | null;
+    code?: string | null;
+    isFamily?: boolean;
+    allPlans?: boolean;
+    planIds?: Array<string>;
+    events?: boolean;
+    startsOn?: string | null;
+    endsOn?: string | null;
+    maxUses?: number | null;
+    oncePerMember?: boolean;
+    isActive?: boolean;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
+};
+
+export type UpdateDiscountOutputOutput = {
+    id: string;
+    name: string;
+    kind: 'PERCENT' | 'FIXED';
+    value: number;
+    currency: string | null;
+    code: string | null;
+    isFamily: boolean;
+    allPlans: boolean;
+    plans: Array<{
+        id: string;
+        name: string;
+    }>;
+    events: boolean;
+    startsOn: string | null;
+    endsOn: string | null;
+    maxUses: number | null;
+    oncePerMember: boolean;
+    isActive: boolean;
+    status: 'active' | 'scheduled' | 'expired' | 'exhausted' | 'archived';
+    uses: number;
+    given: Array<{
+        currency: string;
+        amount: number;
+    }>;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type DeleteDiscountOutputOutput = {
+    status: 'deleted';
+};
+
+export type ListSaleDiscountsOutputOutput = {
+    familyEligible: boolean;
+    options: Array<{
+        discountId: string;
+        name: string;
+        kind: 'PERCENT' | 'FIXED';
+        value: number;
+        code: string | null;
+        isFamily: boolean;
+        endsOn: string | null;
+        items: Array<{
+            planId: string | null;
+            eventId: string | null;
+            listPrice: number;
+            amount: number;
+            currency: string;
+        }>;
+    }>;
+};
+
 export type OnlinePurchaseOptionsOutputOutput = {
     available: boolean;
     provider: 'YOOKASSA' | 'STRIPE' | null;
@@ -8425,6 +8767,8 @@ export type OnlinePurchaseOptionsOutputOutput = {
         name: string;
         description: string | null;
         price: number;
+        amount: number;
+        discountName: string | null;
         currency: string;
         durationDays: number;
         classCount: number | null;
@@ -8452,6 +8796,19 @@ export type OnlinePurchaseOptionsOutputOutput = {
         paidAt: string | null;
         refundedAt: string | null;
     } | null;
+};
+
+export type CheckoutQuoteOutputOutput = {
+    listPrice: number;
+    amount: number;
+    currency: string;
+    discount: {
+        name: string;
+        code: string | null;
+        isFamily: boolean;
+        endsOn: string | null;
+    } | null;
+    promoCodeNote: string | null;
 };
 
 export type MyPaymentOutputOutput = {
@@ -12140,7 +12497,7 @@ export type CancelEventRegistrationResponses = {
 export type CancelEventRegistrationResponse = CancelEventRegistrationResponses[keyof CancelEventRegistrationResponses];
 
 export type PayEventRegistrationOnlineData = {
-    body?: never;
+    body: PayEventRegistrationOnlineInput;
     path: {
         workspaceId: string;
         registrationId: string;
@@ -12784,6 +13141,9 @@ export type PaymentsData = {
         kind?: 'all' | 'payment' | 'refund';
         markedById?: string;
         q?: string;
+        discounted?: boolean;
+        discountId?: string;
+        pricedById?: string;
     };
     url: '/workspaces/{workspaceId}/exports/payments.csv';
 };
@@ -14229,6 +14589,9 @@ export type ListPaymentJournalData = {
         kind?: 'all' | 'payment' | 'refund';
         markedById?: string;
         q?: string;
+        discounted?: boolean;
+        discountId?: string;
+        pricedById?: string;
         curPage?: number;
         perPage?: number;
     };
@@ -14307,6 +14670,90 @@ export type DeleteRefundResponses = {
 
 export type DeleteRefundResponse = DeleteRefundResponses[keyof DeleteRefundResponses];
 
+export type ListDiscountsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        archived?: boolean;
+        from?: string;
+        to?: string;
+    };
+    url: '/workspaces/{workspaceId}/discounts';
+};
+
+export type ListDiscountsResponses = {
+    default: ListDiscountsOutputOutput;
+};
+
+export type ListDiscountsResponse = ListDiscountsResponses[keyof ListDiscountsResponses];
+
+export type CreateDiscountData = {
+    body: CreateDiscountInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/discounts';
+};
+
+export type CreateDiscountResponses = {
+    default: DiscountOutputOutput;
+};
+
+export type CreateDiscountResponse = CreateDiscountResponses[keyof CreateDiscountResponses];
+
+export type DeleteDiscountData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        discountId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/discounts/{discountId}';
+};
+
+export type DeleteDiscountResponses = {
+    default: DeleteDiscountOutputOutput;
+};
+
+export type DeleteDiscountResponse = DeleteDiscountResponses[keyof DeleteDiscountResponses];
+
+export type UpdateDiscountData = {
+    body: UpdateDiscountInput;
+    path: {
+        workspaceId: string;
+        discountId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/discounts/{discountId}';
+};
+
+export type UpdateDiscountResponses = {
+    default: UpdateDiscountOutputOutput;
+};
+
+export type UpdateDiscountResponse = UpdateDiscountResponses[keyof UpdateDiscountResponses];
+
+export type ListSaleDiscountsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: {
+        eventId?: string;
+    };
+    url: '/workspaces/{workspaceId}/members/{userId}/sale-discounts';
+};
+
+export type ListSaleDiscountsResponses = {
+    default: ListSaleDiscountsOutputOutput;
+};
+
+export type ListSaleDiscountsResponse = ListSaleDiscountsResponses[keyof ListSaleDiscountsResponses];
+
 export type GetOnlinePurchaseOptionsData = {
     body?: never;
     path: {
@@ -14321,6 +14768,25 @@ export type GetOnlinePurchaseOptionsResponses = {
 };
 
 export type GetOnlinePurchaseOptionsResponse = GetOnlinePurchaseOptionsResponses[keyof GetOnlinePurchaseOptionsResponses];
+
+export type GetCheckoutQuoteData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        planId?: string;
+        registrationId?: string;
+        promoCode?: string;
+    };
+    url: '/workspaces/{workspaceId}/me/checkout-quote';
+};
+
+export type GetCheckoutQuoteResponses = {
+    default: CheckoutQuoteOutputOutput;
+};
+
+export type GetCheckoutQuoteResponse = GetCheckoutQuoteResponses[keyof GetCheckoutQuoteResponses];
 
 export type GetMyPaymentData = {
     body?: never;

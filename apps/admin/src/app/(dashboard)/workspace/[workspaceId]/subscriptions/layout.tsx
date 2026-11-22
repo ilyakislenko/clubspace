@@ -6,8 +6,9 @@ import { ClubAdminGate } from "../../../../../shared/workspace/access-gate"
 import { SectionTabs } from "../../../../../shared/workspace/section-tabs"
 import { subscriptionTabs } from "../sections"
 
-// «Абонементы» (tariffs, the tariff pages, the payments journal) is the club
-// admins'. The title and tabs sit over the two lists, not over a tariff page.
+// «Абонементы» (tariffs, the tariff pages, discounts, the payments journal)
+// is the club admins'. The title and tabs sit over the three lists, not over
+// a tariff page.
 export default function SubscriptionsLayout({
   children,
 }: {
@@ -16,6 +17,7 @@ export default function SubscriptionsLayout({
   const pathname = usePathname()
   const onList =
     pathname?.endsWith("/subscriptions") ||
+    pathname?.endsWith("/subscriptions/discounts") ||
     pathname?.endsWith("/subscriptions/payments")
   return (
     <ClubAdminGate>

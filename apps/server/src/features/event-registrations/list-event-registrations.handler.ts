@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { loadPricedByNames } from '../../domains/discounts/priced-by'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
@@ -66,6 +67,7 @@ export class ListEventRegistrationsHandler
                         (o.status !== 'CANCELLED' || o.isPaid || o.createdAt > r.createdAt),
                 ),
         )
+        const pricedBy = await loadPricedByNames(this.prisma, listed)
         return {
             eventId: event.id,
             capacity: event.capacity,
@@ -78,7 +80,7 @@ export class ListEventRegistrationsHandler
                 count: paid.length,
                 amount: paid.reduce((sum, r) => sum + (r.amountPaid ?? 0) - r.refundedAmount, 0),
             },
-            data: listed.map((r) => serializeRegistrant(r, positions.get(r.id) ?? null)),
+            data: listed.map((r) => serializeRegistrant(r, positions.get(r.id) ?? null, pricedBy)),
         }
     }
 }

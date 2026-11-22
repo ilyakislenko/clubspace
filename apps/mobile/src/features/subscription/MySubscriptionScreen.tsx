@@ -34,6 +34,7 @@ import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
 import { OnlinePurchaseSection } from "../payments/OnlinePurchaseSection"
+import { memberDiscountText } from "../payments/payment-helpers"
 import { AbonementScopeChips, hasScoped } from "./AbonementScopeChips"
 import { FreezeRequestSection } from "./FreezeRequestSection"
 import {
@@ -243,6 +244,8 @@ function AbonementCard({
   const vocabulary = useVocabulary()
   const freezeText = freezeLine(a.freeze)
   const payment = paymentLine(a)
+  // An old cache (before discounts) has no `discountName`.
+  const discount = memberDiscountText({ discountName: a.discountName ?? null })
   return (
     <View style={styles.card}>
       <Text style={styles.planName}>{a.planName}</Text>
@@ -269,7 +272,7 @@ function AbonementCard({
       <Text
         style={[styles.meta, { color: toneColor(theme.colors, payment.tone) }]}
       >
-        {payment.text}
+        {discount ? `${payment.text} · ${discount}` : payment.text}
       </Text>
       {a.isPaid === false && (
         <Text style={styles.meta}>

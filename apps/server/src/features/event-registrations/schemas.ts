@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { saleDiscount } from '../../domains/discounts/discount-rules'
+import { type PricedByNames, pricedByRef } from '../../domains/discounts/priced-by'
 import {
     PaymentMethodSchema,
     type PaymentMethodValue,
@@ -66,6 +68,17 @@ export const EventRegistrantSchema = z.object({
     // Σ of this ticket's refunds; amountPaid stays what was taken.
     refundedAmount: z.number().int(),
     paymentMethod: PaymentMethodSchema.nullable(),
+    // The price facts of a paid ticket (docs/design/2026-11-15-discounts.md
+    // §1): the event's price when marked (null: marked before discounts
+    // existed), the named discount (name snapshot, its part) and the derived
+    // one-off reduction (listPrice − discount − amount, ≥ 0).
+    listPrice: z.number().int().nullable(),
+    discountId: z.string().uuid().nullable(),
+    discountName: z.string().nullable(),
+    discountAmount: z.number().int(),
+    oneOffDiscount: z.number().int(),
+    // Who set the amount (staff marking it); null online / unpaid.
+    pricedBy: z.object({ userId: z.string().uuid(), name: z.string() }).nullable(),
     promotedAt: z.iso.datetime().nullable(),
     cancelledAt: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),
@@ -84,6 +97,11 @@ export type RegistrationRow = {
     currency: string | null
     paymentMethod: PaymentMethodValue | null
     refundedAmount: number
+    listPrice: number | null
+    discountId: string | null
+    discountName: string | null
+    discountAmount: number
+    pricedById: string | null
     promotedAt: Date | null
     cancelledAt: Date | null
     createdAt: Date
@@ -141,6 +159,8 @@ export const serializeRegistrant = (
         }
     },
     waitlistPosition: number | null,
+    // Names of the staff who priced the rows (loadPricedByNames).
+    pricedByNames?: PricedByNames,
 ): EventRegistrant => ({
     id: r.id,
     userId: r.userId,
@@ -158,6 +178,12 @@ export const serializeRegistrant = (
     currency: r.currency,
     refundedAmount: r.refundedAmount,
     paymentMethod: r.paymentMethod,
+    listPrice: r.listPrice,
+    discountId: r.discountId,
+    discountName: r.discountName,
+    discountAmount: r.discountAmount,
+    oneOffDiscount: saleDiscount(r).oneOff,
+    pricedBy: pricedByRef(r.pricedById, pricedByNames),
     promotedAt: r.promotedAt?.toISOString() ?? null,
     cancelledAt: r.cancelledAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),

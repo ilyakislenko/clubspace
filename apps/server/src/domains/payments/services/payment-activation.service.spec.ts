@@ -14,6 +14,10 @@ const paymentRow = (over: Record<string, unknown> = {}) => ({
     amount: 4500,
     currency: 'RUB',
     status: 'PENDING',
+    listPrice: 4500,
+    discountId: null,
+    discountName: null,
+    discountAmount: 0,
     ...over,
 })
 
@@ -115,6 +119,11 @@ describe('PaymentActivationService.applyProviderStatus', () => {
             startDate: undefined,
             now,
             amountPaid: 4500,
+            listPrice: 4500,
+            discountId: null,
+            discountName: null,
+            discountAmount: 0,
+            pricedById: null,
             paid: true,
             source: 'GATEWAY',
             provider: 'yookassa',
@@ -135,6 +144,41 @@ describe('PaymentActivationService.applyProviderStatus', () => {
             kind: 'payment.succeeded',
             refId: 'pay-1',
             topic: 'Оплата прошла',
+        })
+    })
+
+    // The member paid the quoted price within the pending window: the sale
+    // takes the checkout's price facts, and nothing is re-checked (an
+    // exhausted or archived discount still activates — no discount is read).
+    it('copies the checkout’s discount onto the abonement without re-checking it', async () => {
+        const s = setup({
+            payment: paymentRow({
+                amount: 4275,
+                listPrice: 4500,
+                discountId: 'd-1',
+                discountName: 'Продление −5%',
+                discountAmount: 225,
+            }),
+        })
+        const out = await s.service.applyProviderStatus({
+            workspaceId: 'ws-1',
+            gateway: gateway({ amountMinor: 427500 }),
+            now,
+        })
+        expect(out).toBe('activated')
+        expect(s.subscriptions.grantFromPlanInTx.mock.calls[0][1]).toMatchObject({
+            amountPaid: 4275,
+            listPrice: 4500,
+            discountId: 'd-1',
+            discountName: 'Продление −5%',
+            discountAmount: 225,
+            pricedById: null,
+        })
+        expect(s.audit.record.mock.calls[0][0].metadata).toMatchObject({
+            amount: 4275,
+            listPrice: 4500,
+            discountName: 'Продление −5%',
+            discountAmount: 225,
         })
     })
 

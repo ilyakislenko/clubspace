@@ -1,4 +1,5 @@
 import { BadRequestError } from '../../../shared/errors/shared.errors'
+import { priceStaffSale } from '../../discounts/discounts'
 import { syncFirstVisitStartInTx } from '../first-visit-start'
 import { SubscriptionService } from './subscription.service'
 
@@ -6,8 +7,15 @@ jest.mock('../first-visit-start', () => ({
     ...jest.requireActual('../first-visit-start'),
     syncFirstVisitStartInTx: jest.fn().mockResolvedValue('unchanged'),
 }))
+jest.mock('../../discounts/discounts', () => ({
+    ...jest.requireActual('../../discounts/discounts'),
+    priceStaffSale: jest.fn(),
+}))
 
-beforeEach(() => (syncFirstVisitStartInTx as jest.Mock).mockClear())
+beforeEach(() => {
+    ;(syncFirstVisitStartInTx as jest.Mock).mockClear()
+    ;(priceStaffSale as jest.Mock).mockReset()
+})
 
 const makeTx = () => ({
     plan: { findFirst: jest.fn() },
@@ -49,6 +57,7 @@ describe('grantFromPlan', () => {
             workspaceMemberId: 'm1',
             planId: 'p1',
             startDate: new Date('2026-07-01T00:00:00Z'),
+            amountPaid: 5000,
         })
         const data = tx.subscription.create.mock.calls[0][0].data
         expect(data.endDate.toISOString()).toBe('2026-07-31T00:00:00.000Z')
@@ -60,6 +69,52 @@ describe('grantFromPlan', () => {
             data: { accessUntil: data.endDate },
         })
         expect(res.accessUntil.toISOString()).toBe('2026-07-31T00:00:00.000Z')
+    })
+
+    it('stores the price facts the caller priced', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null, subscriptions: [] })
+        await svcWith(tx).grantFromPlan({
+            workspaceId: 'w1',
+            workspaceMemberId: 'm1',
+            planId: 'p1',
+            startDate: new Date('2026-07-01T00:00:00Z'),
+            amountPaid: 3500,
+            listPrice: 5000,
+            discountId: 'd1',
+            discountName: 'Студенческая',
+            discountAmount: 750,
+            pricedById: 'coach-1',
+        })
+        expect(tx.subscription.create.mock.calls[0][0].data).toMatchObject({
+            amountPaid: 3500,
+            listPrice: 5000,
+            discountId: 'd1',
+            discountName: 'Студенческая',
+            discountAmount: 750,
+            pricedById: 'coach-1',
+        })
+    })
+
+    it('records no price facts when the caller has none (an import)', async () => {
+        const tx = makeTx()
+        tx.plan.findFirst.mockResolvedValue(plan)
+        tx.workspaceMember.findFirst.mockResolvedValue({ id: 'm1', accessUntil: null, subscriptions: [] })
+        await svcWith(tx).grantFromPlan({
+            workspaceId: 'w1',
+            workspaceMemberId: 'm1',
+            planId: 'p1',
+            amountPaid: 4000,
+        })
+        expect(tx.subscription.create.mock.calls[0][0].data).toMatchObject({
+            amountPaid: 4000,
+            listPrice: null,
+            discountId: null,
+            discountName: null,
+            discountAmount: 0,
+            pricedById: null,
+        })
     })
 
     it('records a sale as paid by default and stamps paidAt', async () => {
@@ -140,6 +195,7 @@ describe('grantFromPlan', () => {
             planId: 'p1',
             startDate: new Date('2026-07-01T00:00:00Z'),
             paid: false,
+            amountPaid: 5000,
         })
         const data = tx.subscription.create.mock.calls[0][0].data
         expect(data.isPaid).toBe(false)
@@ -800,6 +856,98 @@ describe('markPaid', () => {
         ...over,
     })
     const params = { workspaceId: 'w1', userId: 'u1', subscriptionId: 's1', markedById: 'staff-1', now }
+
+    describe('price facts', () => {
+        const priced = (over: Record<string, unknown> = {}) =>
+            unpaid({
+                planId: 'p1',
+                currency: 'RUB',
+                listPrice: 5000,
+                discountId: null,
+                pricedById: 'seller-1',
+                ...over,
+            })
+
+        it('a plain confirm keeps the seller as who priced it', async () => {
+            const tx = makeTx()
+            tx.subscription.findFirst.mockResolvedValue(priced({ amountPaid: 4000 }))
+            tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1' })
+            await svcWith(tx).markPaid(params)
+            const data = tx.subscription.updateMany.mock.calls[0][0].data
+            expect(data.amountPaid).toBe(4000)
+            expect(data.pricedById).toBe('seller-1')
+            expect(data).not.toHaveProperty('discountId')
+        })
+
+        it('a changed amount makes the marker who priced it (a one-off discount)', async () => {
+            const tx = makeTx()
+            tx.subscription.findFirst.mockResolvedValue(priced())
+            tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1' })
+            await svcWith(tx).markPaid({ ...params, amount: 4500 })
+            const data = tx.subscription.updateMany.mock.calls[0][0].data
+            expect(data.amountPaid).toBe(4500)
+            expect(data.pricedById).toBe('staff-1')
+        })
+
+        it('applies a discount from the list price, in the same transaction', async () => {
+            const tx = makeTx()
+            tx.subscription.findFirst.mockResolvedValue(priced())
+            tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1' })
+            ;(priceStaffSale as jest.Mock).mockResolvedValue({
+                amount: 4250,
+                discountAmount: 750,
+                discountId: 'd1',
+                discountName: 'Студенческая',
+            })
+            await svcWith(tx).markPaid({ ...params, discountId: 'd1' })
+            expect(priceStaffSale).toHaveBeenCalledWith(tx, {
+                workspaceId: 'w1',
+                discountId: 'd1',
+                userId: 'u1',
+                item: { planId: 'p1', eventId: null, listPrice: 5000, currency: 'RUB' },
+                now,
+                timezone: 'Asia/Tomsk',
+            })
+            expect(tx.subscription.updateMany.mock.calls[0][0].data).toMatchObject({
+                amountPaid: 4250,
+                discountId: 'd1',
+                discountName: 'Студенческая',
+                discountAmount: 750,
+                pricedById: 'staff-1',
+            })
+        })
+
+        it('a typed amount wins over the discounted price', async () => {
+            const tx = makeTx()
+            tx.subscription.findFirst.mockResolvedValue(priced())
+            tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1' })
+            ;(priceStaffSale as jest.Mock).mockResolvedValue({
+                amount: 4250,
+                discountAmount: 750,
+                discountId: 'd1',
+                discountName: 'Студенческая',
+            })
+            await svcWith(tx).markPaid({ ...params, discountId: 'd1', amount: 4000 })
+            expect(tx.subscription.updateMany.mock.calls[0][0].data).toMatchObject({
+                amountPaid: 4000,
+                discountAmount: 750,
+            })
+        })
+
+        it('refuses a discount on a sale that has one, or has no list price', async () => {
+            const tx = makeTx()
+            tx.subscription.findFirst.mockResolvedValueOnce(priced({ discountId: 'd0' }))
+            await expect(svcWith(tx).markPaid({ ...params, discountId: 'd1' })).rejects.toThrow(
+                'Скидку можно выбрать при оформлении абонемента',
+            )
+            tx.subscription.findFirst.mockResolvedValueOnce(priced({ listPrice: null }))
+            await expect(svcWith(tx).markPaid({ ...params, discountId: 'd1' })).rejects.toThrow(
+                'У этой продажи не записана цена тарифа',
+            )
+            expect(priceStaffSale).not.toHaveBeenCalled()
+            expect(tx.subscription.updateMany).not.toHaveBeenCalled()
+        })
+    })
 
     it('looks the abonement up by workspace and member user', async () => {
         const tx = makeTx()

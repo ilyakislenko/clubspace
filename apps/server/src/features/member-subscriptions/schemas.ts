@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { saleDiscount } from '../../domains/discounts/discount-rules'
+import { type PricedByNames, pricedByRef } from '../../domains/discounts/priced-by'
 import {
     PaymentMethodSchema,
     type PaymentMethodValue,
@@ -29,6 +31,19 @@ export const SubscriptionOutputSchema = z.object({
     currency: z.string(),
     // Σ of this abonement's refunds; amountPaid stays what was received.
     refundedAmount: z.number().int(),
+    // The price facts of the sale (docs/design/2026-11-15-discounts.md §1):
+    // the tariff price at sale (null: sold before discounts existed,
+    // imported), the named discount (name snapshot, its part fixed at sale)
+    // and the derived one-off reduction (listPrice − discount − amount, ≥ 0).
+    listPrice: z.number().int().nullable(),
+    discountId: z.string().uuid().nullable(),
+    discountName: z.string().nullable(),
+    discountAmount: z.number().int(),
+    oneOffDiscount: z.number().int(),
+    // Who set the amount (the seller, or whoever changed it when marking it
+    // paid). Staff reads only (listMemberSubscriptions); null elsewhere and
+    // for online / imported sales.
+    pricedBy: z.object({ userId: z.string().uuid(), name: z.string() }).nullable(),
     // false = sold, payment not marked yet («Ожидает оплаты»).
     isPaid: z.boolean(),
     // When the payment was marked; null while unpaid and on rows from before
@@ -114,27 +129,37 @@ export const EndSubscriptionFreezeOutputSchema = z.object({
     accessUntil: z.iso.datetime().nullable(),
 })
 
-export const serializeSubscription = (s: {
-    id: string
-    planId: string
-    plan?: { name: string } | null
-    status: string
-    startDate: Date | null
-    endDate: Date | null
-    durationDays: number | null
-    startsOnFirstVisit: boolean
-    amountPaid: number
-    currency: string
-    refundedAmount: number
-    isPaid: boolean
-    paidAt: Date | null
-    paymentMethod: PaymentMethodValue | null
-    classesTotal: number | null
-    classesRemaining: number | null
-    source: string
-    createdAt: Date
-    directions: ReadonlyArray<{ direction: DirectionRef }>
-}): SubscriptionOutput => ({
+// `pricedByNames` (staff reads): names of the staff who priced the rows; the
+// member's own read omits it, so pricedBy stays null there.
+export const serializeSubscription = (
+    s: {
+        id: string
+        planId: string
+        plan?: { name: string } | null
+        status: string
+        startDate: Date | null
+        endDate: Date | null
+        durationDays: number | null
+        startsOnFirstVisit: boolean
+        amountPaid: number
+        currency: string
+        refundedAmount: number
+        listPrice: number | null
+        discountId: string | null
+        discountName: string | null
+        discountAmount: number
+        pricedById: string | null
+        isPaid: boolean
+        paidAt: Date | null
+        paymentMethod: PaymentMethodValue | null
+        classesTotal: number | null
+        classesRemaining: number | null
+        source: string
+        createdAt: Date
+        directions: ReadonlyArray<{ direction: DirectionRef }>
+    },
+    pricedByNames?: PricedByNames,
+): SubscriptionOutput => ({
     id: s.id,
     planId: s.planId,
     planName: s.plan?.name ?? '—',
@@ -146,6 +171,12 @@ export const serializeSubscription = (s: {
     amountPaid: s.amountPaid,
     currency: s.currency,
     refundedAmount: s.refundedAmount,
+    listPrice: s.listPrice,
+    discountId: s.discountId,
+    discountName: s.discountName,
+    discountAmount: s.discountAmount,
+    oneOffDiscount: saleDiscount(s).oneOff,
+    pricedBy: pricedByRef(s.pricedById, pricedByNames),
     isPaid: s.isPaid,
     paidAt: s.paidAt ? s.paidAt.toISOString() : null,
     // A checkout sale from before the method was stored is still ONLINE.

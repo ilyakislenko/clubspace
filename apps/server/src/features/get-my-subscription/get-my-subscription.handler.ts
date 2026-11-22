@@ -124,7 +124,7 @@ export class GetMySubscriptionHandler
 
         return {
             abonements,
-            history: subs.map(serializeSubscription),
+            history: subs.map((s) => serializeSubscription(s)),
             accessUntil: member.accessUntil
                 ? member.accessUntil.toISOString()
                 : null,

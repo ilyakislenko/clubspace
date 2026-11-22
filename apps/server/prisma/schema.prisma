@@ -252,6 +252,7 @@ model Workspace {
   paymentSettings WorkspacePaymentSettings?
   payments        Payment[]
   refunds                Refund[]
+  discounts              Discount[]
 
   invitations WorkspaceInvitation[]
 
@@ -1035,6 +1036,17 @@ model EventRegistration {
   paymentMethod  PaymentMethod?
   // Display only, survives the actor's removal.
   markedPaidById String?             @db.Uuid
+  // The price facts of the sale (docs/design/2026-11-15-discounts.md §1):
+  // the event's price when marked, before any discount (null: marked before
+  // discounts existed); the named discount (Restrict: a used discount is
+  // archived, never deleted), its name snapshot and its part; who set the
+  // amount (staff marking it; null online). Display only, no FK.
+  listPrice      Int?
+  discountId     String?             @db.Uuid
+  discount       Discount?           @relation(fields: [discountId], references: [id], onDelete: Restrict)
+  discountName   String?             @db.VarChar(100)
+  discountAmount Int                 @default(0)
+  pricedById     String?             @db.Uuid
   // Σ of this ticket's Refund rows, written in the refund's transaction. A
   // refund never edits the paid fields above; revenue subtracts refunds.
   refundedAmount Int            @default(0)
@@ -1050,6 +1062,8 @@ model EventRegistration {
   @@index([eventId, status, createdAt])
   @@index([workspaceId, userId, createdAt])
   @@index([workspaceId, isPaid, paidAt])
+  @@index([discountId])
+  @@index([workspaceId, pricedById])
 }
 
 // Junction: students assigned to a group. A student can be in several
@@ -1986,6 +2000,22 @@ model Subscription {
   // rows the backfill could not attribute
   // (apps/server/scripts/backfill-payment-journal.sql).
   markedPaidById String? @db.Uuid
+  // Tariff price at sale, before any discount (docs/design/2026-11-15-discounts.md
+  // §1). null: sold before discounts existed, imported. The total discount of a
+  // sale is max(0, listPrice − amountPaid): the named part is discountAmount,
+  // the rest a one-off reduction typed by whoever priced it — derived, never stored.
+  listPrice      Int?
+  // The named discount applied (Restrict: a used discount is archived, never deleted).
+  discountId     String?   @db.Uuid
+  discount       Discount? @relation(fields: [discountId], references: [id], onDelete: Restrict)
+  // Snapshot: a later rename never rewrites history.
+  discountName   String?   @db.VarChar(100)
+  // The named discount's part, fixed at sale.
+  discountAmount Int       @default(0)
+  // Who set the agreed amount: the seller; replaced by whoever changes the
+  // amount or applies a discount at mark-paid. Display only, no FK (like
+  // markedPaidById). null: online, imported, sold before discounts existed.
+  pricedById     String?   @db.Uuid
   // Σ of this abonement's Refund rows, written in the refund's transaction
   // (bounded increment ≤ amountPaid). A refund never edits the paid fields;
   // revenue subtracts refunds by refund date, mrr uses amountPaid − this.
@@ -2056,6 +2086,8 @@ model Subscription {
   @@index([workspaceId, status, isPaid, startDate])
   // «Платежи» journal + revenue window reads (paid rows by payment date).
   @@index([workspaceId, isPaid, paidAt])
+  @@index([discountId])
+  @@index([workspaceId, pricedById])
 }
 
 // A pause of an abonement's clock ("заморозка"), e.g. while a member is injured.
@@ -2148,6 +2180,7 @@ model Plan {
   subscriptions Subscription[]
   courseAudiences CourseAudience[]
   payments      Payment[]
+  discountPlans DiscountPlan[]
 
   // The edit form's version (optimistic concurrency, admin cleanup F10). The
   // default backfills existing rows on `db push`.
@@ -3389,12 +3422,88 @@ model Payment {
   // E-mail the 54-ФЗ receipt went to (YooKassa); a partial refund's receipt
   // reuses it. null on payments made before it was stored.
   receiptEmail   String?   @db.VarChar(255)
+  // The checkout's price facts, copied onto the sale at activation
+  // (docs/design/2026-11-15-discounts.md §3.3): the list price, the named
+  // discount, its name snapshot and its part. amount is what was charged.
+  listPrice      Int?
+  discountId     String?   @db.Uuid
+  discount       Discount? @relation(fields: [discountId], references: [id], onDelete: Restrict)
+  discountName   String?   @db.VarChar(100)
+  discountAmount Int       @default(0)
   refunds        Refund[]
 
   @@index([workspaceId, createdAt])
   @@index([workspaceId, status, createdAt])
   @@index([userId, workspaceId, createdAt])
   @@index([eventRegistrationId])
+  @@index([discountId])
+}
+
+enum DiscountKind {
+  PERCENT // value 1–100
+  FIXED // value in whole units of `currency`
+}
+
+// A club's price reduction for members (docs/design/2026-11-15-discounts.md).
+// Applied by staff at a sale (any discount), by the member in the app checkout
+// (only one with a `code`), or by itself (`isFamily`: another family member
+// holds a current abonement). Sport-agnostic: scoped to tariffs and to events,
+// never to a discipline's kind.
+model Discount {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  name     String       @db.VarChar(100)
+  kind     DiscountKind
+  value    Int
+  // FIXED only: the currency the sum is in; items in another currency don't qualify.
+  currency String?      @db.Char(3)
+
+  // Promo code, stored upper-case (A–Z, А–Я, 0–9, «-»; 3–32). Set → members may
+  // enter it at checkout; staff may pick it either way. null → staff-only.
+  code     String?      @db.VarChar(32)
+  // Automatic family discount. At most one active per club (handler check).
+  // Never has a code, a use limit or once-per-member.
+  isFamily Boolean      @default(false)
+
+  // Scope: every tariff, or only `plans`; and/or every paid event.
+  allPlans Boolean        @default(true)
+  plans    DiscountPlan[]
+  events   Boolean        @default(false)
+
+  // Club-local days, inclusive; null = open.
+  startsOn DateTime? @db.Date
+  endsOn   DateTime? @db.Date
+  // Uses across the club (domains/discounts/discount-uses.ts); null = unlimited.
+  maxUses       Int?
+  oncePerMember Boolean @default(false)
+
+  // Archive instead of delete once used (sales reference it).
+  isActive    Boolean  @default(true)
+  // Display only, like markedPaidById.
+  createdById String   @db.Uuid
+  createdAt   DateTime @default(now())
+  // The edit form's version (optimistic concurrency).
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  subscriptions      Subscription[]
+  eventRegistrations EventRegistration[]
+  payments           Payment[]
+
+  @@unique([workspaceId, code]) // NULLs don't collide in Postgres
+  @@index([workspaceId, isActive])
+}
+
+// One tariff of a discount's scope (when allPlans = false).
+model DiscountPlan {
+  discountId String   @db.Uuid
+  discount   Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
+  planId     String   @db.Uuid
+  plan       Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@id([discountId, planId])
+  @@index([planId])
 }
 
 // Money returned for one sale (abonement or ticket), or for an online payment

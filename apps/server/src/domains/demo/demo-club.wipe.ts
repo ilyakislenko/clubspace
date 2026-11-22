@@ -9,7 +9,8 @@ import { DEMO_ACCOUNT_EMAILS, type DemoClubIdentity } from './demo-clubs'
 // first: refunds (Restrict to their sale, holder and author — before all of
 // them), rows pointing at the club or its plans/levels/tags with Restrict
 // (subscriptions, journal, favourites, promotions and grading candidates, video
-// tags) and the club's audit trail (no foreign key at all).
+// tags), discounts after the sales naming them (Restrict, including a ticket
+// marked with one during a show) and the club's audit trail (no foreign key).
 export const wipeDemoWorkspace = async (
     tx: PrismaTransactionClientType,
     workspaceId: string,
@@ -21,6 +22,8 @@ export const wipeDemoWorkspace = async (
     await tx.subscriptionFreeze.deleteMany(byClub)
     await tx.payment.deleteMany(byClub)
     await tx.subscription.deleteMany(byClub)
+    await tx.eventRegistration.deleteMany({ where: { workspaceId, discountId: { not: null } } })
+    await tx.discount.deleteMany(byClub)
     await tx.rankGradingCandidate.deleteMany(byClub)
     await tx.rankPromotion.deleteMany(byClub)
     await tx.videoFavorite.deleteMany(byClub)

@@ -50,28 +50,52 @@ export const currencySymbol = (currency: string): string =>
 export const formatAmount = (amount: number, currency: string): string =>
   `${moneyFmt.format(amount)} ${currencySymbol(currency)}`
 
-type PaymentSubscription = {
+// What a sale gave off its list price: the named discount (snapshot) and the
+// one-off part with who set the price. Rows from before discounts have none.
+type DiscountedSale = {
+  discountName: string | null
+  oneOffDiscount: number
+  pricedBy?: { name: string } | null
+  currency: string
+}
+
+// «скидка «Семейная» · разовая скидка 1 000 ₽ · Петров»; null when none.
+export const saleDiscountText = (s: DiscountedSale): string | null => {
+  const parts = [
+    s.discountName ? `скидка «${s.discountName}»` : null,
+    s.oneOffDiscount > 0
+      ? [`разовая скидка ${formatAmount(s.oneOffDiscount, s.currency)}`, s.pricedBy?.name]
+          .filter(Boolean)
+          .join(" · ")
+      : null,
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(" · ") : null
+}
+
+type PaymentSubscription = DiscountedSale & {
   isPaid: boolean
   paidAt: string | null
   paymentMethod: PaymentMethod | null
   amountPaid: number
   // Σ of the sale's refunds (0 = none).
   refundedAmount: number
-  currency: string
 }
 
-// «Оплачено 5 000 ₽ · Наличные · 22.10.2026 · возвращено 1 000 ₽» /
-// «Ожидает оплаты: 5 000 ₽». A payment whose method was not recorded (before
-// it was, or imported) skips it; rows from before payment tracking have no
-// payment date, so the date part is dropped too.
+// «Оплачено 5 000 ₽ · Наличные · 22.10.2026 · возвращено 1 000 ₽ · скидка
+// «Семейная»» / «Ожидает оплаты: 5 000 ₽ · разовая скидка 500 ₽ · Петров». A
+// payment whose method was not recorded (before it was, or imported) skips
+// it; rows from before payment tracking have no payment date, so the date
+// part is dropped too.
 export const paymentLabel = (s: PaymentSubscription): string => {
   const amount = formatAmount(s.amountPaid, s.currency)
-  if (!s.isPaid) return `Ожидает оплаты: ${amount}`
+  const discount = saleDiscountText(s)
+  if (!s.isPaid) return [`Ожидает оплаты: ${amount}`, discount].filter(Boolean).join(" · ")
   return [
     `Оплачено ${amount}`,
     s.paymentMethod ? PAYMENT_METHOD_LABEL[s.paymentMethod] : null,
     s.paidAt ? fmtDate(s.paidAt) : null,
     s.refundedAmount > 0 ? `возвращено ${formatAmount(s.refundedAmount, s.currency)}` : null,
+    discount,
   ]
     .filter(Boolean)
     .join(" · ")

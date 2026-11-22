@@ -3,34 +3,33 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@clubspace/ui-kit/ui"
+import { Button } from "@clubspace/ui-kit/ui"
 
+import { listSaleDiscounts } from "../../shared/api/discounts"
 import {
   listEventRegistrations,
   markEventRegistrationPaid,
   unmarkEventRegistrationPaid,
-  type EventPaymentMethod,
   type EventRegistrant,
   type EventRegistrations,
 } from "../../shared/api/events"
+import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { isClubAdmin } from "../../shared/lib/permissions"
 import { useMyMembership } from "../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../shared/realtime/useWorkspaceRealtime"
 import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import {
-  CLUB_PAYMENT_METHODS,
-  PAYMENT_METHOD_LABEL,
-} from "../subscriptions/payment-method"
+  discountChoices,
+  preselectedChoice,
+  type DiscountChoice,
+} from "../discounts/discount-view"
+import { MarkPaidForm } from "../subscriptions/MarkPaidForm"
+import { PAYMENT_METHOD_LABEL, type ClubPaymentMethod } from "../subscriptions/payment-method"
 import {
   canUndoPaymentMark,
   formatAmount,
+  saleDiscountText,
   ticketEntryHref,
 } from "../subscriptions/subscription-display"
 
@@ -59,6 +58,10 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
   const [data, setData] = useState<EventRegistrations | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  // The ticket whose «Отметить оплату» form is open, and its «Скидка»
+  // choices (null while they load).
+  const [payingId, setPayingId] = useState<string | null>(null)
+  const [payChoices, setPayChoices] = useState<DiscountChoice[] | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -74,23 +77,51 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
 
   useWorkspaceRealtime(workspaceId, ["eventregistrations"], () => void refresh())
 
-  const act = async (r: EventRegistrant, run: () => Promise<unknown>) => {
+  // True once saved; a refusal shows above the list.
+  const act = async (r: EventRegistrant, run: () => Promise<unknown>): Promise<boolean> => {
     setBusyId(r.id)
     setError(null)
     try {
       await run()
       await refresh()
+      return true
     } catch (err) {
       setError(errorMessage(err, "Не удалось сохранить оплату"))
+      return false
     } finally {
       setBusyId(null)
     }
   }
 
-  const markPaid = (r: EventRegistrant, method: EventPaymentMethod) =>
-    act(r, () =>
-      markEventRegistrationPaid({ workspaceId, registrationId: r.id, method }),
+  // The form opens once the discounts for this member and event are in; a
+  // member the viewer may not sell to gets the form without them.
+  const openPay = (r: EventRegistrant) => {
+    setPayingId(r.id)
+    setPayChoices(null)
+    void listSaleDiscounts({ workspaceId, userId: r.userId, eventId })
+      .then((res) => discountChoices(res.options, { eventId }))
+      .catch(() => [])
+      .then(setPayChoices)
+  }
+  const markPaid = async (
+    r: EventRegistrant,
+    amount: number | null,
+    method: ClubPaymentMethod,
+    discountId: string | null,
+  ) => {
+    const saved = await act(r, () =>
+      markEventRegistrationPaid({
+        workspaceId,
+        registrationId: r.id,
+        data: {
+          method,
+          ...(amount !== null ? { amount } : {}),
+          ...(discountId ? { discountId } : {}),
+        },
+      }),
     )
+    if (saved) setPayingId(null)
+  }
   const unmark = async (r: EventRegistrant) => {
     if (
       !(await confirmDialog({
@@ -189,6 +220,14 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
                         возвращено {formatAmount(r.refundedAmount, r.currency)}
                       </span>
                     )}
+                    {(() => {
+                      const discount = saleDiscountText({ ...r, currency: r.currency ?? data.currency })
+                      return discount ? (
+                        <span className="text-xs text-muted-foreground">
+                          {discount.charAt(0).toUpperCase() + discount.slice(1)}
+                        </span>
+                      ) : null
+                    })()}
                     {r.status === "CANCELLED" &&
                       (r.amountPaid === null || r.refundedAmount < r.amountPaid) &&
                       (canRefund ? (
@@ -227,31 +266,39 @@ export function EventRegistrationsPanel({ workspaceId, eventId, canUnmark }: Pro
                       )
                     )}
                   </div>
-                ) : r.status === "BOOKED" ? (
+                ) : r.status === "BOOKED" && payingId !== r.id ? (
                   // Payment is taken for a place: the waitlist pays once moved up.
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={busyId === r.id}
-                      >
-                        Отметить оплату
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {CLUB_PAYMENT_METHODS.map((m) => (
-                        <DropdownMenuItem
-                          key={m}
-                          onSelect={() => void markPaid(r, m)}
-                        >
-                          {PAYMENT_METHOD_LABEL[m]}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={busyId === r.id || payingId !== null}
+                    onClick={() => openPay(r)}
+                  >
+                    Отметить оплату
+                  </Button>
                 ) : null)}
+              {paid && data.price !== null && payingId === r.id && !r.isPaid && (
+                <div className="basis-full">
+                  {payChoices === null ? (
+                    <div className="h-24 animate-pulse rounded-md bg-muted" />
+                  ) : (
+                    <MarkPaidForm
+                      amount={data.price}
+                      currency={data.currency}
+                      basePrice={data.price}
+                      choices={payChoices}
+                      preselect={preselectedChoice(payChoices)}
+                      limit={FORM_LIMITS.payment.ticketAmount}
+                      busy={busyId === r.id}
+                      onSubmit={(amount, method, discountId) =>
+                        void markPaid(r, amount, method, discountId)
+                      }
+                      onCancel={() => setPayingId(null)}
+                    />
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>

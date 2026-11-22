@@ -9,6 +9,7 @@ export type MyPayment = ApiTypes.MyPaymentOutputOutput
 export type PaymentStatus = MyPayment["status"]
 export type CreatePaymentInput = ApiTypes.CreatePaymentInput
 export type CreatePaymentResult = ApiTypes.CreatePaymentOutputOutput
+export type CheckoutQuote = ApiTypes.CheckoutQuoteOutputOutput
 
 // What the «Оплатить онлайн» block shows: the club's online tariffs, why
 // buying is impossible right now, and the member's latest still-pending
@@ -21,9 +22,32 @@ export const getOnlinePurchaseOptions = async (params: {
     url: `/workspaces/${params.workspaceId}/me/online-purchase`,
   })
 
+// What the member pays for one tariff (`planId`) or one held event place
+// (`registrationId`) — exactly one — with the family discount applied and an
+// optional promo code. A code that changes nothing comes back as
+// `promoCodeNote` (why), never as an error. Throttled server-side (20 a
+// minute per member).
+export const getCheckoutQuote = async (params: {
+  workspaceId: string
+  planId?: string
+  registrationId?: string
+  promoCode?: string
+}): Promise<CheckoutQuote> =>
+  await getApiClient().request<CheckoutQuote>({
+    method: "get",
+    url: `/workspaces/${params.workspaceId}/me/checkout-quote`,
+    params: {
+      planId: params.planId,
+      registrationId: params.registrationId,
+      promoCode: params.promoCode,
+    },
+  })
+
 // Starts an online payment for a tariff; the app opens `confirmationUrl`, the
-// provider's page. A repeated tap within a while returns the same payment.
-// Never queued offline: the member must see a refusal now.
+// provider's page. The server charges the quoted price: a `promoCode` it can't
+// use is refused with the reason, never charged at the full price. A repeated
+// tap within a while returns the same payment (a new one when the price
+// changed). Never queued offline: the member must see a refusal now.
 export const createPayment = async (params: {
   workspaceId: string
   data: CreatePaymentInput

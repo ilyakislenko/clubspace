@@ -98,6 +98,14 @@ describe('writeDemoClubPlan', () => {
         }
     })
 
+    it('writes the discounts before the sales that name them', async () => {
+        const { tx, model, calls } = buildTx()
+        await run(tx)
+        expect(model('discount').createMany).toHaveBeenCalledWith({ data: plan.discounts })
+        expect(calls.indexOf('discount.createMany')).toBeLessThan(calls.indexOf('subscription.createMany'))
+        expect(calls.indexOf('discount.createMany')).toBeLessThan(calls.indexOf('eventRegistration.createMany'))
+    })
+
     it('freezes through the freeze service and recomputes the last visit', async () => {
         const { tx, $executeRaw } = buildTx()
         const freezes = await run(tx)

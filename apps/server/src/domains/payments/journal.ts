@@ -16,6 +16,7 @@ import { localDayRange } from '../../shared/utils/local-day-range'
 import type { PaymentMethodValue } from '../../shared/utils/payment-method'
 import type { AnalyticsScope } from '../analytics/analytics-reports'
 import { analyticsScopeMemberWhere } from '../analytics/analytics-scope'
+import { saleDiscount } from '../discounts/discount-rules'
 import { DAY_MS } from '../subscriptions/freeze-dates'
 import { userSearchWhere } from '../users/user-search'
 import {
@@ -56,6 +57,13 @@ export type JournalFilter = {
     scope?: AnalyticsScope
     // Search on the holder (domains/users/user-search).
     q?: string
+    // «Со скидкой»: sales with a total discount > 0 (named or one-off,
+    // docs/design/2026-11-15-discounts.md §1); one discount; whose price that
+    // staff member set (pricedById). Refunds carry none, so any of the three
+    // leaves them out.
+    discounted?: boolean
+    discountId?: string
+    pricedById?: string
 }
 
 // The period a view covers. No dates = the `revenue_30d` window (from
@@ -96,9 +104,22 @@ const methodWhere = (method: JournalMethod | undefined) =>
 const scoped = (f: JournalFilter): f is JournalFilter & { scope: AnalyticsScope } =>
     !!f.scope && f.scope.groupIds !== null
 
+// The sale's discount filters (JournalFilter.discounted / discountId /
+// pricedById). «Со скидкой» = amountPaid below the recorded list price,
+// compared in the database through the client's field reference.
+const discountWhere = <Model>(f: JournalFilter, listPrice: Prisma.FieldRef<Model, 'Int'>) => ({
+    ...(f.discounted ? { listPrice: { not: null }, amountPaid: { lt: listPrice } } : {}),
+    ...(f.discountId ? { discountId: f.discountId } : {}),
+    ...(f.pricedById ? { pricedById: f.pricedById } : {}),
+})
+
 // Paid abonements in the period. Under a scope only current members of the
 // matching groups (a former member's row has no membership and drops out).
-export const journalSubscriptionWhere = (f: JournalFilter): Prisma.SubscriptionWhereInput => ({
+// `fields`: the client's Subscription field references (prisma.subscription.fields).
+export const journalSubscriptionWhere = (
+    f: JournalFilter,
+    fields: { listPrice: Prisma.FieldRef<'Subscription', 'Int'> },
+): Prisma.SubscriptionWhereInput => ({
     workspaceId: f.workspaceId,
     isPaid: true,
     paidAt: f.range,
@@ -106,11 +127,15 @@ export const journalSubscriptionWhere = (f: JournalFilter): Prisma.SubscriptionW
     ...(f.markedById ? { markedPaidById: f.markedById } : {}),
     ...(scoped(f) ? { workspaceMember: analyticsScopeMemberWhere(f.scope) } : {}),
     ...(f.q ? { user: { AND: userSearchWhere(f.q) } } : {}),
+    ...discountWhere(f, fields.listPrice),
 })
 
 // Paid event tickets in the period (revenue.ts ticketsPaidInRangeWhere);
 // cancelled ones too — a paid row stays the money's record.
-export const journalTicketWhere = (f: JournalFilter): Prisma.EventRegistrationWhereInput => {
+export const journalTicketWhere = (
+    f: JournalFilter,
+    fields: { listPrice: Prisma.FieldRef<'EventRegistration', 'Int'> },
+): Prisma.EventRegistrationWhereInput => {
     const user: Prisma.UserWhereInput[] = [
         ...(scoped(f)
             ? [
@@ -129,6 +154,7 @@ export const journalTicketWhere = (f: JournalFilter): Prisma.EventRegistrationWh
         ...methodWhere(f.method),
         ...(f.markedById ? { markedPaidById: f.markedById } : {}),
         ...(user.length > 0 ? { user: { AND: user } } : {}),
+        ...discountWhere(f, fields.listPrice),
     }
 }
 
@@ -161,8 +187,9 @@ export const journalRefundWhere = (f: JournalFilter): Prisma.RefundWhereInput =>
 // Sales are rows of every kind but «only refunds».
 const includesSales = (f: JournalFilter) => f.kind !== 'refund'
 // Refunds are rows of every kind but «only payments»; a refund always has a
-// method, so «Не указан» has none.
-const includesRefunds = (f: JournalFilter) => f.kind !== 'payment' && f.method !== 'NONE'
+// method, so «Не указан» has none, and no discount of its own.
+const includesRefunds = (f: JournalFilter) =>
+    f.kind !== 'payment' && f.method !== 'NONE' && !f.discounted && !f.discountId && !f.pricedById
 
 // ---- Rows ----
 
@@ -174,6 +201,14 @@ const onlineSelect = {
     status: true,
     amount: true,
     refundedAmount: true,
+} as const
+// The sale's price facts (docs/design/2026-11-15-discounts.md §1).
+const salePriceSelect = {
+    listPrice: true,
+    discountId: true,
+    discountName: true,
+    discountAmount: true,
+    pricedById: true,
 } as const
 
 export const journalSubscriptionSelect = {
@@ -192,6 +227,7 @@ export const journalSubscriptionSelect = {
     // Rows sold before Subscription.userId existed.
     workspaceMember: { select: { userId: true, user: personSelect } },
     payment: { select: onlineSelect },
+    ...salePriceSelect,
 } satisfies Prisma.SubscriptionSelect
 
 export const journalTicketSelect = {
@@ -215,6 +251,7 @@ export const journalTicketSelect = {
         take: 1,
         select: onlineSelect,
     },
+    ...salePriceSelect,
 } satisfies Prisma.EventRegistrationSelect
 
 // The refunded sale as the refund row names it (`refundOf`).
@@ -274,9 +311,43 @@ export type JournalRow = {
     // Refund rows only.
     reason: string | null
     refundOf: { id: string; at: Date; amount: number } | null
+    // Payment rows: the price facts. null / 0 on refund rows and on sales
+    // recorded before discounts (no list price: no discount shown).
+    listPrice: number | null
+    discountId: string | null
+    discountName: string | null
+    // saleDiscount: total = max(0, listPrice − amount), its named part and
+    // the one-off rest; derived, never stored.
+    discount: { total: number; named: number; oneOff: number }
+    // Who set the amount (the seller, or who changed it at mark-paid).
+    pricedById: string | null
 }
 
-type SubscriptionJournalRecord = {
+type SalePriceRecord = {
+    listPrice: number | null
+    discountId: string | null
+    discountName: string | null
+    discountAmount: number
+    pricedById: string | null
+}
+
+const salePriceFacts = (s: SalePriceRecord & { amountPaid: number | null }) => ({
+    listPrice: s.listPrice,
+    discountId: s.discountId,
+    discountName: s.discountName,
+    discount: saleDiscount(s),
+    pricedById: s.pricedById,
+})
+
+const NO_SALE_PRICE = {
+    listPrice: null,
+    discountId: null,
+    discountName: null,
+    discount: { total: 0, named: 0, oneOff: 0 },
+    pricedById: null,
+}
+
+type SubscriptionJournalRecord = SalePriceRecord & {
     id: string
     paidAt: Date | null
     createdAt: Date
@@ -293,7 +364,7 @@ type SubscriptionJournalRecord = {
     payment: JournalOnline | null
 }
 
-type TicketJournalRecord = {
+type TicketJournalRecord = SalePriceRecord & {
     id: string
     paidAt: Date | null
     createdAt: Date
@@ -350,6 +421,7 @@ export const subscriptionJournalRow = (s: SubscriptionJournalRecord): JournalRow
     refundedAmount: s.refundedAmount,
     reason: null,
     refundOf: null,
+    ...salePriceFacts(s),
 })
 
 export const ticketJournalRow = (t: TicketJournalRecord): JournalRow => ({
@@ -374,6 +446,7 @@ export const ticketJournalRow = (t: TicketJournalRecord): JournalRow => ({
     refundedAmount: t.refundedAmount,
     reason: null,
     refundOf: null,
+    ...salePriceFacts(t),
 })
 
 export const refundJournalRow = (r: RefundJournalRecord): JournalRow => {
@@ -405,6 +478,7 @@ export const refundJournalRow = (r: RefundJournalRecord): JournalRow => {
                   amount: sale.amountPaid ?? 0,
               }
             : null,
+        ...NO_SALE_PRICE,
     }
 }
 
@@ -419,16 +493,24 @@ export const mergeJournalRows = (sources: JournalRow[][]): JournalRow[] =>
 const journalOrderBy = [{ paidAt: 'desc' as const }, { id: 'desc' as const }]
 const refundOrderBy = [{ refundedAt: 'desc' as const }, { id: 'desc' as const }]
 
+// The three sources' where of one view.
+const journalWheres = (prisma: PrismaService, f: JournalFilter) => ({
+    sub: journalSubscriptionWhere(f, prisma.subscription.fields),
+    ticket: journalTicketWhere(f, prisma.eventRegistration.fields),
+    refund: journalRefundWhere(f),
+})
+
 const readSources = async (
     prisma: PrismaService,
     f: JournalFilter,
     take: number | undefined,
 ): Promise<JournalRow[][]> => {
     const limit: { take?: number } = take === undefined ? {} : { take }
+    const where = journalWheres(prisma, f)
     const [subs, tickets, refunds] = await Promise.all([
         includesSales(f)
             ? prisma.subscription.findMany({
-                  where: journalSubscriptionWhere(f),
+                  where: where.sub,
                   orderBy: journalOrderBy,
                   ...limit,
                   select: journalSubscriptionSelect,
@@ -436,7 +518,7 @@ const readSources = async (
             : [],
         includesSales(f)
             ? prisma.eventRegistration.findMany({
-                  where: journalTicketWhere(f),
+                  where: where.ticket,
                   orderBy: journalOrderBy,
                   ...limit,
                   select: journalTicketSelect,
@@ -444,7 +526,7 @@ const readSources = async (
             : [],
         includesRefunds(f)
             ? prisma.refund.findMany({
-                  where: journalRefundWhere(f),
+                  where: where.refund,
                   orderBy: refundOrderBy,
                   ...limit,
                   select: journalRefundSelect,
@@ -469,11 +551,12 @@ export const loadJournalPage = async (
     if (depth > JOURNAL_MAX_DEPTH) {
         throw new BadRequestError({ message: JOURNAL_TOO_DEEP_MESSAGE })
     }
+    const where = journalWheres(prisma, f)
     const [sources, subCount, ticketCount, refundCount] = await Promise.all([
         readSources(prisma, f, depth),
-        includesSales(f) ? prisma.subscription.count({ where: journalSubscriptionWhere(f) }) : 0,
-        includesSales(f) ? prisma.eventRegistration.count({ where: journalTicketWhere(f) }) : 0,
-        includesRefunds(f) ? prisma.refund.count({ where: journalRefundWhere(f) }) : 0,
+        includesSales(f) ? prisma.subscription.count({ where: where.sub }) : 0,
+        includesSales(f) ? prisma.eventRegistration.count({ where: where.ticket }) : 0,
+        includesRefunds(f) ? prisma.refund.count({ where: where.refund }) : 0,
     ])
     return {
         rows: mergeJournalRows(sources).slice((page.curPage - 1) * page.perPage, depth),
@@ -504,7 +587,15 @@ export const loadJournalPeople = async (
     rows: JournalRow[],
     otherHolderIds: string[] = [],
 ): Promise<JournalPeople> => {
-    const markerIds = [...new Set(rows.flatMap((r) => (r.markedById ? [r.markedById] : [])))]
+    // The staff named on the rows: who marked / refunded, and who set a
+    // discounted sale's price.
+    const markerIds = [
+        ...new Set(
+            rows.flatMap((r) =>
+                [r.markedById, r.discount.total > 0 ? r.pricedById : null].filter((id): id is string => !!id),
+            ),
+        ),
+    ]
     const holderIds = [
         ...new Set([...rows.flatMap((r) => (r.userId ? [r.userId] : [])), ...otherHolderIds]),
     ]
@@ -551,13 +642,22 @@ export type JournalCurrencyTotal = {
     refunded: number
     net: number
     byMethod: JournalMethodTotal[]
+    // `discounts_given` over the view's payment rows: how many carry a
+    // discount, Σ total discount and its one-off part. Never part of net.
+    discounted: { count: number; amount: number; oneOffAmount: number }
 }
+
+// One discounted sale of the view (saleDiscount), in its currency.
+export type JournalDiscountBucket = { currency: string; total: number; oneOff: number }
 
 // Per currency, the dominant one first (most payment rows; ties by first
 // seen, as revenue.ts dominantCurrency), then by method in a fixed order;
 // methods with nothing are left out. A refund counts as refunded under its
-// own method, never as received.
-export const summarizeJournalTotals = (buckets: JournalTotalBucket[]): JournalCurrencyTotal[] => {
+// own method, never as received. Discounts are summed per currency beside it.
+export const summarizeJournalTotals = (
+    buckets: JournalTotalBucket[],
+    discounts: JournalDiscountBucket[] = [],
+): JournalCurrencyTotal[] => {
     const byCurrency = new Map<string, { count: number; methods: Map<JournalMethod, JournalMethodTotal> }>()
     for (const b of buckets) {
         if (b.count === 0) continue
@@ -584,7 +684,14 @@ export const summarizeJournalTotals = (buckets: JournalTotalBucket[]): JournalCu
             })
             const received = byMethod.reduce((sum, m) => sum + m.received, 0)
             const refunded = byMethod.reduce((sum, m) => sum + m.refunded, 0)
-            return { currency, received, refunded, net: received - refunded, byMethod }
+            const discounted = { count: 0, amount: 0, oneOffAmount: 0 }
+            for (const d of discounts) {
+                if (d.currency !== currency || d.total <= 0) continue
+                discounted.count += 1
+                discounted.amount += d.total
+                discounted.oneOffAmount += d.oneOff
+            }
+            return { currency, received, refunded, net: received - refunded, byMethod, discounted }
         })
 }
 
@@ -593,12 +700,16 @@ export const loadJournalTotals = async (
     prisma: PrismaService,
     f: JournalFilter,
 ): Promise<JournalCurrencyTotal[]> => {
-    const ticketWhere = journalTicketWhere(f)
-    const [subs, tickets, refunds] = await Promise.all([
+    const where = journalWheres(prisma, f)
+    const ticketWhere = where.ticket
+    // The discounted sales of the view, row by row: the split into named and
+    // one-off isn't a sum of columns (saleDiscount caps the named part).
+    const discountedWhere = journalWheres(prisma, { ...f, discounted: true })
+    const [subs, tickets, refunds, discountedSubs, discountedTickets] = await Promise.all([
         includesSales(f)
             ? prisma.subscription.groupBy({
                   by: ['paymentMethod', 'currency'],
-                  where: journalSubscriptionWhere(f),
+                  where: where.sub,
                   _sum: { amountPaid: true },
                   _count: { _all: true },
               })
@@ -614,9 +725,27 @@ export const loadJournalTotals = async (
         includesRefunds(f)
             ? prisma.refund.groupBy({
                   by: ['method', 'currency'],
-                  where: journalRefundWhere(f),
+                  where: where.refund,
                   _sum: { amount: true },
                   _count: { _all: true },
+              })
+            : [],
+        includesSales(f)
+            ? prisma.subscription.findMany({
+                  where: discountedWhere.sub,
+                  select: { listPrice: true, amountPaid: true, discountAmount: true, currency: true },
+              })
+            : [],
+        includesSales(f)
+            ? prisma.eventRegistration.findMany({
+                  where: discountedWhere.ticket,
+                  select: {
+                      listPrice: true,
+                      amountPaid: true,
+                      discountAmount: true,
+                      currency: true,
+                      event: { select: { currency: true } },
+                  },
               })
             : [],
     ])
@@ -663,7 +792,11 @@ export const loadJournalTotals = async (
             })
         }
     }
-    return summarizeJournalTotals(buckets)
+    const discounts = [
+        ...discountedSubs.map((r) => ({ currency: r.currency, ...saleDiscount(r) })),
+        ...discountedTickets.map((r) => ({ currency: r.currency ?? r.event.currency, ...saleDiscount(r) })),
+    ]
+    return summarizeJournalTotals(buckets, discounts)
 }
 
 // ---- Unapplied online payments (the «needs decision» strip) ----

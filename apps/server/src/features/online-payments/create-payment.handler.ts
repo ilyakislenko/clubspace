@@ -14,6 +14,7 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
+import { localDateInTz } from '../attendance/attendance-utils'
 import {
     CreatePaymentFeature,
     CreatePaymentFeatureResponse,
@@ -25,6 +26,7 @@ import {
     purchasablePlanWhere,
     sectionDisabledError,
 } from './load-buyer'
+import { priceOnlineItem } from './price-online-item'
 import { serializeMyPayment } from './schemas'
 import { startProviderPayment } from './start-provider-payment'
 
@@ -85,7 +87,9 @@ export class CreatePaymentHandler
         }
 
         // A repeated tap (or a member who came back from the provider's page
-        // without paying) gets the same payment instead of a second one.
+        // without paying) gets the same payment instead of a second one — at
+        // the same price: a member who adds a code gets a new payment, and the
+        // old one lapses. Its own use of a promo is not counted against it.
         const recent = await this.prisma.payment.findFirst({
             where: {
                 workspaceId: f.workspaceId,
@@ -98,7 +102,22 @@ export class CreatePaymentHandler
             },
             orderBy: { createdAt: 'desc' },
         })
-        if (recent?.confirmationUrl) {
+        const price = await priceOnlineItem(this.prisma, {
+            workspaceId: f.workspaceId,
+            userId: f.userId,
+            item: { planId: plan.id, eventId: null, listPrice: plan.price, currency: plan.currency },
+            promoCode: f.payload.promoCode,
+            now,
+            today: localDateInTz(now, workspace.timezone),
+            excludePaymentId: recent?.id,
+        })
+        // Exactly the quoted price, or no purchase (ЗоЗПП ст. 10).
+        if (price.refusal) throw new BadRequestError({ message: price.refusal })
+        if (
+            recent?.confirmationUrl &&
+            recent.amount === price.amount &&
+            recent.discountId === price.discountId
+        ) {
             return {
                 payment: serializeMyPayment(recent),
                 confirmationUrl: recent.confirmationUrl,
@@ -126,7 +145,11 @@ export class CreatePaymentHandler
                 planId: plan.id,
                 eventRegistrationId: null,
                 planName: plan.name,
-                amount: plan.price,
+                amount: price.amount,
+                listPrice: price.listPrice,
+                discountId: price.discountId,
+                discountName: price.discountName,
+                discountAmount: price.discountAmount,
                 currency: plan.currency,
                 description: `Абонемент «${plan.name}» — ${workspace.name}`,
                 itemName: `Абонемент «${plan.name}»`,

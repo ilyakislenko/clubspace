@@ -31,7 +31,10 @@ const member = (workspaceId: string, userId: string) =>
   `/workspaces/${workspaceId}/members/${userId}`
 
 // A student's abonements as the coach sees them, with what the caller may do
-// (`permissions`): a coach manages members of their own groups only.
+// (`permissions`): a coach manages members of their own groups only. Each sale
+// carries its price facts: `listPrice` (null: sold before prices were kept),
+// the club discount, the derived `oneOffDiscount` and who set the price
+// (`pricedBy`).
 export const listMemberSubscriptions = async (params: {
   workspaceId: string
   userId: string
@@ -50,6 +53,10 @@ export const listPlans = async (params: {
     url: `/workspaces/${params.workspaceId}/plans`,
   })
 
+// Sells a tariff. `discountId` applies a club discount (`listSaleDiscounts`);
+// the server never applies one by itself here. `amountPaid` is the agreed
+// amount — below the priced amount it's recorded as a one-off reduction with
+// the seller's name.
 export const assignSubscription = async (params: {
   workspaceId: string
   userId: string
@@ -61,6 +68,9 @@ export const assignSubscription = async (params: {
     data: params.data,
   })
 
+// Marks a sale paid. `discountId` applies a club discount while the sale has
+// none (repriced from its list price); an `amount` that differs from the
+// agreed one makes the marker the one who set the price.
 export const markSubscriptionPaid = async (params: {
   workspaceId: string
   userId: string

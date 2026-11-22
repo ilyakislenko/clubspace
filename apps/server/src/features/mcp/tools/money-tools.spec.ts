@@ -1,6 +1,7 @@
 import type { AiAccess } from '../../../domains/ai-assistant/ai-access'
 import { McpScope } from '../mcp-scope'
 import type { McpToolContext } from '../mcp-tool'
+import { McpPeople } from '../mcp-people'
 import { revenueReportTool } from './money-tools'
 
 const NOW = new Date('2026-11-15T12:00:00Z')
@@ -47,9 +48,11 @@ const run = async (
         subscription: { findMany: jest.fn().mockResolvedValue(rows.subs ?? []) },
         eventRegistration: { findMany: tickets },
         refund: { findMany: refunds },
+        user: { findMany: jest.fn().mockResolvedValue([{ id: 'coach-1', firstname: 'Роман', lastname: 'Савельев' }]) },
     }
     const ctx = {
         prisma,
+        people: new McpPeople('secret', 'w1', 'PERSONAL'),
         access: access(directionIds),
         scope: new McpScope(access(directionIds)),
         now: NOW,
@@ -58,6 +61,41 @@ const run = async (
     const out = await revenueReportTool.run(ctx, input)
     return { data: out.data as Record<string, unknown>, tickets, refunds }
 }
+
+describe('revenue_report: discounts', () => {
+    it('sums discounts_given of the period: by discount name, one-offs by who priced them', async () => {
+        const priced = (over: Record<string, unknown>) => ({
+            ...subscription,
+            listPrice: null,
+            discountName: null,
+            discountAmount: 0,
+            pricedById: null,
+            ...over,
+        })
+        const { data } = await run({ month: '2026-11' }, {
+            subs: [
+                // «Семейная» 400 of 4 000.
+                priced({ amountPaid: 3600, listPrice: 4000, discountName: 'Семейная', discountAmount: 400, pricedById: 'admin-1' }),
+                // The head coach took 1 000 less in cash.
+                priced({ amountPaid: 3000, listPrice: 4000, pricedById: 'coach-1' }),
+                // Before discounts: nothing to count; at the price: nothing either.
+                priced({ amountPaid: 4000 }),
+                priced({ amountPaid: 4000, listPrice: 4000, pricedById: 'coach-1' }),
+            ],
+        })
+        expect(data.discounts).toEqual({
+            total: 1400,
+            count: 2,
+            byDiscount: [{ name: 'Семейная', count: 1, amount: 400 }],
+            oneOff: {
+                amount: 1000,
+                byStaff: [{ ref: expect.stringMatching(/^c_/), name: 'Роман Савельев', count: 1, amount: 1000 }],
+            },
+        })
+        // Revenue stays what was charged.
+        expect(data.total).toBe(14600)
+    })
+})
 
 describe('revenue_report: event tickets', () => {
     it('adds paid tickets once, split «абонементы / события»', async () => {

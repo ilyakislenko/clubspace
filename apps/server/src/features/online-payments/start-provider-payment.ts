@@ -36,8 +36,15 @@ export const startProviderPayment = async (
         eventRegistrationId: string | null
         // The snapshot shown in lists: the tariff's name / the event's title.
         planName: string
-        // Taken from the server's records (tariff / event), never the client.
+        // Taken from the server's records (tariff / event) and priced by
+        // priceOnlineItem, never the client.
         amount: number
+        // The price facts the webhook copies onto the sale
+        // (docs/design/2026-11-15-discounts.md §3.3).
+        listPrice: number
+        discountId: string | null
+        discountName: string | null
+        discountAmount: number
         currency: string
         description: string
         itemName: string
@@ -57,6 +64,10 @@ export const startProviderPayment = async (
             planName: p.planName.slice(0, 255),
             provider: p.settings.provider,
             amount: p.amount,
+            listPrice: p.listPrice,
+            discountId: p.discountId,
+            discountName: p.discountName,
+            discountAmount: p.discountAmount,
             currency: p.currency,
             idempotenceKey: randomUUID(),
             // Where the 54-ФЗ receipt goes; a partial refund's receipt reuses it.

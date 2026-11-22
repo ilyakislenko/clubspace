@@ -39,6 +39,11 @@ const sub = {
     user: person,
     workspaceMember: { userId: 'u1', user: person },
     payment: null,
+    listPrice: 4500,
+    discountId: null,
+    discountName: null,
+    discountAmount: 0,
+    pricedById: 'coach-1',
 }
 const unapplied = {
     id: 'p9',
@@ -85,11 +90,13 @@ const setup = () => ({
         groupBy: jest.fn().mockResolvedValue([
             { paymentMethod: 'CASH', currency: 'RUB', _sum: { amountPaid: 4000 }, _count: { _all: 1 } },
         ]),
+        fields: { listPrice: 'Subscription.listPrice' },
     },
     eventRegistration: {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
         groupBy: jest.fn().mockResolvedValue([]),
+        fields: { listPrice: 'EventRegistration.listPrice' },
     },
     payment: {
         count: jest.fn().mockResolvedValue(1),
@@ -216,6 +223,11 @@ describe('listPaymentJournal', () => {
             online: null,
             reason: 'Пропустил две недели',
             refundOf: { id: 'sub:s1', at: '2026-11-03T11:40:00.000Z', amount: 4000 },
+            listPrice: null,
+            discountName: null,
+            discountAmount: 0,
+            oneOffDiscount: 0,
+            pricedBy: null,
         })
         expect(out.data[1]).toEqual({
             id: 'sub:s1',
@@ -236,6 +248,12 @@ describe('listPaymentJournal', () => {
             online: null,
             reason: null,
             refundOf: null,
+            // Sold 500 under the tariff price by the coach: a one-off.
+            listPrice: 4500,
+            discountName: null,
+            discountAmount: 0,
+            oneOffDiscount: 500,
+            pricedBy: { userId: 'coach-1', name: 'Пётр Тренер' },
         })
         expect(out.totals).toEqual([
             {
@@ -244,6 +262,7 @@ describe('listPaymentJournal', () => {
                 refunded: 1000,
                 net: 3000,
                 byMethod: [{ method: 'CASH', received: 4000, refunded: 1000, count: 1 }],
+                discounted: { count: 1, amount: 500, oneOffAmount: 500 },
             },
         ])
         expect(out.unapplied).toEqual({
@@ -291,5 +310,27 @@ describe('listPaymentJournal', () => {
 
     it('refuses a page past the depth cap', async () => {
         await expect(run(ADMIN, { curPage: 26, perPage: 200 }).out).rejects.toThrow(/Слишком далеко/)
+    })
+
+    it('discount filters reach every sale source; a foreign discount is a 404', async () => {
+        const D1 = '0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e'
+        const prisma = Object.assign(setup(), {
+            discount: { findFirst: jest.fn().mockResolvedValue({ id: D1 }) },
+        })
+        await run(ADMIN, { discounted: true, discountId: D1, pricedById: 'coach-1' }, prisma).out
+        const where = prisma.subscription.findMany.mock.calls[0][0].where
+        expect(where).toMatchObject({
+            discountId: D1,
+            pricedById: 'coach-1',
+            listPrice: { not: null },
+            amountPaid: { lt: 'Subscription.listPrice' },
+        })
+        expect(prisma.eventRegistration.findMany.mock.calls[0][0].where).toMatchObject({ discountId: D1 })
+        // Refunds carry no discount.
+        expect(prisma.refund.findMany).not.toHaveBeenCalled()
+        // Only the club decides: an archived discount stays a filter (no isActive in the lookup).
+        expect(prisma.discount.findFirst.mock.calls[0][0].where).toEqual({ id: D1, workspaceId: 'w1' })
+        prisma.discount.findFirst.mockResolvedValue(null)
+        await expect(run(ADMIN, { discountId: D1 }, prisma).out).rejects.toBeInstanceOf(NotFoundError)
     })
 })

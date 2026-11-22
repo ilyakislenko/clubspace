@@ -89,7 +89,7 @@ describe('event tickets in revenue', () => {
         const rows = await csv()
         expect(rows).toHaveLength(1)
         expect(rows[0]).toContain(`;Оплата;`)
-        expect(rows[0]).toContain(`;${user.email};Мастер-класс по растяжке;1500;RUB;Перевод;`)
+        expect(rows[0]).toContain(`;${user.email};Мастер-класс по растяжке;1500;1500;;;;RUB;Перевод;`)
         expect(rows[0]).toMatch(/;;Событие;$/)
         // The same sale in «Платежи», marked by the owner.
         const journal = await ctx

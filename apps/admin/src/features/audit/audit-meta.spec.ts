@@ -252,3 +252,80 @@ describe("parseMetadata", () => {
     expect(parseMetadata({ fromDate: "2026-11-16" }, GRAPPLING)[0].value).toBe("16.11.2026")
   })
 })
+
+describe("discount audit", () => {
+  const rows = (meta: unknown) =>
+    parseMetadata(meta, GRAPPLING).map((r) => `${r.label}: ${r.value.replace(/\s/g, " ")}`)
+
+  it("labels the discount actions and their family", () => {
+    const meta = actionMetaFor(GRAPPLING)
+    expect(meta["discount.create"].label).toBe("Скидка создана")
+    expect(meta["discount.archive"].label).toBe("Скидка в архиве")
+    expect(meta["discount.restore"].label).toBe("Скидка возвращена из архива")
+    expect(ACTION_CATEGORY_LABELS.discount).toBe("Скидки")
+    expect(ACTION_CATEGORIES).toContain("discount")
+  })
+
+  it("reads a discount's snapshot with its size, not its kind or active flag", () => {
+    expect(
+      rows({
+        name: "Весна",
+        kind: "FIXED",
+        value: 500,
+        currency: "RUB",
+        code: "ВЕСНА",
+        isFamily: false,
+        allPlans: false,
+        plans: ["Безлимит", "12 занятий"],
+        events: true,
+        startsOn: null,
+        endsOn: "2027-03-31",
+        maxUses: 50,
+        oncePerMember: true,
+        isActive: true,
+      }),
+    ).toEqual([
+      "Название: Весна",
+      "Размер: −500 ₽",
+      "Промокод: ВЕСНА",
+      "Семейная: нет",
+      "Все тарифы: нет",
+      "Тарифы: Безлимит, 12 занятий",
+      "Платные события: да",
+      "Действует до: 31.03.2027",
+      "Не больше раз: 50",
+      "Один раз на ученика: да",
+    ])
+    expect(rows({ name: "Семейная", kind: "PERCENT", value: 10, currency: null })).toEqual([
+      "Название: Семейная",
+      "Размер: −10%",
+    ])
+  })
+
+  it("spells an edit as before → after", () => {
+    expect(
+      rows({
+        name: "Весна",
+        changes: {
+          value: { from: 500, to: 700 },
+          code: { from: "ВЕСНА", to: null },
+          oncePerMember: { from: false, to: true },
+          plans: { from: ["Безлимит"], to: [] },
+        },
+      }),
+    ).toEqual([
+      "Название: Весна",
+      "Изменения: размер: 500 → 700; промокод: ВЕСНА → —; один раз на ученика: нет → да; тарифы: Безлимит → —",
+    ])
+  })
+
+  it("shows a sale's list price and one-off part, not an empty named one", () => {
+    expect(
+      rows({ planName: "8 занятий", amount: 3000, listPrice: 4000, discountAmount: 0, oneOff: 1000 }),
+    ).toEqual(["Тариф: 8 занятий", "Сумма: 3 000", "Цена по тарифу: 4 000", "Разовая скидка: 1 000"])
+    expect(rows({ discountName: "Семейная", discountAmount: 400 })).toEqual([
+      "Скидка: Семейная",
+      "Размер скидки: 400",
+    ])
+  })
+})

@@ -31,6 +31,8 @@ import {
 } from '../subscription-status'
 import { CHANGED_MESSAGE } from '../freeze-dates'
 import { UNMARK_ONLINE_MESSAGE, UNMARK_REFUNDED_MESSAGE } from '../../payments/unmark-rules'
+import type { PricedSale } from '../../discounts/discount-rules'
+import { priceStaffSale } from '../../discounts/discounts'
 import { releaseOpenFreezesInTx } from './subscription-freeze.service'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -46,8 +48,19 @@ export type GrantFromPlanParams = {
     // startsOnFirstVisit tariff, otherwise now. An explicit date is a dated abonement.
     startDate?: Date
     now?: Date
-    // Defaults to the plan price when omitted (e.g. a comped abonement passes 0).
-    amountPaid?: number | null
+    // The priced amount: the agreed price on credit, what was received when
+    // paid. Always passed by the caller (a staff sale prices it with
+    // domains/discounts, a checkout with its Payment).
+    amountPaid: number
+    // The sale's price facts (docs/design/2026-11-15-discounts.md §1): the
+    // tariff price before any discount (null: unknown — an import), the named
+    // discount with its name snapshot and part, and who set the amount (the
+    // seller; null online).
+    listPrice?: number | null
+    discountId?: string | null
+    discountName?: string | null
+    discountAmount?: number
+    pricedById?: string | null
     // false = sold on credit, payment marked later via markPaid(). Default true.
     paid?: boolean
     // How staff were paid for a sale recorded as paid; ignored on credit.
@@ -86,7 +99,6 @@ export class SubscriptionService {
             where: { id: params.planId, workspaceId: params.workspaceId },
             select: {
                 id: true,
-                price: true,
                 currency: true,
                 durationDays: true,
                 classCount: true,
@@ -229,7 +241,12 @@ export class SubscriptionService {
                 endDate,
                 startsOnFirstVisit: pending,
                 durationDays: plan.durationDays,
-                amountPaid: params.amountPaid ?? plan.price,
+                amountPaid: params.amountPaid,
+                listPrice: params.listPrice ?? null,
+                discountId: params.discountId ?? null,
+                discountName: params.discountName ?? null,
+                discountAmount: params.discountAmount ?? 0,
+                pricedById: params.pricedById ?? null,
                 currency: plan.currency,
                 isPaid: params.paid ?? true,
                 paidAt: (params.paid ?? true) ? now : null,
@@ -303,13 +320,18 @@ export class SubscriptionService {
 
     // Records that an abonement sold on credit has been paid for (an online
     // payment instead creates a paid abonement via grantFromPlanInTx).
-    // `amount` is what was actually received; omitted keeps the agreed price.
+    // `amount` is what was actually received; omitted keeps the agreed price
+    // (or the discounted one). `discountId` applies a club discount now — only
+    // to a sale without one that has a recorded list price; it reprices from
+    // listPrice. Changing the amount or applying a discount makes the marker
+    // the one who priced it (pricedById); a plain confirm keeps the seller.
     // An expired or not-yet-started abonement can still be paid — it is a debt.
     async markPaid(params: {
         workspaceId: string
         userId: string
         subscriptionId: string
         amount?: number
+        discountId?: string
         // Omitted = not recorded («не указано»).
         paymentMethod?: ClubPaymentMethodValue | null
         // The staff member recording it (the journal's «Отметил»).
@@ -330,6 +352,11 @@ export class SubscriptionService {
                     isPaid: true,
                     paidAt: true,
                     amountPaid: true,
+                    planId: true,
+                    currency: true,
+                    listPrice: true,
+                    discountId: true,
+                    pricedById: true,
                     workspace: { select: { timezone: true } },
                 },
             })
@@ -347,6 +374,35 @@ export class SubscriptionService {
                 })
             }
 
+            let priced: PricedSale | null = null
+            if (params.discountId) {
+                if (sub.discountId) {
+                    throw new BadRequestError({
+                        message: 'Скидку можно выбрать при оформлении абонемента',
+                    })
+                }
+                if (sub.listPrice === null) {
+                    throw new BadRequestError({
+                        message: 'У этой продажи не записана цена тарифа',
+                    })
+                }
+                priced = await priceStaffSale(tx, {
+                    workspaceId: params.workspaceId,
+                    discountId: params.discountId,
+                    userId: params.userId,
+                    item: {
+                        planId: sub.planId,
+                        eventId: null,
+                        listPrice: sub.listPrice,
+                        currency: sub.currency,
+                    },
+                    now,
+                    timezone: sub.workspace.timezone,
+                })
+            }
+            const amount = params.amount ?? priced?.amount ?? sub.amountPaid
+            const repriced = priced !== null || amount !== sub.amountPaid
+
             // Compare-and-set: two coaches marking at once must not both succeed.
             const res = await tx.subscription.updateMany({
                 where: {
@@ -357,9 +413,17 @@ export class SubscriptionService {
                 data: {
                     isPaid: true,
                     paidAt: now,
-                    amountPaid: params.amount ?? sub.amountPaid,
+                    amountPaid: amount,
                     paymentMethod: params.paymentMethod ?? null,
                     markedPaidById: params.markedById,
+                    ...(priced
+                        ? {
+                              discountId: priced.discountId,
+                              discountName: priced.discountName,
+                              discountAmount: priced.discountAmount,
+                          }
+                        : {}),
+                    pricedById: repriced ? params.markedById : sub.pricedById,
                 },
             })
             if (res.count !== 1) {
