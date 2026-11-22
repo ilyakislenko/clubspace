@@ -101,7 +101,7 @@ jobs:
         # Caching is an optimization — a save conflict / network blip must not
         # fail the pipeline (dependent jobs fall back to `npm ci` on a miss).
         continue-on-error: true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             node_modules
@@ -133,7 +133,7 @@ jobs:
           cache: npm
 
       - name: Restore deps cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             node_modules
@@ -173,7 +173,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Restore deps cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             node_modules
@@ -234,7 +234,7 @@ jobs:
           cache: npm
 
       - name: Restore deps cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             node_modules
@@ -306,7 +306,7 @@ jobs:
           cache: npm
 
       - name: Restore deps cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             node_modules
@@ -384,7 +384,7 @@ jobs:
           cache: npm
 
       - name: Restore deps cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             node_modules
@@ -449,7 +449,7 @@ jobs:
           cache: npm
 
       - name: Restore deps cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             node_modules
@@ -501,7 +501,7 @@ jobs:
           cache: npm
 
       - name: Restore deps cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             node_modules
