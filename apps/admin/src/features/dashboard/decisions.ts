@@ -6,8 +6,7 @@ const DECISION_KEYS = [
   "call", // «Кому позвонить» (B1 call list)
   "renew", // «Продлить» (renewals_due)
   "awaiting", // «Ожидают оплаты» (awaiting_payment, people)
-  "join", // join requests
-  "freeze", // members' freeze requests
+  "requests", // «Заявки»: join, freeze, personal, video (GET requests, server-scoped)
   "video", // videos processing or failed
 ] as const
 

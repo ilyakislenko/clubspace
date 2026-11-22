@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { NotificationProducerService } from '../../domains/notifications/services/notification-producer.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { FilesService } from '../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError, ForbiddenError } from '../../shared/errors/shared.errors'
@@ -23,6 +24,7 @@ export class SetVideoReviewStatusHandler
         private readonly files: FilesService,
         private readonly notifications: NotificationProducerService,
         private readonly rbac: RbacService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(
@@ -44,6 +46,8 @@ export class SetVideoReviewStatusHandler
             data: { status: next },
             include: reviewSummaryInclude,
         })
+        // Open ↔ answered/closed: staff «Заявки» update live.
+        this.realtime.invalidate(f.workspaceId, ['requests'])
         if (next === 'answered' && request.memberUserId !== f.userId) {
             await notifyMemberAnswered(this.notifications, this.prisma, {
                 workspaceId: f.workspaceId,

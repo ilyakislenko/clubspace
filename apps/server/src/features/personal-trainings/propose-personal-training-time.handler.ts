@@ -96,6 +96,7 @@ export class ProposePersonalTrainingTimeHandler
             [request.memberId, request.coachId],
             ['personal-trainings'],
         )
+        this.realtime.invalidate(f.workspaceId, ['requests'])
         const when = formatLocalDateTimeRu(instant, request.timezone)
         const v = await loadClubVocabulary(this.prisma, f.workspaceId)
         await sendPersonalTrainingNotice(this.notifications, this.logger, {

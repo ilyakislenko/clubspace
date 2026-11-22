@@ -676,6 +676,61 @@ Mobile: `notification-route.spec.ts` covers `member.join_declined` → `null`.
 - **AI**: counts in `club_overview` only; no decision tools.
 - **One index** (`PersonalTrainingRequest [workspaceId, status, createdAt]`), no new tables.
 
+**(implementation, server S1)** Deviations and details settled while building:
+- **Freeze where in two parts.** `freezeRequestScopeWhere` (the old queue body, no section gate) is what
+  `GET freeze-requests` imports, so the mobile queue still lists requests filed before «Абонемент» went
+  off; the inbox and counts use `pendingFreezeWhere` = that plus the section gate.
+- **`reviewStaffMemberWhere({ workspaceId, clubWide, ownGroupMemberIds })`** instead of
+  `(rbac, ctx, workspaceId)`: the inbox viewer and the MCP tool (no `RbacService` in its context) build
+  the same scope; `list-club-video-reviews` passes `canWriteAllGroups` and `ownGroupMemberIds(ctx)`.
+- **«Never their own clip» applies to club-wide viewers too**: answering one's own clip is not a staff
+  decision.
+- **`loadOpenRequests` returns `{ rows, total, counts }`**: one set of where-builders per read, the counts
+  come with the page.
+- **Personal `options`** = the member's options still ahead, earliest `startAt` first. A
+  `PENDING_COACH` row with no member option at all is not listed (the API can't create one).
+- **Reject body optional on the wire.** Express 5 leaves a bodiless POST's body `undefined`, which the
+  global zod pipe refuses (the app's call got 400 in e2e). The param is typed with the payload type
+  (not the DTO class) and runs `DefaultValuePipe({})` + `ZodValidationPipe(RejectPendingMemberInput)`;
+  `@ApiBody({ required: false })` keeps the DTO in the contract (`body?: RejectPendingMemberInput`).
+  Audit metadata is `{ comment: null }` without one.
+- **No standalone `OpenRequest` type** in the generated client (nested schemas are inlined): the admin
+  reads `ListOpenRequestsOutputOutput["data"][number]`.
+- **MCP own-group members** are read in `club-tools.ts` with `ownGroupsWhere` (the query of
+  `rbac.ownGroupMemberIds`), the viewer's `userId` is the token creator's.
+- `video-reviews-utils.spec.ts` (the «member clips stay out of club content» pin) lists
+  `domains/requests/open-requests.ts` as a reader of the review tables.
+- The join auto-approve path (`requestMembership` with «принимать без подтверждения») also emits
+  `requests`; harmless, and every `members` emit of a join writer now carries it.
+
+**(implementation, admin + mobile S2)** Deviations and details settled while building:
+- **«Сегодня» breakdown reads «N на …»**: «2 на вступление · 1 на заморозку · 1 на
+  {personalSession.acc} · 1 на разбор видео». It agrees with the implied «заявки» in every club's words;
+  «N {personalSession.nom}» would need per-noun counting forms («2 индивидуальных занятия»).
+- **Personal row**: «ещё 1 вариант / 2 варианта», not «ещё 1 время».
+- **Waiting time** also covers the first hour: «только что», «25 мин»; a week or more shows the date.
+- **Join row detail**: a child gets the roster's «Ребёнок» badge by the name, so the detail line holds
+  only the e-mail (adult) and the staff role; the panel shows «Ребёнок · Родитель: …».
+- **No «Открыть карточку ученика» on a join panel**: the applicant has no card until accepted.
+- **The inbox page's tab badge reads its own list response** (`counts.total` of the same read), so the
+  page makes no second request; the roster tab and «Сегодня» use `useRequestCounts`
+  (`cachedRead("requests:<ws>")`).
+- **«Сегодня» realtime**: the page list drops `freeze-requests` and does not add `requests`;
+  `useRequestCounts` reloads itself on `requests`, so the count is not fetched twice per signal.
+- **The freeze approve form is not dirty-guarded**: `FreezeForm` is reused unchanged and opens with the
+  member's own values; the decline, propose, personal-decline and video-comment forms are guarded.
+- **Video**: the comment form and «Отметить отвеченным» need a processed clip (no player, no second);
+  `PlyrPlayer` gained `onTimeUpdate` and a `ref` with `seek(sec)` for clicking a comment.
+- **CSP needed no change** (§12): `media-src` and `connect-src` already list the API origin (the
+  `review-clips/:id/manifest.m3u8` playlist) and object storage (segments). Checked on the running app:
+  a review clip played in the panel with no CSP violation and no failed media request.
+- **Audit labels need no change**: `comment` is already «Комментарий» in `META_KEY_LABEL`, which every
+  action shares, so `member.rejectPending`'s new key is labelled.
+- **`videoComment.text`** reads `AddVideoReviewCommentInputSchema` (the generated name).
+- **Admin e2e**: every role's `tabs` gains `users/requests?kind=freeze`, the filtered view the
+  «Сегодня» row links to when one kind waits (a kind the role has none of falls back to «Все»). The tab
+  itself is crawled from the section tab row, as §4.7 says.
+
 ## 11. Implementation slices
 
 One PR, two parallel slices. The server slice commits its DTOs and controller first, with the contract

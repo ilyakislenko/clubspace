@@ -221,6 +221,7 @@ describe('RequestSubscriptionFreezeHandler', () => {
         expect(realtime.invalidate).toHaveBeenCalledWith('w1', [
             'subscription',
             'freeze-requests',
+            'requests',
         ])
         const recipients = notifications.notifyUser.mock.calls.map(
             (c: any[]) => c[0].userId,

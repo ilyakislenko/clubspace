@@ -94,6 +94,12 @@ describe("routeForNotification", () => {
     expect(routeForNotification({ kind: "member.joined" }, on)).toBeNull()
   })
 
+  it("member.join_declined has no screen to open (the inbox row is the notice)", () => {
+    expect(
+      routeForNotification({ kind: "member.join_declined", workspaceId: "ws-9" }, on),
+    ).toBeNull()
+  })
+
   it("member.invitation opens the Invitations screen", () => {
     expect(
       routeForNotification(

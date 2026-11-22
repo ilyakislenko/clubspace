@@ -68,7 +68,7 @@ import {
 } from "../../../../shared/workspace/section-tabs"
 import { clearActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { MyProfileDialog } from "../../../../features/users/MyProfileDialog"
-import { beltTabs, newsTabs, reportTabs, subscriptionTabs } from "./sections"
+import { beltTabs, memberTabs, newsTabs, reportTabs, subscriptionTabs } from "./sections"
 
 // A sidebar entry: one route (`path`, gated by `access`) or a section of
 // several routes shown as tabs (`tabs`; visible when the role may open at
@@ -100,7 +100,7 @@ export const navGroups = (vocabulary: ClubVocabulary): NavGroup[] => [
     items: [
       { key: "dashboard", label: "Сегодня", icon: LayoutDashboard, path: "", access: "staff" },
       { key: "schedule", label: "Расписание", icon: CalendarCheck, path: "schedule", access: "staff" },
-      { key: "users", label: "Ученики", icon: Users, path: "users", access: "staff" },
+      { key: "users", label: "Ученики", icon: Users, tabs: memberTabs },
       { key: "retention", label: "Удержание", icon: PhoneCall, path: "retention", access: "staff" },
     ],
   },

@@ -86,7 +86,7 @@ export class LeaveWorkspaceHandler
             actorId: invokerUserId,
         })
 
-        this.realtime.invalidate(workspaceId, ['members', 'freeze-requests'])
+        this.realtime.invalidate(workspaceId, ['members', 'freeze-requests', 'requests'])
         // No longer a member: stop pushing this club's events to their sockets.
         this.realtime.leaveWorkspaceRoom([invokerUserId], workspaceId)
 

@@ -6,6 +6,23 @@ import type { SectionTab } from "../../../../shared/workspace/section-tabs"
 // section title. The sidebar item opens the first tab the role may see, and
 // stays lit on every tab. Each tab's `access` matches its route's gate.
 
+// «Ученики»: the roster and the requests waiting for the viewer's decision
+// (the server scopes both to what the role may see and decide).
+export const memberTabs: SectionTab[] = [
+  {
+    key: "users",
+    label: "Список",
+    path: "users",
+    access: "staff",
+  },
+  {
+    key: "users-requests",
+    label: "Заявки",
+    path: "users/requests",
+    access: "staff",
+  },
+]
+
 // «Отчёты»: the server scopes the numbers (coaches see their groups).
 export const reportTabs = (vocabulary: ClubVocabulary): SectionTab[] => [
   {

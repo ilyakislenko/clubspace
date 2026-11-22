@@ -77,6 +77,7 @@ describe('CancelSubscriptionFreezeRequestHandler', () => {
         expect(realtime.invalidate).toHaveBeenCalledWith('w1', [
             'subscription',
             'freeze-requests',
+            'requests',
         ])
     })
 

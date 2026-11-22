@@ -1,6 +1,14 @@
-import { Controller, Param, Post, UseGuards } from '@nestjs/common'
+import {
+    Body,
+    Controller,
+    DefaultValuePipe,
+    Param,
+    Post,
+    UseGuards,
+} from '@nestjs/common'
+import { ApiBody } from '@nestjs/swagger'
 import { FeaturesBus } from '@shelfjs/features'
-import { createZodDto, ZodResponse } from 'nestjs-zod'
+import { createZodDto, ZodResponse, ZodValidationPipe } from 'nestjs-zod'
 
 import {
     CurrentUser,
@@ -17,8 +25,11 @@ import {
     RejectPendingMemberFeature,
     RejectPendingMemberFeatureOutputSchema,
     RejectPendingMemberFeatureResponse,
+    type RejectPendingMemberInputPayload,
+    RejectPendingMemberInputSchema,
 } from './reject-pending-member.feature'
 
+class RejectPendingMemberInput extends createZodDto(RejectPendingMemberInputSchema) {}
 class RejectPendingMemberOutput extends createZodDto(
     RejectPendingMemberFeatureOutputSchema,
 ) {}
@@ -31,9 +42,15 @@ export class RejectPendingMemberController {
     @Post(':userId/reject')
     @Roles(SPORT_LEADS)
     @ZodResponse({ type: RejectPendingMemberOutput })
+    @ApiBody({ type: RejectPendingMemberInput, required: false })
     async rejectPendingMember(
         @Param('workspaceId') workspaceId: string,
         @Param('userId') userId: string,
+        // The app rejects without a body, which Express leaves undefined: the
+        // param type is not the DTO class, so the global pipe passes it on
+        // and these pipes default it to {} before validating.
+        @Body(new DefaultValuePipe({}), new ZodValidationPipe(RejectPendingMemberInput))
+        body: RejectPendingMemberInputPayload,
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<
@@ -41,6 +58,7 @@ export class RejectPendingMemberController {
             RejectPendingMemberFeatureResponse
         >(
             new RejectPendingMemberFeature(
+                body,
                 workspaceId,
                 userId,
                 user.userId,

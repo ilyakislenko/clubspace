@@ -1,6 +1,7 @@
 import {
   ApproveSubscriptionFreezeRequestInputSchema,
   AskAiChatInputSchema,
+  AddVideoReviewCommentInputSchema,
   AssignSubscriptionInputSchema,
   CreateAiTokenInputSchema,
   CreateAchievementInputSchema,
@@ -15,10 +16,13 @@ import {
   CreatePlanInputSchema,
   CreateRankGradingInputSchema,
   CreateRefundInputSchema,
+  ClosePersonalTrainingInputSchema,
   DeclineSubscriptionFreezeRequestInputSchema,
   FreezeSubscriptionInputSchema,
   LogAtRiskContactInputSchema,
   PromoteMemberInputSchema,
+  ProposePersonalTrainingTimeInputSchema,
+  RejectPendingMemberInputSchema,
   MarkSubscriptionPaidInputSchema,
   SetClassCapacityInputSchema,
   UpdateAchievementInputSchema,
@@ -239,6 +243,20 @@ export const FORM_LIMITS = {
     // Also capped by what is left of the sale (RefundForm), as the server does.
     amount: int([CreateRefundInputSchema] as const, "amount"),
     reason: text([CreateRefundInputSchema] as const, "reason"),
+  },
+  // «Ученики → Заявки» decisions.
+  joinReject: {
+    comment: text([RejectPendingMemberInputSchema] as const, "comment"),
+  },
+  personalPropose: {
+    durationMin: int([ProposePersonalTrainingTimeInputSchema] as const, "durationMin"),
+    comment: text([ProposePersonalTrainingTimeInputSchema] as const, "comment"),
+  },
+  personalClose: {
+    comment: text([ClosePersonalTrainingInputSchema] as const, "comment"),
+  },
+  videoComment: {
+    text: text([AddVideoReviewCommentInputSchema] as const, "text"),
   },
   memberNotes: {
     notes: text([UpdateMemberNotesBodySchema] as const, "notes"),

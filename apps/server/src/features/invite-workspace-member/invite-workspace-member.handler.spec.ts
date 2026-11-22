@@ -240,7 +240,7 @@ describe('inviteWorkspaceMember', () => {
                 metadata: expect.objectContaining({ outcome: 'added' }),
             }),
         )
-        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['members'])
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['members', 'requests'])
         expect(realtime.joinWorkspaceRoom).toHaveBeenCalledWith([expect.any(String)], 'w1')
     })
 

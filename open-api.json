@@ -5155,6 +5155,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectPendingMemberInput"
+              }
+            }
+          }
+        },
         "responses": {
           "default": {
             "description": "",
@@ -13768,6 +13778,69 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaymentJournalEntryDetailOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/requests": {
+      "get": {
+        "operationId": "listOpenRequests",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "join",
+                "freeze",
+                "personal",
+                "video"
+              ]
+            }
+          },
+          {
+            "name": "curPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 9007199254740991,
+              "exclusiveMinimum": true,
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "exclusiveMinimum": true,
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOpenRequestsOutput_Output"
                 }
               }
             }
@@ -29487,6 +29560,15 @@
           "status"
         ],
         "additionalProperties": false
+      },
+      "RejectPendingMemberInput": {
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
       },
       "RejectPendingMemberOutput_Output": {
         "type": "object",
@@ -55729,6 +55811,377 @@
           "refunds",
           "memberHasCard",
           "fullRefundCancelsRegistration"
+        ],
+        "additionalProperties": false
+      },
+      "ListOpenRequestsOutput_Output": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "join",
+                    "freeze",
+                    "personal",
+                    "video"
+                  ]
+                },
+                "requestId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "member": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "isDependent": {
+                      "type": "boolean"
+                    },
+                    "guardians": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "firstname": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "lastname": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "email": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "phone": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "relation": {
+                            "type": "string",
+                            "enum": [
+                              "PARENT",
+                              "GUARDIAN",
+                              "OTHER"
+                            ]
+                          },
+                          "confirmed": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "firstname",
+                          "lastname",
+                          "email",
+                          "phone",
+                          "relation",
+                          "confirmed"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "name",
+                    "email",
+                    "isDependent",
+                    "guardians"
+                  ],
+                  "additionalProperties": false
+                },
+                "join": {
+                  "type": "object",
+                  "properties": {
+                    "roleName": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "roleName"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                },
+                "freeze": {
+                  "type": "object",
+                  "properties": {
+                    "fromDate": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                    },
+                    "untilDate": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                    },
+                    "days": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "planName": {
+                      "type": "string"
+                    },
+                    "subscriptionId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "subscriptionEndDate": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "fromDate",
+                    "untilDate",
+                    "days",
+                    "reason",
+                    "planName",
+                    "subscriptionId",
+                    "subscriptionEndDate"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                },
+                "personal": {
+                  "type": "object",
+                  "properties": {
+                    "coach": {
+                      "type": "object",
+                      "properties": {
+                        "userId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "userId",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "gymName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "timezone": {
+                      "type": "string"
+                    },
+                    "memberComment": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "startAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "durationMin": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "startAt",
+                          "durationMin"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "coach",
+                    "gymName",
+                    "timezone",
+                    "memberComment",
+                    "options"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                },
+                "video": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "clipStatus": {
+                      "type": "string",
+                      "enum": [
+                        "processing",
+                        "ready"
+                      ]
+                    },
+                    "durationSec": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "nullable": true
+                    },
+                    "commentCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "message",
+                    "clipStatus",
+                    "durationSec",
+                    "commentCount"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "requestId",
+                "createdAt",
+                "member",
+                "join",
+                "freeze",
+                "personal",
+                "video"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "curPage": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "perPage": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "join": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "freeze": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "personal": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "video": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "total": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "join",
+              "freeze",
+              "personal",
+              "video",
+              "total"
+            ],
+            "additionalProperties": false
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "join",
+                "freeze",
+                "personal",
+                "video"
+              ]
+            }
+          }
+        },
+        "required": [
+          "data",
+          "total",
+          "curPage",
+          "perPage",
+          "counts",
+          "kinds"
         ],
         "additionalProperties": false
       },

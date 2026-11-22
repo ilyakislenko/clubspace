@@ -98,5 +98,6 @@ describe('ResetPlatformDemoClubHandler', () => {
         expect(leaderboard.invalidate).toHaveBeenCalledWith('w-demo')
         expect(realtime.invalidate.mock.calls[0][0]).toBe('w-demo')
         expect(realtime.invalidate.mock.calls[0][1]).toContain('leaderboard')
+        expect(realtime.invalidate.mock.calls[0][1]).toContain('requests')
     })
 })

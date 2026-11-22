@@ -75,6 +75,7 @@ export class DeclinePersonalTrainingHandler
             [request.memberId, request.coachId],
             ['personal-trainings'],
         )
+        this.realtime.invalidate(f.workspaceId, ['requests'])
         await sendPersonalTrainingNotice(this.notifications, this.logger, {
             kind: 'personal.declined',
             refBase: `${request.id}:declined`,

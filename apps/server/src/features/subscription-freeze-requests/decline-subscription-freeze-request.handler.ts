@@ -82,6 +82,7 @@ export class DeclineSubscriptionFreezeRequestHandler
         this.realtime.invalidate(f.workspaceId, [
             'subscription',
             'freeze-requests',
+            'requests',
         ])
 
         const v = await loadClubVocabulary(this.prisma, f.workspaceId)

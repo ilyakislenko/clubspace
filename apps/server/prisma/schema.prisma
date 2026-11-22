@@ -2386,6 +2386,7 @@ model PersonalTrainingRequest {
   @@index([workspaceId, memberId, updatedAt])
   @@index([workspaceId, coachId, updatedAt])
   @@index([workspaceId, updatedAt])
+  @@index([workspaceId, status, createdAt]) // requests inbox: open requests, oldest first
 }
 
 model PersonalTrainingOption {

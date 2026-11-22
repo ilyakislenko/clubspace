@@ -113,6 +113,7 @@ export class CancelPersonalTrainingHandler
             [request.memberId, request.coachId],
             ['personal-trainings', 'attendance'],
         )
+        this.realtime.invalidate(f.workspaceId, ['requests'])
         const at = request.confirmedStartAt ?? request.options[0]?.startAt
         const when = at ? formatLocalDateTimeRu(at, request.timezone) : ''
         const v = await loadClubVocabulary(this.prisma, f.workspaceId)

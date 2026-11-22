@@ -1,4 +1,4 @@
-import { activeTabKey, visibleTabs, type SectionTab } from "./section-tabs"
+import { activeTabKey, tabLabel, visibleTabs, type SectionTab } from "./section-tabs"
 
 const base = "/workspace/w1"
 const tabs: SectionTab[] = [
@@ -24,5 +24,16 @@ describe("section tabs", () => {
     expect(visibleTabs(tabs, headCoach, null).map((t) => t.key)).toEqual(["belts"])
     expect(visibleTabs(tabs, admin, ranksOff).map((t) => t.key)).toEqual(["plans", "payments"])
     expect(visibleTabs(tabs, null, null)).toEqual([])
+  })
+})
+
+describe("section tab badge", () => {
+  const requests: SectionTab = { key: "users-requests", label: "Заявки", path: "users/requests", access: "staff" }
+
+  it("adds the count only while it is above zero", () => {
+    expect(tabLabel(requests, { "users-requests": 3 })).toBe("Заявки · 3")
+    expect(tabLabel(requests, { "users-requests": 0 })).toBe("Заявки")
+    expect(tabLabel(requests, { users: 5 })).toBe("Заявки")
+    expect(tabLabel(requests, undefined)).toBe("Заявки")
   })
 })

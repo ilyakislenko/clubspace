@@ -86,7 +86,7 @@ const makeRbac = (admin = false) => ({
 const build = (row = makeRow(), admin = false) => {
     const prisma = makePrisma(row)
     const notifyUser = jest.fn().mockResolvedValue(true)
-    const realtime = { invalidateUsers: jest.fn() }
+    const realtime = { invalidateUsers: jest.fn(), invalidate: jest.fn() }
     const handler = new AcceptPersonalTrainingHandler(
         prisma as never,
         makeRbac(admin) as never,
@@ -193,6 +193,7 @@ describe('AcceptPersonalTrainingHandler', () => {
             ['m1', 'c1'],
             ['personal-trainings', 'attendance'],
         )
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['requests'])
         expect(notifyUser).toHaveBeenCalledTimes(1)
         expect(notifyUser.mock.calls[0][0]).toMatchObject({
             userId: 'm1',

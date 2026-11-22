@@ -9,7 +9,7 @@ import {
     ListClubVideoReviewsFeature,
     ListClubVideoReviewsFeatureResponse,
 } from './list-club-video-reviews.feature'
-import { resolveReviewStaffScope, uncoachedMemberWhere } from './review-clip-access'
+import { resolveReviewStaffScope, reviewStaffMemberWhere } from './review-clip-access'
 import { reviewSummaryInclude, serializeReviewSummary } from './schemas'
 import { REQUEST_STATUS_ORDER, type RequestStatus } from './video-reviews-utils'
 
@@ -38,17 +38,11 @@ export class ListClubVideoReviewsHandler
         if (!ctx) {
             throw new ForbiddenError({ message: 'Разборы учеников видят только тренеры клуба' })
         }
-        // Owner, admins, head coaches: the whole club. A coach: members of
-        // their own groups plus members no group coach looks after (the
-        // same people the request notification goes to).
-        const memberScope = this.rbac.canWriteAllGroups(ctx)
-            ? {}
-            : {
-                  OR: [
-                      { memberUserId: { in: await this.rbac.ownGroupMemberIds(ctx) } },
-                      { member: uncoachedMemberWhere(workspaceId) },
-                  ],
-              }
+        const memberScope = await reviewStaffMemberWhere({
+            workspaceId,
+            clubWide: this.rbac.canWriteAllGroups(ctx),
+            ownGroupMemberIds: () => this.rbac.ownGroupMemberIds(ctx),
+        })
         const rows = await this.prisma.videoReviewRequest.findMany({
             where: {
                 workspaceId,

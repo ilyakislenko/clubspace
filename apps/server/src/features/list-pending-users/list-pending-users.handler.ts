@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { pendingJoinBaseWhere } from '../../domains/requests/open-requests'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     ListPendingUsersFeature,
@@ -17,11 +18,11 @@ export class ListPendingUsersHandler
     constructor(private readonly prisma: PrismaService) {}
 
     async execute({ workspaceId }: ListPendingUsersFeature) {
-        // Pending = workspace memberships with status=INVITED. Auto-created
-        // by send-auth-code when a user signs up with workspaceKey, so the
-        // list scopes to people who explicitly registered for THIS academy.
+        // Every applicant waiting in the club (the inbox's join rule without
+        // its decider scope): the app lists them to every coach and lets
+        // sport leads decide.
         const pending = await this.prisma.workspaceMember.findMany({
-            where: { workspaceId, status: 'INVITED' },
+            where: pendingJoinBaseWhere(workspaceId),
             include: {
                 user: {
                     select: {
@@ -29,7 +30,6 @@ export class ListPendingUsersHandler
                         email: true,
                         firstname: true,
                         lastname: true,
-                        createdAt: true,
                         lastSeenAt: true,
                     },
                 },
@@ -43,7 +43,8 @@ export class ListPendingUsersHandler
                 email: p.user.email,
                 firstname: p.user.firstname,
                 lastname: p.user.lastname,
-                createdAt: p.user.createdAt.toISOString(),
+                // When they asked: the membership row is the request.
+                createdAt: p.createdAt.toISOString(),
                 lastSeenAt: p.user.lastSeenAt.toISOString(),
             })),
             total: pending.length,

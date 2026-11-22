@@ -96,22 +96,19 @@ export const removeWorkspaceMember = async (params: {
   })
 }
 
+export type RejectPendingMemberInput = ApiTypes.RejectPendingMemberInput
+
+// Declines a join request; the applicant is notified, with the comment when
+// one is given.
 export const rejectPendingMember = async (params: {
   workspaceId: string
   userId: string
+  comment?: string
 }) => {
-  return await getApiClient().request<{ status: "rejected" }, undefined>({
+  return await getApiClient().request<{ status: "rejected" }, RejectPendingMemberInput>({
     method: "post",
     url: `/workspaces/${params.workspaceId}/members/${params.userId}/reject`,
-  })
-}
-
-export type PendingUser = ApiTypes.ListPendingUsersOutputOutput["data"][number]
-
-export const listPendingUsers = async (params: { workspaceId: string }) => {
-  return await getApiClient().request<{ data: PendingUser[]; total: number }>({
-    method: "get",
-    url: `/workspaces/${params.workspaceId}/pending-users`,
+    data: params.comment ? { comment: params.comment } : {},
   })
 }
 

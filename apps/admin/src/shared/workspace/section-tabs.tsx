@@ -12,8 +12,8 @@ import {
   type WorkspaceFeature,
 } from "../lib/use-workspace-features"
 
-// One tab of a sidebar section that spans several routes («Отчёты»,
-// «Абонементы», «Пояса», «Новости и события»). `path` is relative to
+// One tab of a sidebar section that spans several routes («Ученики»,
+// «Отчёты», «Абонементы», «Пояса», «Новости и события»). `path` is relative to
 // /workspace/<id>/; `access` matches the route's gate.
 export type SectionTab = {
   key: string
@@ -54,16 +54,27 @@ export const visibleTabs = (
     (tab) => !tab.feature || featureOn(features, tab.feature),
   )
 
+// A tab's label with its count («Заявки · 3»): only while something waits.
+export const tabLabel = (
+  tab: SectionTab,
+  badges: Partial<Record<string, number>> | undefined,
+): string => {
+  const count = badges?.[tab.key]
+  return count !== undefined && count > 0 ? `${tab.label} · ${count}` : tab.label
+}
+
 // The section's title (= its sidebar label) and its tabs as links: the URL is
 // the state, so a tab can be bookmarked, opened in a new tab and the back
 // button works. Arrow keys / Home / End move between tabs. A lone tab renders
-// no tab row.
+// no tab row. `badges` adds a count to a tab by its key.
 export function SectionTabs({
   title,
   tabs,
+  badges,
 }: {
   title: string
   tabs: readonly SectionTab[]
+  badges?: Partial<Record<string, number>>
 }) {
   const params = useParams<{ workspaceId: string }>()
   const pathname = usePathname()
@@ -121,7 +132,7 @@ export function SectionTabs({
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {tab.label}
+                {tabLabel(tab, badges)}
               </Link>
             )
           })}

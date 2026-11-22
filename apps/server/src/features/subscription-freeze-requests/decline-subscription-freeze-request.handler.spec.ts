@@ -182,6 +182,7 @@ describe('DeclineSubscriptionFreezeRequestHandler', () => {
         expect(realtime.invalidate).toHaveBeenCalledWith('w1', [
             'subscription',
             'freeze-requests',
+            'requests',
         ])
         expect(notifications.notifyUser.mock.calls[0][0]).toMatchObject({
             userId: 'm1',

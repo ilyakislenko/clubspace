@@ -147,7 +147,7 @@ describe('JoinRequestService.requestMembership', () => {
             data: { status: 'ACTIVE' },
         })
         expect(prisma.workspaceMember.create).not.toHaveBeenCalled()
-        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['members'])
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['members', 'requests'])
         expect(realtime.joinWorkspaceRoom).toHaveBeenCalledWith(['u1'], 'w1')
         expect(notifications.notifyUser).not.toHaveBeenCalled()
     })
@@ -204,7 +204,7 @@ describe('JoinRequestService.requestMembership', () => {
             workspaceId: 'w1',
             roleId: 'r1',
         })
-        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['members'])
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['members', 'requests'])
     })
 
     it('creates an ACTIVE row when auto-approving', async () => {
@@ -347,7 +347,7 @@ describe('JoinRequestService staff notifications', () => {
                 data: {
                     workspaceName: 'Club &lt;b&gt;',
                     userEmail: 'a@b.com',
-                    adminUrl: 'https://admin.club.example/workspace/w1/users',
+                    adminUrl: 'https://admin.club.example/workspace/w1/users/requests',
                 },
             },
         })
@@ -491,5 +491,42 @@ describe('JoinRequestService.notifyApproved', () => {
         const { service, featuresBus } = build()
         featuresBus.execute.mockRejectedValue(new Error('smtp'))
         await expect(service.notifyApproved(args)).resolves.toBeUndefined()
+    })
+})
+
+describe('JoinRequestService.notifyDeclined', () => {
+    const args = {
+        userId: 'u1',
+        workspaceId: 'w1',
+        workspaceName: 'Club <b>',
+        membershipId: 'm1',
+    }
+
+    it('tells the applicant with the staff comment, keyed on the membership, no e-mail', async () => {
+        const { service, notifications, featuresBus } = build()
+        await service.notifyDeclined({ ...args, comment: 'Набор закрыт до осени' })
+        expect(notifications.notifyUser).toHaveBeenCalledWith({
+            userId: 'u1',
+            kind: 'member.join_declined',
+            refId: 'm1',
+            topic: 'Заявка в клуб «Club <b>» отклонена',
+            message: 'Набор закрыт до осени',
+            metadata: { workspaceId: 'w1' },
+        })
+        expect(featuresBus.execute).not.toHaveBeenCalled()
+    })
+
+    it('falls back to a contact hint without a comment', async () => {
+        const { service, notifications } = build()
+        await service.notifyDeclined({ ...args, comment: null })
+        expect(notifications.notifyUser.mock.calls[0][0].message).toBe(
+            'Если это ошибка — свяжитесь с клубом.',
+        )
+    })
+
+    it('never throws when the inbox write fails', async () => {
+        const { service, notifications } = build()
+        notifications.notifyUser.mockRejectedValue(new Error('db'))
+        await expect(service.notifyDeclined({ ...args, comment: null })).resolves.toBeUndefined()
     })
 })

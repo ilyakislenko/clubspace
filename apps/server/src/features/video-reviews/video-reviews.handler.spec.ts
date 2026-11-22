@@ -365,7 +365,8 @@ const build = (
         notifyUser: jest.fn(async () => true),
     }
     const transcode = { enqueueReviewClip: jest.fn(async () => undefined) }
-    return { prisma, files, notifications, transcode, clips, requests, comments }
+    const realtime = { invalidate: jest.fn() }
+    return { prisma, files, notifications, transcode, realtime, clips, requests, comments }
 }
 
 type Deps = ReturnType<typeof build>
@@ -463,6 +464,7 @@ describe('CompleteMyVideoReviewUploadHandler', () => {
             fl(d),
             d.transcode as never,
             d.notifications as never,
+            d.realtime as never,
         ).execute(new CompleteMyVideoReviewUploadFeature(userId, W, requestId))
 
     it('measures the upload, queues the transcode and tells all staff of a member in no group', async () => {
@@ -471,6 +473,8 @@ describe('CompleteMyVideoReviewUploadHandler', () => {
         expect(d.clips[0]).toMatchObject({ status: 'uploaded', sizeBytes: BigInt(1000) })
         expect(d.transcode.enqueueReviewClip).toHaveBeenCalledWith('clip-r1')
         expect(res.status).toBe('processing')
+        // A request now: staff «Заявки» reload.
+        expect(d.realtime.invalidate).toHaveBeenCalledWith(W, ['requests'])
         expect(d.prisma.groupCoach.findMany).toHaveBeenCalledWith({
             where: { group: { workspaceId: W, members: { some: { userId: A } } } },
             select: { userId: true },
@@ -585,7 +589,7 @@ describe('ListMyVideoReviewsHandler', () => {
 
 describe('DeleteMyVideoReviewHandler', () => {
     const remove = (d: Deps, userId: string) =>
-        new DeleteMyVideoReviewHandler(p(d), fl(d)).execute(
+        new DeleteMyVideoReviewHandler(p(d), fl(d), d.realtime as never).execute(
             new DeleteMyVideoReviewFeature(userId, W, 'r1'),
         )
 
@@ -598,6 +602,7 @@ describe('DeleteMyVideoReviewHandler', () => {
         ])
         expect(d.clips).toEqual([])
         expect(d.requests).toEqual([])
+        expect(d.realtime.invalidate).toHaveBeenCalledWith(W, ['requests'])
     })
 
     it.each([
@@ -608,6 +613,7 @@ describe('DeleteMyVideoReviewHandler', () => {
         await expect(remove(d, userId)).rejects.toBeInstanceOf(NotFoundError)
         expect(d.files.deleteObjectsByPrefix).not.toHaveBeenCalled()
         expect(d.clips).toHaveLength(1)
+        expect(d.realtime.invalidate).not.toHaveBeenCalled()
     })
 })
 
@@ -776,7 +782,13 @@ describe('SetVideoReviewStatusHandler', () => {
         viewer: Viewer,
         status: 'open' | 'answered' | 'closed',
     ) =>
-        new SetVideoReviewStatusHandler(p(d), fl(d), d.notifications as never, rb(d)).execute(
+        new SetVideoReviewStatusHandler(
+            p(d),
+            fl(d),
+            d.notifications as never,
+            rb(d),
+            d.realtime as never,
+        ).execute(
             new SetVideoReviewStatusFeature(userId, W, viewer, 'r1', { status }),
         )
 
@@ -784,6 +796,7 @@ describe('SetVideoReviewStatusHandler', () => {
         const d = build()
         const res = await setStatus(d, COACH, STAFF, 'answered')
         expect(res.status).toBe('answered')
+        expect(d.realtime.invalidate).toHaveBeenCalledWith(W, ['requests'])
         expect(d.notifications.notifyUser).toHaveBeenCalledWith({
             userId: A,
             kind: REVIEW_ANSWERED_KIND,
@@ -809,6 +822,7 @@ describe('SetVideoReviewStatusHandler', () => {
         const d = build()
         await setStatus(d, COACH, STAFF, 'open')
         expect(d.prisma.videoReviewRequest.update).not.toHaveBeenCalled()
+        expect(d.realtime.invalidate).not.toHaveBeenCalled()
     })
 
     it("doesn't notify a coach answering their own clip", async () => {

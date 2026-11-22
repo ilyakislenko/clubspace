@@ -67,7 +67,7 @@ const makePrisma = () => ({
 const build = () => {
     const prisma = makePrisma()
     const notifyUser = jest.fn().mockResolvedValue(true)
-    const realtime = { invalidateUsers: jest.fn() }
+    const realtime = { invalidateUsers: jest.fn(), invalidate: jest.fn() }
     const handler = new RequestPersonalTrainingHandler(
         prisma as never,
         { notifyUser } as never,
@@ -212,6 +212,7 @@ describe('RequestPersonalTrainingHandler', () => {
             ['m1', 'c1'],
             ['personal-trainings'],
         )
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['requests'])
         expect(notifyUser).toHaveBeenCalledTimes(1)
         expect(notifyUser.mock.calls[0][0]).toMatchObject({
             userId: 'c1',

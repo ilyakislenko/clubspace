@@ -1,13 +1,19 @@
 "use client"
 
 import Hls from "hls.js"
-import { useEffect, useRef } from "react"
+import { useEffect, useImperativeHandle, useRef, type Ref } from "react"
+
+// Moves the player to a moment (a review comment's second).
+export type PlyrPlayerHandle = { seek: (sec: number) => void }
 
 type PlyrPlayerProps = {
   src: string
   poster?: string | null
   title?: string
   autoPlay?: boolean
+  // The current second while it plays or seeks (whole seconds, deduplicated).
+  onTimeUpdate?: (sec: number) => void
+  ref?: Ref<PlyrPlayerHandle>
 }
 
 export function PlyrPlayer({
@@ -15,10 +21,45 @@ export function PlyrPlayer({
   poster,
   title = "Видео",
   autoPlay = false,
+  onTimeUpdate,
+  ref,
 }: PlyrPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const playerRef = useRef<unknown | null>(null)
   const hlsRef = useRef<Hls | null>(null)
+  // Read through a ref, so an inline callback doesn't re-subscribe.
+  const onTimeUpdateRef = useRef(onTimeUpdate)
+  onTimeUpdateRef.current = onTimeUpdate
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      seek: (sec: number) => {
+        const video = videoRef.current
+        if (video) video.currentTime = Math.max(0, sec)
+      },
+    }),
+    [],
+  )
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    let last = -1
+    const report = () => {
+      const sec = Math.floor(video.currentTime)
+      if (sec === last) return
+      last = sec
+      onTimeUpdateRef.current?.(sec)
+    }
+    video.addEventListener("timeupdate", report)
+    video.addEventListener("seeked", report)
+    return () => {
+      video.removeEventListener("timeupdate", report)
+      video.removeEventListener("seeked", report)
+    }
+  }, [])
+
 
   useEffect(() => {
     let isCancelled = false

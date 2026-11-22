@@ -122,6 +122,7 @@ export class ApproveSubscriptionFreezeRequestHandler
             'subscription',
             'attendance',
             'freeze-requests',
+            'requests',
         ])
 
         await sendFreezeRequestNotice(this.notifications, this.logger, {
