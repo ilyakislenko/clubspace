@@ -1,0 +1,33 @@
+version: 2
+updates:
+  # One npm workspace (root package-lock.json covers apps/* and libs/*).
+  # Minor/patch bumps land as a single grouped PR a week; majors stay separate
+  # so each breaking upgrade is reviewed on its own.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  # Base images of every app Dockerfile (node / caddy pins are bumped together —
+  # see the comment in apps/video-worker/Dockerfile).
+  - package-ecosystem: docker
+    directories:
+      - /apps/server
+      - /apps/video-worker
+      - /apps/admin
+      - /apps/client
+      - /apps/mobile
+    schedule:
+      interval: monthly
+    groups:
+      docker-base-images:
+        patterns: ['*']

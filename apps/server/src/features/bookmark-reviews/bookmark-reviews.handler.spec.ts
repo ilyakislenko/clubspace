@@ -370,10 +370,24 @@ describe('ReviewMyBookmarkHandler', () => {
             grade: 'good',
             reviewedAt: NOW.toISOString(),
         },
+        courseAccess: unknown = {
+            assertCanWatchVideo: jest
+                .fn()
+                .mockResolvedValue({ isStaff: false, visibleCourseIds: [] }),
+        },
     ) =>
-        new ReviewMyBookmarkHandler(prisma as never).execute(
+        new ReviewMyBookmarkHandler(prisma as never, courseAccess as never).execute(
             new ReviewMyBookmarkFeature('u1', 'v1', BM, payload),
         )
+
+    it("refuses a grade on a lesson the member can't watch and stores nothing", async () => {
+        const { prisma } = build()
+        const locked = new ForbiddenError({ message: 'Урок пока закрыт' })
+        const courseAccess = { assertCanWatchVideo: jest.fn().mockRejectedValue(locked) }
+        await expect(grade(prisma, undefined, courseAccess)).rejects.toBe(locked)
+        expect(prisma.bookmarkReview.create).not.toHaveBeenCalled()
+        expect(prisma.bookmarkReview.updateMany).not.toHaveBeenCalled()
+    })
 
     it('schedules a new card on its first grade', async () => {
         const { prisma } = build()

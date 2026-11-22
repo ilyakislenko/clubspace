@@ -41,6 +41,19 @@ export class ForbiddenError extends DefaultError {
     }
 }
 
+// A super admin whose session was not signed in with the authenticator while
+// PLATFORM_ADMIN_MFA_REQUIRED is on. The admin app sends them to set it up
+// (or to sign in again with it).
+export class PlatformMfaRequiredError extends DefaultError {
+    constructor() {
+        super({
+            message: 'Включите двухфакторную защиту',
+            code: 'PLATFORM_MFA_REQUIRED',
+            statusCode: 403,
+        })
+    }
+}
+
 export class BadRequestError extends DefaultError {
     constructor(payload: { message: string }) {
         super({

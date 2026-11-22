@@ -273,9 +273,10 @@ describe('families: guardians acting for their children', () => {
         // …and an account route refuses it instead of running for the parent.
         await ctx
             .http()
-            .delete('/me')
+            .post('/me/delete-account')
             .set(...parent.auth)
             .set(...actAs(child.id))
+            .send({ code: '000000' })
             .expect(403)
         const parentRow = await ctx.prisma.user.findUniqueOrThrow({
             where: { id: parent.userId },

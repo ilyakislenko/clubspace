@@ -45,4 +45,16 @@ describe('SignOutHandler', () => {
         expect(tokens.revokeStoredTokenFamily).not.toHaveBeenCalled()
         expect(result).toEqual({ status: 'signed-out' })
     })
+
+    // A cookie-transport sign-out whose cookie already expired.
+    it('reports success without a token and touches nothing', async () => {
+        const tokens = buildTokens()
+        const handler = new SignOutHandler(tokens)
+
+        const result = await handler.execute(new SignOutFeature({}))
+
+        expect(tokens.verifyStoredToken).not.toHaveBeenCalled()
+        expect(tokens.revokeStoredTokenFamily).not.toHaveBeenCalled()
+        expect(result).toEqual({ status: 'signed-out' })
+    })
 })

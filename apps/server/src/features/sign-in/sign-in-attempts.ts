@@ -4,12 +4,20 @@ import { TooManySignInAttemptsError } from './sign-in.feature'
 
 // Wrong codes are counted twice. Per (account, client address): the address
 // that keeps guessing is locked for LOCKOUT_MS after MAX_FAILED_ATTEMPTS_PER_ADDRESS,
-// while the owner signing in from their own device is unaffected. Per account:
-// a ceiling across all addresses, so spreading guesses over many addresses
-// still stops at a handful per lockout window. Issuing a new code resets
-// neither (issuance is unauthenticated).
+// while the owner signing in from their own device is unaffected. Per account,
+// two ceilings over all addresses:
+//  - MAX_FAILED_ATTEMPTS_PER_ACCOUNT starts an account lock that only applies to
+//    addresses that took part in the guessing (failed within the window before
+//    the lock). A stranger spreading guesses can't lock the owner out of an
+//    address that never failed.
+//  - MAX_FAILED_ATTEMPTS_PER_ACCOUNT_HARD locks every address: guessing spread
+//    over very many addresses still stops at a bounded number per window.
+// A hard lock is recorded as an active lock with the counter zeroed; a soft
+// lock keeps the counter (≥ the soft ceiling). Issuing a new code resets
+// nothing (issuance is unauthenticated).
 export const MAX_FAILED_ATTEMPTS_PER_ADDRESS = 5
 export const MAX_FAILED_ATTEMPTS_PER_ACCOUNT = 10
+export const MAX_FAILED_ATTEMPTS_PER_ACCOUNT_HARD = 50
 export const LOCKOUT_MS = 15 * 60 * 1000
 
 const lockoutError = () => new TooManySignInAttemptsError(LOCKOUT_MS / 60_000)
@@ -17,6 +25,26 @@ const lockoutError = () => new TooManySignInAttemptsError(LOCKOUT_MS / 60_000)
 const unlocked = () => ({
     OR: [{ lockedUntil: null }, { lockedUntil: { lt: new Date() } }],
 })
+
+const isActive = (until: Date | null): until is Date =>
+    !!until && until.getTime() > Date.now()
+
+/**
+ * Whether an active account-wide lock applies to this address. A hard lock
+ * (counter zeroed) applies to all; a soft one only to an address whose
+ * throttle row was touched by a failure from one window before the lock
+ * started onwards.
+ */
+const accountLockApplies = (
+    account: { lockedUntil: Date | null; failedAttempts: number },
+    address: { updatedAt: Date } | null,
+): boolean => {
+    if (!isActive(account.lockedUntil)) return false
+    if (account.failedAttempts === 0) return true
+    if (!address) return false
+    const lockStart = account.lockedUntil.getTime() - LOCKOUT_MS
+    return address.updatedAt.getTime() >= lockStart - LOCKOUT_MS
+}
 
 /**
  * The wrong-code counters of one sign-in subject: an existing account
@@ -43,21 +71,30 @@ export class UserSignInAttempts implements SignInAttempts {
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
-        private readonly user: { id: string; signInLockedUntil: Date | null },
+        private readonly user: {
+            id: string
+            signInLockedUntil: Date | null
+            signInFailedAttempts: number
+        },
     ) {}
 
     async isLocked(ipHash: string): Promise<boolean> {
+        const throttle = await this.prisma.signInThrottle.findUnique({
+            where: { userId_ipHash: { userId: this.user.id, ipHash } },
+            select: { lockedUntil: true, updatedAt: true },
+        })
         if (
-            this.user.signInLockedUntil &&
-            this.user.signInLockedUntil.getTime() > Date.now()
+            accountLockApplies(
+                {
+                    lockedUntil: this.user.signInLockedUntil,
+                    failedAttempts: this.user.signInFailedAttempts,
+                },
+                throttle,
+            )
         ) {
             return true
         }
-        const throttle = await this.prisma.signInThrottle.findUnique({
-            where: { userId_ipHash: { userId: this.user.id, ipHash } },
-            select: { lockedUntil: true },
-        })
-        return !!throttle?.lockedUntil && throttle.lockedUntil > new Date()
+        return isActive(throttle?.lockedUntil ?? null)
     }
 
     async claim(ipHash: string): Promise<void> {
@@ -80,13 +117,16 @@ export class UserSignInAttempts implements SignInAttempts {
             throw lockoutError()
         }
 
+        // Counts during a soft lock too (addresses outside it may still try);
+        // only a hard lock (active, counter zeroed) stops counting.
         const byAccount = await this.prisma.user.updateMany({
             where: {
                 id: userId,
-                signInFailedAttempts: { lt: MAX_FAILED_ATTEMPTS_PER_ACCOUNT },
+                signInFailedAttempts: { lt: MAX_FAILED_ATTEMPTS_PER_ACCOUNT_HARD },
                 OR: [
                     { signInLockedUntil: null },
                     { signInLockedUntil: { lt: new Date() } },
+                    { signInFailedAttempts: { gt: 0 } },
                 ],
             },
             data: { signInFailedAttempts: { increment: 1 } },
@@ -100,6 +140,27 @@ export class UserSignInAttempts implements SignInAttempts {
     async afterFailure(ipHash: string): Promise<void> {
         await this.lockAddressIfExhausted(ipHash)
         await this.lockAccountIfExhausted()
+    }
+
+    // Gives back the ticket claim took, for an attempt that turned out not to
+    // be a guess: the e-mailed code was right and the client only still has
+    // to send the authenticator code. Never below zero; a lock that started
+    // meanwhile (counter zeroed) is left alone.
+    async release(ipHash: string): Promise<void> {
+        const userId = this.user.id
+        await this.prisma.signInThrottle.updateMany({
+            where: {
+                userId,
+                ipHash,
+                failedAttempts: { gt: 0 },
+                ...unlocked(),
+            },
+            data: { failedAttempts: { decrement: 1 } },
+        })
+        await this.prisma.user.updateMany({
+            where: { id: userId, signInFailedAttempts: { gt: 0 } },
+            data: { signInFailedAttempts: { decrement: 1 } },
+        })
     }
 
     private async lockAddressIfExhausted(ipHash: string): Promise<void> {
@@ -117,10 +178,26 @@ export class UserSignInAttempts implements SignInAttempts {
         })
     }
 
-    // Starts the lockout (and zeroes the counter, so the account is fresh when
-    // the lock expires) once every ticket is spent. Idempotent under races.
+    // Starts the lockouts once their tickets are spent. Idempotent under
+    // races: count is 1 only for the request that started a lock, so a burst
+    // of concurrent wrong codes audits it once.
     private async lockAccountIfExhausted(): Promise<void> {
-        const locked = await this.prisma.user.updateMany({
+        const until = () => new Date(Date.now() + LOCKOUT_MS)
+        // Hard: zero the counter (marks the lock as hard; the account is fresh
+        // when it expires). Allowed over an active soft lock.
+        const hard = await this.prisma.user.updateMany({
+            where: {
+                id: this.user.id,
+                signInFailedAttempts: { gte: MAX_FAILED_ATTEMPTS_PER_ACCOUNT_HARD },
+            },
+            data: { signInFailedAttempts: 0, signInLockedUntil: until() },
+        })
+        if (hard.count > 0) {
+            await this.recordLockout('account')
+            return
+        }
+        // Soft: keep the counter so later failures still climb to the hard one.
+        const soft = await this.prisma.user.updateMany({
             where: {
                 id: this.user.id,
                 signInFailedAttempts: { gte: MAX_FAILED_ATTEMPTS_PER_ACCOUNT },
@@ -129,23 +206,20 @@ export class UserSignInAttempts implements SignInAttempts {
                     { signInLockedUntil: { lt: new Date() } },
                 ],
             },
-            data: {
-                signInFailedAttempts: 0,
-                signInLockedUntil: new Date(Date.now() + LOCKOUT_MS),
-            },
+            data: { signInLockedUntil: until() },
         })
-        // count is 1 only for the request that started this lockout, so a
-        // burst of concurrent wrong codes records it once.
-        if (locked.count > 0) {
-            await this.audit.record({
-                action: 'auth.lockout',
-                targetType: 'member',
-                targetId: this.user.id,
-                actorId: this.user.id,
-                workspaceId: null,
-                metadata: { lockoutMinutes: LOCKOUT_MS / 60_000 },
-            })
-        }
+        if (soft.count > 0) await this.recordLockout('guessingAddresses')
+    }
+
+    private async recordLockout(scope: 'account' | 'guessingAddresses'): Promise<void> {
+        await this.audit.record({
+            action: 'auth.lockout',
+            targetType: 'member',
+            targetId: this.user.id,
+            actorId: this.user.id,
+            workspaceId: null,
+            metadata: { lockoutMinutes: LOCKOUT_MS / 60_000, scope },
+        })
     }
 }
 
@@ -154,21 +228,20 @@ export class UserSignInAttempts implements SignInAttempts {
 export class PendingSignInAttempts implements SignInAttempts {
     constructor(
         private readonly prisma: PrismaService,
-        private readonly pending: { email: string; lockedUntil: Date | null },
+        private readonly pending: {
+            email: string
+            lockedUntil: Date | null
+            failedAttempts: number
+        },
     ) {}
 
     async isLocked(ipHash: string): Promise<boolean> {
-        if (
-            this.pending.lockedUntil &&
-            this.pending.lockedUntil.getTime() > Date.now()
-        ) {
-            return true
-        }
         const throttle = await this.prisma.pendingSignInThrottle.findUnique({
             where: { email_ipHash: { email: this.pending.email, ipHash } },
-            select: { lockedUntil: true },
+            select: { lockedUntil: true, updatedAt: true },
         })
-        return !!throttle?.lockedUntil && throttle.lockedUntil > new Date()
+        if (accountLockApplies(this.pending, throttle)) return true
+        return isActive(throttle?.lockedUntil ?? null)
     }
 
     async claim(ipHash: string): Promise<void> {
@@ -194,8 +267,12 @@ export class PendingSignInAttempts implements SignInAttempts {
         const byAccount = await this.prisma.pendingSignIn.updateMany({
             where: {
                 email,
-                failedAttempts: { lt: MAX_FAILED_ATTEMPTS_PER_ACCOUNT },
-                ...unlocked(),
+                failedAttempts: { lt: MAX_FAILED_ATTEMPTS_PER_ACCOUNT_HARD },
+                OR: [
+                    { lockedUntil: null },
+                    { lockedUntil: { lt: new Date() } },
+                    { failedAttempts: { gt: 0 } },
+                ],
             },
             data: { failedAttempts: { increment: 1 } },
         })
@@ -226,16 +303,22 @@ export class PendingSignInAttempts implements SignInAttempts {
     }
 
     private async lockAccountIfExhausted(): Promise<void> {
+        const until = () => new Date(Date.now() + LOCKOUT_MS)
+        const hard = await this.prisma.pendingSignIn.updateMany({
+            where: {
+                email: this.pending.email,
+                failedAttempts: { gte: MAX_FAILED_ATTEMPTS_PER_ACCOUNT_HARD },
+            },
+            data: { failedAttempts: 0, lockedUntil: until() },
+        })
+        if (hard.count > 0) return
         await this.prisma.pendingSignIn.updateMany({
             where: {
                 email: this.pending.email,
                 failedAttempts: { gte: MAX_FAILED_ATTEMPTS_PER_ACCOUNT },
                 ...unlocked(),
             },
-            data: {
-                failedAttempts: 0,
-                lockedUntil: new Date(Date.now() + LOCKOUT_MS),
-            },
+            data: { lockedUntil: until() },
         })
     }
 }

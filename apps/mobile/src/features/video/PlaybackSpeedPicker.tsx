@@ -12,6 +12,7 @@ import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { MenuOption } from "./MenuOption"
 import { PLAYBACK_RATES } from "./player-math"
 
 export type PlayerChoice<T> = { value: T; label: string; accessibilityLabel?: string }
@@ -44,7 +45,7 @@ export function PlayerChoicePopover<T>({
             const isSelected = choice.value === selected
             return (
               <Pressable
-                key={choice.label}
+                key={String(choice.value)}
                 onPress={() => onSelect(choice.value)}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: isSelected }}
@@ -97,6 +98,32 @@ export function PlaybackRatePopover({
       onSelect={onSelect}
       style={style}
     />
+  )
+}
+
+/**
+ * The speed as rows of the lesson's «⋯» menu (web: Plyr's own speed menu
+ * doesn't save the default, this does).
+ */
+export function PlaybackRateMenuOptions({
+  rate,
+  onSelect,
+}: {
+  rate: number
+  onSelect: (rate: number) => void
+}) {
+  return (
+    <>
+      {RATE_CHOICES.map((choice) => (
+        <MenuOption
+          key={String(choice.value)}
+          role="radio"
+          label={`Скорость: ${choice.label}`}
+          selected={choice.value === rate}
+          onPress={() => onSelect(choice.value)}
+        />
+      ))}
+    </>
   )
 }
 

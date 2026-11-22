@@ -11,4 +11,6 @@ export const environment = {
     explicit: process.env.NEXT_PUBLIC_APP_URL,
     apiBaseUrl,
   }),
+  // Same inbox the landing shows (apps/client reads the same variable).
+  supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || null,
 }

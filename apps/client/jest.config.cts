@@ -1,7 +1,8 @@
 const nextJest = require('next/jest.js');
 
 const createJestConfig = nextJest({
-  dir: './',
+  // The app root, not the cwd: nx runs jest from the workspace root.
+  dir: __dirname,
 });
 
 const config = {

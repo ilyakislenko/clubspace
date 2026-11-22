@@ -326,3 +326,32 @@ export const resetPlatformDemoClub = async (club: PlatformDemoClubId): Promise<P
     url: "/platform/demo-club/reset",
     params: { club },
   })
+
+// The platform admin's authenticator app. Open to a super admin whose session
+// has no platform powers yet — setting it up is how they get them.
+export type PlatformMfaStatus = ApiTypes.GetPlatformMfaOutputOutput
+export type PlatformMfaEnrollment = ApiTypes.StartPlatformMfaEnrollmentOutputOutput
+
+export const fetchPlatformMfa = async (): Promise<PlatformMfaStatus> =>
+  await getApiClient().request<PlatformMfaStatus>({
+    method: "get",
+    url: "/platform/mfa",
+  })
+
+export const startPlatformMfaEnrollment = async (): Promise<PlatformMfaEnrollment> =>
+  await getApiClient().request<PlatformMfaEnrollment>({
+    method: "post",
+    url: "/platform/mfa/enrollment",
+  })
+
+export const confirmPlatformMfaEnrollment = async (
+  code: string,
+): Promise<ApiTypes.ConfirmPlatformMfaEnrollmentOutputOutput> =>
+  await getApiClient().request<
+    ApiTypes.ConfirmPlatformMfaEnrollmentOutputOutput,
+    ApiTypes.ConfirmPlatformMfaEnrollmentInput
+  >({
+    method: "post",
+    url: "/platform/mfa/enrollment/confirm",
+    data: { code },
+  })

@@ -118,6 +118,13 @@ export const environment = {
     // up env-var parsing. Nothing authenticates with it: sign-in compares the
     // emailed OTP against User.completeCode and never reads User.password.
     adminPassword: get('SUPER_ADMIN_PASSWORD').required(false).asString(),
+    // Platform-admin powers (the /platform console and the super-admin bypass
+    // of every club guard) only for a session signed in with the TOTP of an
+    // authenticator app — the `mfa` claim of the access token. Off in
+    // development so the local demo signs in by e-mail code alone.
+    platformAdminMfaRequired: get('PLATFORM_ADMIN_MFA_REQUIRED')
+        .default(isProduction ? 'true' : 'false')
+        .asBool(),
     // Opt-in "store review account": one email that signs in with a fixed
     // code, so Google Play / App Store reviewers (who can't read our mail) can
     // log in. Both or neither; validated at boot by resolveStoreReview.
@@ -262,6 +269,8 @@ export const environment = {
     sentry: {
         dsn: get('SENTRY_DSN').required(false).asString(),
         environment: get('SENTRY_ENVIRONMENT').default('development').asString(),
+        // Short git sha of the deployed build (deploy/update.sh sets it).
+        release: get('APP_RELEASE').required(false).asString() || undefined,
         tracesSampleRate: get('SENTRY_TRACES_SAMPLE_RATE')
             .default('0')
             .asFloat(),
@@ -274,6 +283,21 @@ export const environment = {
         publicKey: get('WEB_PUSH_VAPID_PUBLIC_KEY').required(false).asString() || null,
         privateKey: get('WEB_PUSH_VAPID_PRIVATE_KEY').required(false).asString() || null,
         subject: get('WEB_PUSH_SUBJECT').default('mailto:support@clubspace.app').asString(),
+    },
+    // The member-facing Telegram bot (domains/telegram, deploy/README.md): link a
+    // chat in the app's notification settings, get notifications there. All
+    // three set = on; otherwise the app hides the «Telegram» row. Not the ops
+    // alert bot (ALERT_TELEGRAM_* in deploy/, never read by the API).
+    telegram: {
+        botToken: get('TELEGRAM_BOT_TOKEN').required(false).asString() || null,
+        // The bot's @username, for the t.me deep link; a leading @ is dropped.
+        botUsername:
+            get('TELEGRAM_BOT_USERNAME').required(false).asString()?.replace(/^@/, '') ||
+            null,
+        // setWebhook's secret_token: Telegram sends it back in
+        // X-Telegram-Bot-Api-Secret-Token on every update.
+        webhookSecret:
+            get('TELEGRAM_WEBHOOK_SECRET').required(false).asString() || null,
     },
     // SaaS side: what clubs pay ClubSpace. `enabled: false` is a self-hosted
     // install — every module on, no trial expiry, no billing nags in the admin.

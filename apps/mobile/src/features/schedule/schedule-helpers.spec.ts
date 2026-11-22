@@ -604,6 +604,17 @@ describe('withoutGymEcho', () => {
         )
     })
 
+    it('drops a trailing part that is whole words of the gym’s name, any case', () => {
+        expect(withoutGymEcho('BJJ · дворец', DVORETS)).toBe('BJJ')
+        expect(withoutGymEcho('BJJ · СК Дворец', DVORETS)).toBe('BJJ')
+    })
+
+    it('keeps a tail that is only part of a word, or words out of order', () => {
+        expect(withoutGymEcho('Дети · А', DVORETS)).toBe('Дети · А')
+        expect(withoutGymEcho('BJJ · Двор', DVORETS)).toBe('BJJ · Двор')
+        expect(withoutGymEcho('BJJ · спорта Дворец', DVORETS)).toBe('BJJ · спорта Дворец')
+    })
+
     it('drops a trailing part naming the gym’s city', () => {
         expect(withoutGymEcho('Тайский бокс · Северск', SEVERSK)).toBe('Тайский бокс')
     })

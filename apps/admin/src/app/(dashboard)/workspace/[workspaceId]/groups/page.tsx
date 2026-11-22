@@ -22,7 +22,7 @@ import {
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { fetchMe } from "../../../../../shared/api/me"
 import {
-  listWorkspaceMembers,
+  listAllWorkspaceMembers,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
 import { GroupScheduleBlock } from "../../../../../features/schedule/GroupScheduleBlock"
@@ -102,11 +102,13 @@ export default function WorkspaceGroupsPage() {
       const [gymsResp, groupsResp, membersResp] = await Promise.all([
         listGyms({ workspaceId }),
         listGroups({ workspaceId }),
-        listWorkspaceMembers({ workspaceId }),
+        // The student picker offers the whole roster; coach pickers derive
+        // from it.
+        listAllWorkspaceMembers({ workspaceId }),
       ])
       setGyms(gymsResp.data)
       setGroups(groupsResp.data)
-      setMembers(membersResp.data)
+      setMembers(membersResp)
     } catch (err) {
       setError(
         errorMessage(err, "Не удалось загрузить данные"),

@@ -128,6 +128,12 @@ import { PlatformController } from '../features/platform/platform.controller'
 import { PlatformDemoClubController } from '../features/platform/platform-demo-club.controller'
 import { GetPlatformDemoClubHandler } from '../features/platform/get-platform-demo-club.handler'
 import { ResetPlatformDemoClubHandler } from '../features/platform/reset-platform-demo-club.handler'
+import { PlatformMfaController } from '../features/platform-mfa/platform-mfa.controller'
+import {
+    ConfirmPlatformMfaEnrollmentHandler,
+    GetPlatformMfaHandler,
+    StartPlatformMfaEnrollmentHandler,
+} from '../features/platform-mfa/platform-mfa.handler'
 import { DemoClubService } from '../domains/demo/demo-club.service'
 import { CreatePlatformWorkspaceHandler } from '../features/platform/create-platform-workspace.handler'
 import { GetPlatformOverviewHandler } from '../features/platform/get-platform-overview.handler'
@@ -281,6 +287,7 @@ import { LeaderboardCacheService } from '../features/attendance-leaderboard/lead
 import { CheckInFollowUpService } from '../features/attendance/check-in-follow-up.service'
 import { RankService } from '../domains/ranks/services/rank.service'
 import { NotificationProducerModule } from '../domains/notifications/notification-producer.module'
+import { TelegramModule } from '../domains/telegram/telegram.module'
 import { RealtimeModule } from '../domains/realtime/realtime.module'
 import { RealtimeGateway } from '../domains/realtime/realtime.gateway'
 import { RanksController } from '../features/manage-ranks/ranks.controller'
@@ -397,6 +404,13 @@ import { MarkNotificationsSeenHandler } from '../features/notifications-inbox/ma
 import { NotificationPreferencesController } from '../features/notification-preferences/notification-preferences.controller'
 import { GetNotificationPreferencesHandler } from '../features/notification-preferences/get-notification-preferences.handler'
 import { UpdateNotificationPreferencesHandler } from '../features/notification-preferences/update-notification-preferences.handler'
+import { TelegramLinkController } from '../features/telegram-link/telegram-link.controller'
+import { TelegramWebhookController } from '../features/telegram-link/telegram-webhook.controller'
+import { GetMyTelegramHandler } from '../features/telegram-link/get-my-telegram.handler'
+import { CreateTelegramLinkHandler } from '../features/telegram-link/create-telegram-link.handler'
+import { UpdateMyTelegramHandler } from '../features/telegram-link/update-my-telegram.handler'
+import { UnlinkMyTelegramHandler } from '../features/telegram-link/unlink-my-telegram.handler'
+import { HandleTelegramWebhookHandler } from '../features/telegram-link/handle-telegram-webhook.handler'
 import { DeleteAccountController } from '../features/delete-account/delete-account.controller'
 import { DeleteAccountHandler } from '../features/delete-account/delete-account.handler'
 import { MyConsentController } from '../features/personal-data-consent/my-consent.controller'
@@ -460,6 +474,8 @@ import {
 } from '../features/demo-requests/demo-requests.controller'
 import { CreateDemoRequestHandler } from '../features/demo-requests/create-demo-request.handler'
 import { ListPlatformDemoRequestsHandler } from '../features/demo-requests/list-platform-demo-requests.handler'
+import { ReportClientErrorController } from '../features/report-client-error/report-client-error.controller'
+import { ReportClientErrorHandler } from '../features/report-client-error/report-client-error.handler'
 import { WorkspaceEventsController } from '../features/manage-workspace-events/workspace-events.controller'
 import { CreateWorkspaceEventHandler } from '../features/manage-workspace-events/create-workspace-event.handler'
 import { UpdateWorkspaceEventHandler } from '../features/manage-workspace-events/update-workspace-event.handler'
@@ -709,6 +725,7 @@ const controllers: ModuleMetadata['controllers'] = [
     PlatformOnboardingHelpController,
     PlatformDemoRequestsController,
     PlatformDemoClubController,
+    PlatformMfaController,
     CreateVideoUploadController,
     CreateVideoThumbnailUploadController,
     CreateTagController,
@@ -788,6 +805,8 @@ const controllers: ModuleMetadata['controllers'] = [
     WebPushSubscriptionsController,
     NotificationsInboxController,
     NotificationPreferencesController,
+    TelegramLinkController,
+    TelegramWebhookController,
     DeleteAccountController,
     MyConsentController,
     ExportMyDataController,
@@ -809,6 +828,7 @@ const controllers: ModuleMetadata['controllers'] = [
     PublicClubsController,
     PublicPricingController,
     DemoRequestsController,
+    ReportClientErrorController,
     AttendanceController,
     SelfCheckInController,
     DropInsController,
@@ -892,6 +912,9 @@ const handlers: ModuleMetadata['providers'] = [
     GetPlatformOverviewHandler,
     GetPlatformDemoClubHandler,
     ResetPlatformDemoClubHandler,
+    GetPlatformMfaHandler,
+    StartPlatformMfaEnrollmentHandler,
+    ConfirmPlatformMfaEnrollmentHandler,
     UpdatePlatformWorkspaceHandler,
     ListPlatformAuditHandler,
     CreateVideoUploadHandler,
@@ -994,6 +1017,11 @@ const handlers: ModuleMetadata['providers'] = [
     MarkNotificationsSeenHandler,
     GetNotificationPreferencesHandler,
     UpdateNotificationPreferencesHandler,
+    GetMyTelegramHandler,
+    CreateTelegramLinkHandler,
+    UpdateMyTelegramHandler,
+    UnlinkMyTelegramHandler,
+    HandleTelegramWebhookHandler,
     DeleteAccountHandler,
     GetMyConsentHandler,
     AcceptMyConsentHandler,
@@ -1046,6 +1074,7 @@ const handlers: ModuleMetadata['providers'] = [
     QuotePublicPricingHandler,
     CreateDemoRequestHandler,
     ListPlatformDemoRequestsHandler,
+    ReportClientErrorHandler,
     CreateAttendanceSessionHandler,
     MarkRecordsHandler,
     SelfCheckInHandler,
@@ -1272,6 +1301,8 @@ const domainModules: ModuleMetadata['imports'] = [
     // VideoService emit through the producer).
     RealtimeModule,
     NotificationProducerModule,
+    // The member-facing Telegram bot (linking handlers use its client).
+    TelegramModule,
     AnalyticsModule,
     BillingModule,
 ]

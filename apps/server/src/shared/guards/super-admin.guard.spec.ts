@@ -1,10 +1,11 @@
 import { ExecutionContext } from '@nestjs/common'
 
-import { ForbiddenError } from '../errors/shared.errors'
+import { ForbiddenError, PlatformMfaRequiredError } from '../errors/shared.errors'
 import { SuperAdminGuard } from './super-admin.guard'
 
 type UserStub = {
     isSuperAdmin?: boolean
+    superAdminMfaMissing?: boolean
     role?: { name: string }
 } | null
 
@@ -21,6 +22,19 @@ describe('SuperAdminGuard', () => {
     it('admits a platform super admin', () => {
         expect(guard.canActivate(buildContext({ isSuperAdmin: true }))).toBe(
             true,
+        )
+    })
+
+    // A super-admin account whose session lacks the required authenticator:
+    // AuthGuard took its powers; the answer tells the admin app to set it up.
+    it('asks a super admin without the second factor to set it up', () => {
+        const context = buildContext({
+            isSuperAdmin: false,
+            superAdminMfaMissing: true,
+        })
+        expect(() => guard.canActivate(context)).toThrow(PlatformMfaRequiredError)
+        expect(() => guard.canActivate(context)).toThrow(
+            'Включите двухфакторную защиту',
         )
     })
 

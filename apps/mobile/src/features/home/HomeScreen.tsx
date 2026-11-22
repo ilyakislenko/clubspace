@@ -648,11 +648,9 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           )}
 
           {!failed && !nextEvent && showHomeFallback({
-            groupsOn:
-              groupsOn ||
-              bookings.length > 0 ||
-              myClassBookings.length > 0 ||
-              myPersonal.length > 0,
+            // What's on screen, not the feature flag: staff with no group of
+            // theirs get no class card. While the groups load, one may come.
+            hasClassCard: !!nextClass || !!coachToday || (groupsOn && groups.loading),
             attendanceOn,
             subscriptionOn,
             hasRecents,

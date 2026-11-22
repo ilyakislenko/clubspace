@@ -27,13 +27,18 @@ export const updateMe = async (data: UpdateMeInput): Promise<Me> => {
   })
 }
 
-// Permanently deletes the current user's account (App Store 5.1.1(v)). The
+// Permanently deletes the current user's account (App Store 5.1.1(v)) with a
+// fresh code from POST /send-auth-code for the account's own address. The
 // server rejects this for club owners/coaches; the caller signs out locally
 // on success.
-export const deleteAccount = async () => {
-  return await getApiClient().request<ApiTypes.DeleteAccountOutputOutput>({
-    method: "delete",
-    url: "/me",
+export const deleteAccount = async (code: string) => {
+  return await getApiClient().request<
+    ApiTypes.DeleteAccountOutputOutput,
+    ApiTypes.DeleteAccountInput
+  >({
+    method: "post",
+    url: "/me/delete-account",
+    data: { code },
   })
 }
 

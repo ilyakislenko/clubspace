@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import type { ReviewViewerRole } from './review-clip-access'
 import { ReviewDrawingSchema, VideoReviewDetailSchema } from './schemas'
 
 export const AddVideoReviewCommentFeatureInputSchema = z.object({
@@ -25,7 +26,7 @@ export class AddVideoReviewCommentFeature {
     constructor(
         readonly userId: string,
         readonly workspaceId: string,
-        readonly isStaff: boolean,
+        readonly viewer: ReviewViewerRole,
         readonly requestId: string,
         readonly payload: z.infer<typeof AddVideoReviewCommentFeatureInputSchema>,
     ) {}
@@ -35,7 +36,7 @@ export class UpdateVideoReviewCommentFeature {
     constructor(
         readonly userId: string,
         readonly workspaceId: string,
-        readonly isStaff: boolean,
+        readonly viewer: ReviewViewerRole,
         readonly requestId: string,
         readonly commentId: string,
         readonly payload: z.infer<typeof UpdateVideoReviewCommentFeatureInputSchema>,
@@ -46,7 +47,7 @@ export class DeleteVideoReviewCommentFeature {
     constructor(
         readonly userId: string,
         readonly workspaceId: string,
-        readonly isStaff: boolean,
+        readonly viewer: ReviewViewerRole,
         readonly requestId: string,
         readonly commentId: string,
     ) {}

@@ -64,7 +64,11 @@ export const scheduleTool = defineTool({
         })
         const res = await ctx.schedule.execute(
             new GetWorkspaceScheduleFeature(
-                { from: range.from, to: range.to, directionId: args.directionId },
+                {
+                    from: range.from,
+                    to: range.to,
+                    directionIds: args.directionId ? [args.directionId] : undefined,
+                },
                 access.workspaceId,
             ),
         )

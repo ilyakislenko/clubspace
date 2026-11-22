@@ -13,6 +13,7 @@ import { AppModule } from './app.module'
 import { environment } from '../environments/environment'
 import { REDIS_CLIENT } from '../infrastructure/redis/redis.constants'
 import { RedisIoAdapter } from '../infrastructure/redis/redis-io.adapter'
+import { resolveCorsOrigins } from '../shared/utils/cors-origins.util'
 import { resolveDemoMode } from '../shared/utils/demo-mode.util'
 import { resolveStoreReview } from '../shared/utils/store-review.util'
 import { assertProductionSecrets } from './production-secrets'
@@ -80,14 +81,7 @@ async function bootstrap() {
     // (Harmless in dev where no proxy sets the header.)
     app.getHttpAdapter().getInstance().set('trust proxy', 1)
 
-    const corsOrigins = get('CORS_ORIGINS')
-        .default('http://localhost:3000,http://localhost:4200,http://localhost:4201')
-        .asString()
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean)
-
-    const allowAnyOrigin = corsOrigins.includes('*')
+    const { origins: corsOrigins, allowAnyOrigin } = resolveCorsOrigins()
     const isProduction = environment.production
 
     // A wildcard origin reflected back WITH credentials lets any site make

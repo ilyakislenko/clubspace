@@ -5,6 +5,16 @@ import {
 import { GetWorkspaceOnboardingFeature } from './get-workspace-onboarding.feature'
 import { GetWorkspaceOnboardingHandler } from './get-workspace-onboarding.handler'
 
+const WS = {
+    ownerId: 'owner',
+    videosEnabled: true,
+    scheduleEnabled: true,
+    subscriptionEnabled: true,
+    // A club on trial: every module is on.
+    billing: null,
+    moduleEntitlements: [],
+}
+
 const build = (
     o: { denied?: boolean; ws?: unknown; found?: Partial<Record<string, boolean>> } = {},
 ) => {
@@ -15,7 +25,7 @@ const build = (
             findUnique: jest
                 .fn()
                 .mockResolvedValue(
-                    'ws' in o ? o.ws : { ownerId: 'owner', videosEnabled: true, scheduleEnabled: true },
+                    'ws' in o ? o.ws : { ...WS },
                 ),
         },
         gym: { findFirst: hit('gym') },
@@ -23,6 +33,12 @@ const build = (
         groupScheduleSlot: { findFirst: hit('schedule') },
         workspaceMember: { findFirst: hit('members') },
         video: { findFirst: hit('video') },
+        plan: { findFirst: hit('plans') },
+        workspacePaymentSettings: {
+            findUnique: jest
+                .fn()
+                .mockResolvedValue(o.found?.payments ? { workspaceId: 'w1' } : null),
+        },
     }
     const rbac = {
         resolveCoachScope: jest.fn().mockResolvedValue({ scope: 'admin' }),
@@ -57,11 +73,13 @@ describe('GetWorkspaceOnboardingHandler', () => {
                 { key: 'gym', done: false },
                 { key: 'group', done: false },
                 { key: 'schedule', done: false },
+                { key: 'plans', done: false },
                 { key: 'members', done: false },
+                { key: 'payments', done: false },
                 { key: 'video', done: false },
             ],
             doneCount: 0,
-            total: 5,
+            total: 7,
         })
     })
 
@@ -83,9 +101,53 @@ describe('GetWorkspaceOnboardingHandler', () => {
         })
     })
 
+    it('ticks abonements from an active tariff and payments from saved keys', async () => {
+        const { handler, prisma } = build({ found: { plans: true, payments: true } })
+        const out = await run(handler)
+        expect(out.steps.filter((s) => s.done).map((s) => s.key)).toEqual([
+            'plans',
+            'payments',
+        ])
+        expect(prisma.plan.findFirst.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            isActive: true,
+        })
+    })
+
+    it('drops abonements and payments when the club has subscriptions switched off', async () => {
+        const { handler } = build({ ws: { ...WS, subscriptionEnabled: false } })
+        const out = await run(handler)
+        expect(out.steps.map((s) => s.key)).toEqual([
+            'gym',
+            'group',
+            'schedule',
+            'members',
+            'video',
+        ])
+    })
+
+    it('drops the payments step when the club has no online-payments module', async () => {
+        const { handler } = build({
+            ws: {
+                ...WS,
+                billing: { status: 'ACTIVE' },
+                moduleEntitlements: [{ mode: 'OFF', compUntil: null, cancelAt: null }],
+            },
+        })
+        const out = await run(handler)
+        expect(out.steps.map((s) => s.key)).toEqual([
+            'gym',
+            'group',
+            'schedule',
+            'plans',
+            'members',
+            'video',
+        ])
+    })
+
     it('drops the video step when the club has videos switched off', async () => {
         const { handler } = build({
-            ws: { ownerId: 'owner', videosEnabled: false, scheduleEnabled: true },
+            ws: { ...WS, videosEnabled: false },
             found: { gym: true },
         })
         const out = await run(handler)
@@ -93,16 +155,25 @@ describe('GetWorkspaceOnboardingHandler', () => {
             'gym',
             'group',
             'schedule',
+            'plans',
             'members',
+            'payments',
         ])
-        expect(out).toMatchObject({ doneCount: 1, total: 4 })
+        expect(out).toMatchObject({ doneCount: 1, total: 6 })
     })
 
     it('drops the schedule step when the club has the schedule switched off', async () => {
         const { handler } = build({
-            ws: { ownerId: 'owner', videosEnabled: true, scheduleEnabled: false },
+            ws: { ...WS, scheduleEnabled: false },
         })
         const out = await run(handler)
-        expect(out.steps.map((s) => s.key)).toEqual(['gym', 'group', 'members', 'video'])
+        expect(out.steps.map((s) => s.key)).toEqual([
+            'gym',
+            'group',
+            'plans',
+            'members',
+            'payments',
+            'video',
+        ])
     })
 })

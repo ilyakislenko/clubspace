@@ -32,10 +32,20 @@ const steps = (
     hint: `Дни и время ${v.session.genPl} группы`,
     path: "groups",
   },
+  plans: {
+    label: "Создайте абонемент",
+    hint: `Цена и сколько ${v.session.genPl} он даёт`,
+    path: "subscriptions",
+  },
   members: {
     label: "Пригласите участников",
     hint: "По почте или распечатайте QR-код клуба",
     path: "users",
+  },
+  payments: {
+    label: "Подключите оплату",
+    hint: "ЮKassa или Stripe — ученики платят в приложении",
+    path: "payments",
   },
   video: {
     label: "Загрузите первое видео",

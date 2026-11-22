@@ -1,14 +1,16 @@
-import { Body, Controller, Ip, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Headers, Ip, Post, Res } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
+import type { Response } from 'express'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
 import { ApiTags } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
 
 import { trackByClientIp } from '../../shared/guards/club-throttler.guard'
-import { TfaRequestGroupEnum } from '../../domains/tfa/interfaces/tfa.interfaces'
-import { TfaGroup } from '../../shared/decorators'
-import { TfaGuard } from '../../shared/guards/tfa.guard'
+import {
+    deliverSession,
+    TOKEN_TRANSPORT_HEADER,
+} from '../../shared/utils/refresh-cookie.util'
 import {
     SignInFeature,
     SignInFeatureInputSchema,
@@ -27,15 +29,20 @@ export class SignInController {
     @Post('sign-in')
     @ApiTags('Authentication')
     @ZodResponse({ type: SignInOutput })
-    @UseGuards(TfaGuard)
-    @TfaGroup(TfaRequestGroupEnum.AUTH)
     // Always per IP (trackByClientIp), sized for a gym on one Wi-Fi; OTP
     // brute force is stopped by the per-address and per-account lockouts in
     // the handler, not by this.
     @Throttle({ default: { ttl: 60_000, limit: 60, getTracker: trackByClientIp } })
-    async signIn(@Body() input: SignInInput, @Ip() ip: string) {
-        return await this.bus.execute<SignInFeature, SignInFeatureResponse>(
+    async signIn(
+        @Body() input: SignInInput,
+        @Ip() ip: string,
+        @Headers(TOKEN_TRANSPORT_HEADER) transport: string | undefined,
+        @Headers('origin') origin: string | undefined,
+        @Res({ passthrough: true }) res: Response,
+    ) {
+        const session = await this.bus.execute<SignInFeature, SignInFeatureResponse>(
             new SignInFeature(input, ip),
         )
+        return deliverSession(res, { transport, origin }, session)
     }
 }

@@ -1,115 +1,117 @@
-import { cap, vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
+import { cap, vocabularyForWorkspaceType } from '@clubspace/ui-kit/brand';
 import {
   DefaultTheme,
   getFocusedRouteNameFromRoute,
   NavigationContainer,
-} from "@react-navigation/native"
-import { createNativeStackNavigator } from "@react-navigation/native-stack"
-import React, { useEffect } from "react"
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
-import { SafeAreaProvider } from "react-native-safe-area-context"
+} from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import React, { useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AgendaScreen } from "../features/agenda/AgendaScreen"
-import { AccessExpiredScreen } from "../features/auth/AccessExpiredScreen"
-import { NoWorkspaceScreen } from "../features/auth/NoWorkspaceScreen"
-import { SignInScreen } from "../features/auth/SignInScreen"
-import { ConsentScreen } from "../features/consent/ConsentScreen"
-import { flushAfterSwitch } from "../features/children/after-switch"
-import { ChildrenScreen } from "../features/children/ChildrenScreen"
-import { JoinClubScreen } from "../features/join/JoinClubScreen"
-import { ScanJoinQrScreen } from "../features/join/ScanJoinQrScreen"
+import { AgendaScreen } from '../features/agenda/AgendaScreen';
+import { AccessExpiredScreen } from '../features/auth/AccessExpiredScreen';
+import { NoWorkspaceScreen } from '../features/auth/NoWorkspaceScreen';
+import { SignInScreen } from '../features/auth/SignInScreen';
+import { ConsentScreen } from '../features/consent/ConsentScreen';
+import { flushAfterSwitch } from '../features/children/after-switch';
+import { ChildrenScreen } from '../features/children/ChildrenScreen';
+import { JoinClubScreen } from '../features/join/JoinClubScreen';
+import { ScanJoinQrScreen } from '../features/join/ScanJoinQrScreen';
 import {
   flushPendingJoin,
   initPendingJoinCapture,
   setPendingJoinRoutingEnabled,
-} from "../features/join/pending-join"
+} from '../features/join/pending-join';
 import {
   flushPendingMoment,
   initPendingMomentCapture,
   setPendingMomentRoutingEnabled,
-} from "../features/video/pending-moment"
-import { CourseDetailScreen } from "../features/courses/CourseDetailScreen"
-import { ContinueWatchingScreen } from "../features/courses/ContinueWatchingScreen"
-import { OfflineLibraryScreen } from "../features/offline/OfflineLibraryScreen"
-import { GymsScreen } from "../features/groups/GymsScreen"
-import { MyGroupsScreen } from "../features/groups/MyGroupsScreen"
-import { ClubAboutScreen } from "../features/club/ClubAboutScreen"
-import { EventsScreen } from "../features/schedule/EventsScreen"
-import { SessionAttendanceScreen } from "../features/attendance/SessionAttendanceScreen"
-import { PersonalTrainingRequestScreen } from "../features/personal-training/PersonalTrainingRequestScreen"
-import { PersonalTrainingScreen } from "../features/personal-training/PersonalTrainingScreen"
-import { PersonalTrainingsScreen } from "../features/personal-training/PersonalTrainingsScreen"
-import { MyAttendanceScreen } from "../features/attendance/MyAttendanceScreen"
-import { MyClassBookingsScreen } from "../features/schedule/MyClassBookingsScreen"
-import { CheckInScreen } from "../features/attendance/CheckInScreen"
-import { CoachMemberSubscriptionScreen } from "../features/subscription/CoachMemberSubscriptionScreen"
-import { PaymentReturnScreen } from "../features/payments/PaymentReturnScreen"
-import { MySubscriptionScreen } from "../features/subscription/MySubscriptionScreen"
-import { MyRanksScreen } from "../features/ranks/MyRanksScreen"
-import { AchievementsScreen } from "../features/achievements/AchievementsScreen"
-import { JournalScreen } from "../features/journal/JournalScreen"
-import { AnnouncementsScreen } from "../features/announcements/AnnouncementsScreen"
-import { LeaderboardScreen } from "../features/leaderboard/LeaderboardScreen"
-import { ClubInviteScreen } from "../features/invite/ClubInviteScreen"
-import { AtRiskMembersScreen } from "../features/retention/AtRiskMembersScreen"
-import { FavoritesScreen } from "../features/profile/FavoritesScreen"
-import { MyVideoNotesScreen } from "../features/video/MyVideoNotesScreen"
-import { ReviewsScreen } from "../features/reviews/ReviewsScreen"
-import { StudyPlanScreen } from "../features/study-plans/StudyPlanScreen"
-import { StudyPlansScreen } from "../features/study-plans/StudyPlansScreen"
-import { VideoSearchScreen } from "../features/video-search/VideoSearchScreen"
-import { TechniqueScreen } from "../features/techniques/TechniqueScreen"
-import { TechniquesScreen } from "../features/techniques/TechniquesScreen"
-import { ClubVideoReviewsScreen } from "../features/video-reviews/ClubVideoReviewsScreen"
-import { MyVideoReviewsScreen } from "../features/video-reviews/MyVideoReviewsScreen"
-import { NewVideoReviewScreen } from "../features/video-reviews/NewVideoReviewScreen"
-import { VideoReviewScreen } from "../features/video-reviews/VideoReviewScreen"
-import { NotificationsScreen } from "../features/notifications/NotificationsScreen"
-import { InvitationsScreen } from "../features/invitations/InvitationsScreen"
-import { ClubSettingsScreen } from "../features/clubs/ClubSettingsScreen"
+} from '../features/video/pending-moment';
+import { CourseDetailScreen } from '../features/courses/CourseDetailScreen';
+import { ContinueWatchingScreen } from '../features/courses/ContinueWatchingScreen';
+import { OfflineLibraryScreen } from '../features/offline/OfflineLibraryScreen';
+import { GymsScreen } from '../features/groups/GymsScreen';
+import { MyGroupsScreen } from '../features/groups/MyGroupsScreen';
+import { ClubAboutScreen } from '../features/club/ClubAboutScreen';
+import { EventsScreen } from '../features/schedule/EventsScreen';
+import { SessionAttendanceScreen } from '../features/attendance/SessionAttendanceScreen';
+import { PersonalTrainingRequestScreen } from '../features/personal-training/PersonalTrainingRequestScreen';
+import { PersonalTrainingScreen } from '../features/personal-training/PersonalTrainingScreen';
+import { PersonalTrainingsScreen } from '../features/personal-training/PersonalTrainingsScreen';
+import { MyAttendanceScreen } from '../features/attendance/MyAttendanceScreen';
+import { MyClassBookingsScreen } from '../features/schedule/MyClassBookingsScreen';
+import { CheckInScreen } from '../features/attendance/CheckInScreen';
+import { CoachMemberSubscriptionScreen } from '../features/subscription/CoachMemberSubscriptionScreen';
+import { PaymentReturnScreen } from '../features/payments/PaymentReturnScreen';
+import { MySubscriptionScreen } from '../features/subscription/MySubscriptionScreen';
+import { MyRanksScreen } from '../features/ranks/MyRanksScreen';
+import { AchievementsScreen } from '../features/achievements/AchievementsScreen';
+import { JournalScreen } from '../features/journal/JournalScreen';
+import { AnnouncementsScreen } from '../features/announcements/AnnouncementsScreen';
+import { LeaderboardScreen } from '../features/leaderboard/LeaderboardScreen';
+import { ClubInviteScreen } from '../features/invite/ClubInviteScreen';
+import { AtRiskMembersScreen } from '../features/retention/AtRiskMembersScreen';
+import { FavoritesScreen } from '../features/profile/FavoritesScreen';
+import { MyVideoNotesScreen } from '../features/video/MyVideoNotesScreen';
+import { ReviewsScreen } from '../features/reviews/ReviewsScreen';
+import { StudyPlanScreen } from '../features/study-plans/StudyPlanScreen';
+import { StudyPlansScreen } from '../features/study-plans/StudyPlansScreen';
+import { VideoSearchScreen } from '../features/video-search/VideoSearchScreen';
+import { TechniqueScreen } from '../features/techniques/TechniqueScreen';
+import { TechniquesScreen } from '../features/techniques/TechniquesScreen';
+import { ClubVideoReviewsScreen } from '../features/video-reviews/ClubVideoReviewsScreen';
+import { MyVideoReviewsScreen } from '../features/video-reviews/MyVideoReviewsScreen';
+import { NewVideoReviewScreen } from '../features/video-reviews/NewVideoReviewScreen';
+import { VideoReviewScreen } from '../features/video-reviews/VideoReviewScreen';
+import { NotificationsScreen } from '../features/notifications/NotificationsScreen';
+import { InvitationsScreen } from '../features/invitations/InvitationsScreen';
+import { ClubSettingsScreen } from '../features/clubs/ClubSettingsScreen';
 import {
   flushPendingPush,
   usePushNotificationRouting,
-} from "../features/notifications/push-routing"
-import { useRealtime } from "../shared/realtime/realtime"
-import { useNetworkReconnect } from "../shared/cache/useNetworkReconnect"
-import { SettingsScreen } from "../features/profile/SettingsScreen"
-import { DrillProvider } from "../features/video/DrillMode"
-import { VideoScreen } from "../features/video/VideoScreen"
-import { CompareScreen } from "../features/compare/CompareScreen"
-import { ToastProvider } from "../shared/components/Toast"
-import { AuthProvider, useAuth } from "../shared/auth-context"
-import { brand } from "../shared/brand"
-import type { Theme } from "../shared/theme"
+} from '../features/notifications/push-routing';
+import { useRealtime } from '../shared/realtime/realtime';
+import { useNetworkReconnect } from '../shared/cache/useNetworkReconnect';
+import { SettingsScreen } from '../features/profile/SettingsScreen';
+import { DrillProvider } from '../features/video/DrillMode';
+import { VideoScreen } from '../features/video/VideoScreen';
+import { CompareScreen } from '../features/compare/CompareScreen';
+import { ToastProvider } from '../shared/components/Toast';
+import { AuthProvider, useAuth } from '../shared/auth-context';
+import { brand } from '../shared/brand';
+import type { Theme } from '../shared/theme';
 import {
   ThemeProvider,
   useTheme,
   useThemedStyles,
-} from "../shared/theme-context"
-import { ThemedBackground } from "../shared/ThemedBackground"
-import { isWeb } from "../shared/platform"
-import { ShellInsetContext, useResponsive } from "../shared/useResponsive"
-import { DESKTOP_SIDEBAR_WIDTH, DesktopSidebar } from "./DesktopSidebar"
-import { formatDocumentTitle, webLinking } from "./linking"
-import { MainTabs } from "./MainTabs"
-import { navHeaderOptions } from "./nav-header-options"
-import { navigationRef, type RootStackParamList } from "./navigation"
-import { tabTitle } from "./tab-routes"
+} from '../shared/theme-context';
+import { ThemedBackground } from '../shared/ThemedBackground';
+import { isWeb } from '../shared/platform';
+import { ShellInsetContext, useResponsive } from '../shared/useResponsive';
+import { DESKTOP_SIDEBAR_WIDTH, DesktopSidebar } from './DesktopSidebar';
+import { formatDocumentTitle, webLinking } from './linking';
+import { MainTabs } from './MainTabs';
+import { navHeaderOptions } from './nav-header-options';
+import { AppErrorBoundary } from './AppErrorBoundary';
+import { installCrashReporting } from './crash-reporting';
+import { navigationRef, type RootStackParamList } from './navigation';
+import { tabTitle } from './tab-routes';
 
-const Stack = createNativeStackNavigator<RootStackParamList>()
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 // Module scope, before the first render: a join link must be read before React
 // Navigation (on web) rewrites the URL.
-initPendingJoinCapture()
-initPendingMomentCapture()
+initPendingJoinCapture();
+initPendingMomentCapture();
 
 // The navigator's scene background is transparent so the app-wide
 // ThemedBackground (a gradient for glass, a flat colour otherwise) shows
 // through; each screen still paints its own opaque background except glass.
 const NAV_THEME = {
   ...DefaultTheme,
-  colors: { ...DefaultTheme.colors, background: "transparent" },
-}
+  colors: { ...DefaultTheme.colors, background: 'transparent' },
+};
 
 function RootStack({ activeRoute }: { activeRoute?: string }) {
   const {
@@ -122,14 +124,14 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
     actingAs,
     dependents,
     switchProfile,
-  } = useAuth()
-  const theme = useTheme()
-  const vocabulary = vocabularyForWorkspaceType(workspace?.type)
-  const styles = useThemedStyles(makeStyles)
-  const { isDesktop } = useResponsive()
+  } = useAuth();
+  const theme = useTheme();
+  const vocabulary = vocabularyForWorkspaceType(workspace?.type);
+  const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsive();
   // Signed in AND past the personal-data consent: until it is accepted the
   // server refuses every club call, so nothing that talks to it may start.
-  const admitted = authed && !consent
+  const admitted = authed && !consent;
   usePushNotificationRouting(admitted, {
     workspace,
     workspaces,
@@ -137,29 +139,29 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
     actingAs,
     dependents,
     switchProfile,
-  })
-  useRealtime(admitted)
-  useNetworkReconnect(admitted)
+  });
+  useRealtime(admitted);
+  useNetworkReconnect(admitted);
 
   // A join link held while signed out / without a club opens the join screen
   // once the member is in and past the consent and lock screens; so does a
   // shared lesson moment (native; the web routes it by URL).
-  const linksRoutable = ready && admitted && !workspace?.accessExpired
+  const linksRoutable = ready && admitted && !workspace?.accessExpired;
   useEffect(() => {
-    setPendingJoinRoutingEnabled(linksRoutable)
-    setPendingMomentRoutingEnabled(linksRoutable)
-  }, [linksRoutable])
+    setPendingJoinRoutingEnabled(linksRoutable);
+    setPendingMomentRoutingEnabled(linksRoutable);
+  }, [linksRoutable]);
 
   // A screen asked for "after switching profile" (the join screen for a
   // child, «Дети» back as the guardian) opens once the new stack is up.
-  const actingAsId = actingAs?.id ?? null
-  useEffect(() => flushAfterSwitch(actingAsId), [actingAsId])
+  const actingAsId = actingAs?.id ?? null;
+  useEffect(() => flushAfterSwitch(actingAsId), [actingAsId]);
 
   // Only once signed in and past the no-workspace / expired gates — those
   // screens are full-bleed dead ends with nowhere to navigate.
   const showSidebar =
-    isWeb && isDesktop && admitted && !!workspace && !workspace.accessExpired
-  const profileKey = actingAs?.id ?? "self"
+    isWeb && isDesktop && admitted && !!workspace && !workspace.accessExpired;
+  const profileKey = actingAs?.id ?? 'self';
 
   if (!ready) {
     return (
@@ -173,345 +175,357 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
           style={styles.splashSpinner}
         />
       </View>
-    )
+    );
   }
 
   // Before every other branch: the consent gates the whole app, including the
   // no-club onboarding and the lock screen.
   if (authed && consent) {
-    return <ConsentScreen consent={consent} />
+    return <ConsentScreen consent={consent} />;
   }
 
   if (authed && workspace?.accessExpired) {
     // Keyed by profile: it reads /me and the club, both the profile's.
-    return <AccessExpiredScreen key={profileKey} />
+    return <AccessExpiredScreen key={profileKey} />;
   }
 
   return (
     <View style={[styles.fill, showSidebar && styles.shell]}>
       {showSidebar && <DesktopSidebar activeRoute={activeRoute} />}
-      <ShellInsetContext.Provider value={showSidebar ? DESKTOP_SIDEBAR_WIDTH : 0}>
-      <View style={styles.fill}>
-      <Stack.Navigator
-        screenOptions={{
-          ...navHeaderOptions(theme),
-          contentStyle: { backgroundColor: "transparent" },
-        }}
+      <ShellInsetContext.Provider
+        value={showSidebar ? DESKTOP_SIDEBAR_WIDTH : 0}
       >
-      {authed && !workspace ? (
-        // Distinct keys: when the branch flips (a join just got accepted) the
-        // router drops the old branch's routes instead of keeping JoinClub.
-        // The profile is part of the key, so switching between the guardian
-        // and a child drops every screen of the previous profile too.
-        <Stack.Group navigationKey={`onboarding:${profileKey}`}>
-          <Stack.Screen
-            name="Onboarding"
-            component={NoWorkspaceScreen}
-            options={{ headerShown: false, title: "Добро пожаловать" }}
-          />
-          <Stack.Screen
-            name="JoinClub"
-            component={JoinClubScreen}
-            options={{ title: "Вступить в клуб" }}
-          />
-          <Stack.Screen
-            name="ScanJoinQr"
-            component={ScanJoinQrScreen}
-            options={{ title: "Сканировать QR" }}
-          />
-          {/* An invited account may have no club yet (push tap). */}
-          <Stack.Screen
-            name="Invitations"
-            component={InvitationsScreen}
-            options={{ title: "Приглашения" }}
-          />
-          <Stack.Screen
-            name="Children"
-            component={ChildrenScreen}
-            options={{ title: "Дети" }}
-          />
-        </Stack.Group>
-      ) : authed ? (
-        <Stack.Group navigationKey={`member:${profileKey}`}>
-          <Stack.Screen
-            name="Main"
-            component={MainTabs}
-            // The tabs draw their own headers. `title` follows the focused tab
-            // because it's what the browser tab and the *next* screen's back
-            // button are labelled with.
-            options={({ route }) => ({
-              headerShown: false,
-              title: tabTitle(getFocusedRouteNameFromRoute(route)),
-            })}
-          />
-          <Stack.Screen
-            name="CourseDetail"
-            component={CourseDetailScreen}
-            options={({ route }) => ({
-              title: route.params.title ?? "Курс",
-            })}
-          />
-          <Stack.Screen
-            name="Video"
-            component={VideoScreen}
-            options={({ route }) => ({
-              title: route.params.title ?? "Видео",
-            })}
-          />
-          <Stack.Screen
-            name="Compare"
-            component={CompareScreen}
-            // Every pixel goes to the two pictures; the screen's own bar has Back.
-            options={{ title: "Сравнить", headerShown: false }}
-          />
-          <Stack.Screen
-            name="Notifications"
-            component={NotificationsScreen}
-            options={{ title: "Уведомления" }}
-          />
-          <Stack.Screen
-            name="OfflineLibrary"
-            component={OfflineLibraryScreen}
-            options={{ title: "Загруженные" }}
-          />
-          <Stack.Screen
-            name="ContinueWatching"
-            component={ContinueWatchingScreen}
-            options={{ title: "Продолжить" }}
-          />
-          <Stack.Screen
-            name="Settings"
-            component={SettingsScreen}
-            options={{ title: "Настройки" }}
-          />
-          <Stack.Screen
-            name="Favorites"
-            component={FavoritesScreen}
-            options={{ title: "Избранное" }}
-          />
-          <Stack.Screen
-            name="MyVideoNotes"
-            component={MyVideoNotesScreen}
-            options={{ title: "Мои заметки" }}
-          />
-          <Stack.Screen
-            name="Reviews"
-            component={ReviewsScreen}
-            options={{ title: "Повторение" }}
-          />
-          <Stack.Screen
-            name="StudyPlans"
-            component={StudyPlansScreen}
-            options={{ title: "Мои планы" }}
-          />
-          <Stack.Screen
-            name="StudyPlan"
-            component={StudyPlanScreen}
-            options={({ route }) => ({ title: route.params.title ?? "План" })}
-          />
-          <Stack.Screen
-            name="VideoSearch"
-            component={VideoSearchScreen}
-            options={{ title: "Поиск по видео" }}
-          />
-          <Stack.Screen
-            name="Techniques"
-            component={TechniquesScreen}
-            options={{ title: "Техники" }}
-          />
-          <Stack.Screen
-            name="Technique"
-            component={TechniqueScreen}
-            options={({ route }) => ({ title: route.params.title ?? "Техника" })}
-          />
-          <Stack.Screen
-            name="MyVideoReviews"
-            component={MyVideoReviewsScreen}
-            options={{ title: "Мои разборы" }}
-          />
-          <Stack.Screen
-            name="ClubVideoReviews"
-            component={ClubVideoReviewsScreen}
-            options={{ title: "Разборы учеников" }}
-          />
-          <Stack.Screen
-            name="NewVideoReview"
-            component={NewVideoReviewScreen}
-            options={{ title: "Видео на разбор" }}
-          />
-          <Stack.Screen
-            name="VideoReview"
-            component={VideoReviewScreen}
-            options={({ route }) => ({ title: route.params.title ?? "Разбор" })}
-          />
-          <Stack.Screen
-            name="MyGroups"
-            component={MyGroupsScreen}
-            options={{ title: "Мои группы" }}
-          />
-          <Stack.Screen
-            name="Gyms"
-            component={GymsScreen}
-            options={{ title: "Залы" }}
-          />
-          <Stack.Screen
-            name="Events"
-            component={EventsScreen}
-            options={{ title: "События" }}
-          />
-          <Stack.Screen
-            name="ClubAbout"
-            component={ClubAboutScreen}
-            options={{ title: "О клубе" }}
-          />
-          <Stack.Screen
-            name="SessionAttendance"
-            component={SessionAttendanceScreen}
-            options={{ title: "Посещаемость" }}
-          />
-          <Stack.Screen
-            name="SessionRoster"
-            component={SessionAttendanceScreen}
-            options={{ title: "Посещаемость" }}
-          />
-          <Stack.Screen
-            name="EventAttendance"
-            component={SessionAttendanceScreen}
-            options={{ title: "Посещаемость" }}
-          />
-          <Stack.Screen
-            name="PersonalTrainings"
-            component={PersonalTrainingsScreen}
-            options={{ title: cap(vocabulary.personalSession.nomPl) }}
-          />
-          <Stack.Screen
-            name="PersonalTrainingRequest"
-            component={PersonalTrainingRequestScreen}
-            options={{ title: "Новая заявка" }}
-          />
-          <Stack.Screen
-            name="PersonalTraining"
-            component={PersonalTrainingScreen}
-            options={{ title: cap(vocabulary.personalSession.nom) }}
-          />
-          <Stack.Screen
-            name="MyAttendance"
-            component={MyAttendanceScreen}
-            options={{ title: "Моя посещаемость" }}
-          />
-          <Stack.Screen
-            name="MyClassBookings"
-            component={MyClassBookingsScreen}
-            options={{ title: "Мои записи" }}
-          />
-          <Stack.Screen
-            name="CheckIn"
-            component={CheckInScreen}
-            options={{ title: `Отметиться на ${vocabulary.session.prep}` }}
-          />
-          <Stack.Screen
-            name="MySubscription"
-            component={MySubscriptionScreen}
-            options={{ title: "Мой абонемент" }}
-          />
-          <Stack.Screen
-            name="MyRanks"
-            component={MyRanksScreen}
-            options={{ title: "Мой ранг" }}
-          />
-          <Stack.Screen
-            name="Achievements"
-            component={AchievementsScreen}
-            options={{ title: "Достижения" }}
-          />
-          <Stack.Screen
-            name="Journal"
-            component={JournalScreen}
-            options={{ title: `Дневник ${vocabulary.session.genPl}` }}
-          />
-          <Stack.Screen
-            name="Announcements"
-            component={AnnouncementsScreen}
-            options={{ title: "Объявления" }}
-          />
-          <Stack.Screen
-            name="Leaderboard"
-            component={LeaderboardScreen}
-            options={{ title: "Рейтинг" }}
-          />
-          <Stack.Screen
-            name="AtRiskMembers"
-            component={AtRiskMembersScreen}
-            options={{ title: "Кому позвонить" }}
-          />
-          <Stack.Screen
-            name="MemberSubscription"
-            component={CoachMemberSubscriptionScreen}
-            options={{ title: "Абонемент ученика" }}
-          />
-          <Stack.Screen
-            name="ClubInvite"
-            component={ClubInviteScreen}
-            options={{ title: "Пригласить в клуб" }}
-          />
-          <Stack.Screen
-            name="Agenda"
-            component={AgendaScreen}
-            options={{ title: "Неделя во всех клубах" }}
-          />
-          <Stack.Screen
-            name="PaymentReturn"
-            component={PaymentReturnScreen}
-            options={{ title: "Оплата" }}
-          />
-          <Stack.Screen
-            name="JoinClub"
-            component={JoinClubScreen}
-            options={{ title: "Вступить в клуб" }}
-          />
-          <Stack.Screen
-            name="ScanJoinQr"
-            component={ScanJoinQrScreen}
-            options={{ title: "Сканировать QR" }}
-          />
-          <Stack.Screen
-            name="Invitations"
-            component={InvitationsScreen}
-            options={{ title: "Приглашения" }}
-          />
-          <Stack.Screen
-            name="ClubSettings"
-            component={ClubSettingsScreen}
-            options={{ title: "Настройки клуба" }}
-          />
-          <Stack.Screen
-            name="Children"
-            component={ChildrenScreen}
-            options={{ title: "Дети" }}
-          />
-        </Stack.Group>
-      ) : (
-        <Stack.Screen
-          name="SignIn"
-          component={SignInScreen}
-          options={{ headerShown: false, title: "Вход" }}
-        />
-      )}
-      </Stack.Navigator>
-      </View>
+        <View style={styles.fill}>
+          <Stack.Navigator
+            screenOptions={{
+              ...navHeaderOptions(theme),
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          >
+            {authed && !workspace ? (
+              // Distinct keys: when the branch flips (a join just got accepted) the
+              // router drops the old branch's routes instead of keeping JoinClub.
+              // The profile is part of the key, so switching between the guardian
+              // and a child drops every screen of the previous profile too.
+              <Stack.Group navigationKey={`onboarding:${profileKey}`}>
+                <Stack.Screen
+                  name="Onboarding"
+                  component={NoWorkspaceScreen}
+                  options={{ headerShown: false, title: 'Добро пожаловать' }}
+                />
+                <Stack.Screen
+                  name="JoinClub"
+                  component={JoinClubScreen}
+                  options={{ title: 'Вступить в клуб' }}
+                />
+                <Stack.Screen
+                  name="ScanJoinQr"
+                  component={ScanJoinQrScreen}
+                  options={{ title: 'Сканировать QR' }}
+                />
+                {/* An invited account may have no club yet (push tap). */}
+                <Stack.Screen
+                  name="Invitations"
+                  component={InvitationsScreen}
+                  options={{ title: 'Приглашения' }}
+                />
+                <Stack.Screen
+                  name="Children"
+                  component={ChildrenScreen}
+                  options={{ title: 'Дети' }}
+                />
+              </Stack.Group>
+            ) : authed ? (
+              <Stack.Group navigationKey={`member:${profileKey}`}>
+                <Stack.Screen
+                  name="Main"
+                  component={MainTabs}
+                  // The tabs draw their own headers. `title` follows the focused tab
+                  // because it's what the browser tab and the *next* screen's back
+                  // button are labelled with.
+                  options={({ route }) => ({
+                    headerShown: false,
+                    title: tabTitle(getFocusedRouteNameFromRoute(route)),
+                  })}
+                />
+                <Stack.Screen
+                  name="CourseDetail"
+                  component={CourseDetailScreen}
+                  options={({ route }) => ({
+                    title: route.params.title ?? 'Курс',
+                  })}
+                />
+                <Stack.Screen
+                  name="Video"
+                  component={VideoScreen}
+                  options={({ route }) => ({
+                    title: route.params.title ?? 'Видео',
+                  })}
+                />
+                <Stack.Screen
+                  name="Compare"
+                  component={CompareScreen}
+                  // Every pixel goes to the two pictures; the screen's own bar has Back.
+                  options={{ title: 'Сравнить', headerShown: false }}
+                />
+                <Stack.Screen
+                  name="Notifications"
+                  component={NotificationsScreen}
+                  options={{ title: 'Уведомления' }}
+                />
+                <Stack.Screen
+                  name="OfflineLibrary"
+                  component={OfflineLibraryScreen}
+                  options={{ title: 'Загруженные' }}
+                />
+                <Stack.Screen
+                  name="ContinueWatching"
+                  component={ContinueWatchingScreen}
+                  options={{ title: 'Продолжить' }}
+                />
+                <Stack.Screen
+                  name="Settings"
+                  component={SettingsScreen}
+                  options={{ title: 'Настройки' }}
+                />
+                <Stack.Screen
+                  name="Favorites"
+                  component={FavoritesScreen}
+                  options={{ title: 'Избранное' }}
+                />
+                <Stack.Screen
+                  name="MyVideoNotes"
+                  component={MyVideoNotesScreen}
+                  options={{ title: 'Мои заметки' }}
+                />
+                <Stack.Screen
+                  name="Reviews"
+                  component={ReviewsScreen}
+                  options={{ title: 'Повторение' }}
+                />
+                <Stack.Screen
+                  name="StudyPlans"
+                  component={StudyPlansScreen}
+                  options={{ title: 'Мои планы' }}
+                />
+                <Stack.Screen
+                  name="StudyPlan"
+                  component={StudyPlanScreen}
+                  options={({ route }) => ({
+                    title: route.params.title ?? 'План',
+                  })}
+                />
+                <Stack.Screen
+                  name="VideoSearch"
+                  component={VideoSearchScreen}
+                  options={{ title: 'Поиск по видео' }}
+                />
+                <Stack.Screen
+                  name="Techniques"
+                  component={TechniquesScreen}
+                  options={{ title: 'Техники' }}
+                />
+                <Stack.Screen
+                  name="Technique"
+                  component={TechniqueScreen}
+                  options={({ route }) => ({
+                    title: route.params.title ?? 'Техника',
+                  })}
+                />
+                <Stack.Screen
+                  name="MyVideoReviews"
+                  component={MyVideoReviewsScreen}
+                  options={{ title: 'Мои разборы' }}
+                />
+                <Stack.Screen
+                  name="ClubVideoReviews"
+                  component={ClubVideoReviewsScreen}
+                  options={{ title: 'Разборы учеников' }}
+                />
+                <Stack.Screen
+                  name="NewVideoReview"
+                  component={NewVideoReviewScreen}
+                  options={{ title: 'Видео на разбор' }}
+                />
+                <Stack.Screen
+                  name="VideoReview"
+                  component={VideoReviewScreen}
+                  options={({ route }) => ({
+                    title: route.params.title ?? 'Разбор',
+                  })}
+                />
+                <Stack.Screen
+                  name="MyGroups"
+                  component={MyGroupsScreen}
+                  options={{ title: 'Мои группы' }}
+                />
+                <Stack.Screen
+                  name="Gyms"
+                  component={GymsScreen}
+                  options={{ title: 'Залы' }}
+                />
+                <Stack.Screen
+                  name="Events"
+                  component={EventsScreen}
+                  options={{ title: 'События' }}
+                />
+                <Stack.Screen
+                  name="ClubAbout"
+                  component={ClubAboutScreen}
+                  options={{ title: 'О клубе' }}
+                />
+                <Stack.Screen
+                  name="SessionAttendance"
+                  component={SessionAttendanceScreen}
+                  options={{ title: 'Посещаемость' }}
+                />
+                <Stack.Screen
+                  name="SessionRoster"
+                  component={SessionAttendanceScreen}
+                  options={{ title: 'Посещаемость' }}
+                />
+                <Stack.Screen
+                  name="EventAttendance"
+                  component={SessionAttendanceScreen}
+                  options={{ title: 'Посещаемость' }}
+                />
+                <Stack.Screen
+                  name="PersonalTrainings"
+                  component={PersonalTrainingsScreen}
+                  options={{ title: cap(vocabulary.personalSession.nomPl) }}
+                />
+                <Stack.Screen
+                  name="PersonalTrainingRequest"
+                  component={PersonalTrainingRequestScreen}
+                  options={{ title: 'Новая заявка' }}
+                />
+                <Stack.Screen
+                  name="PersonalTraining"
+                  component={PersonalTrainingScreen}
+                  options={{ title: cap(vocabulary.personalSession.nom) }}
+                />
+                <Stack.Screen
+                  name="MyAttendance"
+                  component={MyAttendanceScreen}
+                  options={{ title: 'Моя посещаемость' }}
+                />
+                <Stack.Screen
+                  name="MyClassBookings"
+                  component={MyClassBookingsScreen}
+                  options={{ title: 'Мои записи' }}
+                />
+                <Stack.Screen
+                  name="CheckIn"
+                  component={CheckInScreen}
+                  options={{
+                    title: `Отметиться на ${vocabulary.session.prep}`,
+                  }}
+                />
+                <Stack.Screen
+                  name="MySubscription"
+                  component={MySubscriptionScreen}
+                  options={{ title: 'Мой абонемент' }}
+                />
+                <Stack.Screen
+                  name="MyRanks"
+                  component={MyRanksScreen}
+                  options={{ title: 'Мой ранг' }}
+                />
+                <Stack.Screen
+                  name="Achievements"
+                  component={AchievementsScreen}
+                  options={{ title: 'Достижения' }}
+                />
+                <Stack.Screen
+                  name="Journal"
+                  component={JournalScreen}
+                  options={{ title: `Дневник ${vocabulary.session.genPl}` }}
+                />
+                <Stack.Screen
+                  name="Announcements"
+                  component={AnnouncementsScreen}
+                  options={{ title: 'Объявления' }}
+                />
+                <Stack.Screen
+                  name="Leaderboard"
+                  component={LeaderboardScreen}
+                  options={{ title: 'Рейтинг' }}
+                />
+                <Stack.Screen
+                  name="AtRiskMembers"
+                  component={AtRiskMembersScreen}
+                  options={{ title: 'Кому позвонить' }}
+                />
+                <Stack.Screen
+                  name="MemberSubscription"
+                  component={CoachMemberSubscriptionScreen}
+                  options={{ title: 'Абонемент ученика' }}
+                />
+                <Stack.Screen
+                  name="ClubInvite"
+                  component={ClubInviteScreen}
+                  options={{ title: 'Пригласить в клуб' }}
+                />
+                <Stack.Screen
+                  name="Agenda"
+                  component={AgendaScreen}
+                  options={{ title: 'Неделя во всех клубах' }}
+                />
+                <Stack.Screen
+                  name="PaymentReturn"
+                  component={PaymentReturnScreen}
+                  options={{ title: 'Оплата' }}
+                />
+                <Stack.Screen
+                  name="JoinClub"
+                  component={JoinClubScreen}
+                  options={{ title: 'Вступить в клуб' }}
+                />
+                <Stack.Screen
+                  name="ScanJoinQr"
+                  component={ScanJoinQrScreen}
+                  options={{ title: 'Сканировать QR' }}
+                />
+                <Stack.Screen
+                  name="Invitations"
+                  component={InvitationsScreen}
+                  options={{ title: 'Приглашения' }}
+                />
+                <Stack.Screen
+                  name="ClubSettings"
+                  component={ClubSettingsScreen}
+                  options={{ title: 'Настройки клуба' }}
+                />
+                <Stack.Screen
+                  name="Children"
+                  component={ChildrenScreen}
+                  options={{ title: 'Дети' }}
+                />
+              </Stack.Group>
+            ) : (
+              <Stack.Screen
+                name="SignIn"
+                component={SignInScreen}
+                options={{ headerShown: false, title: 'Вход' }}
+              />
+            )}
+          </Stack.Navigator>
+        </View>
       </ShellInsetContext.Provider>
     </View>
-  )
+  );
 }
+
+installCrashReporting();
 
 export const App = () => {
   // The desktop sidebar highlights the screen you're on. It renders alongside
   // the navigator rather than inside it, so it can't read navigation state via
   // a hook — the container reports the current route instead.
-  const [activeRoute, setActiveRoute] = React.useState<string | undefined>()
+  const [activeRoute, setActiveRoute] = React.useState<string | undefined>();
   const syncActiveRoute = React.useCallback(() => {
-    setActiveRoute(navigationRef.getCurrentRoute()?.name)
-  }, [])
+    setActiveRoute(navigationRef.getCurrentRoute()?.name);
+  }, []);
 
   return (
     <SafeAreaProvider>
@@ -520,71 +534,74 @@ export const App = () => {
           <AuthProvider>
             <DrillProvider>
               <ThemedBackground>
-                <NavigationContainer
-                  ref={navigationRef}
-                  theme={NAV_THEME}
-                  // Web only: a native stack keeps history in memory, which
-                  // leaves the whole PWA at "/" with a Back button that exits
-                  // the site. Native deep-linking is a separate decision —
-                  // don't turn it on here by accident. (Join links and shared
-                  // lesson moments are the exceptions, handled outside React
-                  // Navigation: pending-join, pending-moment.)
-                  linking={isWeb ? webLinking : undefined}
-                  documentTitle={{
-                    formatter: (options) =>
-                      formatDocumentTitle(options?.title, brand.displayName),
-                  }}
-                  onReady={() => {
-                    syncActiveRoute()
-                    flushPendingPush()
-                    flushPendingJoin()
-                    flushPendingMoment()
-                  }}
-                  onStateChange={syncActiveRoute}
-                >
-                  <RootStack activeRoute={activeRoute} />
-                </NavigationContainer>
+                <AppErrorBoundary>
+                  <NavigationContainer
+                    ref={navigationRef}
+                    theme={NAV_THEME}
+                    // Web only: a native stack keeps history in memory, which
+                    // leaves the whole PWA at "/" with a Back button that exits
+                    // the site. Native deep-linking is a separate decision —
+                    // don't turn it on here by accident. (Join links and shared
+                    // lesson moments are the exceptions, handled outside React
+                    // Navigation: pending-join, pending-moment.)
+                    linking={isWeb ? webLinking : undefined}
+                    documentTitle={{
+                      formatter: (options) =>
+                        formatDocumentTitle(options?.title, brand.displayName),
+                    }}
+                    onReady={() => {
+                      syncActiveRoute();
+                      flushPendingPush();
+                      flushPendingJoin();
+                      flushPendingMoment();
+                    }}
+                    onStateChange={syncActiveRoute}
+                  >
+                    <RootStack activeRoute={activeRoute} />
+                  </NavigationContainer>
+                </AppErrorBoundary>
               </ThemedBackground>
             </DrillProvider>
           </AuthProvider>
         </ToastProvider>
       </ThemeProvider>
     </SafeAreaProvider>
-  )
-}
+  );
+};
 
-export default App
+export default App;
 
-const makeStyles = (theme: Theme) => StyleSheet.create({
-  fill: { flex: 1 },
-  // Sidebar + content side by side.
-  shell: { flexDirection: "row" },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.background,
-  },
-  splash: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: theme.spacing(8),
-  },
-  splashContent: { alignItems: "center", gap: theme.spacing(2) },
-  splashTitle: {
-    ...theme.typography.title,
-    fontSize: 32,
-    color: theme.colors.text,
-  },
-  splashTagline: {
-    ...theme.typography.body,
-    color: theme.colors.muted,
-    textAlign: "center",
-  },
-  splashSpinner: {
-    position: "absolute",
-    bottom: theme.spacing(12),
-  },
-})
+const makeStyles = (theme: Theme) =>
+  StyleSheet.create({
+    fill: { flex: 1 },
+    // Sidebar + content side by side.
+    shell: { flexDirection: 'row' },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.background,
+    },
+    splash: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: theme.spacing(8),
+    },
+    splashContent: { alignItems: 'center', gap: theme.spacing(2) },
+    splashTitle: {
+      ...theme.typography.title,
+      fontSize: 32,
+      color: theme.colors.text,
+    },
+    splashTagline: {
+      ...theme.typography.body,
+      color: theme.colors.muted,
+      textAlign: 'center',
+    },
+    splashSpinner: {
+      position: 'absolute',
+      bottom: theme.spacing(12),
+    },
+  });

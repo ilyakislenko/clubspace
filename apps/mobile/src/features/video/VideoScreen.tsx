@@ -27,7 +27,7 @@ import { showAlert } from "../../shared/alert"
 import { shareFeedback, shareText } from "../../shared/share"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
-import { Sheet } from "../../shared/components/Sheet"
+import { Sheet, useSheetAction } from "../../shared/components/Sheet"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getCourse, type CourseDetail } from "../../shared/api/courses"
@@ -129,6 +129,7 @@ import { VideoCourseNav } from "./VideoCourseNav"
 import { VideoDownloadStatus } from "./VideoDownloadStatus"
 import { VideoLoopControls } from "./VideoLoopControls"
 import { SubtitleMenuOptions } from "./VideoSubtitlePicker"
+import { PlaybackRateMenuOptions } from "./PlaybackSpeedPicker"
 import { useToast } from "../../shared/components/Toast"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { haptics } from "../../shared/haptics"
@@ -265,7 +266,7 @@ export function VideoScreen({ route, navigation }: Props) {
   } = usePlayer(playableUri ?? null)
   const [mirrored, setMirrored] = useState(false)
   // The lesson's «⋯» menu, and the drill timer it opens.
-  const [moreOpen, setMoreOpen] = useState(false)
+  const more = useSheetAction()
   const [drillOpen, setDrillOpen] = useState(false)
   const drill = useDrill()
 
@@ -1251,12 +1252,6 @@ export function VideoScreen({ route, navigation }: Props) {
     ])
   }
 
-  // A choice in the lesson's «⋯»: the sheet closes first, then it runs.
-  const fromMenu = (fn: () => void) => () => {
-    setMoreOpen(false)
-    fn()
-  }
-
   const runDownloadAction = (kind: DownloadAction["kind"]) => {
     switch (kind) {
       case "download":
@@ -1561,7 +1556,7 @@ export function VideoScreen({ route, navigation }: Props) {
               <Text style={styles.actionText}>Поделиться</Text>
             </Pressable>
           )}
-          <MoreButton onPress={() => setMoreOpen(true)} hint="Действия с уроком" />
+          <MoreButton onPress={more.open} hint="Действия с уроком" />
         </View>
 
         <VideoDownloadStatus download={download} playingOffline={isOfflineSource} />
@@ -1602,36 +1597,47 @@ export function VideoScreen({ route, navigation }: Props) {
       </ScrollView>
       </KeyboardAvoidingContainer>
       </View>
-      {moreOpen && (
-        <Sheet title="Урок" onClose={() => setMoreOpen(false)}>
+      {more.mounted && (
+        <Sheet title="Урок" {...more.sheetProps}>
+          {/* In-place choices apply at once (the A point lands on the tapped
+              moment); the rest open something — compare, the drill timer, a
+              confirm — which iOS can't show over a dismissing sheet, so they
+              run once it's gone. */}
           <View>
             <MenuOption
               role="switch"
               label="Зеркально"
               selected={mirrored}
-              onPress={fromMenu(() => void handleToggleMirror())}
+              onPress={() => more.apply(() => void handleToggleMirror())}
             />
             <MenuOption
               role="switch"
               label="A–B повтор"
               selected={loopSet}
-              onPress={fromMenu(loopSet ? handleClearLoop : handleSetLoopA)}
+              onPress={() => more.apply(loopSet ? handleClearLoop : handleSetLoopA)}
             />
             {/* Two side-by-side pictures need the app's own player (native). */}
             {!builtInControls && (
-              <MenuOption label="Сравнить" onPress={fromMenu(openCompare)} />
+              <MenuOption label="Сравнить" onPress={() => more.run(openCompare)} />
             )}
             <MenuOption
               label="Дрилл-таймер"
               detail={drillRunning ? `Идёт · ${formatClock(drill.remaining)}` : undefined}
-              onPress={fromMenu(() => setDrillOpen(true))}
+              onPress={() => more.run(() => setDrillOpen(true))}
             />
-            {/* Native picks subtitles with the player's CC button. */}
+            {/* Native picks speed and subtitles with the player's own buttons;
+                Plyr's speed menu (web) doesn't save the default. */}
+            {builtInControls && (
+              <PlaybackRateMenuOptions
+                rate={playbackRate}
+                onSelect={(rate) => more.apply(() => void handleSelectRate(rate))}
+              />
+            )}
             {builtInControls && subtitles.length > 0 && (
               <SubtitleMenuOptions
                 subtitles={subtitles}
                 activeId={activeSubtitleId}
-                onSelect={(id) => fromMenu(() => handleSelectSubtitle(id))()}
+                onSelect={(id) => more.apply(() => handleSelectSubtitle(id))}
               />
             )}
             {downloadActions.map((a) => (
@@ -1641,7 +1647,7 @@ export function VideoScreen({ route, navigation }: Props) {
                 detail={a.detail}
                 disabled={a.disabled}
                 destructive={a.destructive}
-                onPress={fromMenu(() => runDownloadAction(a.kind))}
+                onPress={() => more.run(() => runDownloadAction(a.kind))}
               />
             ))}
           </View>

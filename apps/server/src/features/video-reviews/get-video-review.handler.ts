@@ -2,6 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { FilesService } from '../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { RbacService } from '../../shared/services/rbac.service'
 import {
     GetVideoReviewFeature,
     GetVideoReviewFeatureResponse,
@@ -15,10 +16,11 @@ export class GetVideoReviewHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly files: FilesService,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute(f: GetVideoReviewFeature): Promise<GetVideoReviewFeatureResponse> {
-        const loaded = await loadReviewForViewer(this.prisma, f)
+        const loaded = await loadReviewForViewer(this.prisma, this.rbac, f)
         return await serializeReviewDetail(this.prisma, this.files, loaded, f.userId)
     }
 }

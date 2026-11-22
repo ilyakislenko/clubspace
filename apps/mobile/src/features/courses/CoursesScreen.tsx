@@ -10,7 +10,7 @@ import { RefreshControl } from "../../shared/components/RefreshControl"
 import { showAlert } from "../../shared/alert"
 import { CountBadge } from "../../shared/components/CountBadge"
 import { Pressable } from "../../shared/components/Pressable"
-import { Sheet, SheetRow } from "../../shared/components/Sheet"
+import { Sheet, SheetRow, useSheetAction } from "../../shared/components/Sheet"
 import { TextInput } from "../../shared/components/TextInput"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -74,7 +74,7 @@ export function CoursesScreen({ navigation }: Props) {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [pinnedIds, setPinnedIds] = useState<string[]>([])
   // The «Ещё» sheet, and the drill timer opened from it.
-  const [moreOpen, setMoreOpen] = useState(false)
+  const more = useSheetAction()
   const [drillOpen, setDrillOpen] = useState(false)
   // A dismissal this visit wins over a re-read that beats the write.
   const tipsDismissed = useRef(false)
@@ -183,11 +183,10 @@ export function CoursesScreen({ navigation }: Props) {
     await setPreferences({ onboardingSeen: true })
   }
 
-  // The sheet closes first: the tab stays mounted under the pushed screen.
-  const openFromMenu = (go: () => void) => {
-    setMoreOpen(false)
-    go()
-  }
+  // The sheet closes first, the choice runs once it's gone (iOS can't open
+  // the drill timer over a dismissing sheet); the tab stays mounted under a
+  // pushed screen.
+  const openFromMenu = (go: () => void) => more.run(go)
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -271,7 +270,7 @@ export function CoursesScreen({ navigation }: Props) {
             <CountBadge count={reviewsDue} />
           </Pressable>
           <Pressable
-            onPress={() => setMoreOpen(true)}
+            onPress={more.open}
             accessibilityRole="button"
             accessibilityLabel="Ещё: заметки, планы, разборы и другое"
             style={({ pressed }) => [
@@ -480,8 +479,8 @@ export function CoursesScreen({ navigation }: Props) {
       </KeyboardAvoidingContainer>
       </CenteredColumn>
 
-      {moreOpen && (
-        <Sheet title="Ещё" onClose={() => setMoreOpen(false)}>
+      {more.mounted && (
+        <Sheet title="Ещё" {...more.sheetProps}>
           <View>
             <SheetRow
               label="Мои заметки"

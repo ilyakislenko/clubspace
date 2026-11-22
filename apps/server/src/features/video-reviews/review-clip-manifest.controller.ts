@@ -11,6 +11,7 @@ import { SkipThrottle } from '@nestjs/throttler'
 
 import { FilesService } from '../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { RbacService } from '../../shared/services/rbac.service'
 import { proxyHlsPlaylist } from '../../shared/utils/hls-playlist-proxy'
 import { verifyPlaybackToken } from '../../shared/utils/playback-token.util'
 import { canWatchReviewClip } from './review-clip-access'
@@ -20,7 +21,7 @@ import { reviewClipTokenSubject } from './video-reviews-utils'
  * HLS proxy for «Разбор видео» clips — the club video proxy's twin for the
  * separate ReviewClip table. The token is bound to `review-<clipId>`, so a
  * club video token can't open a clip (or the other way round), and who may
- * watch (the clip's member, the club's staff) is re-checked on every fetch.
+ * watch (the clip's member, staff who may see that member's reviews) is re-checked on every fetch.
  */
 @Controller('review-clips')
 @SkipThrottle()
@@ -28,6 +29,7 @@ export class ReviewClipManifestController {
     constructor(
         private readonly prisma: PrismaService,
         private readonly filesService: FilesService,
+        private readonly rbac: RbacService,
     ) {}
 
     @Get(':id/manifest.m3u8')
@@ -61,7 +63,7 @@ export class ReviewClipManifestController {
         if (!clip || !clip.hlsMasterKey) {
             throw new HttpException('Video not ready', HttpStatus.NOT_FOUND)
         }
-        if (!(await canWatchReviewClip(this.prisma, clip, payload.userId))) {
+        if (!(await canWatchReviewClip(this.prisma, this.rbac, clip, payload.userId))) {
             throw new HttpException('Нет доступа к видео', HttpStatus.FORBIDDEN)
         }
 

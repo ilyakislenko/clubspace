@@ -43,6 +43,7 @@ if (environment.sentry.dsn) {
     Sentry.init({
         dsn: environment.sentry.dsn,
         environment: environment.sentry.environment,
+        release: environment.sentry.release,
     })
 }
 

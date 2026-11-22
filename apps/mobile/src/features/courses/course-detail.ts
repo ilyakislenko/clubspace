@@ -57,8 +57,10 @@ export const courseMetaLine = (p: {
 }
 
 // A separator between the course name and the rest of a lesson title:
-// «Octopus 2.0 · Vol 1», «Octopus 2.0 — Vol 1», «Octopus 2.0: Vol 1».
-const SEPARATOR = /^\s*[·•|:/\-–—.,]+\s*/
+// «Octopus 2.0 · Vol 1», «Octopus 2.0 — Vol 1», «Octopus 2.0: Vol 1». A hyphen
+// or a dot counts only with a space after it: «Octopus-guard entries» is one
+// word, not «Octopus» + «guard entries».
+const SEPARATOR = /^\s*(?:[·•|:/–—,]|[-.]+(?=\s))+\s*/
 
 /**
  * A lesson title without the course name it starts with — inside the course

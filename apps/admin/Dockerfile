@@ -28,6 +28,17 @@ WORKDIR /workspace
 ENV NX_DAEMON=false NX_NO_CLOUD=true NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# Browser Sentry (empty = off) and the release it reports; see
+# .env.production.example.
+ARG NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
+ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${NEXT_PUBLIC_SENTRY_ENVIRONMENT}
+ARG NEXT_PUBLIC_APP_RELEASE
+ENV NEXT_PUBLIC_APP_RELEASE=${NEXT_PUBLIC_APP_RELEASE}
+# The support address on the closed sign-up page (empty = only the demo link).
+ARG NEXT_PUBLIC_SUPPORT_EMAIL
+ENV NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL}
 COPY --from=deps /workspace/node_modules ./node_modules
 COPY . .
 # The build first compiles libs/api-client (dependsOn ^build): the typecheck

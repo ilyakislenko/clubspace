@@ -11,7 +11,7 @@ export const metadata = {
 }
 
 // Fixed date — update whenever the page changes (not dynamic on purpose).
-const EFFECTIVE_DATE = "24 октября 2026 г."
+const EFFECTIVE_DATE = "8 ноября 2026 г."
 
 export default function DeleteAccountPage() {
   return (
@@ -47,7 +47,10 @@ export default function DeleteAccountPage() {
             Нажмите <b>Удалить аккаунт</b>.
           </li>
           <li>
-            Подтвердите действие в окне «Удалить аккаунт?», нажав{" "}
+            Подтвердите действие в окне «Удалить аккаунт?».
+          </li>
+          <li>
+            Введите код, который придёт на почту вашего аккаунта, и нажмите{" "}
             <b>Удалить</b>.
           </li>
         </ol>

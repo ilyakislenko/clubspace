@@ -4,11 +4,17 @@ import { FilesService } from '../../infrastructure/files/services/files.service'
 import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { assertActiveWorkspaceMembership } from '../../shared/access/assert-membership'
 import { NotFoundError } from '../../shared/errors/shared.errors'
+import type { RbacService } from '../../shared/services/rbac.service'
 import { fullNameWithoutEmail } from '../../shared/utils/person-name'
 import {
     BookmarkDrawingSchema,
     parseStoredDrawing,
 } from '../manage-my-video-bookmarks/drawing'
+import {
+    resolveReviewStaffScope,
+    type ReviewViewerRole,
+    staffCanSeeMemberReviews,
+} from './review-clip-access'
 import { displayStatus } from './video-reviews-utils'
 
 // The comment drawing has the bookmark drawing's shape and limits.
@@ -129,13 +135,22 @@ export type ReviewWithClip = Prisma.VideoReviewRequestGetPayload<{
 export type LoadedReview = { request: ReviewWithClip; isOwner: boolean; isStaff: boolean }
 
 /**
- * The request as the viewer may see it: its member, or the club's staff.
- * Anyone else — another member, another club — gets the same 404 as for a
- * request that doesn't exist.
+ * The request as the viewer may see it: its member, or club staff allowed to
+ * see that member's reviews (owner, admins, head coaches; a coach for their
+ * own groups' members — staffCanSeeMemberReviews). Anyone else — another
+ * member, another group's coach, another club — gets the same 404 as for a
+ * request that doesn't exist. `isStaff` is whether the viewer acts on it as
+ * staff.
  */
 export async function loadReviewForViewer(
     prisma: PrismaService,
-    params: { requestId: string; workspaceId: string; userId: string; isStaff: boolean },
+    rbac: RbacService,
+    params: {
+        requestId: string
+        workspaceId: string
+        userId: string
+        viewer: ReviewViewerRole
+    },
 ): Promise<LoadedReview> {
     await assertActiveWorkspaceMembership(prisma, params.userId, params.workspaceId)
     const request = await prisma.videoReviewRequest.findUnique({
@@ -146,10 +161,14 @@ export async function loadReviewForViewer(
         throw new NotFoundError({ message: 'Разбор не найден' })
     }
     const isOwner = request.memberUserId === params.userId
-    if (!isOwner && !params.isStaff) {
+    const ctx = await resolveReviewStaffScope(rbac, params)
+    const isStaff =
+        ctx !== null &&
+        (isOwner || (await staffCanSeeMemberReviews(rbac, prisma, ctx, request.memberUserId)))
+    if (!isOwner && !isStaff) {
         throw new NotFoundError({ message: 'Разбор не найден' })
     }
-    return { request, isOwner, isStaff: params.isStaff }
+    return { request, isOwner, isStaff }
 }
 
 export async function serializeReviewDetail(

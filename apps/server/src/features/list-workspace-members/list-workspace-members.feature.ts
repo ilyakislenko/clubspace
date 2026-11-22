@@ -1,7 +1,35 @@
 import { z } from 'zod'
 
 import { DirectionRefSchema } from '../../domains/directions/direction-ref'
+import { strictBoolean } from '../../shared/utils/strict-boolean'
 import { MemberGuardianSchema } from '../dependents/schemas'
+
+export const MEMBERS_DEFAULT_PER_PAGE = 50
+export const MEMBERS_MAX_PER_PAGE = 200
+
+export const ListWorkspaceMembersInputSchema = z.object({
+    curPage: z.coerce.number().int().positive().optional(),
+    perPage: z.coerce
+        .number()
+        .int()
+        .positive()
+        .max(MEMBERS_MAX_PER_PAGE)
+        .optional(),
+    // Name, e-mail or phone of the member or of a child's guardian; every
+    // word must match somewhere ("иван петров").
+    q: z.string().trim().min(1).max(200).optional(),
+    // The dashboard retention segments, same definitions as its counters:
+    // students only (no owner, no staff), ACTIVE.
+    access: z.enum(['all', 'expiring', 'expired', 'inactive']).optional(),
+    // Staff and the owner only — for the coach / manager pickers.
+    staffOnly: strictBoolean().optional(),
+    // Every order ends on the row id, so pages never overlap or skip.
+    sort: z.enum(['name', 'expiry', 'newest', 'oldest', 'role']).optional(),
+})
+
+export type ListWorkspaceMembersInput = z.infer<
+    typeof ListWorkspaceMembersInputSchema
+>
 
 export const ListWorkspaceMembersFeatureOutputSchema = z.object({
     data: z.array(
@@ -47,12 +75,16 @@ export const ListWorkspaceMembersFeatureOutputSchema = z.object({
                 .nullable(),
         }),
     ),
+    // Members matching the filters, across all pages.
     total: z.number().int(),
+    curPage: z.number().int(),
+    perPage: z.number().int(),
     workspaceVideoTotal: z.number().int(),
 })
 
 export class ListWorkspaceMembersFeature {
     constructor(
+        readonly payload: ListWorkspaceMembersInput,
         readonly workspaceId: string,
         readonly invokerUserId: string,
         readonly invokerRoleName: string | null,

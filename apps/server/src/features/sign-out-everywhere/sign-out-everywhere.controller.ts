@@ -1,6 +1,15 @@
-import { Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common'
+import {
+    Controller,
+    Headers,
+    HttpCode,
+    HttpStatus,
+    Post,
+    Res,
+    UseGuards,
+} from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import { FeaturesBus } from '@shelfjs/features'
+import type { Response } from 'express'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
 import {
@@ -8,6 +17,11 @@ import {
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
+import {
+    clearRefreshCookie,
+    TOKEN_TRANSPORT_HEADER,
+    wantsCookieTransport,
+} from '../../shared/utils/refresh-cookie.util'
 import {
     SignOutEverywhereFeature,
     SignOutEverywhereFeatureOutputSchema,
@@ -27,10 +41,18 @@ export class SignOutEverywhereController {
     @ApiTags('Authentication')
     @HttpCode(HttpStatus.OK)
     @ZodResponse({ type: SignOutEverywhereOutput })
-    async signOutEverywhere(@CurrentUser() user: CurrentUserPayload) {
-        return await this.bus.execute<
+    async signOutEverywhere(
+        @CurrentUser() user: CurrentUserPayload,
+        @Headers(TOKEN_TRANSPORT_HEADER) transport: string | undefined,
+        @Headers('origin') origin: string | undefined,
+        @Res({ passthrough: true }) res: Response,
+    ) {
+        const result = await this.bus.execute<
             SignOutEverywhereFeature,
             SignOutEverywhereFeatureResponse
         >(new SignOutEverywhereFeature(user.userId))
+        // Every family is revoked; this browser's cookie goes too.
+        if (wantsCookieTransport({ transport, origin })) clearRefreshCookie(res)
+        return result
     }
 }

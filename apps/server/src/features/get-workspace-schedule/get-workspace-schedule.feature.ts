@@ -1,14 +1,16 @@
 import { z } from 'zod'
 
 import { DirectionRefSchema } from '../../domains/directions/direction-ref'
+import { uuidListQuery } from '../../shared/utils/uuid-list-query'
 import { ScheduleSubstitutionSchema } from '../class-substitutions/schemas'
 import { EventOutputSchema } from '../manage-workspace-events/schemas'
 
 export const GetWorkspaceScheduleFeatureInputSchema = z.object({
     from: z.iso.date(),
     to: z.iso.date(),
-    // Only classes of groups and events tagged with this direction.
-    directionId: z.string().uuid().optional(),
+    // Only classes of groups and events tagged with any of these directions
+    // (comma-separated). Absent or empty = every direction.
+    directionIds: uuidListQuery(20).optional(),
 })
 
 // Places of a class of a «Запись на занятие» group.

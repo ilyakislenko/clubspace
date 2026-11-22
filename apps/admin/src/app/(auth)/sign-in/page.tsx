@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { getAuthApi, storeAuthTokens } from "../../../shared/api/client";
-import { errorMessage, retryAfterSeconds } from "../../../shared/lib/error-message";
+import { errorCode, errorMessage, retryAfterSeconds } from "../../../shared/lib/error-message";
 import { CreateClubLink } from "../../../features/billing/CreateClubLink";
 import { afterSignInPath } from "../../../shared/lib/sign-in-return";
 
@@ -17,6 +17,10 @@ export default function SignIn() {
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+  // The account has an authenticator app (platform admins): the server asked
+  // for its code after accepting the e-mailed one; both go in again.
+  const [needsTotp, setNeedsTotp] = useState(false);
+  const [totp, setTotp] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,13 +77,21 @@ export default function SignIn() {
     setError(null);
     setIsLoading(true);
     try {
-      const response = await getAuthApi().signIn({ email, code });
+      const response = await getAuthApi().signIn({
+        email,
+        code,
+        ...(needsTotp ? { totp } : {}),
+      });
       storeAuthTokens(response);
       // Back to the page a lapsed session left (/sign-up → the club form).
       router.replace(
         afterSignInPath(new URLSearchParams(window.location.search).get("next")),
       );
     } catch (err) {
+      if (errorCode(err) === "TFA_CODE_REQUIRED") {
+        setNeedsTotp(true);
+        return;
+      }
       // Show the server's text (wrong code vs. 429 lockout) — a network error
       // must not read as «неверный код» either.
       setError(errorMessage(err, "Не удалось войти. Попробуйте ещё раз."));
@@ -116,7 +128,9 @@ export default function SignIn() {
             <p className="text-balance text-sm text-muted-foreground">
               {step === "email"
                 ? "Введите email, чтобы войти"
-                : "Мы отправили код для входа на вашу почту"}
+                : needsTotp
+                  ? "Введите код из письма и код из приложения-аутентификатора"
+                  : "Мы отправили код для входа на вашу почту"}
             </p>
           </div>
 
@@ -199,7 +213,11 @@ export default function SignIn() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setStep("email")}
+                  onClick={() => {
+                    setStep("email");
+                    setNeedsTotp(false);
+                    setTotp("");
+                  }}
                   disabled={isLoading}
                 >
                   Изменить
@@ -224,6 +242,30 @@ export default function SignIn() {
                     required
                   />
                 </div>
+                {needsTotp ? (
+                  <div className="grid gap-2">
+                    <label htmlFor="totp" className="text-sm font-medium">
+                      Код из приложения-аутентификатора
+                    </label>
+                    <input
+                      id="totp"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="000000"
+                      maxLength={6}
+                      value={totp}
+                      onChange={(event) => setTotp(event.target.value)}
+                      className="flex h-12 w-full rounded-md border border-input bg-transparent px-3 text-center text-2xl font-mono tracking-widest shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      autoFocus
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Google Authenticator, Яндекс Ключ или другое приложение,
+                      которое вы подключили к аккаунту.
+                    </p>
+                  </div>
+                ) : null}
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   Войти
                 </Button>

@@ -58,7 +58,7 @@ import { getProfileScopeId } from "./profile-scope"
 import { clearResourceCache } from "./cache/resource-cache"
 import { clearOutbox } from "./outbox/outbox"
 import { clearPendingJoin } from "../features/join/pending-join"
-import { clearGymFilters } from "../features/schedule/gym-filter-store"
+import { clearScheduleFilters } from "../features/schedule/schedule-filter-store"
 
 type AuthContextValue = {
   ready: boolean
@@ -163,7 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await Promise.all(profiles.map((id) => clearWorkspacesCache(id)))
       await clearResourceCache()
       await clearOutbox()
-      await clearGymFilters()
+      await clearScheduleFilters()
       // Per-user files + downloads must not leak to the next person on this
       // phone; device prefs (theme, autoplay, ...) are kept. Only on an
       // explicit sign-out: a forced one (expired refresh token, 5xx during a

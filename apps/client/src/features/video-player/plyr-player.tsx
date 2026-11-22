@@ -127,9 +127,11 @@ export function PlyrPlayer({
         keyboard: { focused: true, global: false },
         seekTime: 5,
         // Plyr v3.8 types don't list iconUrl/blankVideo, but they are valid runtime options.
+        // Both served from public/vendor, not Plyr's CDN, which the CSP
+        // (src/proxy.ts) does not allow; blankVideo is what destroy() loads.
         ...({
-          iconUrl: "https://cdn.plyr.io/3.8.4/plyr.svg",
-          blankVideo: "https://cdn.plyr.io/static/blank.mp4",
+          iconUrl: "/vendor/plyr.svg",
+          blankVideo: "/vendor/blank.mp4",
         } as Record<string, unknown>),
       })
       playerRef.current = player

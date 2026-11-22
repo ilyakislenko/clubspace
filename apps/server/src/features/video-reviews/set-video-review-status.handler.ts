@@ -4,6 +4,7 @@ import { NotificationProducerService } from '../../domains/notifications/service
 import { FilesService } from '../../infrastructure/files/services/files.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { BadRequestError, ForbiddenError } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
 import { loadReviewForViewer, reviewSummaryInclude, serializeReviewSummary } from './schemas'
 import {
     SetVideoReviewStatusFeature,
@@ -21,12 +22,13 @@ export class SetVideoReviewStatusHandler
         private readonly prisma: PrismaService,
         private readonly files: FilesService,
         private readonly notifications: NotificationProducerService,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute(
         f: SetVideoReviewStatusFeature,
     ): Promise<SetVideoReviewStatusFeatureResponse> {
-        const { request, isStaff } = await loadReviewForViewer(this.prisma, f)
+        const { request, isStaff } = await loadReviewForViewer(this.prisma, this.rbac, f)
         const next = f.payload.status
         if (!canSetStatus(isStaff ? 'staff' : 'owner', next)) {
             throw new ForbiddenError({ message: 'Отметить разбор отвеченным может только тренер' })

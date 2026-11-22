@@ -75,6 +75,24 @@ describe('TokensService — access tokens', () => {
         expect(decoded.aud).toBe(CONFIG.jwt.audienceUrl)
     })
 
+    // The claim platform-admin powers hang on; absent unless the sign-in
+    // proved the authenticator.
+    it('signs the mfa claim only when asked to', async () => {
+        const { service } = build()
+        const plain = await service.verifyToken(
+            await service.generateToken({ userId: 'user-1', sessionVersion: 0 }),
+        )
+        expect(plain).not.toHaveProperty('mfa')
+        const verified = await service.verifyToken(
+            await service.generateToken({
+                userId: 'user-1',
+                sessionVersion: 0,
+                mfa: true,
+            }),
+        )
+        expect(verified.mfa).toBe(true)
+    })
+
     it('refuses a refresh token presented as an access token', async () => {
         const { service } = build()
         const refresh = await service.generateStoredToken({ userId: 'user-1' })
@@ -184,6 +202,21 @@ describe('TokensService — refresh tokens', () => {
             sub: 'user-1',
             typ: 'refresh',
             familyId,
+        })
+    })
+
+    it('carries the mfa claim in the refresh token', async () => {
+        const { service, prisma } = build()
+        const token = await service.generateStoredToken({
+            userId: 'user-1',
+            mfa: true,
+        })
+        prisma.refreshToken.findUnique.mockResolvedValue({
+            isRevoked: false,
+            familyId: prisma.created[0].familyId,
+        })
+        await expect(service.verifyStoredToken({ token })).resolves.toMatchObject({
+            mfa: true,
         })
     })
 

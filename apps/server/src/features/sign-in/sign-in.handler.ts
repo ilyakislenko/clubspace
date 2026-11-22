@@ -1,4 +1,3 @@
-import { compare } from 'bcrypt'
 import { createHash } from 'crypto'
 
 import { Logger } from '@nestjs/common'
@@ -11,6 +10,8 @@ import { UserNoCompleteCodeError } from '../../domains/users/errors/users.errors
 import { UsersService } from '../../domains/users/services/users.service'
 import { JoinRequestService } from '../../domains/workspace/services/join-request.service'
 import { StoreReviewMembershipService } from '../../domains/workspace/services/store-review-membership.service'
+import { TfaCodeInvalidError, TfaCodeRequiredError } from '../../domains/tfa/errors/tfa.errors'
+import { TfaAuthenticatorService } from '../../domains/tfa/services/tfa-authenticator.service'
 import { UserBlockedError } from '../../shared/errors/shared.errors'
 import { demoCodeMatches, isDemoAccountEmail } from '../../shared/utils/demo-mode.util'
 import { hasPrivilegedAccess } from '../../shared/utils/store-review-access.util'
@@ -18,6 +19,7 @@ import {
     isStoreReviewEmail,
     storeReviewCodeMatches,
 } from '../../shared/utils/store-review.util'
+import { consumeAccountCode, verifyIssuedCode } from './account-code'
 import {
     LOCKOUT_MS,
     PendingSignInAttempts,
@@ -30,15 +32,6 @@ import {
     SignInFeatureResponse,
     TooManySignInAttemptsError,
 } from './sign-in.feature'
-
-// OTP lifetime — long enough for a slow inbox / SMS, short enough that
-// a leaked code can't be redeemed later. 15 minutes is the industry
-// default (Google, GitHub, AWS).
-const CODE_TTL_MS = 15 * 60 * 1000
-
-// Compared against on the store-review path so it spends the same bcrypt time
-// as a normal account (which compares against its emailed code's hash).
-const DUMMY_HASH = '$2b$10$4ztxPTDvmLpKogYQGru0BOvy.ePGpMHLJgUIb6t8KWBwUhjJ2QVXW'
 
 type SignInUser = {
     id: string
@@ -62,13 +55,14 @@ export class SignInHandler
         private readonly audit: AuditService,
         private readonly storeReviewMembership: StoreReviewMembershipService,
         private readonly joinRequests: JoinRequestService,
+        private readonly tfaAuthenticator: TfaAuthenticatorService,
     ) {}
 
     async execute({
         payload,
         clientIp,
     }: SignInFeature): Promise<SignInFeatureResponse> {
-        const { email, code } = payload
+        const { email, code, totp } = payload
 
         const user = await this.usersService.getUserByEmail({
             email,
@@ -126,24 +120,17 @@ export class SignInHandler
             })
         }
 
-        if (!user.completeCode) {
-            throw new UserNoCompleteCodeError()
-        }
+        await verifyIssuedCode({
+            attempts,
+            ipHash,
+            code,
+            codeHash: user.completeCode,
+            issuedAt: user.completeCodeIssuedAt,
+        })
 
-        // Code TTL — reject without bcrypt work if it's stale.
-        if (this.isCodeStale(user.completeCodeIssuedAt)) {
-            throw new InvalidCredentialsError()
-        }
+        const mfa = await this.verifySecondFactor(user.id, totp, attempts, ipHash)
 
-        await attempts.claim(ipHash)
-
-        const isCodeValid = await compare(code, user.completeCode)
-
-        if (!isCodeValid) {
-            return await this.recordFailedAttempt(attempts, ipHash)
-        }
-
-        const session = await this.issueSession(user)
+        const session = await this.issueSession(user, mfa)
         await this.fileRequestedJoin(user.email, user.id)
         return session
     }
@@ -174,23 +161,14 @@ export class SignInHandler
         if (await attempts.isLocked(ipHash)) {
             throw new TooManySignInAttemptsError(LOCKOUT_MS / 60_000)
         }
-        if (this.isCodeStale(pending.codeIssuedAt)) {
-            throw new InvalidCredentialsError()
-        }
-
-        await attempts.claim(ipHash)
-
-        let matches: boolean
-        if (review) {
-            // Timing parity with a mailed code; the result is not used.
-            await compare(code, DUMMY_HASH)
-            matches = storeReviewCodeMatches(code)
-        } else {
-            matches = codeHash !== null && (await compare(code, codeHash))
-        }
-        if (!matches) {
-            return await this.recordFailedAttempt(attempts, ipHash)
-        }
+        await verifyIssuedCode({
+            attempts,
+            ipHash,
+            code,
+            codeHash,
+            issuedAt: pending.codeIssuedAt,
+            fixedMatches: review ? storeReviewCodeMatches : undefined,
+        })
 
         const user = await this.createProvenUser(pending.email, pending.language)
         if (review) {
@@ -300,21 +278,14 @@ export class SignInHandler
 
         // Like a normal account, it only signs in after a code was "requested"
         // (send-auth-code stamps completeCodeIssuedAt for these accounts).
-        if (!user.completeCodeIssuedAt) {
-            throw new UserNoCompleteCodeError()
-        }
-        if (this.isCodeStale(user.completeCodeIssuedAt)) {
-            throw new InvalidCredentialsError()
-        }
-
-        await attempts.claim(ipHash)
-
-        // Timing parity with a normal account; the result is not used.
-        await compare(code, DUMMY_HASH)
-
-        if (!fixed.matches(code)) {
-            return await this.recordFailedAttempt(attempts, ipHash)
-        }
+        await verifyIssuedCode({
+            attempts,
+            ipHash,
+            code,
+            codeHash: null,
+            issuedAt: user.completeCodeIssuedAt,
+            fixedMatches: fixed.matches,
+        })
 
         await this.audit.record({
             action: fixed.action,
@@ -327,49 +298,39 @@ export class SignInHandler
         return await this.issueSession(user)
     }
 
-    private isCodeStale(issuedAt: Date | null): boolean {
-        return !!issuedAt && Date.now() - issuedAt.getTime() > CODE_TTL_MS
-    }
-
-    private async recordFailedAttempt(
-        attempts: SignInAttempts,
+    // An account with an authenticator (platform admins) proves it after the
+    // e-mailed code. It is asked for only once that code was right, so the
+    // question never tells a guesser which accounts have one. Being asked is
+    // not a failed attempt: the ticket claimed for the e-mailed code is given
+    // back. A wrong one counts like a wrong code; the e-mailed code stays
+    // valid for the retry. True when it was proven (the session then carries
+    // the `mfa` claim).
+    private async verifySecondFactor(
+        userId: string,
+        totp: string | undefined,
+        attempts: UserSignInAttempts,
         ipHash: string,
-    ): Promise<never> {
-        await attempts.afterFailure(ipHash)
-        throw new InvalidCredentialsError()
+    ): Promise<boolean> {
+        if (!(await this.tfaAuthenticator.isEnabled(userId))) {
+            return false
+        }
+        if (!totp) {
+            await attempts.release(ipHash)
+            throw new TfaCodeRequiredError()
+        }
+        if (!(await this.tfaAuthenticator.verifyCode({ userId, code: totp }))) {
+            await attempts.afterFailure(ipHash)
+            throw new TfaCodeInvalidError()
+        }
+        return true
     }
 
     private async issueSession(
         user: SignInUser,
+        mfa = false,
     ): Promise<SignInFeatureResponse> {
-        // Successful sign-in — burn the OTP so it can't be replayed and
-        // reset brute-force state. (For the store-review account there is no
-        // stored code; the write is a harmless no-op on those fields.)
-        // The resend cooldown goes too: it guards the mailbox while a code is
-        // pending, and kept after sign-in it refused the next sign-in on this
-        // address («чуть позже») for the rest of the minute.
-        await this.prisma.user.update({
-            where: { id: user.id },
-            data: {
-                completeCode: null,
-                completeCodeIssuedAt: null,
-                completeCodeNextResendAt: null,
-                signInFailedAttempts: 0,
-                signInLockedUntil: null,
-            },
-        })
-        // Wrong-code counters of this account's addresses go too, except
-        // locks still running: a success here must not unlock whoever was
-        // guessing from elsewhere.
-        await this.prisma.signInThrottle.deleteMany({
-            where: {
-                userId: user.id,
-                OR: [
-                    { lockedUntil: null },
-                    { lockedUntil: { lte: new Date() } },
-                ],
-            },
-        })
+        // Successful sign-in — burn the OTP and reset brute-force state.
+        await consumeAccountCode(this.prisma, user.id)
 
         await this.audit.record({
             action: 'auth.signIn',
@@ -382,10 +343,12 @@ export class SignInHandler
         const accessToken = await this.tokensService.generateToken({
             userId: user.id,
             sessionVersion: user.sessionVersion,
+            mfa,
         })
 
         const refreshToken = await this.tokensService.generateStoredToken({
             userId: user.id,
+            mfa,
         })
 
         return {

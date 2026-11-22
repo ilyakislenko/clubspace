@@ -1,11 +1,12 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { CourseAccessService } from '../../domains/playlist/services/course-access.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
-import { loadVideoForStudent } from '../manage-my-video-bookmarks/schemas'
+import { loadWatchableVideoForStudent } from '../manage-my-video-bookmarks/schemas'
 import { applyGrade, dueAfter, NEW_CARD } from './review-scheduler'
 import {
     ReviewMyBookmarkFeature,
@@ -22,7 +23,10 @@ export class ReviewMyBookmarkHandler
     implements
         IFeatureHandler<ReviewMyBookmarkFeature, ReviewMyBookmarkFeatureResponse>
 {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly courseAccess: CourseAccessService,
+    ) {}
 
     async execute({
         userId,
@@ -36,7 +40,7 @@ export class ReviewMyBookmarkHandler
                 message: 'Время оценки в будущем — проверьте часы устройства',
             })
         }
-        await loadVideoForStudent(this.prisma, userId, videoId)
+        await loadWatchableVideoForStudent(this.prisma, this.courseAccess, userId, videoId)
 
         const bookmark = await this.prisma.videoBookmark.findUnique({
             where: { id: bookmarkId },

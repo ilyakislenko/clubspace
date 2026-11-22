@@ -95,6 +95,7 @@ A-записей на IP сервера, TTL 300–600:
 | `app` | A | `<IP>` | сайт: лендинг, страницы клубов, `/join`, `/legal` |
 | `pwa` | A | `<IP>` | приложение в браузере (PWA) для учеников, родителей и тренеров |
 | `s3` | A | `<IP>` | загрузка и просмотр видео (браузер ходит напрямую) |
+| `@` | A | `<IP>` | голый домен: Caddy перенаправляет его (308) на `app.<домен>` |
 
 Проверка: `dig +short api.<домен>` (и для остальных четырёх) показывает ваш IP.
 Пока записи не разошлись, `bootstrap.sh` остановится на проверке DNS — так и
@@ -245,8 +246,9 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d media
 
 1. `https://admin.<домен>` → вход по `--admin-email` (`SUPER_ADMIN_EMAIL`), код
    придёт на почту. Этот адрес становится администратором платформы при
-   каждом старте сервера — доступ к ящику = доступ к платформе, включите в нём
-   двухфакторную защиту.
+   каждом старте сервера. Консоль платформы откроется не сразу: сначала
+   подключите приложение-аутентификатор в `/platform/security` и войдите снова
+   — см. «Двухфакторная защита администратора платформы» ниже.
 2. В `/platform` создайте клуб (название + e-mail владельца) или включите
    самостоятельную регистрацию клубов: `SELF_SERVE_SIGNUP_ENABLED=true` в
    `.env.production`, затем
@@ -277,6 +279,42 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d media
    `AI_CHAT_MONTHLY_QUESTIONS`, `AI_CHAT_TRIAL_MONTHLY_QUESTIONS`, по умолчанию
    `openai/gpt-4.1-mini`, 300 и 30) и перезапустите сервер
    (`docker compose -f docker-compose.prod.yml --env-file .env.production up -d server`).
+
+#### Двухфакторная защита администратора платформы
+
+С `PLATFORM_ADMIN_MFA_REQUIRED=true` (по умолчанию в production) права админа
+платформы — консоль `/platform` и доступ в любой клуб — есть только у сессии,
+вошедшей с кодом из письма **и** кодом из приложения-аутентификатора (Google
+Authenticator, Яндекс Ключ и т. п.). Без него админ платформы — обычный
+пользователь, а `/platform` предлагает подключить приложение:
+
+1. Войдите по коду из письма, откройте `/platform/security` → «Подключить
+   приложение», отсканируйте QR-код и введите код из приложения.
+2. «Выйти и войти снова»: после кода из письма вход попросит код из
+   приложения — в админке, мобильном приложении и веб-приложении ученика.
+   Каждый код из приложения принимается один раз. Неверные коды из приложения
+   считаются в ту же блокировку, что и неверные коды из письма.
+
+Заменить подключённое приложение из админки нельзя (иначе его забрал бы любой,
+кто завладел сессией). Резервных кодов нет. **Телефон потерян** — сбросьте
+приложение на сервере и завершите все сессии аккаунта (замените адрес):
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production exec -T postgres \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+BEGIN;
+DELETE FROM "TfaPermission" WHERE "methodId" IN
+  (SELECT m.id FROM "TfaMethod" m JOIN "User" u ON u.id = m."userId" WHERE u.email = 'admin@example.com');
+DELETE FROM "TfaMethod" WHERE "userId" = (SELECT id FROM "User" WHERE email = 'admin@example.com');
+UPDATE "RefreshToken" SET "isRevoked" = true WHERE "userId" = (SELECT id FROM "User" WHERE email = 'admin@example.com');
+UPDATE "User" SET "sessionVersion" = "sessionVersion" + 1 WHERE email = 'admin@example.com';
+COMMIT;
+SQL
+```
+
+Затем войдите по коду из письма и подключите новое приложение (шаг 1). Если
+сервер недоступен из админки совсем, временно `PLATFORM_ADMIN_MFA_REQUIRED=false`
+в `.env.production` и перезапуск сервера — только на время восстановления.
 
 ### 9. Приложение: браузер (PWA), Android, iOS, пуши
 
@@ -360,6 +398,7 @@ SSH-ключу проверен, отключите вход по паролю: 
   | `app.<domain>` | the public site: landing, `/join/<code>` links, legal pages | join links, privacy policy and account deletion the apps link to |
   | `pwa.<domain>` | the member app in the browser (the Expo app exported as a PWA) | members without the APK; browser push notifications |
   | `s3.<domain>` | object storage | uploads and video segments go **directly** here on presigned URLs; the API never proxies them |
+  | `<domain>` (apex) | 308 redirect to `app.<domain>` | people type the bare domain; without the record Caddy keeps retrying its certificate |
 
   Caddy requests a certificate per hostname at startup. A record that does not
   resolve yet means that one site stays down while the others work — and failed
@@ -536,12 +575,71 @@ Everything hostname-shaped — `ROOT_URL`, the JWT issuer and audience,
 derived from `DOMAIN` in `docker-compose.prod.yml`. Setting those in the env
 file has no effect.
 
+The admin panel keeps its session in an HttpOnly, `Secure`, `SameSite=Lax`
+cookie set by the API (`cs_refresh`, scoped to `/refresh-token` and
+`/sign-out`); the access token lives only in the tab's memory. That needs the
+admin and the API on the same site — `admin.${DOMAIN}` and `api.${DOMAIN}`, as
+the compose file sets them — over HTTPS, with the admin origin in
+`CORS_ORIGINS`. The API uses the cookie only for requests whose `Origin` is
+the origin of `ADMIN_URL` (compose sets it; in dev `.env` has
+`http://localhost:4200`), so scripts on `app.` / `pwa.` can't spend it. Ending
+every admin session server-side is the usual `RefreshToken` revoke (§8); the
+cookies left in browsers then fail to refresh.
+
 The server refuses to start if `JWT_SECRET` or `PLAYBACK_TOKEN_SECRET` is under
 32 characters or if the two are equal — deliberately, since a weak or shared
 signing secret silently accepts forged tokens and playback URLs.
 
 There is no admin password to set anywhere. Sign-in is OTP-only.
 </details>
+
+## Content-Security-Policy
+
+Every page of `admin.`, `app.` and `pwa.` carries a `Content-Security-Policy`
+header. Nothing to configure for the standard stack — the origins it allows are
+derived from `DOMAIN` / `PUBLIC_PORT_SUFFIX` like every other URL.
+
+| | Where it is set | Scripts | Talks to |
+|---|---|---|---|
+| `admin.` | `apps/admin/src/proxy.ts` (per request) | `'self'` + a fresh nonce + `'strict-dynamic'` | `api.` (HTTPS + WebSocket), `s3.`, the Sentry ingest when `NEXT_PUBLIC_SENTRY_DSN` is set |
+| `app.` | `apps/client/src/proxy.ts` (per request) | same | same, plus `mc.yandex.ru` only while `YANDEX_METRIKA_ID` is set |
+| `pwa.` | `deploy/pwa.Caddyfile` (static) | `'self'` only — the shell has no inline script | `api.` (HTTPS + WebSocket), `s3.` |
+
+All three also send `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`
+and `frame-ancestors 'none'` (no site can frame them). Images are `'self'`,
+`data:`, `blob:` and storage; video is `blob:` (hls.js), the API (HLS
+playlists) and storage (segments). Styles allow `'unsafe-inline'`: React style
+props, react-native-web and the player set inline styles, and a style cannot
+run code.
+
+Where each origin comes from:
+
+- **API and Sentry** — `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SENTRY_DSN`, baked
+  into the admin and app images at build (so is `EXPO_PUBLIC_API_URL` for the
+  PWA). Changing them means a rebuild, as before.
+- **Storage** — runtime: `S3_UPLOAD_BUCKET_URL` (and `S3_ACCELERATE_URL` when
+  set) for `admin`/`client`, `PWA_*_ORIGIN` for `pwa`, all set in
+  `docker-compose.prod.yml`. A restart applies a change. For the PWA,
+  `S3_ACCELERATE_URL` must be a bare origin (`https://cdn.example.ru`, no path)
+  — Caddy pastes it into the policy as-is.
+- **Yandex Metrika** — `YANDEX_METRIKA_ID` on `client`, read per request.
+
+**Trade-offs.** A nonce has to be fresh per response, so every admin and app
+page now renders per request — nothing is prerendered at build. On `app.` the
+landing, join and club pages already did; the legal pages and sign-in are the
+ones that changed, and the legal texts' API call still comes from Next's data
+cache. Admin pages were prerendered shells that fetch everything in the
+browser; each hit now costs a small server render. Metrika still counts
+visits, clicks and links, but its in-page click map viewer (which frames the
+site from `metrika.yandex.ru`) is refused by `frame-ancestors 'none'`; use the
+reports instead.
+
+**Something blocked?** The browser console names the directive and the URL
+(`Refused to load … because it violates the following Content Security Policy
+directive: "connect-src …"`). The usual cause is an address that differs from
+the one the policy was built from — for example a server whose `ROOT_URL` is
+not `NEXT_PUBLIC_API_URL`, or a CDN in front of storage that is not in
+`S3_ACCELERATE_URL`. Fix the address rather than widening the policy.
 
 ## Verify
 
@@ -565,6 +663,12 @@ curl -s -o /dev/null -w 'thumbnails: %{http_code}\n' https://s3.<domain>/clubspa
 curl -s -w ' admin: %{http_code}\n' https://s3.<domain>/minio/admin/v3/info
 curl -s -X DELETE -w ' delete: %{http_code}\n' https://s3.<domain>/clubspace/thumbnails/probe
 
+# Each web name sends its Content-Security-Policy (see above).
+for h in admin app pwa; do
+  curl -sI https://$h.<domain>/ | grep -qi '^content-security-policy:' \
+    && echo "$h: csp" || echo "$h: NO CSP"
+done
+
 # The bucket bootstrap ran and created both service accounts.
 docker compose -f docker-compose.prod.yml --env-file .env.production logs minio-init
 ```
@@ -577,7 +681,11 @@ rerun it with
 ## Your club, and the first students
 
 1. **Sign in to the admin panel** at `https://admin.<domain>` with
-   `SUPER_ADMIN_EMAIL`. The code arrives by email — there is no password.
+   `SUPER_ADMIN_EMAIL`. The code arrives by email — there is no password. With
+   `PLATFORM_ADMIN_MFA_REQUIRED=true` (the production default) the platform
+   console opens only for a sign-in that also gives an authenticator-app code:
+   set the app up at `/platform/security`, then sign out and in again. Lost
+   phone: see «Двухфакторная защита администратора платформы» above.
 2. **Create the club** in the platform console at `/platform`: name plus owner
    email. The club gets a key (a Cyrillic name is transliterated — "Академия
    БЖЖ" becomes `akademiya_bzhzh`) and a join code.
@@ -891,6 +999,45 @@ works, as before.
 5. Check: the club's «Тариф» page shows «Оплатить картой»; the platform console
    card shows the payments list, «Повторить списание сейчас», refunds and the
    autopay switch.
+
+### Telegram notifications for members (optional)
+
+Members link a chat with a bot of the platform in the app («Настройки →
+Уведомления → Telegram → Подключить») and get a copy of their notifications
+there. A **separate** bot from the alert bot of step 5 (`ALERT_TELEGRAM_*` never
+reaches the app). Off — and the row hidden — until all three variables are set.
+
+1. [@BotFather](https://t.me/BotFather) → `/newbot` → token and @username. Optionally
+   `/setcommands`: `stop - Отключить уведомления`.
+2. In `.env.production`:
+   ```
+   TELEGRAM_BOT_TOKEN=<token from BotFather>
+   TELEGRAM_BOT_USERNAME=<username without @>
+   TELEGRAM_WEBHOOK_SECRET=<openssl rand -hex 32>
+   ```
+3. `docker compose … up -d` — the schema change is additive (`TelegramLink`,
+   `TelegramLinkToken`), `db push` applies it without data loss.
+4. Register the webhook once (again whenever the token, secret or domain changes).
+   Telegram sends the secret back in `X-Telegram-Bot-Api-Secret-Token`; the server
+   refuses updates without it:
+   ```bash
+   set -a; . ./.env.production; set +a
+   curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+     -d "url=https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX}/telegram/webhook" \
+     -d "secret_token=${TELEGRAM_WEBHOOK_SECRET}" \
+     -d 'allowed_updates=["message"]' \
+     -d "drop_pending_updates=true"
+   # → {"ok":true,"result":true,"description":"Webhook was set"}
+   curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
+   # last_error_message must be absent once a member has pressed «Start»
+   ```
+   Telegram only calls ports 443, 80, 88 and 8443: with a non-standard
+   `PUBLIC_PORT_SUFFIX` other than `:8443` the webhook cannot be registered.
+5. Check: «Подключить» in the app opens the bot, «Start» answers «Готово,
+   уведомления будут приходить сюда», and the next notification arrives in the chat.
+   `/stop` in the chat or «Отключить» in the app unlinks; a member who blocks the
+   bot is unlinked on the next message. Messages go through the `telegram` queue,
+   25 per second at most (Telegram allows about 30).
 
 ### Offer, DPA and seller requisites (clubs as customers)
 

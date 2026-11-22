@@ -60,7 +60,7 @@ describe("showSubscriptionCard", () => {
 
 describe("showHomeFallback", () => {
   const off = {
-    groupsOn: false,
+    hasClassCard: false,
     attendanceOn: false,
     subscriptionOn: false,
     hasRecents: false,
@@ -71,7 +71,12 @@ describe("showHomeFallback", () => {
     expect(showHomeFallback(off)).toBe(true)
   })
 
-  it.each(["groupsOn", "attendanceOn", "subscriptionOn", "hasRecents", "hasAnnouncement"] as const)(
+  it("shows for staff with no group: the groups feature alone renders no class card", () => {
+    // Groups on, but neither «Ближайшая» nor «Сегодня вы ведёте» is on screen.
+    expect(showHomeFallback({ ...off, hasClassCard: false })).toBe(true)
+  })
+
+  it.each(["hasClassCard", "attendanceOn", "subscriptionOn", "hasRecents", "hasAnnouncement"] as const)(
     "hides when %s",
     (key) => {
       expect(showHomeFallback({ ...off, [key]: true })).toBe(false)

@@ -5,6 +5,11 @@ const ClubRefSchema = z.object({
     name: z.string(),
 })
 
+const VideoRefSchema = z.object({
+    id: z.string().uuid(),
+    title: z.string(),
+})
+
 export const ExportMyDataFeatureOutputSchema = z.object({
     // Bumped if the layout of this file ever changes incompatibly.
     formatVersion: z.literal(1),
@@ -23,6 +28,13 @@ export const ExportMyDataFeatureOutputSchema = z.object({
         createdAt: z.iso.datetime(),
         lastSeenAt: z.iso.datetime(),
     }),
+    // The linked Telegram chat for notifications; null when none is linked.
+    telegram: z
+        .object({
+            chatId: z.string(),
+            linkedAt: z.iso.datetime(),
+        })
+        .nullable(),
     consents: z.array(
         z.object({
             kind: z.string(),
@@ -108,6 +120,95 @@ export const ExportMyDataFeatureOutputSchema = z.object({
             stripes: z.number().int(),
             note: z.string().nullable(),
             awardedAt: z.iso.datetime(),
+        }),
+    ),
+    // Personal notes on club lessons (one per lesson).
+    videoNotes: z.array(
+        z.object({
+            club: ClubRefSchema,
+            video: VideoRefSchema,
+            text: z.string(),
+            updatedAt: z.iso.datetime(),
+        }),
+    ),
+    // Lesson bookmarks (moments / A–B segments) with their spaced-repetition
+    // schedule. Deleted ones are kept as tombstones for offline sync and are
+    // listed with deletedAt. The drawing itself is not included, only whether
+    // there is one.
+    bookmarks: z.array(
+        z.object({
+            club: ClubRefSchema,
+            video: VideoRefSchema,
+            positionSec: z.number().int(),
+            endSec: z.number().int().nullable(),
+            label: z.string(),
+            note: z.string(),
+            hasDrawing: z.boolean(),
+            createdAt: z.iso.datetime(),
+            updatedAt: z.iso.datetime(),
+            deletedAt: z.iso.datetime().nullable(),
+            review: z
+                .object({
+                    dueAt: z.iso.datetime(),
+                    intervalDays: z.number().int(),
+                    ease: z.number(),
+                    reps: z.number().int(),
+                    lapses: z.number().int(),
+                    lastReviewedAt: z.iso.datetime(),
+                })
+                .nullable(),
+        }),
+    ),
+    studyPlans: z.array(
+        z.object({
+            club: ClubRefSchema,
+            title: z.string(),
+            description: z.string().nullable(),
+            createdAt: z.iso.datetime(),
+            updatedAt: z.iso.datetime(),
+            items: z.array(
+                z.object({
+                    position: z.number().int(),
+                    video: VideoRefSchema,
+                    startSec: z.number().int(),
+                    endSec: z.number().int().nullable(),
+                    title: z.string(),
+                    note: z.string().nullable(),
+                    createdAt: z.iso.datetime(),
+                }),
+            ),
+        }),
+    ),
+    // «Разбор видео»: uploaded clips (metadata only, not the video) with the
+    // request sent with each and the coaches' comments on it.
+    videoReviews: z.array(
+        z.object({
+            club: ClubRefSchema,
+            clip: z.object({
+                status: z.string(),
+                durationSec: z.number().int().nullable(),
+                sizeBytes: z.number().int().nullable(),
+                createdAt: z.iso.datetime(),
+            }),
+            request: z
+                .object({
+                    title: z.string(),
+                    message: z.string().nullable(),
+                    status: z.string(),
+                    createdAt: z.iso.datetime(),
+                    updatedAt: z.iso.datetime(),
+                    comments: z.array(
+                        z.object({
+                            atSec: z.number().int(),
+                            endSec: z.number().int().nullable(),
+                            text: z.string(),
+                            hasDrawing: z.boolean(),
+                            createdAt: z.iso.datetime(),
+                            updatedAt: z.iso.datetime(),
+                        }),
+                    ),
+                })
+                .nullable(),
         }),
     ),
     // Sections cut at the per-section cap (the oldest rows are kept).

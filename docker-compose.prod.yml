@@ -187,6 +187,13 @@ services:
       # replacing the root pair .env.production carries under these names.
       S3_ACCESS_KEY_ID: ${S3_SERVER_ACCESS_KEY_ID:-clubspace-server}
       S3_SECRET_ACCESS_KEY: ${S3_SERVER_SECRET_ACCESS_KEY:?S3_SERVER_SECRET_ACCESS_KEY is required (openssl rand -hex 32)}
+      # Sentry release = deployed git sha (deploy/lib/common.sh sets it).
+      APP_RELEASE: ${APP_RELEASE:-}
+      # Member-facing Telegram bot (optional; all three set = on). A separate
+      # bot from ALERT_TELEGRAM_* above, which the app never gets.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -236,7 +243,18 @@ services:
       MAX_VIDEO_UPLOAD_MB: ${MAX_VIDEO_UPLOAD_MB:-5120}
       MAX_VIDEO_DURATION_MINUTES: ${MAX_VIDEO_DURATION_MINUTES:-240}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      APP_RELEASE: ${APP_RELEASE:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      # Optional speech features — empty leaves them off. Whisper (auto
+      # subtitles, speech chapters) needs a whisper.cpp binary and a model file
+      # inside the image, which apps/video-worker/Dockerfile does not ship.
+      WHISPER_CLI_PATH: ${WHISPER_CLI_PATH:-}
+      WHISPER_MODEL_PATH: ${WHISPER_MODEL_PATH:-}
+      # OpenAI-compatible endpoint for speech-based chapters and subtitle
+      # translation.
+      CHAPTERS_LLM_BASE_URL: ${CHAPTERS_LLM_BASE_URL:-}
+      CHAPTERS_LLM_API_KEY: ${CHAPTERS_LLM_API_KEY:-}
+      CHAPTERS_LLM_MODEL: ${CHAPTERS_LLM_MODEL:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -250,6 +268,9 @@ services:
         condition: service_healthy
     networks:
       - bjj_net
+    # No healthcheck: the worker is a BullMQ consumer with no HTTP listener, and
+    # its node process is PID 1 — if it dies the container exits and
+    # `restart: unless-stopped` brings it back.
 
   # Verified nightly database dump — see deploy/backup-db.sh. Dumps when the
   # container starts, then every BACKUP_INTERVAL_HOURS. `up -d` doesn't restart
@@ -320,10 +341,28 @@ services:
       args:
         # Baked into the client bundle at build time — must be the public API URL.
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+        # Browser Sentry; empty disables it (see .env.production.example).
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+        NEXT_PUBLIC_APP_RELEASE: ${APP_RELEASE:-}
+        NEXT_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
     restart: unless-stopped
     logging: *default-logging
+    # Runtime: the Content-Security-Policy (apps/admin/src/proxy.ts) lets pages
+    # load media from, and upload to, the storage origin presigned URLs use.
+    environment:
+      S3_UPLOAD_BUCKET_URL: https://s3.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      S3_ACCELERATE_URL: ${S3_ACCELERATE_URL:-}
     networks:
       - bjj_net
+    # Same probe as the image's HEALTHCHECK (apps/admin/Dockerfile), declared
+    # here so `docker compose ps` and depends_on see it regardless of image.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/sign-in >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   client:
     image: clubspace.local/client:latest
@@ -337,6 +376,10 @@ services:
         NEXT_PUBLIC_LEGAL_OPERATOR: ${LEGAL_OPERATOR:-}
         NEXT_PUBLIC_LEGAL_ADDRESS: ${LEGAL_ADDRESS:-}
         NEXT_PUBLIC_CONSENT_VERSION: ${CONSENT_VERSION:-2026-11-01}
+        # Browser Sentry; empty disables it (see .env.production.example).
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+        NEXT_PUBLIC_APP_RELEASE: ${APP_RELEASE:-}
     restart: unless-stopped
     logging: *default-logging
     # Runtime (not baked): /, /join, /c, /clubs, /.well-known, robots.txt and
@@ -357,8 +400,23 @@ services:
       IOS_BUNDLE_ID: ${IOS_BUNDLE_ID:-}
       ANDROID_PACKAGE: ${ANDROID_PACKAGE:-}
       ANDROID_CERT_SHA256: ${ANDROID_CERT_SHA256:-}
+      # Landing analytics, verification and claims — see .env.production.example.
+      YANDEX_METRIKA_ID: ${YANDEX_METRIKA_ID:-}
+      YANDEX_VERIFICATION: ${YANDEX_VERIFICATION:-}
+      GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
+      SUPPORT_TELEGRAM_URL: ${SUPPORT_TELEGRAM_URL:-}
+      DATA_HOSTED_IN_RU: ${DATA_HOSTED_IN_RU:-}
+      # Storage origin(s) for the Content-Security-Policy (apps/client/src/proxy.ts).
+      S3_UPLOAD_BUCKET_URL: https://s3.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      S3_ACCELERATE_URL: ${S3_ACCELERATE_URL:-}
     networks:
       - bjj_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/sign-in >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   # The installable web app (Expo PWA) for members, served on pwa.<domain>:
   # static files baked at build time (apps/mobile/Dockerfile). Same code as the
@@ -375,8 +433,22 @@ services:
         EXPO_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
     restart: unless-stopped
     logging: *default-logging
+    # Origins in the PWA's Content-Security-Policy (deploy/pwa.Caddyfile):
+    # the API above, its socket, and object storage. Origins only — no path.
+    environment:
+      PWA_API_ORIGIN: https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      PWA_SOCKET_ORIGIN: wss://api.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      PWA_MEDIA_ORIGIN: https://s3.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}
+      PWA_ACCELERATE_ORIGIN: ${S3_ACCELERATE_URL:-}
     networks:
       - bjj_net
+    # Caddy image has no node — busybox wget, as in apps/mobile/Dockerfile.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/manifest.webmanifest >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # Only started with `--profile caddy`.
   #

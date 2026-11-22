@@ -585,9 +585,16 @@ describe('announcementMemberWhere', () => {
   });
 
   it('keeps the renewal segment alone for a club-wide EXPIRING one', () => {
-    expect(
-      announcementMemberWhere({ audience: 'EXPIRING', directionId: null, groups: [] }),
-    ).toEqual(expiringSegmentWhere());
+    // Both sides build "now"-relative dates: freeze the clock or a millisecond
+    // tick between the two calls makes them differ.
+    jest.useFakeTimers({ now: new Date('2026-11-01T12:00:00Z') });
+    try {
+      expect(
+        announcementMemberWhere({ audience: 'EXPIRING', directionId: null, groups: [] }),
+      ).toEqual(expiringSegmentWhere());
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('targets direction members or staff', () => {

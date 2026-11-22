@@ -19,6 +19,7 @@ import {
   type ClubImportRowAction,
 } from "../../shared/api/club-import"
 import { errorMessage } from "../../shared/lib/error-message"
+import { xlsxFileToCsv } from "./club-import-xlsx"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 
 // The server refuses bigger files too; checking here saves the upload.
@@ -122,6 +123,21 @@ export function ClubImportWizard({ workspaceId }: { workspaceId: string }) {
     }
   }
 
+  const uploadFile = async (file: File) => {
+    if (!/\.xlsx$/i.test(file.name)) return upload(file, file.name)
+    setError(null)
+    setBusy(true)
+    let csv: { blob: Blob; name: string }
+    try {
+      csv = await xlsxFileToCsv(file)
+    } catch {
+      setBusy(false)
+      setError("Не удалось прочитать Excel-файл — сохраните его как .xlsx или CSV")
+      return
+    }
+    await upload(csv.blob, csv.name)
+  }
+
   const runPreview = async () => {
     if (!imp) return
     setError(null)
@@ -177,7 +193,7 @@ export function ClubImportWizard({ workspaceId }: { workspaceId: string }) {
           busy={busy}
           pasted={pasted}
           onPasted={setPasted}
-          onFile={(f) => void upload(f, f.name)}
+          onFile={(f) => void uploadFile(f)}
           onPaste={() =>
             void upload(new Blob([pasted], { type: "text/csv" }), "вставка-из-таблицы.csv")
           }
@@ -301,12 +317,12 @@ function UploadStep(props: {
 
       <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-card p-8 text-sm text-muted-foreground hover:border-primary">
         <span className="font-medium text-foreground">
-          {props.busy ? "Загружаем…" : "Выберите CSV-файл"}
+          {props.busy ? "Загружаем…" : "Выберите файл Excel или CSV"}
         </span>
-        <span>.csv или .txt, до 2 МБ</span>
+        <span>.xlsx, .csv или .txt, до 2 МБ</span>
         <input
           type="file"
-          accept=".csv,.txt,text/csv,text/plain"
+          accept=".xlsx,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           className="hidden"
           disabled={props.busy}
           onChange={(e) => {

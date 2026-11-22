@@ -8,6 +8,7 @@ import { Button } from "@clubspace/ui-kit/ui"
 import { fetchMe } from "../../../shared/api/me"
 import {
   createPlatformWorkspace,
+  fetchPlatformMfa,
   fetchPlatformOverview,
   fetchPlatformWorkspaces,
   updatePlatformWorkspace,
@@ -69,6 +70,9 @@ export default function PlatformConsolePage() {
   const router = useRouter()
 
   const [allowed, setAllowed] = useState<boolean | null>(null)
+  // A super admin whose session has no platform powers yet
+  // (PLATFORM_ADMIN_MFA_REQUIRED and no authenticator code at sign-in).
+  const [mfaBlocked, setMfaBlocked] = useState(false)
   const [overview, setOverview] = useState<PlatformOverview | null>(null)
   const [workspaces, setWorkspaces] = useState<PlatformWorkspace[]>([])
   const [total, setTotal] = useState(0)
@@ -157,7 +161,12 @@ export default function PlatformConsolePage() {
   useEffect(() => {
     let alive = true
     fetchMe()
-      .then((me) => alive && setAllowed(me.isSuperAdmin))
+      .then(async (me) => {
+        const mfa = me.isSuperAdmin ? await fetchPlatformMfa() : null
+        if (!alive) return
+        setMfaBlocked(mfa ? !mfa.accessGranted : false)
+        setAllowed(me.isSuperAdmin)
+      })
       .catch(() => alive && setAllowed(false))
     return () => {
       alive = false
@@ -194,8 +203,8 @@ export default function PlatformConsolePage() {
   }, [curPage, search, status, tier, promo, sort])
 
   useEffect(() => {
-    if (allowed) void load()
-  }, [allowed, load])
+    if (allowed && !mfaBlocked) void load()
+  }, [allowed, mfaBlocked, load])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -269,6 +278,24 @@ export default function PlatformConsolePage() {
     )
   }
 
+  if (mfaBlocked) {
+    return (
+      <div className="mx-auto max-w-xl p-6">
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <div className="font-medium">Включите двухфакторную защиту</div>
+          <p className="mt-1 text-xs leading-relaxed">
+            Консоль платформы открывается только после входа с кодом из
+            приложения-аутентификатора. Подключите приложение или, если оно уже
+            подключено, выйдите и войдите снова с его кодом.
+          </p>
+        </div>
+        <Button className="mt-4" size="sm" onClick={() => router.push("/platform/security")}>
+          Настроить двухфакторную защиту
+        </Button>
+      </div>
+    )
+  }
+
   const pageCount = Math.max(1, Math.ceil(total / PER_PAGE))
 
   return (
@@ -280,9 +307,14 @@ export default function PlatformConsolePage() {
             Все клубы платформы. Отсюда создаётся новый клуб и передаётся владельцу.
           </p>
         </div>
-        <Button onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "Отмена" : "Создать клуб"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => router.push("/platform/security")}>
+            Двухфакторная защита
+          </Button>
+          <Button onClick={() => setShowForm((v) => !v)}>
+            {showForm ? "Отмена" : "Создать клуб"}
+          </Button>
+        </div>
       </div>
 
       {overview && (

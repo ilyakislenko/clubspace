@@ -110,10 +110,17 @@ describe('store review account and its demo club', () => {
         const { workspace } = await createWorkspace(ctx, { key: DEMO_KEY })
         await createUser(ctx, { email: REVIEW_EMAIL })
         const first = await signInReviewer()
+        // Deleting asks for a code again; the review account's is the fixed one.
         await ctx
             .http()
-            .delete('/me')
+            .post('/send-auth-code')
+            .send({ email: REVIEW_EMAIL })
+            .expect(201)
+        await ctx
+            .http()
+            .post('/me/delete-account')
             .set('Authorization', `Bearer ${first.accessToken}`)
+            .send({ code: REVIEW_CODE })
             .expect(200)
 
         const again = await signInReviewer()

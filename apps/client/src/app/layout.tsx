@@ -8,8 +8,14 @@ import type { Metadata } from "next"
 import { getInstanceBrand } from "@clubspace/ui-kit/brand"
 
 import { readSiteLinks } from "../shared/lib/app-links"
+import { readMarketingConfig } from "../shared/lib/marketing"
 
 const brand = getInstanceBrand()
+
+// Every page renders per request: the Content-Security-Policy (src/proxy.ts)
+// carries a fresh nonce, and Next stamps it only on pages it renders for that
+// request — a prerendered page's scripts would carry none and be blocked.
+export const dynamic = "force-dynamic"
 
 // metadataBase makes canonical and Open Graph URLs (opengraph-image.png
 // included) absolute on this site's public address. Pages rendered per
@@ -17,10 +23,16 @@ const brand = getInstanceBrand()
 // localhost, which link previews cannot fetch.
 export function generateMetadata(): Metadata {
   const { site } = readSiteLinks()
+  const { yandexVerification, googleVerification } = readMarketingConfig()
+  const verification: Metadata["verification"] = {
+    ...(googleVerification ? { google: googleVerification } : {}),
+    ...(yandexVerification ? { yandex: yandexVerification } : {}),
+  }
   return {
     title: brand.name,
     description: brand.tagline,
     ...(site ? { metadataBase: new URL(site) } : {}),
+    ...(Object.keys(verification).length ? { verification } : {}),
   }
 }
 

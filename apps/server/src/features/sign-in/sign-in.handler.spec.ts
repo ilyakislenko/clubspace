@@ -34,8 +34,16 @@ jest.mock('../../domains/workspace/services/join-request.service', () => ({
 jest.mock('../../domains/demo/demo-access', () => ({
     isDemoOnlyAccount: jest.fn().mockResolvedValue(true),
 }))
+// otplib is ESM-only; the handler gets a stub.
+jest.mock('../../domains/tfa/services/tfa-authenticator.service', () => ({
+    TfaAuthenticatorService: class {},
+}))
 
 import { isDemoOnlyAccount } from '../../domains/demo/demo-access'
+import {
+    TfaCodeInvalidError,
+    TfaCodeRequiredError,
+} from '../../domains/tfa/errors/tfa.errors'
 import { UserNoCompleteCodeError } from '../../domains/users/errors/users.errors'
 import { environment } from '../../environments/environment'
 import { UserBlockedError } from '../../shared/errors/shared.errors'
@@ -74,7 +82,12 @@ const ipHash = (ip: string) => createHash('sha256').update(ip).digest('hex')
 
 const build = (
     user: unknown,
-    access: { owned?: unknown; roles?: string[] } = {},
+    access: {
+        owned?: unknown
+        roles?: string[]
+        // The account's authenticator app: none unless given.
+        tfa?: { enabled: boolean; validCode?: string }
+    } = {},
 ) => {
     const prisma = {
         user: {
@@ -126,6 +139,12 @@ const build = (
     const storeReviewMembership = {
         ensureDemoMembership: jest.fn().mockResolvedValue(undefined),
     }
+    const tfaAuthenticator = {
+        isEnabled: jest.fn().mockResolvedValue(access.tfa?.enabled ?? false),
+        verifyCode: jest.fn(
+            async ({ code }: { code: string }) => code === access.tfa?.validCode,
+        ),
+    }
     const handler = new SignInHandler(
         tokens as never,
         users as never,
@@ -133,8 +152,17 @@ const build = (
         audit as never,
         storeReviewMembership as never,
         { requestMembership: jest.fn() } as never,
+        tfaAuthenticator as never,
     )
-    return { handler, prisma, tokens, audit, storeReviewMembership, users }
+    return {
+        handler,
+        prisma,
+        tokens,
+        audit,
+        storeReviewMembership,
+        users,
+        tfaAuthenticator,
+    }
 }
 
 const run = (handler: SignInHandler, code = CODE, ip = OWN_IP) =>
@@ -215,7 +243,7 @@ describe('SignInHandler', () => {
         const accountClaim = prisma.user.updateMany.mock.calls[0][0]
         expect(accountClaim.where).toMatchObject({
             id: 'user-1',
-            signInFailedAttempts: { lt: 10 },
+            signInFailedAttempts: { lt: 50 },
         })
         expect(accountClaim.data).toEqual({
             signInFailedAttempts: { increment: 1 },
@@ -231,7 +259,7 @@ describe('SignInHandler', () => {
             .not.toContain(OWN_IP)
     })
 
-    it('starts both lockouts when the last tickets are spent on a wrong code', async () => {
+    it('starts the address and hard account lockouts when the last tickets are spent', async () => {
         const { handler, prisma, audit } = build(baseUser())
         await expect(run(handler, '000000')).rejects.toBeInstanceOf(
             InvalidCredentialsError,
@@ -243,26 +271,100 @@ describe('SignInHandler', () => {
             Date.now(),
         )
         const accountLock = prisma.user.updateMany.mock.calls[1][0]
-        expect(accountLock.where.signInFailedAttempts).toEqual({ gte: 10 })
+        expect(accountLock.where.signInFailedAttempts).toEqual({ gte: 50 })
         expect(accountLock.data.signInFailedAttempts).toBe(0)
         expect(accountLock.data.signInLockedUntil.getTime()).toBeGreaterThan(
             Date.now(),
         )
+        expect(audit.record).toHaveBeenCalledTimes(1)
         expect(audit.record).toHaveBeenCalledWith(
             expect.objectContaining({
                 action: 'auth.lockout',
                 targetType: 'member',
                 targetId: 'user-1',
                 workspaceId: null,
+                metadata: expect.objectContaining({ scope: 'account' }),
             }),
         )
+    })
+
+    it('starts a soft account lock (counter kept) at the lower ceiling', async () => {
+        const { handler, prisma, audit } = build(baseUser())
+        prisma.user.updateMany
+            .mockResolvedValueOnce({ count: 1 }) // the claim
+            .mockResolvedValueOnce({ count: 0 }) // hard ceiling not reached
+            .mockResolvedValueOnce({ count: 1 }) // soft lock started
+        await expect(run(handler, '000000')).rejects.toBeInstanceOf(
+            InvalidCredentialsError,
+        )
+        const softLock = prisma.user.updateMany.mock.calls[2][0]
+        expect(softLock.where.signInFailedAttempts).toEqual({ gte: 10 })
+        expect(softLock.data).not.toHaveProperty('signInFailedAttempts')
+        expect(audit.record).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'auth.lockout',
+                metadata: expect.objectContaining({ scope: 'guessingAddresses' }),
+            }),
+        )
+    })
+
+    // The owner-lockout DoS: strangers exhausting the account ceiling must not
+    // lock out an address that never guessed.
+    it('applies a soft account lock only to addresses that took part in guessing', async () => {
+        const lockedUntil = new Date(Date.now() + 10 * 60_000)
+        const { handler, prisma, tokens } = build(
+            baseUser({ signInLockedUntil: lockedUntil, signInFailedAttempts: 10 }),
+        )
+        prisma.signInThrottle.findUnique.mockImplementation(
+            async (args: { where: { userId_ipHash: { ipHash: string } } }) =>
+                args.where.userId_ipHash.ipHash === ipHash(ATTACKER_IP)
+                    ? { lockedUntil: null, updatedAt: new Date(Date.now() - 60_000) }
+                    : null,
+        )
+        await expect(
+            run(handler, CODE, ATTACKER_IP),
+        ).rejects.toBeInstanceOf(TooManySignInAttemptsError)
+        expect(bcrypt.compare).not.toHaveBeenCalled()
+
+        await expect(run(handler, CODE, OWN_IP)).resolves.toMatchObject({
+            userId: 'user-1',
+        })
+        expect(tokens.generateToken).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not apply a soft lock to an address whose failures are long past', async () => {
+        const { handler, prisma } = build(
+            baseUser({
+                signInLockedUntil: new Date(Date.now() + 10 * 60_000),
+                signInFailedAttempts: 12,
+            }),
+        )
+        prisma.signInThrottle.findUnique.mockResolvedValue({
+            lockedUntil: null,
+            updatedAt: new Date(Date.now() - 24 * 60 * 60_000),
+        })
+        await expect(run(handler)).resolves.toMatchObject({ userId: 'user-1' })
+    })
+
+    it('applies a hard account lock to every address', async () => {
+        const { handler } = build(
+            baseUser({
+                signInLockedUntil: new Date(Date.now() + 10 * 60_000),
+                signInFailedAttempts: 0,
+            }),
+        )
+        await expect(run(handler, CODE, OWN_IP)).rejects.toBeInstanceOf(
+            TooManySignInAttemptsError,
+        )
+        expect(bcrypt.compare).not.toHaveBeenCalled()
     })
 
     it('does not audit a lockout when the wrong code did not start one', async () => {
         const { handler, prisma, audit } = build(baseUser())
         prisma.user.updateMany
             .mockResolvedValueOnce({ count: 1 }) // the claim
-            .mockResolvedValueOnce({ count: 0 }) // tickets remain
+            .mockResolvedValueOnce({ count: 0 }) // no hard lock
+            .mockResolvedValueOnce({ count: 0 }) // no soft lock
         await expect(run(handler, '000000')).rejects.toBeInstanceOf(
             InvalidCredentialsError,
         )
@@ -330,8 +432,8 @@ describe('SignInHandler', () => {
             TooManySignInAttemptsError,
         )
         expect(bcrypt.compare).not.toHaveBeenCalled()
-        // lockIfExhausted ran after the failed claim.
-        expect(prisma.user.updateMany).toHaveBeenCalledTimes(2)
+        // lockAccountIfExhausted (hard, then soft) ran after the failed claim.
+        expect(prisma.user.updateMany).toHaveBeenCalledTimes(3)
     })
 
     it('burns the code and issues tokens on the correct code', async () => {
@@ -367,9 +469,11 @@ describe('SignInHandler', () => {
         expect(tokens.generateToken).toHaveBeenCalledWith({
             userId: 'user-1',
             sessionVersion: 2,
+            mfa: false,
         })
         expect(tokens.generateStoredToken).toHaveBeenCalledWith({
             userId: 'user-1',
+            mfa: false,
         })
         expect(result).toMatchObject({
             userId: 'user-1',
@@ -394,6 +498,133 @@ describe('SignInHandler', () => {
                     completeCodeNextResendAt: null,
                 }),
             }),
+        )
+    })
+})
+
+// An account with an authenticator app (platform admins): the e-mailed code,
+// then its TOTP; the session then carries the `mfa` claim.
+describe('SignInHandler — authenticator (TOTP)', () => {
+    const TOTP = '654321'
+    const enrolled = { tfa: { enabled: true, validCode: TOTP } }
+    const runWithTotp = (handler: SignInHandler, code: string, totp?: string) =>
+        handler.execute(
+            new SignInFeature({ email: 'a@b.com', code, totp }, OWN_IP) as never,
+        )
+
+    it('asks for the TOTP once the e-mailed code is right, issuing nothing', async () => {
+        const { handler, tokens, prisma } = build(
+            baseUser({ isSuperAdmin: true }),
+            enrolled,
+        )
+        await expect(runWithTotp(handler, CODE)).rejects.toBeInstanceOf(
+            TfaCodeRequiredError,
+        )
+        expect(tokens.generateToken).not.toHaveBeenCalled()
+        // The e-mailed code is not burned: it comes back with the TOTP.
+        expect(prisma.user.update).not.toHaveBeenCalled()
+    })
+
+    // Mobile/web clients send the e-mailed code alone first; that round must
+    // not push a correct user (or their network) towards the lockout.
+    it('gives back the attempt when only the TOTP is missing', async () => {
+        const { handler, prisma, audit } = build(baseUser(), enrolled)
+        await expect(runWithTotp(handler, CODE)).rejects.toBeInstanceOf(
+            TfaCodeRequiredError,
+        )
+        const throttleCalls = prisma.signInThrottle.updateMany.mock.calls.map(
+            (call) => call[0],
+        )
+        expect(throttleCalls.map((args) => args.data)).toEqual([
+            { failedAttempts: { increment: 1 } },
+            { failedAttempts: { decrement: 1 } },
+        ])
+        expect(throttleCalls[1].where).toMatchObject({
+            userId: 'user-1',
+            ipHash: ipHash(OWN_IP),
+            failedAttempts: { gt: 0 },
+        })
+        const accountCalls = prisma.user.updateMany.mock.calls.map((call) => call[0])
+        expect(accountCalls.map((args) => args.data)).toEqual([
+            { signInFailedAttempts: { increment: 1 } },
+            { signInFailedAttempts: { decrement: 1 } },
+        ])
+        expect(accountCalls[1].where).toEqual({
+            id: 'user-1',
+            signInFailedAttempts: { gt: 0 },
+        })
+        expect(audit.record).not.toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'auth.lockout' }),
+        )
+    })
+
+    it('never tells a wrong e-mailed code that the account has an authenticator', async () => {
+        const { handler, tfaAuthenticator } = build(baseUser(), enrolled)
+        await expect(runWithTotp(handler, '000000')).rejects.toBeInstanceOf(
+            InvalidCredentialsError,
+        )
+        expect(tfaAuthenticator.isEnabled).not.toHaveBeenCalled()
+    })
+
+    it('counts a wrong TOTP as a failed attempt toward the lockout', async () => {
+        const { handler, tokens, prisma, audit } = build(baseUser(), enrolled)
+        await expect(runWithTotp(handler, CODE, '111111')).rejects.toBeInstanceOf(
+            TfaCodeInvalidError,
+        )
+        expect(tokens.generateToken).not.toHaveBeenCalled()
+        // The ticket claimed before the comparison stays spent (nothing is
+        // given back), and the lockouts start once the tickets run out (as
+        // after a wrong code).
+        expect(prisma.signInThrottle.updateMany.mock.calls[0][0].data).toEqual({
+            failedAttempts: { increment: 1 },
+        })
+        expect(prisma.user.updateMany.mock.calls[0][0].data).toEqual({
+            signInFailedAttempts: { increment: 1 },
+        })
+        expect(
+            prisma.user.updateMany.mock.calls[1][0].data.signInLockedUntil,
+        ).toBeInstanceOf(Date)
+        expect(audit.record).toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'auth.lockout' }),
+        )
+        const decrements = [
+            ...prisma.signInThrottle.updateMany.mock.calls,
+            ...prisma.user.updateMany.mock.calls,
+        ].filter((call) => JSON.stringify(call[0].data).includes('decrement'))
+        expect(decrements).toEqual([])
+    })
+
+    it('signs in with both codes and marks the session', async () => {
+        const { handler, tokens, tfaAuthenticator } = build(
+            baseUser({ isSuperAdmin: true }),
+            enrolled,
+        )
+        await expect(runWithTotp(handler, CODE, TOTP)).resolves.toMatchObject({
+            accessToken: 'access-token',
+        })
+        expect(tfaAuthenticator.verifyCode).toHaveBeenCalledWith({
+            userId: 'user-1',
+            code: TOTP,
+        })
+        expect(tokens.generateToken).toHaveBeenCalledWith({
+            userId: 'user-1',
+            sessionVersion: 2,
+            mfa: true,
+        })
+        expect(tokens.generateStoredToken).toHaveBeenCalledWith({
+            userId: 'user-1',
+            mfa: true,
+        })
+    })
+
+    it('ignores a TOTP sent for an account without an authenticator', async () => {
+        const { handler, tokens, tfaAuthenticator } = build(
+            baseUser({ isSuperAdmin: true }),
+        )
+        await runWithTotp(handler, CODE, TOTP)
+        expect(tfaAuthenticator.verifyCode).not.toHaveBeenCalled()
+        expect(tokens.generateToken).toHaveBeenCalledWith(
+            expect.objectContaining({ mfa: false }),
         )
     })
 })

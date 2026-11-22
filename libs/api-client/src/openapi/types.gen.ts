@@ -7,12 +7,13 @@ export type ClientOptions = {
 export type SignInInput = {
     email: string;
     code: string;
+    totp?: string;
 };
 
 export type SignInOutputOutput = {
     userId: string;
     accessToken: string;
-    refreshToken: string;
+    refreshToken?: string;
     expiresAt: number;
 };
 
@@ -36,18 +37,18 @@ export type ResendCodeOutputOutput = {
 };
 
 export type RefreshTokenInput = {
-    refreshToken: string;
+    refreshToken?: string;
 };
 
 export type RefreshTokenOutputOutput = {
     userId: string;
     accessToken: string;
-    refreshToken: string;
+    refreshToken?: string;
     expiresAt: number;
 };
 
 export type SignOutInput = {
-    refreshToken: string;
+    refreshToken?: string;
 };
 
 export type SignOutOutputOutput = {
@@ -900,6 +901,26 @@ export type ResetPlatformDemoClubOutputOutput = {
         visits: number;
         subscriptions: number;
     };
+};
+
+export type GetPlatformMfaOutputOutput = {
+    enrolled: boolean;
+    required: boolean;
+    accessGranted: boolean;
+};
+
+export type StartPlatformMfaEnrollmentOutputOutput = {
+    secret: string;
+    otpauthUrl: string;
+    qrPngDataUrl: string;
+};
+
+export type ConfirmPlatformMfaEnrollmentInput = {
+    code: string;
+};
+
+export type ConfirmPlatformMfaEnrollmentOutputOutput = {
+    enrolled: true;
 };
 
 export type CreateVideoUploadInput = {
@@ -2459,6 +2480,8 @@ export type ListWorkspaceMembersOutputOutput = {
         } | null;
     }>;
     total: number;
+    curPage: number;
+    perPage: number;
     workspaceVideoTotal: number;
 };
 
@@ -3161,6 +3184,29 @@ export type UpdateNotificationPreferencesOutputOutput = {
     reviewRemindersEnabled: boolean;
 };
 
+export type TelegramStatusOutputOutput = {
+    available: boolean;
+    linked: boolean;
+    enabled: boolean;
+};
+
+export type TelegramLinkOutputOutput = {
+    url: string;
+    expiresAt: string;
+};
+
+export type UpdateMyTelegramInput = {
+    enabled: boolean;
+};
+
+export type TelegramWebhookOutputOutput = {
+    ok: true;
+};
+
+export type DeleteAccountInput = {
+    code: string;
+};
+
 export type DeleteAccountOutputOutput = {
     status: 'deleted';
 };
@@ -3202,6 +3248,10 @@ export type ExportMyDataOutputOutput = {
         createdAt: string;
         lastSeenAt: string;
     };
+    telegram: {
+        chatId: string;
+        linkedAt: string;
+    } | null;
     consents: Array<{
         kind: string;
         version: string;
@@ -3290,6 +3340,93 @@ export type ExportMyDataOutputOutput = {
         stripes: number;
         note: string | null;
         awardedAt: string;
+    }>;
+    videoNotes: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        video: {
+            id: string;
+            title: string;
+        };
+        text: string;
+        updatedAt: string;
+    }>;
+    bookmarks: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        video: {
+            id: string;
+            title: string;
+        };
+        positionSec: number;
+        endSec: number | null;
+        label: string;
+        note: string;
+        hasDrawing: boolean;
+        createdAt: string;
+        updatedAt: string;
+        deletedAt: string | null;
+        review: {
+            dueAt: string;
+            intervalDays: number;
+            ease: number;
+            reps: number;
+            lapses: number;
+            lastReviewedAt: string;
+        } | null;
+    }>;
+    studyPlans: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        title: string;
+        description: string | null;
+        createdAt: string;
+        updatedAt: string;
+        items: Array<{
+            position: number;
+            video: {
+                id: string;
+                title: string;
+            };
+            startSec: number;
+            endSec: number | null;
+            title: string;
+            note: string | null;
+            createdAt: string;
+        }>;
+    }>;
+    videoReviews: Array<{
+        club: {
+            id: string;
+            name: string;
+        };
+        clip: {
+            status: string;
+            durationSec: number | null;
+            sizeBytes: number | null;
+            createdAt: string;
+        };
+        request: {
+            title: string;
+            message: string | null;
+            status: string;
+            createdAt: string;
+            updatedAt: string;
+            comments: Array<{
+                atSec: number;
+                endSec: number | null;
+                text: string;
+                hasDrawing: boolean;
+                createdAt: string;
+                updatedAt: string;
+            }>;
+        } | null;
     }>;
     truncated: Array<string>;
 };
@@ -4244,6 +4381,19 @@ export type CreateDemoRequestInputDto = {
 };
 
 export type CreateDemoRequestOutputOutput = {
+    status: 'received';
+};
+
+export type ReportClientErrorInputDto = {
+    message: string;
+    stack?: string;
+    platform: 'ios' | 'android' | 'web' | 'other';
+    appVersion: string;
+    route?: string;
+    fatal?: boolean;
+};
+
+export type ReportClientErrorOutputOutput = {
     status: 'received';
 };
 
@@ -7902,7 +8052,7 @@ export type RequestWorkspaceOnboardingHelpOutputOutput = {
 
 export type GetWorkspaceOnboardingOutputOutput = {
     steps: Array<{
-        key: 'gym' | 'group' | 'schedule' | 'members' | 'video';
+        key: 'gym' | 'group' | 'schedule' | 'plans' | 'members' | 'payments' | 'video';
         done: boolean;
     }>;
     doneCount: number;
@@ -8843,6 +8993,45 @@ export type ResetPlatformDemoClubResponses = {
 
 export type ResetPlatformDemoClubResponse = ResetPlatformDemoClubResponses[keyof ResetPlatformDemoClubResponses];
 
+export type GetPlatformMfaData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/platform/mfa';
+};
+
+export type GetPlatformMfaResponses = {
+    default: GetPlatformMfaOutputOutput;
+};
+
+export type GetPlatformMfaResponse = GetPlatformMfaResponses[keyof GetPlatformMfaResponses];
+
+export type StartPlatformMfaEnrollmentData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/platform/mfa/enrollment';
+};
+
+export type StartPlatformMfaEnrollmentResponses = {
+    default: StartPlatformMfaEnrollmentOutputOutput;
+};
+
+export type StartPlatformMfaEnrollmentResponse = StartPlatformMfaEnrollmentResponses[keyof StartPlatformMfaEnrollmentResponses];
+
+export type ConfirmPlatformMfaEnrollmentData = {
+    body: ConfirmPlatformMfaEnrollmentInput;
+    path?: never;
+    query?: never;
+    url: '/platform/mfa/enrollment/confirm';
+};
+
+export type ConfirmPlatformMfaEnrollmentResponses = {
+    default: ConfirmPlatformMfaEnrollmentOutputOutput;
+};
+
+export type ConfirmPlatformMfaEnrollmentResponse = ConfirmPlatformMfaEnrollmentResponses[keyof ConfirmPlatformMfaEnrollmentResponses];
+
 export type ListVideosData = {
     body?: never;
     path?: never;
@@ -9743,7 +9932,14 @@ export type ListMembersData = {
     path: {
         workspaceId: string;
     };
-    query?: never;
+    query?: {
+        curPage?: number;
+        perPage?: number;
+        q?: string;
+        access?: 'all' | 'expiring' | 'expired' | 'inactive';
+        staffOnly?: boolean;
+        sort?: 'name' | 'expiry' | 'newest' | 'oldest' | 'role';
+    };
     url: '/workspaces/{workspaceId}/members';
 };
 
@@ -10516,44 +10712,83 @@ export type Update6Responses = {
 
 export type Update6Response = Update6Responses[keyof Update6Responses];
 
-export type DeleteData = {
+export type UnlinkMyTelegramData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/me';
+    url: '/me/telegram';
 };
 
-export type DeleteResponses = {
+export type UnlinkMyTelegramResponses = {
+    default: TelegramStatusOutputOutput;
+};
+
+export type UnlinkMyTelegramResponse = UnlinkMyTelegramResponses[keyof UnlinkMyTelegramResponses];
+
+export type GetMyTelegramData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/telegram';
+};
+
+export type GetMyTelegramResponses = {
+    default: TelegramStatusOutputOutput;
+};
+
+export type GetMyTelegramResponse = GetMyTelegramResponses[keyof GetMyTelegramResponses];
+
+export type UpdateMyTelegramData = {
+    body: UpdateMyTelegramInput;
+    path?: never;
+    query?: never;
+    url: '/me/telegram';
+};
+
+export type UpdateMyTelegramResponses = {
+    default: TelegramStatusOutputOutput;
+};
+
+export type UpdateMyTelegramResponse = UpdateMyTelegramResponses[keyof UpdateMyTelegramResponses];
+
+export type CreateTelegramLinkData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/telegram/link';
+};
+
+export type CreateTelegramLinkResponses = {
+    default: TelegramLinkOutputOutput;
+};
+
+export type CreateTelegramLinkResponse = CreateTelegramLinkResponses[keyof CreateTelegramLinkResponses];
+
+export type HandleTelegramWebhookData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/telegram/webhook';
+};
+
+export type HandleTelegramWebhookResponses = {
+    default: TelegramWebhookOutputOutput;
+};
+
+export type HandleTelegramWebhookResponse = HandleTelegramWebhookResponses[keyof HandleTelegramWebhookResponses];
+
+export type DeleteMyAccountData = {
+    body: DeleteAccountInput;
+    path?: never;
+    query?: never;
+    url: '/me/delete-account';
+};
+
+export type DeleteMyAccountResponses = {
     default: DeleteAccountOutputOutput;
 };
 
-export type DeleteResponse = DeleteResponses[keyof DeleteResponses];
-
-export type GetMeData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/me';
-};
-
-export type GetMeResponses = {
-    default: GetMeOutputOutput;
-};
-
-export type GetMeResponse = GetMeResponses[keyof GetMeResponses];
-
-export type UpdateMeData = {
-    body: UpdateMeInput;
-    path?: never;
-    query?: never;
-    url: '/me';
-};
-
-export type UpdateMeResponses = {
-    default: UpdateMeOutputOutput;
-};
-
-export type UpdateMeResponse = UpdateMeResponses[keyof UpdateMeResponses];
+export type DeleteMyAccountResponse = DeleteMyAccountResponses[keyof DeleteMyAccountResponses];
 
 export type GetMyConsentData = {
     body?: never;
@@ -11355,6 +11590,19 @@ export type CreateDemoRequestResponses = {
 
 export type CreateDemoRequestResponse = CreateDemoRequestResponses[keyof CreateDemoRequestResponses];
 
+export type ReportClientErrorData = {
+    body: ReportClientErrorInputDto;
+    path?: never;
+    query?: never;
+    url: '/client-errors';
+};
+
+export type ReportClientErrorResponses = {
+    202: ReportClientErrorOutputOutput;
+};
+
+export type ReportClientErrorResponse = ReportClientErrorResponses[keyof ReportClientErrorResponses];
+
 export type ListSessionsData = {
     body?: never;
     path: {
@@ -12075,7 +12323,7 @@ export type GetScheduleData = {
     query: {
         from: string;
         to: string;
-        directionId?: string;
+        directionIds?: string;
     };
     url: '/workspaces/{workspaceId}/schedule';
 };
@@ -13217,6 +13465,32 @@ export type UpdateAnnouncementResponses = {
 };
 
 export type UpdateAnnouncementResponse = UpdateAnnouncementResponses[keyof UpdateAnnouncementResponses];
+
+export type GetMeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me';
+};
+
+export type GetMeResponses = {
+    default: GetMeOutputOutput;
+};
+
+export type GetMeResponse = GetMeResponses[keyof GetMeResponses];
+
+export type UpdateMeData = {
+    body: UpdateMeInput;
+    path?: never;
+    query?: never;
+    url: '/me';
+};
+
+export type UpdateMeResponses = {
+    default: UpdateMeOutputOutput;
+};
+
+export type UpdateMeResponse = UpdateMeResponses[keyof UpdateMeResponses];
 
 export type FileReportData = {
     body: FileContentReportInput;

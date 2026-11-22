@@ -20,12 +20,7 @@ import {
     CurrentUser,
     type CurrentUserPayload,
 } from '../../shared/decorators/current-user.decorator'
-import {
-    COACHING_ROLES,
-    type RoleName,
-    Roles,
-    STAFF_ROLES,
-} from '../../shared/decorators/roles.decorator'
+import { COACHING_ROLES, Roles, STAFF_ROLES } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
@@ -45,6 +40,7 @@ import {
     ListClubVideoReviewsFeatureOutputSchema,
     ListClubVideoReviewsFeatureResponse,
 } from './list-club-video-reviews.feature'
+import type { ReviewViewerRole } from './review-clip-access'
 import {
     SetVideoReviewStatusFeature,
     SetVideoReviewStatusFeatureInputSchema,
@@ -76,10 +72,12 @@ class UpdateVideoReviewCommentInput extends createZodDto(
 class VideoReviewCommentOutput extends createZodDto(VideoReviewCommentFeatureOutputSchema) {}
 
 // The club's role for this request (the guards resolved it; the owner is
-// 'admin'). Handlers decide with it: staff comment and answer, the member
-// who sent the request reads it.
-const isStaffUser = (user: CurrentUserPayload) =>
-    user.isSuperAdmin || STAFF_ROLES.includes((user.role?.name ?? '') as RoleName)
+// 'admin'). Handlers authorise with it via RbacService: which staff may see
+// a member's requests, and that the member who sent one reads it.
+const viewerRole = (user: CurrentUserPayload): ReviewViewerRole => ({
+    roleName: user.role?.name ?? null,
+    isSuperAdmin: user.isSuperAdmin,
+})
 
 // «Разборы»: one request as its member or the club's staff see it, and the
 // staff's work on it. Get / playback / status are open to the member who
@@ -100,7 +98,7 @@ export class VideoReviewsController {
         return await this.bus.execute<
             ListClubVideoReviewsFeature,
             ListClubVideoReviewsFeatureResponse
-        >(new ListClubVideoReviewsFeature(user.userId, workspaceId, isStaffUser(user), query))
+        >(new ListClubVideoReviewsFeature(user.userId, workspaceId, viewerRole(user), query))
     }
 
     @Get(':requestId')
@@ -111,7 +109,7 @@ export class VideoReviewsController {
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<GetVideoReviewFeature, GetVideoReviewFeatureResponse>(
-            new GetVideoReviewFeature(user.userId, workspaceId, isStaffUser(user), requestId),
+            new GetVideoReviewFeature(user.userId, workspaceId, viewerRole(user), requestId),
         )
     }
 
@@ -129,7 +127,7 @@ export class VideoReviewsController {
             new GetVideoReviewPlaybackFeature(
                 user.userId,
                 workspaceId,
-                isStaffUser(user),
+                viewerRole(user),
                 requestId,
             ),
         )
@@ -150,7 +148,7 @@ export class VideoReviewsController {
             new SetVideoReviewStatusFeature(
                 user.userId,
                 workspaceId,
-                isStaffUser(user),
+                viewerRole(user),
                 requestId,
                 body,
             ),
@@ -174,7 +172,7 @@ export class VideoReviewsController {
             new AddVideoReviewCommentFeature(
                 user.userId,
                 workspaceId,
-                isStaffUser(user),
+                viewerRole(user),
                 requestId,
                 body,
             ),
@@ -198,7 +196,7 @@ export class VideoReviewsController {
             new UpdateVideoReviewCommentFeature(
                 user.userId,
                 workspaceId,
-                isStaffUser(user),
+                viewerRole(user),
                 requestId,
                 commentId,
                 body,
@@ -222,7 +220,7 @@ export class VideoReviewsController {
             new DeleteVideoReviewCommentFeature(
                 user.userId,
                 workspaceId,
-                isStaffUser(user),
+                viewerRole(user),
                 requestId,
                 commentId,
             ),

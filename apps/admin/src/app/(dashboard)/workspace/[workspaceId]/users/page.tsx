@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import {
   Button,
@@ -23,14 +23,14 @@ import {
   rejectPendingMember,
   removeWorkspaceMember,
   updateMemberAccess,
+  type MemberAccessFilter,
+  type MemberSort,
   type PendingUser,
   type WorkspaceMember,
 } from "../../../../../shared/api/members"
-import { matchesAccessFilter, type AccessFilter } from "../../../../../shared/lib/access-filter"
 import { errorMessage } from "../../../../../shared/lib/error-message"
 import { isWorkspaceAdmin } from "../../../../../shared/lib/permissions"
 import { memberStatusLabel } from "../../../../../shared/lib/member-status"
-import { guardiansMatchQuery } from "../../../../../shared/lib/guardians"
 import { formatRoleName } from "../../../../../shared/lib/role-labels"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
@@ -49,10 +49,20 @@ const isoToDate = (iso: string | null): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-// Access-window segments the dashboard retention cards deep-link into
-// (?filter=expiring|expired). Mirrors the server's expiringSoon/expiredAccess
-// definitions (14-day horizon).
 const MS_1D = 24 * 3600 * 1000
+
+// Rows per «Показать ещё».
+const ROSTER_PAGE = 50
+
+// Offset pages shift when someone joins or leaves between requests: a row
+// already shown is never listed twice.
+const appendNew = (
+  shown: WorkspaceMember[],
+  next: WorkspaceMember[],
+): WorkspaceMember[] => {
+  const seen = new Set(shown.map((m) => m.userId))
+  return [...shown, ...next.filter((m) => !seen.has(m.userId))]
+}
 
 // Compact "when did they last train" hint for the roster row. This is about
 // ATTENDANCE, and it sits inches away from the abonement's class balance
@@ -67,13 +77,16 @@ const formatLastCheckIn = (iso: string | null): string => {
   if (days === 1) return "визит вчера"
   return `посл. визит ${days} дн назад`
 }
-const ACCESS_FILTER_LABELS: Record<AccessFilter, string> = {
+// Access-window segments the dashboard retention cards deep-link into
+// (?filter=expiring|expired|inactive); the server applies the same
+// definitions as the dashboard counters.
+const ACCESS_FILTER_LABELS: Record<MemberAccessFilter, string> = {
   all: "Все",
   expiring: "Доступ истекает",
   expired: "Доступ закончился",
   inactive: "Неактивны 30д",
 }
-const parseAccessFilter = (value: string | null): AccessFilter =>
+const parseAccessFilter = (value: string | null): MemberAccessFilter =>
   value === "expiring" || value === "expired" || value === "inactive"
     ? value
     : "all"
@@ -103,9 +116,7 @@ const sameDay = (a: Date | null, b: Date | null): boolean => {
   )
 }
 
-type SortKey = "expiry" | "name" | "newest" | "oldest" | "role"
-
-const SORT_LABELS: Record<SortKey, string> = {
+const SORT_LABELS: Record<MemberSort, string> = {
   expiry: "Скоро истекает",
   name: "По имени",
   newest: "Сначала новые",
@@ -113,50 +124,9 @@ const SORT_LABELS: Record<SortKey, string> = {
   role: "По роли",
 }
 
-const memberDisplayName = (member: WorkspaceMember) => {
-  const parts = [member.firstname, member.lastname].filter(Boolean)
-  return (parts.length ? parts.join(" ") : (member.email ?? "")).toLowerCase()
-}
-
 const formatName = (member: WorkspaceMember): string => {
   const parts = [member.firstname, member.lastname].filter(Boolean)
   return parts.length ? parts.join(" ") : (member.email ?? "—")
-}
-
-const compareMembers = (
-  a: WorkspaceMember,
-  b: WorkspaceMember,
-  sortBy: SortKey,
-): number => {
-  // Owner всегда сверху, чтобы admin его видел независимо от сортировки.
-  if (a.isOwner && !b.isOwner) return -1
-  if (!a.isOwner && b.isOwner) return 1
-
-  switch (sortBy) {
-    case "expiry": {
-      // null (без ограничения) — в самый низ; затем по дате истечения от ближайшего к дальнему.
-      if (a.accessUntil === null && b.accessUntil === null) return 0
-      if (a.accessUntil === null) return 1
-      if (b.accessUntil === null) return -1
-      return (
-        new Date(a.accessUntil).getTime() - new Date(b.accessUntil).getTime()
-      )
-    }
-    case "name":
-      return memberDisplayName(a).localeCompare(memberDisplayName(b), "ru")
-    case "newest":
-      return (
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )
-    case "oldest":
-      return (
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      )
-    case "role":
-      return (a.roleName ?? "").localeCompare(b.roleName ?? "", "ru")
-    default:
-      return 0
-  }
 }
 
 const formatAccessLabel = (iso: string | null): string => {
@@ -182,59 +152,141 @@ export default function WorkspaceUsersPage() {
 
   const [error, setError] = useState<string | null>(null)
   const [members, setMembers] = useState<WorkspaceMember[]>([])
+  // Matches of the current search/segment across all pages.
+  const [total, setTotal] = useState(0)
+  // ROSTER_PAGE-sized pages shown so far, and whether the server has more.
+  const [pagesShown, setPagesShown] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [accessDrafts, setAccessDrafts] = useState<
     Record<string, Date | null>
   >({})
   const [savingAccessId, setSavingAccessId] = useState<string | null>(null)
-  const [sortBy, setSortBy] = useState<SortKey>("expiry")
+  const [sortBy, setSortBy] = useState<MemberSort>("expiry")
   const [searchQuery, setSearchQuery] = useState("")
-  const [accessFilter, setAccessFilter] = useState<AccessFilter>("all")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+  const [accessFilter, setAccessFilter] = useState<MemberAccessFilter>("all")
   const [pending, setPending] = useState<PendingUser[]>([])
   const [invitingUserId, setInvitingUserId] = useState<string | null>(null)
   const [rejectingUserId, setRejectingUserId] = useState<string | null>(null)
   const [workspaceVideoTotal, setWorkspaceVideoTotal] = useState(0)
   // Bumped after an invite/import so «Ожидают принятия» reloads.
   const [invitesKey, setInvitesKey] = useState(0)
+  // A response for an older search/order/segment is dropped.
+  const rosterRequest = useRef(0)
 
-  const loadMembers = async (silent = false) => {
+  const fetchRoster = (workspaceId: string, curPage: number, perPage: number) =>
+    listWorkspaceMembers({
+      workspaceId,
+      q: debouncedQuery || undefined,
+      sort: sortBy,
+      access: accessFilter,
+      curPage,
+      perPage,
+    })
+
+  // (Re)loads the first `pages` pages — what is on screen — in requests of up
+  // to 200 rows. `silent` keeps the table from flashing.
+  const loadRoster = async (silent = false, pages = 1) => {
     if (!workspaceId) return
+    const request = ++rosterRequest.current
     if (!silent) setLoading(true)
+    const rows = pages * ROSTER_PAGE
+    const chunk = Math.min(rows, 200)
+    const chunks = Math.ceil(rows / chunk)
     try {
-      const [members, pending] = await Promise.all([
-        listWorkspaceMembers({ workspaceId }),
-        listPendingUsers({ workspaceId }).catch(() => ({
-          data: [],
-          total: 0,
-        })),
-      ])
-      setMembers(members.data)
-      setWorkspaceVideoTotal(members.workspaceVideoTotal)
-      setPending(pending.data)
+      const results = await Promise.all(
+        Array.from({ length: chunks }, (_, i) =>
+          fetchRoster(workspaceId, i + 1, chunk),
+        ),
+      )
+      if (request !== rosterRequest.current) return
+      const data = results.reduce<WorkspaceMember[]>(
+        (shown, page) => appendNew(shown, page.data),
+        [],
+      )
+      setMembers(data)
+      const last = results[results.length - 1]
+      setTotal(last.total)
+      setPagesShown((chunks * chunk) / ROSTER_PAGE)
+      setHasMore(last.data.length === chunk && chunks * chunk < last.total)
+      setWorkspaceVideoTotal(results[0].workspaceVideoTotal)
       setAccessDrafts(
         Object.fromEntries(
-          members.data.map((m) => [m.userId, isoToDate(m.accessUntil)]),
+          data.map((m) => [m.userId, isoToDate(m.accessUntil)]),
         ),
       )
     } catch (err) {
-      setError(
-        errorMessage(err, "Не удалось загрузить участников."),
-      )
+      if (request !== rosterRequest.current) return
+      setError(errorMessage(err, "Не удалось загрузить участников."))
     } finally {
-      setLoading(false)
+      if (request === rosterRequest.current) setLoading(false)
     }
   }
 
+  const loadMore = async () => {
+    if (!workspaceId) return
+    const request = rosterRequest.current
+    setLoadingMore(true)
+    try {
+      const page = await fetchRoster(workspaceId, pagesShown + 1, ROSTER_PAGE)
+      if (request !== rosterRequest.current) return
+      setMembers((prev) => appendNew(prev, page.data))
+      setTotal(page.total)
+      setPagesShown(pagesShown + 1)
+      setHasMore(
+        page.data.length === ROSTER_PAGE &&
+          (pagesShown + 1) * ROSTER_PAGE < page.total,
+      )
+      // Drafts already being edited win over the fresh rows.
+      setAccessDrafts((prev) => ({
+        ...Object.fromEntries(
+          page.data.map((m) => [m.userId, isoToDate(m.accessUntil)]),
+        ),
+        ...prev,
+      }))
+    } catch (err) {
+      setError(errorMessage(err, "Не удалось загрузить участников."))
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  const loadPending = async () => {
+    if (!workspaceId) return
+    const res = await listPendingUsers({ workspaceId }).catch(() => ({
+      data: [],
+      total: 0,
+    }))
+    setPending(res.data)
+  }
+
+  // After a change: the rows already shown, then the join requests.
+  const refresh = () =>
+    Promise.all([loadRoster(true, Math.max(pagesShown, 1)), loadPending()])
+
   useEffect(() => {
-    void loadMembers()
+    const handle = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 250)
+    return () => clearTimeout(handle)
+  }, [searchQuery])
+
+  useEffect(() => {
+    void loadPending()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
 
+  // A new search, order or segment starts over from the first page.
+  useEffect(() => {
+    void loadRoster()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, debouncedQuery, sortBy, accessFilter])
+
   // Live: members joining/leaving, role/access edits, and check-ins that change
-  // a member's pack balance / access. Silent so the table doesn't flash.
+  // a member's pack balance / access.
   useWorkspaceRealtime(workspaceId, ["members", "subscription"], () =>
-    void loadMembers(true),
+    void refresh(),
   )
 
   const handleInvitePending = async (user: PendingUser) => {
@@ -245,7 +297,7 @@ export default function WorkspaceUsersPage() {
       // Approve by id: works for every pending request, including a child
       // profile a parent filed by code (no e-mail).
       await addWorkspaceMember({ workspaceId, data: { userId: user.userId } })
-      await loadMembers()
+      await refresh()
     } catch (err) {
       setError(
         errorMessage(err, "Не удалось пригласить."),
@@ -264,7 +316,7 @@ export default function WorkspaceUsersPage() {
     setError(null)
     try {
       await rejectPendingMember({ workspaceId, userId: user.userId })
-      await loadMembers()
+      await refresh()
     } catch (err) {
       setError(errorMessage(err, "Не удалось отклонить заявку."))
     } finally {
@@ -283,6 +335,10 @@ export default function WorkspaceUsersPage() {
     try {
       await removeWorkspaceMember({ workspaceId, userId: member.userId })
       setMembers((prev) => prev.filter((m) => m.userId !== member.userId))
+      setTotal((prev) => Math.max(prev - 1, 0))
+      // The rows after it moved up a place: reload what is shown so the next
+      // «Показать ещё» doesn't skip one.
+      void loadRoster(true, Math.max(pagesShown, 1))
     } catch (err) {
       setError(
         errorMessage(err, "Не удалось удалить участника."),
@@ -345,22 +401,8 @@ export default function WorkspaceUsersPage() {
     if (parsed !== "all") setAccessFilter(parsed)
   }, [])
 
-  const visibleMembers = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    const filtered = members.filter((member) => {
-      if (!matchesAccessFilter(member, accessFilter)) return false
-      if (!query) return true
-      const name = memberDisplayName(member)
-      return (
-        (member.email ?? "").toLowerCase().includes(query) ||
-        name.includes(query) ||
-        guardiansMatchQuery(member.guardians, query) ||
-        member.roleName.toLowerCase().includes(query) ||
-        formatRoleName(member.roleName, vocabulary).toLowerCase().includes(query)
-      )
-    })
-    return [...filtered].sort((a, b) => compareMembers(a, b, sortBy))
-  }, [members, searchQuery, sortBy, accessFilter])
+  // A search or segment is narrowing the roster (as opposed to an empty club).
+  const filtering = debouncedQuery !== "" || accessFilter !== "all"
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -471,7 +513,7 @@ export default function WorkspaceUsersPage() {
           workspaceId={workspaceId}
           onInvited={() => {
             setInvitesKey((k) => k + 1)
-            void loadMembers()
+            void refresh()
           }}
         />
       )}
@@ -479,7 +521,7 @@ export default function WorkspaceUsersPage() {
       {canManageMembers && workspaceId && (
         <AddDependentForm
           workspaceId={workspaceId}
-          onAdded={() => void loadMembers()}
+          onAdded={() => void refresh()}
         />
       )}
 
@@ -496,7 +538,7 @@ export default function WorkspaceUsersPage() {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-medium">
-            Участники {members.length > 0 && `(${members.length})`}
+            Участники {total > 0 && `(${total})`}
           </h2>
           {loading && (
             <span className="text-xs text-muted-foreground">
@@ -505,20 +547,20 @@ export default function WorkspaceUsersPage() {
           )}
         </div>
 
-        {members.length > 0 && (
+        {(total > 0 || filtering || searchQuery !== "") && (
           <div className="flex flex-wrap items-center gap-2">
             <Input
               type="search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Поиск по email, имени, роли или родителю"
+              placeholder="Поиск по имени, e-mail, телефону или родителю"
               className="h-9 max-w-sm flex-1"
             />
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Сортировка</span>
               <Select
                 value={sortBy}
-                onValueChange={(value) => setSortBy(value as SortKey)}
+                onValueChange={(value) => setSortBy(value as MemberSort)}
               >
                 <SelectTrigger className="h-9 w-[200px]">
                   <SelectValue>{SORT_LABELS[sortBy]}</SelectValue>
@@ -531,7 +573,7 @@ export default function WorkspaceUsersPage() {
                       "newest",
                       "oldest",
                       "role",
-                    ] as SortKey[]
+                    ] as MemberSort[]
                   ).map((key) => (
                     <SelectItem key={key} value={key}>
                       {SORT_LABELS[key]}
@@ -543,7 +585,7 @@ export default function WorkspaceUsersPage() {
             <div className="flex w-full flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">Доступ</span>
               {(
-                ["all", "expiring", "expired", "inactive"] as AccessFilter[]
+                ["all", "expiring", "expired", "inactive"] as MemberAccessFilter[]
               ).map((key) => (
                 <Button
                   key={key}
@@ -560,23 +602,23 @@ export default function WorkspaceUsersPage() {
           </div>
         )}
 
-        {!loading && members.length === 0 && (
+        {!loading && total === 0 && !filtering && (
           <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
             Пока никого нет. Добавьте первого участника.
           </p>
         )}
 
-        {!loading && members.length > 0 && visibleMembers.length === 0 && (
+        {!loading && total === 0 && filtering && (
           <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            {searchQuery
-              ? `Никто не подходит под «${searchQuery}».`
+            {debouncedQuery
+              ? `Никто не подходит под «${debouncedQuery}».`
               : `Нет участников в сегменте «${ACCESS_FILTER_LABELS[accessFilter]}».`}
           </p>
         )}
 
-        {visibleMembers.length > 0 && (
+        {members.length > 0 && (
           <ul className="divide-y divide-border rounded-lg border border-border">
-            {visibleMembers.map((member) => {
+            {members.map((member) => {
               const draft = accessDrafts[member.userId] ?? null
               const dirty = draftDirtyByUser[member.userId]
               const expired =
@@ -742,6 +784,20 @@ export default function WorkspaceUsersPage() {
               )
             })}
           </ul>
+        )}
+
+        {hasMore && (
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loadingMore || loading}
+              onClick={() => void loadMore()}
+            >
+              {loadingMore ? "Загружаем..." : "Показать ещё"}
+            </Button>
+          </div>
         )}
       </div>
     </div>

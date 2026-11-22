@@ -1,3 +1,5 @@
+import { randomInt } from 'node:crypto'
+
 import { TZDate } from '@date-fns/tz'
 
 // Short self-check-in code a coach reads out to the class. Alphabet excludes
@@ -6,9 +8,7 @@ const CHECK_IN_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 export const generateCheckInCode = (length = 6): string => {
     let code = ''
     for (let i = 0; i < length; i += 1) {
-        code += CHECK_IN_ALPHABET[
-            Math.floor(Math.random() * CHECK_IN_ALPHABET.length)
-        ]
+        code += CHECK_IN_ALPHABET[randomInt(CHECK_IN_ALPHABET.length)]
     }
     return code
 }

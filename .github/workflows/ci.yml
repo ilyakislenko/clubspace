@@ -220,6 +220,8 @@ jobs:
           - { name: admin, project: '@clubspace/admin' }
           - { name: mobile, project: '@clubspace/mobile' }
           - { name: video-worker, project: '@clubspace/video-worker' }
+          - { name: api-client, project: '@clubspace/api-client' }
+          - { name: client, project: '@clubspace/client' }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -412,3 +414,52 @@ jobs:
       # command as the Docker images, including --skip-sync (apps/admin/Dockerfile).
       - name: Build ${{ matrix.project }}
         run: npx nx build @clubspace/${{ matrix.project }} --skip-sync
+
+  # The production images are what actually ships (docker-compose.prod.yml);
+  # an `nx build` that passes says nothing about a Dockerfile that forgot a
+  # workspace manifest or a COPY path. Build every image, push nothing.
+  # Self-contained (no `needs: install`): each Dockerfile runs its own npm ci.
+  docker:
+    name: Docker image (${{ matrix.image.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - { name: server, dockerfile: apps/server/Dockerfile }
+          - { name: video-worker, dockerfile: apps/video-worker/Dockerfile }
+          - { name: admin, dockerfile: apps/admin/Dockerfile }
+          - { name: client, dockerfile: apps/client/Dockerfile }
+          - { name: pwa, dockerfile: apps/mobile/Dockerfile }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build ${{ matrix.image.name }} (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.image.dockerfile }}
+          push: false
+          # Public URLs are baked into the frontend bundles; any value builds.
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://api.example.com
+            EXPO_PUBLIC_API_URL=https://api.example.com
+            EXPO_PUBLIC_WEB_URL=https://app.example.com
+          cache-from: type=gha,scope=${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
+
+  audit:
+    name: npm audit (production deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # NON-BLOCKING for now: the existing tree has not been triaged yet, so a
+      # red audit would block every PR on advisories nobody has looked at.
+      # Remove continue-on-error once the current high/critical findings are
+      # fixed or accepted — from then on a new one should fail the build.
+      - name: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import type { CourseAccessService } from '../../domains/playlist/services/course-access.service'
 import { assertActiveWorkspaceMembership } from '../../shared/access/assert-membership'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
@@ -67,4 +68,25 @@ export async function loadVideoForStudent(
     }
     await assertActiveWorkspaceMembership(prisma, userId, video.workspaceId)
     return { workspaceId: video.workspaceId }
+}
+
+/**
+ * For writes (bookmark, note, review grade): also the playback gate study
+ * plans use — a member can't attach data to a draft, hidden or locked
+ * lesson (404 hides it, 403 says why it's locked). Staff always pass.
+ * A removal (bookmark tombstone, cleared note) skips the gate: a member can
+ * always take their own data off a lesson that has since been locked.
+ */
+export async function loadWatchableVideoForStudent(
+    prisma: PrismaService,
+    courseAccess: CourseAccessService,
+    userId: string,
+    videoId: string,
+    { removal = false }: { removal?: boolean } = {},
+): Promise<{ workspaceId: string }> {
+    const { workspaceId } = await loadVideoForStudent(prisma, userId, videoId)
+    if (!removal) {
+        await courseAccess.assertCanWatchVideo({ id: videoId, workspaceId }, userId)
+    }
+    return { workspaceId }
 }

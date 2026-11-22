@@ -61,7 +61,8 @@ describe('clip storage and tokens', () => {
 
 // Member clips must never reach club content. They live in their own tables,
 // so the guard is simply: nothing outside «Разбор видео» (and the account
-// purge) reads them — and «Разбор видео» never reads the club's `Video`.
+// purge, and the member's own data export) reads them — and «Разбор видео»
+// never reads the club's `Video`.
 describe('member clips stay out of club content', () => {
     const SRC = join(__dirname, '..', '..')
     const walk = (dir: string): string[] =>
@@ -72,7 +73,7 @@ describe('member clips stay out of club content', () => {
         })
     const sources = walk(SRC).filter((f) => f.endsWith('.ts') && !f.endsWith('.spec.ts'))
 
-    it('only the review feature and the account purge touch the review tables', () => {
+    it('only the review feature, the account purge and the own-data export touch the review tables', () => {
         const touching = sources
             .filter((f) =>
                 /\.(reviewClip|videoReviewRequest|videoReviewComment)\b|"ReviewClip"/.test(
@@ -81,7 +82,10 @@ describe('member clips stay out of club content', () => {
             )
             .map((f) => relative(SRC, f))
             .filter((f) => !f.startsWith('features/video-reviews/'))
-        expect(touching).toEqual(['domains/users/services/users.service.ts'])
+        expect(touching).toEqual([
+            'domains/users/services/users.service.ts',
+            'features/export-my-data/export-my-data.handler.ts',
+        ])
     })
 
     it('the review feature never reads the club video table', () => {

@@ -29,6 +29,21 @@ describe("stripCourseTitle", () => {
     )
   })
 
+  it("takes a hyphen or dot as a separator only with a space after it", () => {
+    expect(stripCourseTitle("Octopus-guard entries", "Octopus")).toBe(
+      "Octopus-guard entries",
+    )
+    expect(stripCourseTitle("Octopus.guard entries", "Octopus")).toBe(
+      "Octopus.guard entries",
+    )
+    expect(stripCourseTitle("Octopus - guard entries", "Octopus")).toBe(
+      "guard entries",
+    )
+    expect(stripCourseTitle("Octopus. Guard entries", "Octopus")).toBe(
+      "Guard entries",
+    )
+  })
+
   it("never produces an empty title", () => {
     expect(stripCourseTitle("Octopus 2.0", "Octopus 2.0")).toBe("Octopus 2.0")
     expect(stripCourseTitle("Octopus 2.0 · ", "Octopus 2.0")).toBe(

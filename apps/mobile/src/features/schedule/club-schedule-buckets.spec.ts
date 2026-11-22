@@ -3,11 +3,11 @@ import {
   filterSchedule,
   filterScheduleByGym,
   formatTimezoneLabel,
-  resolveGymFilter,
   resolveScheduleFilter,
   scheduleChips,
   scheduleFilterSummary,
   scheduleGyms,
+  toggleScheduleFilter,
 } from "./club-schedule-buckets"
 
 describe("formatTimezoneLabel", () => {
@@ -51,20 +51,34 @@ describe("gym filter", () => {
   })
 
   it("keeps everything for «Все залы»", () => {
-    expect(filterScheduleByGym(schedule as never, null)).toBe(schedule)
+    expect(filterScheduleByGym(schedule as never, [])).toBe(schedule)
   })
 
   it("keeps one gym's classes and every club-wide event", () => {
-    const out = filterScheduleByGym(schedule as never, "g1")
+    const out = filterScheduleByGym(schedule as never, ["g1"])
     expect(out.sessions.map((s) => s.occurrenceId)).toEqual(["s2"])
     expect(out.events.map((e) => e.id)).toEqual(["e1", "e2"])
   })
 
-  it("falls back to «Все залы» for a gym that is gone", () => {
+  it("keeps the classes of any picked gym", () => {
+    const out = filterScheduleByGym(schedule as never, ["g1", "g2"])
+    expect(out.sessions.map((s) => s.occurrenceId)).toEqual(["s1", "s2"])
+    expect(out.events.map((e) => e.id)).toEqual(["e1", "e2"])
+  })
+
+  it("drops picked gyms that are gone, in the gyms' order", () => {
     const gyms = scheduleGyms(schedule as never)
-    expect(resolveGymFilter("g1", gyms)).toBe("g1")
-    expect(resolveGymFilter("gone", gyms)).toBeNull()
-    expect(resolveGymFilter(null, gyms)).toBeNull()
+    expect(resolveScheduleFilter(["g2", "gone", "g1"], gyms, false)).toEqual([
+      "g1",
+      "g2",
+    ])
+    expect(resolveScheduleFilter(["gone"], gyms, false)).toEqual([])
+    expect(resolveScheduleFilter([], gyms, false)).toEqual([])
+  })
+
+  it("reads every gym picked as «Все залы»", () => {
+    const gyms = scheduleGyms(schedule as never)
+    expect(resolveScheduleFilter(["g1", "g2", "g3"], gyms, false)).toEqual([])
   })
 })
 
@@ -82,19 +96,19 @@ describe("«Мои группы» filter", () => {
   const own = new Set(["a", "c"])
 
   it("keeps only the classes of the member's own groups, across gyms", () => {
-    const out = filterSchedule(schedule as never, MY_GROUPS_FILTER, own)
+    const out = filterSchedule(schedule as never, [MY_GROUPS_FILTER], own)
     expect(out.sessions.map((s) => s.occurrenceId)).toEqual(["s1", "s3"])
     expect(out.events).toEqual([])
   })
 
   it("shows nothing when the member has no groups", () => {
-    const out = filterSchedule(schedule as never, MY_GROUPS_FILTER, new Set())
+    const out = filterSchedule(schedule as never, [MY_GROUPS_FILTER], new Set())
     expect(out.sessions).toEqual([])
   })
 
-  it("falls through to the gym filter for any other value", () => {
-    expect(filterSchedule(schedule as never, null, own)).toBe(schedule)
-    const out = filterSchedule(schedule as never, "g1", own)
+  it("falls through to the gym filter otherwise", () => {
+    expect(filterSchedule(schedule as never, [], own)).toBe(schedule)
+    const out = filterSchedule(schedule as never, ["g1"], own)
     expect(out.sessions.map((s) => s.occurrenceId)).toEqual(["s1", "s2"])
   })
 
@@ -103,12 +117,47 @@ describe("«Мои группы» filter", () => {
       { id: "g1", name: "Арена" },
       { id: "g2", name: "Север" },
     ]
-    expect(resolveScheduleFilter(MY_GROUPS_FILTER, gyms, true)).toBe(
+    expect(resolveScheduleFilter([MY_GROUPS_FILTER], gyms, true)).toEqual([
       MY_GROUPS_FILTER,
-    )
-    expect(resolveScheduleFilter(MY_GROUPS_FILTER, gyms, false)).toBeNull()
-    expect(resolveScheduleFilter("g1", gyms, false)).toBe("g1")
-    expect(resolveScheduleFilter("gone", gyms, true)).toBeNull()
+    ])
+    expect(resolveScheduleFilter([MY_GROUPS_FILTER], gyms, false)).toEqual([])
+    expect(resolveScheduleFilter(["g1"], gyms, false)).toEqual(["g1"])
+    expect(resolveScheduleFilter(["gone"], gyms, true)).toEqual([])
+  })
+})
+
+describe("toggleScheduleFilter", () => {
+  const gyms = [
+    { id: "g1", name: "Арена" },
+    { id: "g2", name: "Север" },
+    { id: "g3", name: "Юг" },
+  ]
+
+  it("adds and removes gyms", () => {
+    expect(toggleScheduleFilter([], "g2", gyms, true)).toEqual(["g2"])
+    expect(toggleScheduleFilter(["g2"], "g1", gyms, true)).toEqual(["g1", "g2"])
+    expect(toggleScheduleFilter(["g1", "g2"], "g2", gyms, true)).toEqual(["g1"])
+  })
+
+  it("clears on «Все залы»", () => {
+    expect(toggleScheduleFilter(["g1", "g2"], null, gyms, true)).toEqual([])
+    expect(toggleScheduleFilter([MY_GROUPS_FILTER], null, gyms, true)).toEqual([])
+  })
+
+  it("keeps «Мои группы» apart from the gyms", () => {
+    expect(
+      toggleScheduleFilter(["g1", "g2"], MY_GROUPS_FILTER, gyms, true),
+    ).toEqual([MY_GROUPS_FILTER])
+    expect(
+      toggleScheduleFilter([MY_GROUPS_FILTER], "g3", gyms, true),
+    ).toEqual(["g3"])
+    expect(
+      toggleScheduleFilter([MY_GROUPS_FILTER], MY_GROUPS_FILTER, gyms, true),
+    ).toEqual([])
+  })
+
+  it("collapses back to «Все залы» once every gym is picked", () => {
+    expect(toggleScheduleFilter(["g1", "g2"], "g3", gyms, false)).toEqual([])
   })
 })
 
@@ -136,8 +185,8 @@ describe("scheduleChips", () => {
   })
 
   it("treats a stored gym as «everything» when the club has one gym", () => {
-    expect(resolveScheduleFilter("g1", [arena], false)).toBeNull()
-    expect(resolveScheduleFilter("g1", [arena, north], false)).toBe("g1")
+    expect(resolveScheduleFilter(["g1"], [arena], false)).toEqual([])
+    expect(resolveScheduleFilter(["g1"], [arena, north], false)).toEqual(["g1"])
   })
 })
 
@@ -145,65 +194,81 @@ describe("scheduleFilterSummary", () => {
   const directions = [
     { id: "bjj", name: "БЖЖ" },
     { id: "mma", name: "ММА" },
+    { id: "box", name: "Бокс" },
+    { id: "yoga", name: "Йога" },
   ]
   const gyms = [
     { id: "g1", name: "Зал на Ленина" },
     { id: "g2", name: "Центр" },
+    { id: "g3", name: "Север" },
   ]
 
   it("says «everything» by default, not accented", () => {
     expect(
       scheduleFilterSummary({
         directions,
-        directionId: null,
+        directionIds: [],
         chips: scheduleChips(gyms, true),
-        filterId: null,
+        filterIds: [],
       }),
     ).toEqual({ label: "Все направления · Все залы", active: false })
   })
 
-  it("names the picked direction and chip, accented", () => {
-    expect(
+  it("names up to two directions, then counts them", () => {
+    const label = (directionIds: string[]) =>
       scheduleFilterSummary({
         directions,
-        directionId: "bjj",
-        chips: scheduleChips(gyms, true),
-        filterId: MY_GROUPS_FILTER,
-      }),
-    ).toEqual({ label: "БЖЖ · Мои группы", active: true })
-    expect(
-      scheduleFilterSummary({
-        directions,
-        directionId: null,
+        directionIds,
         chips: scheduleChips(gyms, false),
-        filterId: "g2",
-      }),
-    ).toEqual({ label: "Все направления · Центр", active: true })
+        filterIds: [],
+      })
+    expect(label(["bjj"])).toEqual({ label: "БЖЖ · Все залы", active: true })
+    expect(label(["mma", "bjj"])).toEqual({
+      label: "БЖЖ, ММА · Все залы",
+      active: true,
+    })
+    expect(label(["bjj", "mma", "box"])?.label).toBe("3 направления · Все залы")
+  })
+
+  it("names «Мои группы» or one gym, counts several", () => {
+    const label = (filterIds: string[]) =>
+      scheduleFilterSummary({
+        directions,
+        directionIds: [],
+        chips: scheduleChips(gyms, true),
+        filterIds,
+      })
+    expect(label([MY_GROUPS_FILTER])).toEqual({
+      label: "Все направления · Мои группы",
+      active: true,
+    })
+    expect(label(["g2"])?.label).toBe("Все направления · Центр")
+    expect(label(["g1", "g2"])?.label).toBe("Все направления · 2 зала")
   })
 
   it("leaves out what the club can't filter by", () => {
     expect(
       scheduleFilterSummary({
         directions: [],
-        directionId: null,
+        directionIds: [],
         chips: scheduleChips(gyms, false),
-        filterId: "g1",
+        filterIds: ["g1"],
       }),
     ).toEqual({ label: "Зал на Ленина", active: true })
     expect(
       scheduleFilterSummary({
         directions,
-        directionId: "mma",
+        directionIds: ["mma"],
         chips: null,
-        filterId: null,
+        filterIds: [],
       }),
     ).toEqual({ label: "ММА", active: true })
     expect(
       scheduleFilterSummary({
         directions: [],
-        directionId: null,
+        directionIds: [],
         chips: null,
-        filterId: null,
+        filterIds: [],
       }),
     ).toBeNull()
   })

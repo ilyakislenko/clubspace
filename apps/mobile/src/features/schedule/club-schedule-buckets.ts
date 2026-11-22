@@ -1,4 +1,5 @@
 import type { WorkspaceSchedule } from "../../shared/api/groups"
+import { pluralRu } from "../../shared/format-ru"
 
 // An instant's wall clock, calendar day and weekday in `timeZone` — a class
 // renders in its own zone so users in other zones don't see it shifted.
@@ -91,29 +92,24 @@ export const scheduleGyms = (schedule: WorkspaceSchedule): ScheduleGym[] => {
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"))
 }
 
-// Keeps one gym's classes. A club-wide event (no gym) belongs to every gym, so
-// it stays under any filter. `null` = «Все залы».
+// Keeps the picked gyms' classes. A club-wide event (no gym) belongs to every
+// gym, so it stays under any filter. [] = «Все залы».
 export const filterScheduleByGym = (
   schedule: WorkspaceSchedule,
-  gymId: string | null,
+  gymIds: readonly string[],
 ): WorkspaceSchedule => {
-  if (!gymId) return schedule
+  if (gymIds.length === 0) return schedule
   return {
     ...schedule,
-    sessions: schedule.sessions.filter((s) => s.group.gym?.id === gymId),
-    events: schedule.events.filter((e) => !e.gym || e.gym.id === gymId),
+    sessions: schedule.sessions.filter(
+      (s) => !!s.group.gym && gymIds.includes(s.group.gym.id),
+    ),
+    events: schedule.events.filter((e) => !e.gym || gymIds.includes(e.gym.id)),
   }
 }
 
-// A stored gym that has since left the schedule falls back to «Все залы».
-export const resolveGymFilter = (
-  stored: string | null,
-  gyms: ScheduleGym[],
-): string | null =>
-  stored && gyms.some((g) => g.id === stored) ? stored : null
-
-// The «Мои группы» chip shares the gym filter's stored value: a sentinel that
-// can't be a gym id (those are uuids).
+// «Мои группы» is stored like the gyms, as the filter's only id: a sentinel
+// that can't be a gym id (those are uuids).
 export const MY_GROUPS_FILTER = "my-groups"
 
 // Keeps the classes of the member's own groups (as a student or as a coach).
@@ -127,21 +123,43 @@ export const filterScheduleByGroups = (
   events: [],
 })
 
-// A stored «Мои группы» survives only while the member has a group; otherwise
-// (or for a stored gym) the gym rules apply. With fewer than two gyms there is
-// no gym to pick, so a stored one counts as «everything».
+// The stored filter as it applies now: «Мои группы» survives only while the
+// member has a group; stored gyms that have left the schedule drop out, in the
+// gyms' order. With fewer than two gyms there is no gym to pick, and picking
+// every gym is «Все залы» — both read as everything ([]).
 export const resolveScheduleFilter = (
-  stored: string | null,
+  stored: readonly string[],
   gyms: ScheduleGym[],
   hasOwnGroups: boolean,
-): string | null =>
-  stored === MY_GROUPS_FILTER
-    ? hasOwnGroups
-      ? MY_GROUPS_FILTER
-      : null
-    : gyms.length < 2
-      ? null
-      : resolveGymFilter(stored, gyms)
+): string[] => {
+  if (stored.includes(MY_GROUPS_FILTER)) {
+    return hasOwnGroups ? [MY_GROUPS_FILTER] : []
+  }
+  if (gyms.length < 2) return []
+  const picked = gyms.filter((g) => stored.includes(g.id)).map((g) => g.id)
+  return picked.length === gyms.length ? [] : picked
+}
+
+// A chip tap: «Все залы» (null) clears; «Мои группы» stands alone (picking it
+// drops the gyms, tapping it again goes back to everything); a gym toggles
+// and drops «Мои группы».
+export const toggleScheduleFilter = (
+  selected: readonly string[],
+  id: string | null,
+  gyms: ScheduleGym[],
+  hasOwnGroups: boolean,
+): string[] => {
+  if (id === null) return []
+  if (id === MY_GROUPS_FILTER) {
+    return selected.includes(MY_GROUPS_FILTER) ? [] : [MY_GROUPS_FILTER]
+  }
+  const picked = selected.filter((s) => s !== MY_GROUPS_FILTER)
+  return resolveScheduleFilter(
+    picked.includes(id) ? picked.filter((s) => s !== id) : [...picked, id],
+    gyms,
+    hasOwnGroups,
+  )
+}
 
 // The filter chips: «Мои группы» (when the member has one), then «Все залы» and
 // one chip per gym. A club with a single gym has nothing to tell apart, so it
@@ -156,43 +174,59 @@ export const scheduleChips = (
     : [{ id: null, name: "Всё расписание" }]),
 ]
 
-// Applies whichever chip is selected: «Мои группы», a gym, or null = everything.
+// Applies the resolved filter: «Мои группы», the picked gyms, or [] = everything.
 export const filterSchedule = (
   schedule: WorkspaceSchedule,
-  filter: string | null,
+  filter: readonly string[],
   ownGroupIds: ReadonlySet<string>,
 ): WorkspaceSchedule =>
-  filter === MY_GROUPS_FILTER
+  filter.includes(MY_GROUPS_FILTER)
     ? filterScheduleByGroups(schedule, ownGroupIds)
     : filterScheduleByGym(schedule, filter)
 
 /**
- * The «Фильтр» button's label: the picked direction (when the club has
- * directions) and the picked gym/group chip (when there is a choice), joined
- * by « · ». `active` once either differs from «everything». Null when the club
- * offers nothing to filter by.
+ * The «Фильтр» button's label: the picked directions (when the club has
+ * directions) and the picked gyms / «Мои группы» (when there is a choice),
+ * joined by « · ». One or two directions are named, more are counted; one gym
+ * is named, more are counted (gym names run long). `active` once either
+ * differs from «everything». Null when the club offers nothing to filter by.
+ * Takes the resolved picks.
  */
 export const scheduleFilterSummary = (opts: {
   directions: readonly { id: string; name: string }[]
-  directionId: string | null
+  directionIds: readonly string[]
   // The gym/group chips, or null when there is no gym or group to pick.
   chips: ReadonlyArray<{ id: string | null; name: string }> | null
-  filterId: string | null
+  filterIds: readonly string[]
 }): { label: string; active: boolean } | null => {
   const parts: string[] = []
   if (opts.directions.length > 0) {
+    const names = opts.directions
+      .filter((d) => opts.directionIds.includes(d.id))
+      .map((d) => d.name)
     parts.push(
-      opts.directions.find((d) => d.id === opts.directionId)?.name ??
-        "Все направления",
+      names.length === 0
+        ? "Все направления"
+        : names.length <= 2
+          ? names.join(", ")
+          : `${names.length} ${pluralRu(names.length, "направление", "направления", "направлений")}`,
     )
   }
-  const chip =
-    opts.chips?.find((c) => c.id === opts.filterId) ??
-    opts.chips?.find((c) => c.id === null)
-  if (chip) parts.push(chip.name)
+  if (opts.chips) {
+    const picked = opts.chips.filter(
+      (c) => c.id !== null && opts.filterIds.includes(c.id),
+    )
+    const label =
+      picked.length === 0
+        ? opts.chips.find((c) => c.id === null)?.name
+        : picked.length === 1
+          ? picked[0].name
+          : `${picked.length} ${pluralRu(picked.length, "зал", "зала", "залов")}`
+    if (label) parts.push(label)
+  }
   if (parts.length === 0) return null
   return {
     label: parts.join(" · "),
-    active: !!opts.directionId || !!opts.filterId,
+    active: opts.directionIds.length > 0 || opts.filterIds.length > 0,
   }
 }

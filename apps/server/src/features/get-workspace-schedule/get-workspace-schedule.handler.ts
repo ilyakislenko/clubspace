@@ -62,6 +62,11 @@ export class GetWorkspaceScheduleHandler
             throw new NotFoundError({ message: 'Клуб не найден' })
         }
         const tz = workspace.timezone
+        // Union of the picked directions; classes and events without a
+        // direction drop out of a filtered schedule.
+        const directionFilter = payload.directionIds?.length
+            ? { directionId: { in: payload.directionIds } }
+            : {}
 
         const fromDate = parseDateOnly(payload.from)
         const toDate = parseDateOnly(payload.to)
@@ -83,9 +88,7 @@ export class GetWorkspaceScheduleHandler
         const groups = await this.prisma.group.findMany({
             where: {
                 workspaceId,
-                ...(payload.directionId
-                    ? { directionId: payload.directionId }
-                    : {}),
+                ...directionFilter,
             },
             include: {
                 direction: directionRefSelect,
@@ -124,9 +127,7 @@ export class GetWorkspaceScheduleHandler
                 // Same overlap test — events that touch the window count.
                 startAt: { lte: endOfDayUtc(toDate) },
                 endAt: { gte: fromDate },
-                ...(payload.directionId
-                    ? { directionId: payload.directionId }
-                    : {}),
+                ...directionFilter,
             },
             orderBy: { startAt: 'asc' },
             include: {

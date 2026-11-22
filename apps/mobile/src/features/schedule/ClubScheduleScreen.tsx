@@ -12,7 +12,7 @@ import { RefreshControl } from "../../shared/components/RefreshControl"
 import { CountBadge } from "../../shared/components/CountBadge"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
-import { Sheet, SheetRow } from "../../shared/components/Sheet"
+import { Sheet, SheetRow, useSheetAction } from "../../shared/components/Sheet"
 import {
   CenteredColumn,
   DASHBOARD_WIDTH,
@@ -62,7 +62,10 @@ import {
 } from "../personal-training/personal-training-helpers"
 import { isStaffWorkspace } from "../retention/retention-helpers"
 import { useDirections } from "../directions/useDirections"
-import { resolveDirectionFilter } from "../directions/direction-helpers"
+import {
+  resolveDirectionFilters,
+  toggleDirectionFilter,
+} from "../directions/direction-helpers"
 import { DirectionDot } from "../directions/DirectionTag"
 import {
   MY_GROUPS_FILTER,
@@ -73,6 +76,7 @@ import {
   scheduleChips,
   scheduleFilterSummary,
   scheduleGyms,
+  toggleScheduleFilter,
 } from "./club-schedule-buckets"
 import { spotsLine, withMyBooking } from "./class-booking-helpers"
 import { eventOfferLine } from "./event-helpers"
@@ -84,7 +88,12 @@ import {
   withoutGymEcho,
 } from "./schedule-helpers"
 import { rsvpStateFor, type RsvpState } from "./drop-in-helpers"
-import { loadGymFilter, saveGymFilter } from "./gym-filter-store"
+import {
+  loadDirectionFilter,
+  loadGymFilter,
+  saveDirectionFilter,
+  saveGymFilter,
+} from "./schedule-filter-store"
 import { MyBookingsPanel } from "./MyBookingsPanel"
 import { OccurrenceSheet } from "./OccurrenceSheet"
 import { ScheduleFilterSheet } from "./ScheduleFilterSheet"
@@ -161,11 +170,15 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
   }, [todayStamp])
   const fetchWindow = fetchWindowOf(dayOffset)
 
-  // «Все» (null) or one direction — the server narrows the classes and
-  // events. Offered only when the club has directions.
+  // The directions picked in this club (none = «Все»), kept between visits
+  // like the gym chips; the server narrows the classes and events. Offered
+  // only when the club has directions.
   const directions = useDirections(workspace?.workspaceId)
-  const [pickedDirection, setPickedDirection] = useState<string | null>(null)
-  const directionId = resolveDirectionFilter(pickedDirection, directions)
+  const [storedDirections, setStoredDirections] = useState<string[]>([])
+  const directionIds = useMemo(
+    () => resolveDirectionFilters(storedDirections, directions),
+    [storedDirections, directions],
+  )
 
   const {
     data,
@@ -182,7 +195,7 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
     memberGroupIds?: string[]
   }>(
     workspace
-      ? `schedule:${workspace.workspaceId}:${todayKey}${fetchWindow ? `:w${fetchWindow}` : ""}${directionId ? `:${directionId}` : ""}`
+      ? `schedule:${workspace.workspaceId}:${todayKey}${fetchWindow ? `:w${fetchWindow}` : ""}${directionIds.length > 0 ? `:${directionIds.join(",")}` : ""}`
       : null,
     useCallback(async () => {
       // Two weeks from the window's first day, padded by a day on each side
@@ -193,7 +206,7 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
         workspaceId: workspace!.workspaceId,
         from: range.from,
         to: range.to,
-        directionId,
+        directionIds,
       })
       // Best-effort: which groups this user coaches (for the mark affordance).
       let coachGroupIds: string[] = []
@@ -212,7 +225,7 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
         // Non-fatal — the schedule still renders without the mark affordance.
       }
       return { schedule, coachGroupIds, memberGroupIds }
-    }, [workspace, directionId, todayKey, fetchWindow]),
+    }, [workspace, directionIds, todayKey, fetchWindow]),
   )
 
   const schedule = data?.schedule ?? null
@@ -314,16 +327,21 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
     [listedEvents.data],
   )
 
-  // The gym chip last picked in this club; a gym that has since left the
-  // schedule falls back to «Все залы» (see resolveGymFilter) without
-  // forgetting the stored choice.
-  const [storedGym, setStoredGym] = useState<string | null>(null)
+  // The gym chips last picked in this club (and its directions, above); gyms
+  // that have since left the schedule are left out (see resolveScheduleFilter)
+  // without forgetting the stored choice.
+  const [storedGyms, setStoredGyms] = useState<string[]>([])
   const workspaceId = workspace?.workspaceId
   useEffect(() => {
     if (!workspaceId) return
     let cancelled = false
-    void loadGymFilter(workspaceId).then((id) => {
-      if (!cancelled) setStoredGym(id)
+    void Promise.all([
+      loadGymFilter(workspaceId),
+      loadDirectionFilter(workspaceId),
+    ]).then(([gymIds, directionPicks]) => {
+      if (cancelled) return
+      setStoredGyms(gymIds)
+      setStoredDirections(directionPicks)
     })
     return () => {
       cancelled = true
@@ -334,7 +352,7 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
   const [openOccurrenceId, setOpenOccurrenceId] = useState<string | null>(null)
   // The «Фильтр» sheet and the «Ещё» menu.
   const [filterOpen, setFilterOpen] = useState(false)
-  const [moreOpen, setMoreOpen] = useState(false)
+  const more = useSheetAction()
 
   if (!workspace) {
     return null
@@ -381,8 +399,8 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
   const gyms = known ? scheduleGyms(known) : []
   // «Мои группы»: classes of the groups the member studies in or coaches.
   const ownGroupIds = new Set([...memberGroupIds, ...coachGroupIds])
-  const filterId = resolveScheduleFilter(storedGym, gyms, ownGroupIds.size > 0)
-  const mineSelected = filterId === MY_GROUPS_FILTER
+  const filterIds = resolveScheduleFilter(storedGyms, gyms, ownGroupIds.size > 0)
+  const mineSelected = filterIds.includes(MY_GROUPS_FILTER)
   const chips = scheduleChips(gyms, ownGroupIds.size > 0)
 
   // The calendar runs on the club's days: today first, twelve weeks ahead.
@@ -392,16 +410,16 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
   const nowMinute = zonedDayMinute(now, clubTz).minute
   const dayKeys = dayKeysFrom(clubToday, CALENDAR_HORIZON_DAYS)
   const loadedKeys = schedule ? windowDayKeys(clubToday, fetchWindow) : []
-  const shown = schedule ? filterSchedule(schedule, filterId, ownGroupIds) : null
+  const shown = schedule ? filterSchedule(schedule, filterIds, ownGroupIds) : null
   // Personal sessions are not filtered by gym or group: they belong to the
   // member.
   const byDay = segmentsByDay(
     shown ? calendarItems(shown, personal) : [],
     loadedKeys,
   )
-  // A picked gym is named by the filter, not by every row; a row names its
-  // gym's city only when the gyms on screen are in different cities.
-  const gymPicked = !!filterId && !mineSelected
+  // A single picked gym is named by the filter, not by every row; a row names
+  // its gym's city only when the gyms on screen are in different cities.
+  const gymPicked = filterIds.length === 1 && !mineSelected
   const showCity =
     !!shown &&
     gymCitiesDiffer(
@@ -427,7 +445,7 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
     [...byDay].filter(([, segs]) => segs.length > 0).map(([key]) => key),
   )
 
-  const filtered = !!filterId || !!directionId
+  const filtered = filterIds.length > 0 || directionIds.length > 0
   const windowEmpty = !!schedule && busyDays.size === 0
   const nothingScheduled = windowEmpty && !filtered && fetchWindow === 0
   const period =
@@ -436,10 +454,10 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
     ? null
     : mineSelected
       ? `В ваших группах ${period} ничего нет.`
-      : filterId
-        ? `В этом зале ${period} ничего нет.`
-        : directionId
-          ? `В этом направлении ${period} ничего нет.`
+      : filterIds.length > 0
+        ? `В ${filterIds.length > 1 ? "этих залах" : "этом зале"} ${period} ничего нет.`
+        : directionIds.length > 0
+          ? `В ${directionIds.length > 1 ? "этих направлениях" : "этом направлении"} ${period} ничего нет.`
           : `В эти две недели нет ни ${vocabulary.session.genPl}, ни событий.`
 
   const bookings = dropIns.data?.bookings ?? []
@@ -468,23 +486,30 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
     : null
 
   const pickGym = (id: string | null) => {
-    setStoredGym(id)
-    void saveGymFilter(workspace.workspaceId, id)
+    const next = toggleScheduleFilter(filterIds, id, gyms, ownGroupIds.size > 0)
+    setStoredGyms(next)
+    void saveGymFilter(workspace.workspaceId, next)
+  }
+  const pickDirection = (id: string | null) => {
+    const next = toggleDirectionFilter(directionIds, id, directions)
+    setStoredDirections(next)
+    void saveDirectionFilter(workspace.workspaceId, next)
   }
   // «Мои группы» / gyms to pick from, or null when there is no choice.
   const gymChoice = gyms.length >= 2 || ownGroupIds.size > 0 ? chips : null
   const filterSummary = scheduleFilterSummary({
     directions,
-    directionId,
+    directionIds,
     chips: gymChoice,
-    filterId,
+    filterIds,
   })
   // The zone note only matters when the phone's clock reads differently.
   const showTzNote =
     !!known && !nothingScheduled && foreignTzSuffix(clubTz, new Date(now)) !== ""
 
-  // The «Ещё» menu. Staff answer personal requests rather than make them:
-  // their entry counts the ones waiting on them.
+  // The «Ещё» menu. Staff answer personal requests rather than make them;
+  // either side's entry counts the ones waiting on them (a member: a coach's
+  // counter-proposal). That one count is the badge, the row and the label.
   const awaitingMe = meId
     ? (personalList.data?.data ?? []).filter((pt) => needsMyAction(pt, meId))
         .length
@@ -494,15 +519,15 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
         label: `${cap(vocabulary.personalSession.nomPl)} — заявки`,
         count: awaitingMe,
       }
-    : coachesAvailable > 0 && {
+    : (coachesAvailable > 0 || awaitingMe > 0) && {
         label: `${cap(vocabulary.personalSession.nom)} с ${vocabulary.coach.ins}`,
-        count: 0,
+        count: awaitingMe,
       }
+  const personalCount = personalEntry ? personalEntry.count : 0
   const showMyBookings = hasBookingClasses && !workspace.isOwner
-  const openFromMenu = (route: "PersonalTrainings" | "MyClassBookings") => {
-    setMoreOpen(false)
-    navigation.navigate(route)
-  }
+  // The sheet closes first; the screen is pushed once it's gone.
+  const openFromMenu = (route: "PersonalTrainings" | "MyClassBookings") =>
+    more.run(() => navigation.navigate(route))
 
   const guestsLineOf = (s: ScheduleSession): string | null =>
     coachesSession(s) && (s.bookedGuests ?? 0) > 0
@@ -919,17 +944,17 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
             )}
             {(personalEntry || showMyBookings) && (
               <Pressable
-                onPress={() => setMoreOpen(true)}
+                onPress={more.open}
                 accessibilityRole="button"
                 accessibilityLabel={
-                  awaitingMe > 0 && personalEntry
-                    ? `Ещё, заявок ждут ответа: ${awaitingMe}`
+                  personalCount > 0
+                    ? `Ещё, заявок ждут ответа: ${personalCount}`
                     : "Ещё"
                 }
                 style={styles.toolButton}
               >
                 <Text style={styles.toolButtonText}>Ещё</Text>
-                <CountBadge count={personalEntry ? personalEntry.count : 0} />
+                <CountBadge count={personalCount} />
               </Pressable>
             )}
           </View>
@@ -989,21 +1014,21 @@ export function ClubScheduleScreen({ todayStamp }: { todayStamp?: number }) {
       {filterOpen && (
         <ScheduleFilterSheet
           directions={directions}
-          directionId={directionId}
-          onDirection={setPickedDirection}
+          directionIds={directionIds}
+          onToggleDirection={pickDirection}
           chips={gymChoice}
-          filterId={filterId}
-          onFilter={pickGym}
+          filterIds={filterIds}
+          onToggleFilter={pickGym}
           onReset={() => {
-            setPickedDirection(null)
+            pickDirection(null)
             pickGym(null)
           }}
           onClose={() => setFilterOpen(false)}
         />
       )}
 
-      {moreOpen && (
-        <Sheet title="Ещё" onClose={() => setMoreOpen(false)}>
+      {more.mounted && (
+        <Sheet title="Ещё" {...more.sheetProps}>
           <View>
             {personalEntry && (
               <SheetRow

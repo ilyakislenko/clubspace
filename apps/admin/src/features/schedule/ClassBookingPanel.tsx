@@ -19,7 +19,7 @@ import {
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { useWorkspaceRealtime } from "../../shared/realtime/useWorkspaceRealtime"
-import { formatMemberLabel, matchesMemberQuery } from "../groups/helpers"
+import { formatMemberLabel } from "../groups/helpers"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { agree, cap } from "@clubspace/ui-kit/brand"
 import {
@@ -49,6 +49,9 @@ const LIVE_STATUS: Record<ClassOccurrenceBooking["status"], boolean> = {
   EXPIRED: false,
 }
 
+// Matches shown in the «Записать ученика» picker; more → refine the search.
+const PICKER_PAGE = 30
+
 
 /**
  * Places of one class of a «Запись на занятие» group inside the class sheet:
@@ -71,6 +74,8 @@ export function ClassBookingPanel({
   const [capacityDraft, setCapacityDraft] = useState("")
   const [pickerOpen, setPickerOpen] = useState(false)
   const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+  const [membersTotal, setMembersTotal] = useState(0)
 
   const load = async () => {
     try {
@@ -91,16 +96,32 @@ export function ClassBookingPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, slotId, sessionDate])
 
-  // Members for the «Записать ученика» picker, loaded once per club.
   useEffect(() => {
+    const handle = setTimeout(() => setDebouncedQuery(query.trim()), 250)
+    return () => clearTimeout(handle)
+  }, [query])
+
+  // «Записать ученика» picker: a server-side search while it is open, so a
+  // club of any size is searchable without loading the whole roster.
+  useEffect(() => {
+    if (!pickerOpen) return
     let alive = true
-    listWorkspaceMembers({ workspaceId })
-      .then((r) => alive && setMembers(r.data))
+    listWorkspaceMembers({
+      workspaceId,
+      q: debouncedQuery || undefined,
+      sort: "name",
+      perPage: PICKER_PAGE,
+    })
+      .then((r) => {
+        if (!alive) return
+        setMembers(r.data)
+        setMembersTotal(r.total)
+      })
       .catch(() => undefined)
     return () => {
       alive = false
     }
-  }, [workspaceId])
+  }, [workspaceId, pickerOpen, debouncedQuery])
 
   useWorkspaceRealtime(
     workspaceId,
@@ -173,10 +194,9 @@ export function ClassBookingPanel({
   const liveUserIds = new Set(
     bookings.filter((b) => LIVE_STATUS[b.status]).map((b) => b.userId),
   )
-  const candidates = members.filter(
+  const filtered = members.filter(
     (m) => m.status === "ACTIVE" && !liveUserIds.has(m.userId),
   )
-  const filtered = candidates.filter((m) => matchesMemberQuery(m, query))
   const editable =
     !!occurrence && !occurrence.settled && !occurrence.classCancelled
 
@@ -286,15 +306,15 @@ export function ClassBookingPanel({
                           setQuery("")
                         }
                       }}
-                      placeholder="Имя или email"
+                      placeholder="Имя, e-mail или телефон"
                       className="h-8 text-xs"
                     />
                     <ul className="max-h-48 overflow-y-auto">
                       {filtered.length === 0 && (
                         <li className="px-2 py-1 text-xs text-muted-foreground">
-                          {candidates.length === 0
-                            ? "Некого записать"
-                            : "Никого не найдено"}
+                          {debouncedQuery
+                            ? "Никого не найдено"
+                            : "Некого записать"}
                         </li>
                       )}
                       {filtered.map((m) => (
@@ -309,6 +329,11 @@ export function ClassBookingPanel({
                           </button>
                         </li>
                       ))}
+                      {membersTotal > members.length && (
+                        <li className="px-2 py-1 text-xs text-muted-foreground">
+                          Показаны первые {members.length} — уточните поиск
+                        </li>
+                      )}
                     </ul>
                     <button
                       type="button"

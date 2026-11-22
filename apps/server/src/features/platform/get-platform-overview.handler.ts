@@ -21,6 +21,9 @@ export class GetPlatformOverviewHandler
         assertPlatformAdmin(f.isSuperAdmin)
 
         const now = new Date()
+        // The sales funnel counts real clubs only: the generated demo clubs are
+        // comped showcases with a back-dated history, not customers.
+        const real = { workspace: { isDemo: false } }
         const [
             workspaceCount,
             activeWorkspaceCount,
@@ -44,23 +47,32 @@ export class GetPlatformOverviewHandler
             }),
             this.prisma.workspaceBilling.groupBy({
                 by: ['status'],
+                where: real,
                 _count: { _all: true },
             }),
             // Every billing row starts as a trial (createdAt = its start).
-            this.prisma.workspaceBilling.count(),
+            this.prisma.workspaceBilling.count({ where: real }),
             this.prisma.workspaceBilling.count({
-                where: { status: 'TRIAL', trialEndsAt: { gt: now }, convertedAt: null },
+                where: { ...real, status: 'TRIAL', trialEndsAt: { gt: now }, convertedAt: null },
             }),
-            this.prisma.workspaceBilling.count({ where: { convertedAt: { not: null } } }),
+            this.prisma.workspaceBilling.count({
+                where: { ...real, convertedAt: { not: null } },
+            }),
             this.prisma.workspaceBilling.count({
                 where: {
+                    ...real,
                     OR: [{ convertedAt: { not: null } }, { trialEndsAt: { lte: now } }],
                 },
             }),
+            // A conversion dated before the row (a backfilled or imported club)
+            // has no trial to measure and would drag the average below zero.
             this.prisma.$queryRaw<{ days: number | null }[]>`
-                SELECT AVG(EXTRACT(EPOCH FROM ("convertedAt" - "createdAt")) / 86400)::float8 AS days
-                FROM "WorkspaceBilling"
-                WHERE "convertedAt" IS NOT NULL
+                SELECT AVG(EXTRACT(EPOCH FROM (b."convertedAt" - b."createdAt")) / 86400)::float8 AS days
+                FROM "WorkspaceBilling" b
+                JOIN "Workspace" w ON w.id = b."workspaceId"
+                WHERE b."convertedAt" IS NOT NULL
+                  AND b."convertedAt" >= b."createdAt"
+                  AND w."isDemo" = false
             `,
             this.prisma.onboardingHelpRequest.count({ where: { status: 'OPEN' } }),
         ])

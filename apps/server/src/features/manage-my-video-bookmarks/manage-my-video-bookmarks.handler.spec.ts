@@ -84,12 +84,43 @@ const body = (over: Record<string, unknown> = {}) => ({
     ...over,
 })
 
-const put = (prisma: unknown, payload = body(), id = BM) =>
-    new PutMyVideoBookmarkHandler(prisma as never).execute(
+// The playback gate: a lesson the member may watch, unless a test locks it.
+const watchable = () => ({
+    assertCanWatchVideo: jest.fn().mockResolvedValue({ isStaff: false, visibleCourseIds: [] }),
+})
+
+const put = (prisma: unknown, payload = body(), id = BM, courseAccess = watchable()) =>
+    new PutMyVideoBookmarkHandler(prisma as never, courseAccess as never).execute(
         new PutMyVideoBookmarkFeature('u1', 'v1', id, payload as never),
     )
 
 describe('PutMyVideoBookmarkHandler', () => {
+    it("refuses a lesson the member can't watch (draft, hidden, locked) and writes nothing", async () => {
+        const { prisma } = build()
+        const courseAccess = watchable()
+        const locked = new ForbiddenError({ message: 'Урок пока закрыт' })
+        courseAccess.assertCanWatchVideo.mockRejectedValue(locked)
+        await expect(put(prisma, body(), BM, courseAccess)).rejects.toBe(locked)
+        expect(courseAccess.assertCanWatchVideo).toHaveBeenCalledWith(
+            { id: 'v1', workspaceId: 'w1' },
+            'u1',
+        )
+        expect(prisma.videoBookmark.create).not.toHaveBeenCalled()
+        expect(prisma.videoBookmark.update).not.toHaveBeenCalled()
+    })
+
+    it('still takes a bookmark off a lesson that has since been locked', async () => {
+        const { prisma } = build()
+        const courseAccess = watchable()
+        courseAccess.assertCanWatchVideo.mockRejectedValue(
+            new ForbiddenError({ message: 'Урок пока закрыт' }),
+        )
+        await put(prisma, body({ deleted: true }), BM, courseAccess)
+        expect(prisma.videoBookmark.create.mock.calls[0][0].data.deletedAt).toEqual(
+            new Date('2026-01-03T00:00:00.000Z'),
+        )
+    })
+
     it('creates a new bookmark with the client id, video workspace and client updatedAt', async () => {
         const { prisma } = build()
         const res = await put(prisma)

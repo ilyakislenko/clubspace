@@ -7,6 +7,8 @@ import {
     ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
+import { RbacService } from '../../shared/services/rbac.service'
+import type { ReviewViewerRole } from './review-clip-access'
 import { type LoadedReview, loadReviewForViewer, serializeReviewDetail } from './schemas'
 import {
     AddVideoReviewCommentFeature,
@@ -19,13 +21,18 @@ import { isValidCommentRange } from './video-reviews-utils'
 type CommentAccess = {
     userId: string
     workspaceId: string
-    isStaff: boolean
+    viewer: ReviewViewerRole
     requestId: string
 }
 
-// Comments are the staff's: the member reads them. Only on a playable clip.
-async function loadForComment(prisma: PrismaService, f: CommentAccess): Promise<LoadedReview> {
-    const loaded = await loadReviewForViewer(prisma, f)
+// Comments are the staff's who may see the member's reviews: the member
+// reads them. Only on a playable clip.
+async function loadForComment(
+    prisma: PrismaService,
+    rbac: RbacService,
+    f: CommentAccess,
+): Promise<LoadedReview> {
+    const loaded = await loadReviewForViewer(prisma, rbac, f)
     if (!loaded.isStaff) {
         throw new ForbiddenError({ message: 'Комментировать разбор могут только тренеры клуба' })
     }
@@ -67,10 +74,11 @@ export class AddVideoReviewCommentHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly files: FilesService,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute(f: AddVideoReviewCommentFeature): Promise<VideoReviewCommentFeatureResponse> {
-        const loaded = await loadForComment(this.prisma, f)
+        const loaded = await loadForComment(this.prisma, this.rbac, f)
         const { atSec, endSec, text, drawing } = f.payload
         assertRange(loaded, atSec, endSec)
         await this.prisma.videoReviewComment.create({
@@ -95,12 +103,13 @@ export class UpdateVideoReviewCommentHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly files: FilesService,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute(
         f: UpdateVideoReviewCommentFeature,
     ): Promise<VideoReviewCommentFeatureResponse> {
-        const loaded = await loadForComment(this.prisma, f)
+        const loaded = await loadForComment(this.prisma, this.rbac, f)
         const comment = await loadOwnComment(this.prisma, f)
         const { atSec, endSec, text, drawing } = f.payload
         const nextAt = atSec ?? comment.atSec
@@ -127,12 +136,13 @@ export class DeleteVideoReviewCommentHandler
     constructor(
         private readonly prisma: PrismaService,
         private readonly files: FilesService,
+        private readonly rbac: RbacService,
     ) {}
 
     async execute(
         f: DeleteVideoReviewCommentFeature,
     ): Promise<VideoReviewCommentFeatureResponse> {
-        const loaded = await loadForComment(this.prisma, f)
+        const loaded = await loadForComment(this.prisma, this.rbac, f)
         const comment = await loadOwnComment(this.prisma, f)
         await this.prisma.videoReviewComment.delete({ where: { id: comment.id } })
         return await serializeReviewDetail(this.prisma, this.files, loaded, f.userId)

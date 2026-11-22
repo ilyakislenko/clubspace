@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import type { ReviewViewerRole } from './review-clip-access'
 import { VideoReviewSummarySchema } from './schemas'
 
 export const SetVideoReviewStatusFeatureInputSchema = z.object({
@@ -13,7 +14,7 @@ export class SetVideoReviewStatusFeature {
     constructor(
         readonly userId: string,
         readonly workspaceId: string,
-        readonly isStaff: boolean,
+        readonly viewer: ReviewViewerRole,
         readonly requestId: string,
         readonly payload: z.infer<typeof SetVideoReviewStatusFeatureInputSchema>,
     ) {}
