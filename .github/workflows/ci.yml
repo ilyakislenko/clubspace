@@ -56,7 +56,7 @@ jobs:
     name: Install + cache deps
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           filter: tree:0
           fetch-depth: 0
@@ -123,7 +123,7 @@ jobs:
           - { name: mobile, path: apps/mobile, tsconfig: tsconfig.app.json }
           - { name: video-worker, path: apps/video-worker, tsconfig: tsconfig.app.json }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           filter: tree:0
 
@@ -165,7 +165,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: install
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           filter: tree:0
       - uses: actions/setup-node@v4
@@ -223,7 +223,7 @@ jobs:
           - { name: api-client, project: '@clubspace/api-client' }
           - { name: client, project: '@clubspace/client' }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           filter: tree:0
           fetch-depth: 0
@@ -295,7 +295,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           filter: tree:0
           fetch-depth: 0
@@ -373,7 +373,7 @@ jobs:
       ADMIN_E2E_BASE_URL: http://localhost:4200
       ADMIN_E2E_API_URL: http://localhost:3000
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           filter: tree:0
           fetch-depth: 0
@@ -438,7 +438,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: install
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           filter: tree:0
           fetch-depth: 0
@@ -490,7 +490,7 @@ jobs:
           - admin
           - client
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           filter: tree:0
           fetch-depth: 0
@@ -538,7 +538,7 @@ jobs:
           - { name: client, dockerfile: apps/client/Dockerfile }
           - { name: pwa, dockerfile: apps/mobile/Dockerfile }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - name: Build ${{ matrix.image.name }} (no push)
         uses: docker/build-push-action@v6
@@ -558,7 +558,7 @@ jobs:
     name: npm audit (production deps)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
