@@ -27,6 +27,8 @@ export const SubscriptionOutputSchema = z.object({
     // The agreed price while unpaid; the amount received once paid.
     amountPaid: z.number().int(),
     currency: z.string(),
+    // Σ of this abonement's refunds; amountPaid stays what was received.
+    refundedAmount: z.number().int(),
     // false = sold, payment not marked yet («Ожидает оплаты»).
     isPaid: z.boolean(),
     // When the payment was marked; null while unpaid and on rows from before
@@ -123,6 +125,7 @@ export const serializeSubscription = (s: {
     startsOnFirstVisit: boolean
     amountPaid: number
     currency: string
+    refundedAmount: number
     isPaid: boolean
     paidAt: Date | null
     paymentMethod: PaymentMethodValue | null
@@ -142,6 +145,7 @@ export const serializeSubscription = (s: {
     startsOnFirstVisit: s.startsOnFirstVisit,
     amountPaid: s.amountPaid,
     currency: s.currency,
+    refundedAmount: s.refundedAmount,
     isPaid: s.isPaid,
     paidAt: s.paidAt ? s.paidAt.toISOString() : null,
     // A checkout sale from before the method was stored is still ONLINE.

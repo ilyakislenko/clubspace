@@ -4,7 +4,6 @@ import * as Notifications from "expo-notifications"
 import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
-  AppState,
   Linking,
   ScrollView,
   StyleSheet,
@@ -43,13 +42,6 @@ import {
   updateNotificationPreferences,
   type NotificationPreferences,
 } from "../../shared/api/notification-preferences"
-import {
-  createTelegramLink,
-  getTelegramStatus,
-  setTelegramEnabled,
-  unlinkTelegram,
-  type TelegramStatus,
-} from "../../shared/api/telegram"
 import {
   clearAllOffline,
   getOfflineRootSizeBytes,
@@ -94,9 +86,6 @@ export function SettingsScreen(_props: Props) {
     useState<Notifications.NotificationPermissionsStatus | null>(null)
   const [exporting, setExporting] = useState(false)
   const [deletingAccount, setDeletingAccount] = useState(false)
-  // null until the server answers; the row shows only when the bot is set up.
-  const [telegram, setTelegram] = useState<TelegramStatus | null>(null)
-  const [telegramBusy, setTelegramBusy] = useState(false)
   const webPush = useWebPush()
 
   useEffect(() => {
@@ -113,21 +102,6 @@ export function SettingsScreen(_props: Props) {
       .then(setNotif)
       .catch(() => undefined)
   }, [])
-
-  // The guardian's own chat, so not loaded in a child's profile. Linking
-  // finishes in Telegram: coming back to the app re-reads the state.
-  useEffect(() => {
-    if (actingAs) return
-    const load = () =>
-      void getTelegramStatus()
-        .then(setTelegram)
-        .catch(() => undefined)
-    load()
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") load()
-    })
-    return () => sub.remove()
-  }, [actingAs])
 
   const update = async (patch: Partial<Preferences>) => {
     const next = await setPreferences(patch)
@@ -161,37 +135,6 @@ export function SettingsScreen(_props: Props) {
       if (next.granted) void registerPushToken()
     } catch {
       /* the prompt failed — the row stays so the member can retry */
-    }
-  }
-
-  const handleConnectTelegram = async () => {
-    if (telegramBusy) return
-    setTelegramBusy(true)
-    try {
-      const { url } = await createTelegramLink()
-      await Linking.openURL(url)
-    } catch (e) {
-      showToast(errorMessage(e, "Не удалось открыть Telegram."), "error")
-    } finally {
-      setTelegramBusy(false)
-    }
-  }
-
-  const handleTelegramChange = async (
-    write: () => Promise<TelegramStatus>,
-    optimistic: Partial<TelegramStatus>,
-  ) => {
-    setTelegram((cur) => (cur ? { ...cur, ...optimistic } : cur))
-    setTelegramBusy(true)
-    try {
-      setTelegram(await write())
-    } catch (e) {
-      showToast(errorMessage(e, "Не удалось сохранить настройку."), "error")
-      void getTelegramStatus()
-        .then(setTelegram)
-        .catch(() => undefined)
-    } finally {
-      setTelegramBusy(false)
     }
   }
 
@@ -381,59 +324,6 @@ export function SettingsScreen(_props: Props) {
               onPress={() => void handleEnablePush()}
             />
           )}
-          {telegram?.available &&
-            (telegram.linked ? (
-              <>
-                <Row
-                  label="Telegram"
-                  right={
-                    <Switch
-                      accessibilityLabel="Уведомления в Telegram"
-                      disabled={telegramBusy}
-                      value={telegram.enabled}
-                      onValueChange={(v) =>
-                        void handleTelegramChange(() => setTelegramEnabled(v), {
-                          enabled: v,
-                        })
-                      }
-                      trackColor={{
-                        true: theme.colors.accent,
-                        false: theme.colors.border,
-                      }}
-                    />
-                  }
-                />
-                <Pressable
-                  onPress={() =>
-                    void handleTelegramChange(unlinkTelegram, {
-                      linked: false,
-                      enabled: false,
-                    })
-                  }
-                  disabled={telegramBusy}
-                  accessibilityRole="button"
-                  accessibilityLabel="Отключить Telegram"
-                  style={styles.row}
-                >
-                  <Text style={styles.value}>Отключить</Text>
-                </Pressable>
-              </>
-            ) : (
-              <Pressable
-                onPress={() => void handleConnectTelegram()}
-                disabled={telegramBusy}
-                accessibilityRole="link"
-                accessibilityLabel="Подключить Telegram"
-                accessibilityState={{ busy: telegramBusy }}
-                style={styles.row}
-              >
-                <Text style={styles.rowLabel}>Telegram</Text>
-                <View style={styles.trailing}>
-                  <Text style={styles.value}>Подключить</Text>
-                  <Chevron style={styles.chevron} />
-                </View>
-              </Pressable>
-            ))}
           <Row
             label="Новые видео"
             right={
@@ -793,11 +683,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     lineHeight: 16,
   },
   value: { color: theme.colors.muted, fontSize: 14 },
-  trailing: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing(1),
-  },
   action: {
     color: theme.colors.accent,
     fontSize: 14,

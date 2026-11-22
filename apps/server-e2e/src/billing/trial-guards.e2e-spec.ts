@@ -400,7 +400,7 @@ describe('trial guards', () => {
         expect(rows[0].message).toMatch(/7\s980 ₽/)
         expect(rows[0].message).toContain('Подключение (разово)')
         const mail = await ctx.mail.waitFor((m) => m.to === c.owner.email && m.subject.includes('закончится через 7 дней'))
-        expect(mail.html).toContain('Открыть «Тариф»')
+        expect(mail.html).toContain('Открыть «Подписка ClubSpace»')
         expect(
             await ctx.prisma.notification.count({
                 where: { userId: c.owner.id, type: 'PUSH', metadata: { path: ['kind'], equals: TRIAL_REMINDER_KIND } },

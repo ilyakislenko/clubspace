@@ -80,7 +80,7 @@ describe('abonements of a removed member', () => {
 
         const csv = await ctx
             .http()
-            .get(`/workspaces/${workspace.id}/exports/revenue.csv`)
+            .get(`/workspaces/${workspace.id}/exports/payments.csv`)
             .set(...ownerActor.auth)
             .expect(200)
         expect(csv.text).toContain(payer.email)

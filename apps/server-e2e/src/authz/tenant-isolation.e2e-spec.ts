@@ -17,7 +17,7 @@ type SpecParameter = {
     name: string
     in: string
     required?: boolean
-    schema?: { format?: string; type?: string }
+    schema?: { format?: string; type?: string; minLength?: number }
 }
 type Operation = { method: string; path: string; query: string }
 
@@ -35,7 +35,8 @@ const buildQuery = (params: SpecParameter[]): string => {
             if (p.schema?.type === 'number' || p.schema?.type === 'integer') {
                 return `${p.name}=1`
             }
-            return `${p.name}=1`
+            // A search term has a floor (GET /videos/search wants ≥ 2 chars).
+            return `${p.name}=${'1'.repeat(p.schema?.minLength ?? 1)}`
         })
     return pairs.length ? `?${pairs.join('&')}` : ''
 }

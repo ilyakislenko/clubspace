@@ -44,15 +44,19 @@ import {
 } from "./payment-method"
 import { PaymentMethodPicker } from "./PaymentMethodPicker"
 import {
+  canUndoPaymentMark,
   classesLabel,
   formatAmount,
   isPending,
+  paymentEntryHref,
   paymentLabel,
   periodLabel,
   renewFromForPlan,
 } from "./subscription-display"
 import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+import { isClubAdmin } from "../../shared/lib/permissions"
+import { useMyMembership } from "../../shared/lib/use-my-membership"
 import { agree, countForm, fromFirstSession } from "@clubspace/ui-kit/brand"
 
 const SALE_AMOUNT = FORM_LIMITS.payment.saleAmount
@@ -65,7 +69,8 @@ const fmtDate = (iso: string | null): string =>
 // history and lets staff assign a tariff (which extends the
 // member's "Доступ до"). What each button may do comes from the server's
 // `permissions`: a coach manages members of their own groups, only an admin
-// cancels, and undoing a payment stays admin-only (`canUnmarkPayment`). Refetches its
+// cancels, and undoing a payment stays admin-only (`canUnmarkPayment`) and
+// never applies to a refunded or online payment. Refetches its
 // own data so the parent page needn't know about subscriptions.
 export function MemberSubscriptionPanel({
   workspaceId,
@@ -83,6 +88,8 @@ export function MemberSubscriptionPanel({
   onAssigned?: () => void
 }) {
   const vocabulary = useVocabulary()
+  // Club admins open a paid abonement's payment in «Абонементы → Платежи».
+  const seesJournal = isClubAdmin(useMyMembership(workspaceId))
   const [plans, setPlans] = useState<Plan[]>([])
   const [subs, setSubs] = useState<MemberSubscriptions | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -272,9 +279,15 @@ export function MemberSubscriptionPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className={a.isPaid ? "" : "text-amber-700"}>
-            {paymentLabel(a)}
-          </span>
+          {a.isPaid && seesJournal ? (
+            <Link href={paymentEntryHref(workspaceId, a.id)} className="hover:underline">
+              {paymentLabel(a)}
+            </Link>
+          ) : (
+            <span className={a.isPaid ? "" : "text-amber-700"}>
+              {paymentLabel(a)}
+            </span>
+          )}
           {/* One payment form at a time: the others wait until it is closed. */}
           {canManage && !a.isPaid && payingId === null && (
             <Button
@@ -285,7 +298,10 @@ export function MemberSubscriptionPanel({
               Отметить оплату
             </Button>
           )}
-          {canUnmarkPayment && a.isPaid && a.status !== "CANCELLED" && (
+          {canUnmarkPayment &&
+            a.isPaid &&
+            a.status !== "CANCELLED" &&
+            canUndoPaymentMark(a) && (
             <button
               type="button"
               className="text-xs text-muted-foreground underline hover:text-foreground"
@@ -492,6 +508,7 @@ export function MemberSubscriptionPanel({
                 {canUnmarkPayment &&
                   s.isPaid &&
                   s.status !== "CANCELLED" &&
+                  canUndoPaymentMark(s) &&
                   !currentIds.has(s.id) && (
                     <button
                       type="button"

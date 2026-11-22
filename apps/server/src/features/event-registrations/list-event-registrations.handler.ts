@@ -73,9 +73,10 @@ export class ListEventRegistrationsHandler
             currency: event.currency,
             booked: rows.filter((r) => r.status === 'BOOKED').length,
             waitlist: positions.size,
+            // Net of refunds: what the club keeps from these tickets.
             paid: {
                 count: paid.length,
-                amount: paid.reduce((sum, r) => sum + (r.amountPaid ?? 0), 0),
+                amount: paid.reduce((sum, r) => sum + (r.amountPaid ?? 0) - r.refundedAmount, 0),
             },
             data: listed.map((r) => serializeRegistrant(r, positions.get(r.id) ?? null)),
         }

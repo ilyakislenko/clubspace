@@ -62,18 +62,22 @@ describe('metric glossary', () => {
                 data: { lastAttendedAt: at },
             })
         }
-        const sell = (
+        // Like a sale in the admin (grantFromPlan): the abonement, and the
+        // member's access window extended to its end — the window a lapsed
+        // student's renewal is judged by (renewal-rules.ts).
+        const sell = async (
             memberId: string,
             s: { amount: number; from: number; days: number; paid: boolean; status?: 'ACTIVE' | 'EXPIRED' },
-        ) =>
-            ctx.prisma.subscription.create({
+        ) => {
+            const endDate = ago(s.from - s.days)
+            await ctx.prisma.subscription.create({
                 data: {
                     workspaceId: w,
                     planId: plan.id,
                     workspaceMemberId: memberId,
                     status: s.status ?? 'ACTIVE',
                     startDate: ago(s.from),
-                    endDate: ago(s.from - s.days),
+                    endDate,
                     durationDays: s.days,
                     amountPaid: s.amount,
                     currency: 'RUB',
@@ -82,6 +86,11 @@ describe('metric glossary', () => {
                     createdAt: ago(s.from),
                 },
             })
+            const { accessUntil } = await ctx.prisma.workspaceMember.findUniqueOrThrow({ where: { id: memberId } })
+            if (!accessUntil || accessUntil < endDate) {
+                await ctx.prisma.workspaceMember.update({ where: { id: memberId }, data: { accessUntil: endDate } })
+            }
+        }
 
         const coach = await addMember(ctx, { workspaceId: w, role: RolesEnum.COACH })
         await visit(coach.user.id, 2)
@@ -178,10 +187,46 @@ describe('metric glossary', () => {
         expect(awaiting.members).toBe(1)
         expect(unpaid.total).toBe(1)
 
-        // renewals_due: the tile, the «Продлить» list and the members filter.
-        expect(stats.retention.renewalsDue).toBeGreaterThanOrEqual(1)
+        // renewals_due: s3, whose abonement ended 10 days ago (everyone else's
+        // runs past the 7-day window) — the tile, the «Продлить» list and the
+        // members filter.
+        expect(stats.retention.renewalsDue).toBe(1)
         expect(renewals.total).toBe(stats.retention.renewalsDue)
         expect(renew.total).toBe(stats.retention.renewalsDue)
+    })
+
+    it('one refund: every revenue surface reads the same net number', async () => {
+        const { w, ownerActor } = await setup()
+        const get = (path: string) =>
+            http()
+                .get(`/workspaces/${w}${path}`)
+                .set(...ownerActor.auth)
+                .expect(200)
+                .then((r) => r.body)
+        // s1's 6 000 abonement (a 30-day term): 1 500 handed back in cash.
+        const s1Sale = await ctx.prisma.subscription.findFirstOrThrow({
+            where: { workspaceId: w, amountPaid: 6000, durationDays: 30, isPaid: true, status: 'ACTIVE' },
+        })
+        await http()
+            .post(`/workspaces/${w}/refunds`)
+            .set(...ownerActor.auth)
+            .send({ target: 'abonement', targetId: s1Sale.id, amount: 1500, method: 'CASH', reason: 'Болел' })
+            .expect(201)
+
+        const [stats, forecast, journal, plan] = await Promise.all([
+            get('/stats'),
+            get('/analytics/forecast'),
+            get('/payment-journal'),
+            get(`/plans/${s1Sale.planId}`),
+        ])
+        // revenue_30d = payments_received − refunds: 18 000 − 1 500.
+        expect(stats.revenue.revenue30d).toBe(16500)
+        expect(journal.totals[0]).toMatchObject({ received: 18000, refunded: 1500, net: 16500 })
+        // The tariff page: its sales in the window − its abonements' refunds.
+        expect(plan.last30Days.revenue).toBe(16500)
+        // mrr: s1 counts (6 000 − 1 500) × 30 / 30.
+        expect(stats.revenue.mrr).toBe(15000 - 1500)
+        expect(forecast.mrr).toBe(stats.revenue.mrr)
     })
 
     it('keeps club money for club admins: a head coach gets the counts without it', async () => {

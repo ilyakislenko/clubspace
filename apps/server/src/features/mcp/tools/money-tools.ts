@@ -6,6 +6,8 @@ import { localDateInTz, wallClockToUtc } from '../../attendance/attendance-utils
 import {
     dominantCurrency,
     paidInRangeWhere,
+    refundRevenueRow,
+    refundsInRangeWhere,
     revenueTrendStart,
     shiftMonth,
     summarizeAwaiting,
@@ -42,11 +44,12 @@ export const revenueReportTool = defineTool({
     name: 'revenue_report',
     title: 'Выручка',
     description:
-        'Выручка клуба за последние N месяцев (по умолчанию 6) или за один календарный месяц (month): по месяцам, по тарифам или по направлениям. ' +
+        'Выручка клуба за вычетом возвратов за последние N месяцев (по умолчанию 6) или за один календарный месяц (month): по месяцам, по тарифам или по направлениям. ' +
         'period в ответе — за какие даты посчитано. ' +
-        'Считаются оплаченные абонементы и оплаченные билеты на события (мастер-классы) по дате оплаты, в основной валюте клуба, суммы в целых рублях (единицах валюты); ' +
+        'Считаются оплаченные абонементы и оплаченные билеты на события (мастер-классы) по дате оплаты минус возвраты по ним по дате возврата (возврат попадает в месяц, когда сделан), в основной валюте клуба, суммы в целых рублях (единицах валюты); ' +
+        'received — получено, refunded — возвращено, total — выручка (received − refunded). ' +
         'bySource — разбивка «абонементы / события». ' +
-        'Абонемент на несколько направлений делится между ними поровну; билет относится к направлению события; продажи без направления — отдельной строкой. ' +
+        'Абонемент на несколько направлений делится между ними поровну (и возврат по нему так же); билет относится к направлению события; продажи без направления — отдельной строкой. ' +
         'В разбивке по тарифам событие — отдельная строка (kind: event). ' +
         'Только для токена администратора.',
     adminOnly: true,
@@ -77,7 +80,7 @@ export const revenueReportTool = defineTool({
         const months = args.month ? 1 : args.months
         const start = revenueTrendStart(end, tz, months)
         const range = args.month ? { gte: start, lte: end } : { gte: start }
-        const [rows, tickets] = await Promise.all([
+        const [rows, tickets, refunds] = await Promise.all([
             prisma.subscription.findMany({
                 where: { workspaceId: scope.workspaceId, ...paidInRangeWhere(range) },
                 select: {
@@ -109,6 +112,43 @@ export const revenueReportTool = defineTool({
                     },
                 },
             }),
+            // Refunds of those sales by refund date, keyed like their sale
+            // (tariff / event, its directions); a ticket's within the scope's
+            // events, like the tickets. An unapplied payment's is never here.
+            prisma.refund.findMany({
+                where: {
+                    workspaceId: scope.workspaceId,
+                    ...refundsInRangeWhere(range),
+                    AND: [
+                        {
+                            OR: [
+                                { subscriptionId: { not: null } },
+                                { eventRegistration: { event: scope.events() } },
+                            ],
+                        },
+                    ],
+                },
+                select: {
+                    amount: true,
+                    currency: true,
+                    refundedAt: true,
+                    subscription: {
+                        select: {
+                            planId: true,
+                            plan: { select: { name: true } },
+                            directions: { select: { direction: { select: { id: true, name: true } } } },
+                        },
+                    },
+                    eventRegistration: {
+                        select: {
+                            eventId: true,
+                            event: {
+                                select: { title: true, direction: { select: { id: true, name: true } } },
+                            },
+                        },
+                    },
+                },
+            }),
         ])
         const abonementRows = rows.map((r) => ({
             amountPaid: r.amountPaid,
@@ -124,31 +164,62 @@ export const revenueReportTool = defineTool({
             paidAt: t.paidAt,
             directions: t.event.direction ? [t.event.direction] : [],
         }))
+        const refundRows = refunds.map((r) => ({
+            ...refundRevenueRow(r),
+            ticket: r.subscription === null,
+            directions: r.subscription
+                ? r.subscription.directions.map((d) => d.direction)
+                : r.eventRegistration?.event.direction
+                  ? [r.eventRegistration.event.direction]
+                  : [],
+        }))
         const flat = [...abonementRows, ...ticketRows]
-        const currency = dominantCurrency(flat)
-        const inCurrency = flat.filter((r) => r.currency === currency)
-        const items = groupRevenue(flat, {
-            groupBy: args.groupBy,
-            currency,
-            now: end,
-            tz,
-            months,
-        })
-        const sourceTotal = (source: typeof flat) => {
-            const sales = source.filter((r) => r.currency === currency)
-            return { revenue: sales.reduce((s, r) => s + r.amountPaid, 0), sales: sales.length }
+        // Picked by the sales; with none, the refunds' currency.
+        const currency =
+            dominantCurrency(flat) ??
+            dominantCurrency(refundRows.map((r) => ({ amountPaid: r.amount, currency: r.currency })))
+        const items = groupRevenue(
+            flat,
+            {
+                groupBy: args.groupBy,
+                currency,
+                now: end,
+                tz,
+                months,
+            },
+            refundRows,
+        )
+        // Received, refunded and net (revenue) over some sales and their
+        // refunds, in the currency.
+        const totals = (sales: typeof flat, refunded: typeof refundRows) => {
+            const inCurrency = sales.filter((r) => r.currency === currency)
+            const received = inCurrency.reduce((s, r) => s + r.amountPaid, 0)
+            const back = refunded
+                .filter((r) => r.currency === currency)
+                .reduce((s, r) => s + r.amount, 0)
+            return { revenue: received - back, received, refunded: back, sales: inCurrency.length }
         }
-        const eventIds = new Set(tickets.map((t) => t.eventId))
+        const all = totals(flat, refundRows)
+        // A refund-only bucket of an event sold before the period is an event too.
+        const eventIds = new Set([
+            ...tickets.map((t) => t.eventId),
+            ...refundRows.filter((r) => r.ticket).map((r) => r.planId),
+        ])
         return {
             rows: items.length,
             data: {
                 period: { from: localDateInTz(start, tz), to: localDateInTz(end, tz) },
                 groupBy: args.groupBy,
                 currency,
-                total: inCurrency.reduce((s, r) => s + r.amountPaid, 0),
-                sales: inCurrency.length,
-                otherCurrencySales: flat.length - inCurrency.length,
-                bySource: { abonements: sourceTotal(abonementRows), events: sourceTotal(ticketRows) },
+                received: all.received,
+                refunded: all.refunded,
+                total: all.revenue,
+                sales: all.sales,
+                otherCurrencySales: flat.length - all.sales,
+                bySource: {
+                    abonements: totals(abonementRows, refundRows.filter((r) => !r.ticket)),
+                    events: totals(ticketRows, refundRows.filter((r) => r.ticket)),
+                },
                 // By tariff: each item's key is the tariff id, or the event id
                 // for an event's tickets.
                 items:
@@ -284,7 +355,7 @@ export const abonementStatesTool = defineTool({
         'Абонементы учеников по состояниям: frozen — заморожен, awaiting_first_visit — ждёт первой тренировки, ' +
         'out_of_classes — занятия закончились, expiring_soon — кончается в 7 дней, active — действует, ended — закончился за последние 30 дней. ' +
         'В ответе сводка по состояниям и тарифам и постраничный список (фильтр state). ' +
-        'Суммы — только для токена администратора.',
+        'Суммы (amount — оплачено, refunded — возвращено) — только для токена администратора.',
     input: z.object({
         state: z.enum(ABONEMENT_STATES).optional().describe('Только абонементы в этом состоянии'),
         planId: uuidArg('Только этот тариф (id из club_directory)').optional(),
@@ -330,6 +401,7 @@ export const abonementStatesTool = defineTool({
                 classesTotal: true,
                 isPaid: true,
                 amountPaid: true,
+                refundedAmount: true,
                 currency: true,
                 plan: { select: { id: true, name: true } },
                 directions: { select: { direction: { select: { name: true } } } },
@@ -381,7 +453,10 @@ export const abonementStatesTool = defineTool({
             classesTotal: row.classesTotal,
             directions: row.directions.map((d) => d.direction.name),
             isPaid: row.isPaid,
-            ...(scope.seesMoney ? { amount: row.amountPaid, currency: row.currency } : {}),
+            // `amount` stays what was paid; `refunded` is what went back.
+            ...(scope.seesMoney
+                ? { amount: row.amountPaid, refunded: row.refundedAmount, currency: row.currency }
+                : {}),
         }))
         return {
             rows: items.length,

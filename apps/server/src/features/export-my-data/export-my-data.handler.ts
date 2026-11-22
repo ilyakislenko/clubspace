@@ -46,7 +46,6 @@ export class ExportMyDataHandler
                 language: true,
                 createdAt: true,
                 lastSeenAt: true,
-                telegramLink: { select: { chatId: true, linkedAt: true } },
             },
         })
         if (!profile) {
@@ -376,12 +375,6 @@ export class ExportMyDataHandler
                 createdAt: profile.createdAt.toISOString(),
                 lastSeenAt: profile.lastSeenAt.toISOString(),
             },
-            telegram: profile.telegramLink
-                ? {
-                      chatId: profile.telegramLink.chatId,
-                      linkedAt: profile.telegramLink.linkedAt.toISOString(),
-                  }
-                : null,
             consents: consents.rows.map((c) => ({
                 kind: c.kind,
                 version: c.version,

@@ -113,18 +113,31 @@ export const buildYookassaGetPayment = (
 ): ProviderRequest =>
     get(c, `/payments/${encodeURIComponent(providerPaymentId)}`)
 
+// A refund of `amount` (whole units, all or part of the payment). With
+// `receipt` and receipts on, YooKassa issues the 54-ФЗ refund receipt for the
+// refunded amount — required for a partial refund; a full one reuses the
+// payment's receipt, so callers pass `receipt` only for a partial refund.
 export const buildYookassaRefund = (
-    c: YookassaCredentials,
+    c: YookassaCredentials & { receipt?: ReceiptSettings },
     p: {
         providerPaymentId: string
         amount: number
         currency: string
         idempotenceKey: string
+        receipt?: { customerEmail: string; itemName: string }
     },
 ): ProviderRequest =>
     jsonPost(c, '/refunds', p.idempotenceKey, {
         payment_id: p.providerPaymentId,
         amount: { value: formatYookassaAmount(p.amount), currency: p.currency },
+        ...(p.receipt && c.receipt?.enabled
+            ? {
+                  receipt: buildYookassaReceipt(
+                      { ...p.receipt, amount: p.amount, currency: p.currency },
+                      c.receipt,
+                  ),
+              }
+            : {}),
     })
 
 // «Информация о магазине» — the cheapest authenticated read.

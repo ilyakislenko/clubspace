@@ -77,6 +77,10 @@ const getHttp = (): AxiosHttpClient => {
 
 export const getApiClient = (): HttpClient => getHttp().client
 
+// The same authenticated axios instance, for the few calls that need the
+// response headers (a file download's Content-Disposition name).
+export const getApiAxios = () => getHttp().axios
+
 export const getAuthApi = () => {
   if (!authApi) {
     authApi = createAuthApi(getApiClient())

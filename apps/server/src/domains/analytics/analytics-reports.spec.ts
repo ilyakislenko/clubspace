@@ -281,6 +281,7 @@ describe('loadForecastReport', () => {
     // A 30-day paid abonement held now: 6 000 a month.
     const current = {
         amountPaid: 6000,
+        refundedAmount: 0,
         currency: 'RUB',
         isPaid: true,
         startDate: ago(10),

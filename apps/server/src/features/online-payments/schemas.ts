@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
 import { environment } from '../../environments/environment'
-import { displayName } from '../attendance/schemas'
 
 export const PAYMENT_PROVIDERS = ['YOOKASSA', 'STRIPE'] as const
 export const PAYMENT_STATUSES = [
@@ -47,16 +46,6 @@ export const MyPaymentOutputSchema = z.object({
 })
 export type MyPaymentOutput = z.infer<typeof MyPaymentOutputSchema>
 
-// The admin list row: the same plus the buyer.
-export const PaymentOutputSchema = MyPaymentOutputSchema.extend({
-    member: z.object({
-        userId: z.string().uuid(),
-        name: z.string(),
-        email: z.string().nullable(),
-    }),
-})
-export type PaymentOutput = z.infer<typeof PaymentOutputSchema>
-
 type PaymentRow = {
     id: string
     planId: string | null
@@ -87,16 +76,6 @@ export const serializeMyPayment = (p: PaymentRow): MyPaymentOutput => ({
     createdAt: p.createdAt.toISOString(),
     paidAt: p.paidAt ? p.paidAt.toISOString() : null,
     refundedAt: p.refundedAt ? p.refundedAt.toISOString() : null,
-})
-
-export const serializePayment = (
-    p: PaymentRow & {
-        userId: string
-        user: { firstname: string | null; lastname: string | null; email: string | null }
-    },
-): PaymentOutput => ({
-    ...serializeMyPayment(p),
-    member: { userId: p.userId, name: displayName(p.user), email: p.user.email },
 })
 
 export const PaymentSettingsOutputSchema = z.object({

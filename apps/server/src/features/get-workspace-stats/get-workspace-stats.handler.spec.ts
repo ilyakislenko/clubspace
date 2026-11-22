@@ -8,6 +8,7 @@ const SUB_ROW = {
     startDate: new Date(Date.now() - 24 * 3600 * 1000),
     endDate: new Date(Date.now() + 20 * 24 * 3600 * 1000),
     isPaid: true,
+    refundedAmount: 0,
     paidAt: new Date(),
     createdAt: new Date(),
     planId: 'p1',
@@ -201,6 +202,45 @@ describe('GetWorkspaceStatsHandler paid-only revenue', () => {
         const out = await run(handler, 'admin')
         expect(out.revenue?.revenue30d).toBe(5000)
         expect(out.revenue?.revenuePrev30d).toBe(1500)
+    })
+
+    // Revenue is net (payments journal §1): a refund of a sale lowers the
+    // window it was made in, whenever the sale was.
+    describe('net of refunds', () => {
+        const refund = (amount: number, daysAgo: number) => ({
+            amount,
+            currency: 'RUB',
+            refundedAt: new Date(Date.now() - daysAgo * 24 * 3600 * 1000),
+            subscription: { planId: 'p1', plan: { name: 'Monthly' } },
+            eventRegistration: null,
+        })
+
+        it('subtracts refunds from revenue30d, the previous 30 days and today by refund date', async () => {
+            const refunds = jest.fn().mockResolvedValue([refund(1000, 0), refund(300, 10), refund(200, 45)])
+            const { handler } = build(false, { 'refund.findMany': refunds })
+            const out = await run(handler, 'admin')
+            expect(out.revenue?.revenue30d).toBe(5000 - 1300)
+            expect(out.revenue?.revenuePrev30d).toBe(-200)
+            expect(out.today.revenue).toBe(5000 - 1000)
+            // No new DTO field: the refunds stay inside the figures.
+            expect(out.revenue).not.toHaveProperty('refunded30d')
+            const where = refunds.mock.calls[0][0].where
+            expect(where).toMatchObject({
+                workspaceId: 'w1',
+                OR: [{ subscriptionId: { not: null } }, { eventRegistrationId: { not: null } }],
+            })
+            expect(where.refundedAt.gte).toBeInstanceOf(Date)
+        })
+
+        it('drops a fully refunded abonement out of mrr', async () => {
+            const { handler } = build(false, {
+                'subscription.findMany': jest
+                    .fn()
+                    .mockResolvedValue([{ ...SUB_ROW, refundedAmount: 5000 }]),
+            })
+            const out = await run(handler, 'admin')
+            expect(out.revenue?.mrr).toBe(0)
+        })
     })
 })
 

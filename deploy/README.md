@@ -1016,45 +1016,6 @@ works, as before.
    card shows the payments list, «Повторить списание сейчас», refunds and the
    autopay switch.
 
-### Telegram notifications for members (optional)
-
-Members link a chat with a bot of the platform in the app («Настройки →
-Уведомления → Telegram → Подключить») and get a copy of their notifications
-there. A **separate** bot from the alert bot of step 5 (`ALERT_TELEGRAM_*` never
-reaches the app). Off — and the row hidden — until all three variables are set.
-
-1. [@BotFather](https://t.me/BotFather) → `/newbot` → token and @username. Optionally
-   `/setcommands`: `stop - Отключить уведомления`.
-2. In `.env.production`:
-   ```
-   TELEGRAM_BOT_TOKEN=<token from BotFather>
-   TELEGRAM_BOT_USERNAME=<username without @>
-   TELEGRAM_WEBHOOK_SECRET=<openssl rand -hex 32>
-   ```
-3. `docker compose … up -d` — the schema change is additive (`TelegramLink`,
-   `TelegramLinkToken`), `db push` applies it without data loss.
-4. Register the webhook once (again whenever the token, secret or domain changes).
-   Telegram sends the secret back in `X-Telegram-Bot-Api-Secret-Token`; the server
-   refuses updates without it:
-   ```bash
-   set -a; . ./.env.production; set +a
-   curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
-     -d "url=https://api.${DOMAIN}${PUBLIC_PORT_SUFFIX}/telegram/webhook" \
-     -d "secret_token=${TELEGRAM_WEBHOOK_SECRET}" \
-     -d 'allowed_updates=["message"]' \
-     -d "drop_pending_updates=true"
-   # → {"ok":true,"result":true,"description":"Webhook was set"}
-   curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
-   # last_error_message must be absent once a member has pressed «Start»
-   ```
-   Telegram only calls ports 443, 80, 88 and 8443: with a non-standard
-   `PUBLIC_PORT_SUFFIX` other than `:8443` the webhook cannot be registered.
-5. Check: «Подключить» in the app opens the bot, «Start» answers «Готово,
-   уведомления будут приходить сюда», and the next notification arrives in the chat.
-   `/stop` in the chat or «Отключить» in the app unlinks; a member who blocks the
-   bot is unlinked on the next message. Messages go through the `telegram` queue,
-   25 per second at most (Telegram allows about 30).
-
 ### Offer, DPA and seller requisites (clubs as customers)
 
 Clubs buy ClubSpace under a public offer and a data processing instruction

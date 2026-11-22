@@ -6,7 +6,7 @@ import { ClubAdminGate } from "../../../../../shared/workspace/access-gate"
 import { SectionTabs } from "../../../../../shared/workspace/section-tabs"
 import { subscriptionTabs } from "../sections"
 
-// «Абонементы» (tariffs, the tariff pages, online payments) is the club
+// «Абонементы» (tariffs, the tariff pages, the payments journal) is the club
 // admins'. The title and tabs sit over the two lists, not over a tariff page.
 export default function SubscriptionsLayout({
   children,

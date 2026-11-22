@@ -264,42 +264,70 @@ describe('online payment of an abonement', () => {
             .set(...coach.auth)
         expect(foreign.status).toBe(404)
 
+        // The sale is a «Платежи» row with its provider side; no one marked it.
         const list = await ctx
             .http()
-            .get(`/workspaces/${s.workspace.id}/payments`)
+            .get(`/workspaces/${s.workspace.id}/payment-journal`)
             .set(...s.ownerActor.auth)
         expect(list.status).toBe(200)
         expect(list.body.data).toHaveLength(1)
         expect(list.body.data[0]).toMatchObject({
-            id: paymentId,
-            status: 'SUCCEEDED',
+            id: `sub:${subs[0].id}`,
+            method: 'ONLINE',
+            markedBy: null,
             member: { userId: s.memberUser.id },
+            online: { paymentId, status: 'SUCCEEDED' },
         })
         const coachList = await ctx
             .http()
-            .get(`/workspaces/${s.workspace.id}/payments`)
+            .get(`/workspaces/${s.workspace.id}/payment-journal`)
             .set(...coach.auth)
         expect(coachList.status).toBe(403)
 
-        const refunded = await ctx
-            .http()
-            .post(`/workspaces/${s.workspace.id}/payments/${paymentId}/refund`)
-            .set(...s.ownerActor.auth)
+        const sold = await ctx.prisma.subscription.findUniqueOrThrow({ where: { id: subs[0].id } })
+        const refundOnline = () =>
+            ctx
+                .http()
+                .post(`/workspaces/${s.workspace.id}/refunds`)
+                .set(...s.ownerActor.auth)
+                .send({
+                    target: 'abonement',
+                    targetId: subs[0].id,
+                    amount: sold.amountPaid,
+                    method: 'ONLINE',
+                    reason: 'Передумал',
+                })
+        const refunded = await refundOnline()
         expect(refunded.status).toBe(201)
-        expect(refunded.body.status).toBe('REFUNDED')
-        expect(gateway.refunds).toEqual([
-            { providerPaymentId: 'yk_1', idempotenceKey: `refund-${paymentId}` },
+        expect(refunded.body.refund).toMatchObject({ kind: 'refund', method: 'ONLINE', amount: sold.amountPaid })
+        expect(refunded.body.sale).toMatchObject({
+            id: `sub:${subs[0].id}`,
+            refundedAmount: sold.amountPaid,
+            refundable: 0,
+            online: { paymentId, status: 'REFUNDED', refundable: 0 },
+        })
+        // A full refund reuses the payment's receipt: none sent.
+        expect(gateway.refundRequests).toEqual([
+            {
+                providerPaymentId: 'yk_1',
+                idempotenceKey: `refund-${paymentId}-0-${sold.amountPaid}`,
+                amount: sold.amountPaid,
+            },
         ])
-        const twice = await ctx
-            .http()
-            .post(`/workspaces/${s.workspace.id}/payments/${paymentId}/refund`)
-            .set(...s.ownerActor.auth)
+        const twice = await refundOnline()
         expect(twice.status).toBe(400)
-        // Staff decide about the abonement.
+        expect(gateway.refunds).toHaveLength(1)
+        // Staff decide about the abonement: still active and still a sale.
         const still = await ctx.prisma.subscription.findUniqueOrThrow({
             where: { id: subs[0].id },
         })
-        expect(still.status).toBe('ACTIVE')
+        expect(still).toMatchObject({ status: 'ACTIVE', isPaid: true, refundedAmount: sold.amountPaid })
+        // Unmarking an online sale is refused: it is undone by a refund.
+        await ctx
+            .http()
+            .delete(`/workspaces/${s.workspace.id}/members/${s.memberUser.id}/subscriptions/${subs[0].id}/payment`)
+            .set(...s.ownerActor.auth)
+            .expect(400)
     })
 
     it('YooKassa: a canceled payment creates nothing', async () => {

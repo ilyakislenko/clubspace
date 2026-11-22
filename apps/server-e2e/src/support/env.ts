@@ -27,6 +27,11 @@ const values: Record<string, string> = {
     ROOT_URL: 'http://localhost:3000',
     JWT_ISSUER_URL: 'http://localhost:3000',
     JWT_AUDIENCE_URL: 'http://localhost:3000',
+    // The links in e-mails, QR posters and join URLs. Pinned to the local dev
+    // defaults: Nx loads the repo's .env, and a developer's LAN APP_URL
+    // (a phone-reachable PWA build) would otherwise leak into the assertions.
+    ADMIN_URL: 'http://localhost:4200',
+    APP_URL: 'http://localhost:8081',
     // main.ts refuses to boot in production when these two match; keep them
     // distinct here too so the suite exercises the same shape as a real deploy.
     JWT_SECRET: 'e2e-jwt-secret-not-a-real-secret-long-enough',

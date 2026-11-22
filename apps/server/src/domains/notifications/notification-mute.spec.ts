@@ -15,6 +15,8 @@ describe('isMuteExempt', () => {
         'grading.moved',
         'substitution.members',
         'substitution.requested',
+        'payment.succeeded',
+        'payment.refunded',
     ])('keeps %s', (kind) => {
         expect(isMuteExempt(kind)).toBe(true)
     })

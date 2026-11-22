@@ -79,6 +79,7 @@ const makeWorld = (
                     ? eventRow
                     : null,
             ),
+            findUniqueOrThrow: jest.fn(async () => eventRow),
         },
         workspaceMember: {
             findUnique: jest.fn().mockResolvedValue({ status: 'ACTIVE' }),
@@ -353,6 +354,43 @@ describe('EventRegistrationService.markPaidOnlineInTx', () => {
         })
         expect(await mark(w)).toEqual({ refused: 'Билет уже отмечен оплаченным' })
         expect(w.rows[0]).toMatchObject({ isPaid: true, paymentMethod: 'CASH' })
+    })
+})
+
+describe('EventRegistrationService.cancelByClubInTx', () => {
+    const full = () =>
+        makeWorld({ price: 1500, capacity: 1 }, [
+            { userId: 'a', status: 'BOOKED', isPaid: true, paymentMethod: 'ONLINE' },
+            { userId: 'b', status: 'WAITLISTED' },
+        ])
+    const cancel = (w: ReturnType<typeof makeWorld>, id: string, now = BEFORE) =>
+        w.service.cancelByClubInTx(w.prisma as never, { registrationId: id, now })
+
+    it('gives the place up (paid row kept) and hands it to the waitlist; the push comes after commit', async () => {
+        const w = full()
+        const out = await cancel(w, 'r1')
+        expect(out).toMatchObject({ registrationId: 'r1', userId: 'a', promoted: [{ id: 'r2', userId: 'b' }] })
+        expect(w.rows[0]).toMatchObject({ status: 'CANCELLED', cancelledAt: BEFORE, isPaid: true })
+        expect(w.statusOf('b')).toEqual(['BOOKED'])
+        // Under the event lock.
+        expect(w.prisma.$queryRaw).toHaveBeenCalled()
+        expect(w.notifications.notifyUser).not.toHaveBeenCalled()
+
+        await w.service.afterClubCancel(out!)
+        expect(w.realtime.invalidate).toHaveBeenCalledWith('ws-1', ['events', 'eventregistrations'])
+        expect(w.notifications.notifyUser).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: 'b', kind: 'eventregistration.promoted', refId: 'r2' }),
+        )
+    })
+
+    it('keeps the place once the event has started, or when it is no longer live', async () => {
+        const w = full()
+        expect(await cancel(w, 'r1', AFTER)).toBeNull()
+        expect(w.rows[0].status).toBe('BOOKED')
+        w.rows[0].status = 'CANCELLED'
+        expect(await cancel(w, 'r1')).toBeNull()
+        expect(w.statusOf('b')).toEqual(['WAITLISTED'])
+        expect(await cancel(w, 'nope')).toBeNull()
     })
 })
 

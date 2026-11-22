@@ -84,6 +84,20 @@ describe('writeDemoClubPlan', () => {
         expect(updated.sort()).toEqual(Object.values(plan.accountUserIds).sort())
     })
 
+    it('writes the refunds after their sales, which already carry the sum', async () => {
+        const { tx, model, calls } = buildTx()
+        await run(tx)
+        expect(calls.indexOf('subscription.createMany')).toBeLessThan(calls.indexOf('refund.createMany'))
+        expect(model('refund').createMany).toHaveBeenCalledWith({ data: plan.refunds })
+        expect(plan.refunds.length).toBeGreaterThan(0)
+        const written = model('subscription').createMany.mock.calls.flatMap((c) => c[0].data)
+        for (const r of plan.refunds) {
+            const sale = written.find((s: { id: string }) => s.id === r.subscriptionId)
+            expect(sale.refundedAmount).toBe(r.amount)
+            expect(sale.isPaid).toBe(true)
+        }
+    })
+
     it('freezes through the freeze service and recomputes the last visit', async () => {
         const { tx, $executeRaw } = buildTx()
         const freezes = await run(tx)

@@ -12,8 +12,9 @@ const CODE = 'TCKT2345'
 // Payment + webhook as an abonement, but the webhook marks the registration
 // «paid ONLINE» instead of granting an abonement. The amount comes from the
 // event, the webhook is idempotent, revenue counts the ticket once (through
-// the registration), a refund takes the mark back, and a place given up
-// before the money lands is left for staff to refund.
+// the registration), a full refund before the event cancels the place (the
+// paid row stays, revenue nets it out), and a place given up before the money
+// lands is left for staff to refund.
 describe('event ticket paid online', () => {
     let ctx: TestApp
     const gateway = new FakeGateway()
@@ -122,7 +123,7 @@ describe('event ticket paid online', () => {
     const csvTicketRows = (c: Club) =>
         ctx
             .http()
-            .get(`/workspaces/${c.workspace.id}/exports/revenue.csv`)
+            .get(`/workspaces/${c.workspace.id}/exports/payments.csv`)
             .set(...c.ownerActor.auth)
             .expect(200)
             .then((r) => r.text.split(/\r?\n/).filter((l) => l.includes('dancehall')))
@@ -130,7 +131,7 @@ describe('event ticket paid online', () => {
     const registrationRow = (id: string) =>
         ctx.prisma.eventRegistration.findUniqueOrThrow({ where: { id } })
 
-    it('webhook marks the ticket paid ONLINE once at the event’s price; revenue once; refund unmarks', async () => {
+    it('webhook marks the ticket paid ONLINE once at the event’s price; revenue once; a full refund cancels the place', async () => {
         const c = await club()
         await connect(c)
         const m = await member(c)
@@ -206,7 +207,8 @@ describe('event ticket paid online', () => {
         expect(await revenue30d(c)).toBe(before + 1500)
         const rows = await csvTicketRows(c)
         expect(rows).toHaveLength(1)
-        expect(rows[0]).toContain(`;${m.user.email};Мастер-класс: dancehall;1500;RUB;;;Событие;Онлайн`)
+        expect(rows[0]).toContain(`;Оплата;`)
+        expect(rows[0]).toContain(`;${m.user.email};Мастер-класс: dancehall;1500;RUB;Онлайн;;;Событие;`)
 
         // Staff marking it again does not sell it twice; the mark stays ONLINE.
         await ctx
@@ -233,27 +235,38 @@ describe('event ticket paid online', () => {
 
         const refunded = await ctx
             .http()
-            .post(`/workspaces/${c.workspace.id}/payments/${paymentId}/refund`)
+            .post(`/workspaces/${c.workspace.id}/refunds`)
             .set(...c.ownerActor.auth)
+            .send({ target: 'ticket', targetId: reg.id, amount: 1500, method: 'ONLINE', reason: 'Не смогу прийти' })
             .expect(201)
-        expect(refunded.body).toMatchObject({ status: 'REFUNDED', eventRegistrationId: reg.id })
+        expect(refunded.body.sale).toMatchObject({
+            id: `reg:${reg.id}`,
+            refundedAmount: 1500,
+            refundable: 0,
+            online: { paymentId, status: 'REFUNDED' },
+        })
         expect(gateway.refunds).toEqual([
-            { providerPaymentId: 'yk_1', idempotenceKey: `refund-${paymentId}` },
+            { providerPaymentId: 'yk_1', idempotenceKey: `refund-${paymentId}-0-1500` },
         ])
+        // The paid row stays the money's record; the place is given up.
         expect(await registrationRow(reg.id)).toMatchObject({
-            status: 'BOOKED',
-            isPaid: false,
-            paymentMethod: null,
-            amountPaid: null,
+            status: 'CANCELLED',
+            isPaid: true,
+            paymentMethod: 'ONLINE',
+            amountPaid: 1500,
+            refundedAmount: 1500,
         })
         expect(await revenue30d(c)).toBe(before)
-        expect(await csvTicketRows(c)).toEqual([])
-        // Unpaid now: the member may give the place up.
-        await ctx
-            .http()
-            .delete(`/workspaces/${c.workspace.id}/event-registrations/${reg.id}`)
-            .set(...m.actor.auth)
-            .expect(200)
+        const after = await csvTicketRows(c)
+        expect(after).toHaveLength(2)
+        expect(after[0]).toContain(';Возврат;')
+        expect(after[0]).toContain(';Мастер-класс: dancehall;-1500;RUB;Онлайн;')
+        expect(after[1]).toContain(';Оплата;')
+        // The member hears why.
+        const notices = await ctx.prisma.notification.findMany({ where: { userId: m.user.id } })
+        expect(
+            notices.find((n) => (n.metadata as { kind?: string } | null)?.kind === 'payment.refunded')?.message,
+        ).toMatch(/отменил вашу запись на «Мастер-класс: dancehall» и вернул 1\s500 ₽ — на карту/)
     })
 
     it('no provider → 400; the waitlist cannot pay; a place given up before the money lands is left for staff', async () => {
@@ -312,19 +325,22 @@ describe('event ticket paid online', () => {
         })
         expect((await registrationRow(waiting.id)).isPaid).toBe(false)
         expect(await revenue30d(c)).toBe(before)
+        // Not a sale: only the «needs decision» strip of «Платежи» shows it.
         const list = await ctx
             .http()
-            .get(`/workspaces/${c.workspace.id}/payments`)
+            .get(`/workspaces/${c.workspace.id}/payment-journal`)
             .set(...c.ownerActor.auth)
             .expect(200)
-        expect(list.body.data).toEqual([
-            expect.objectContaining({
-                id: paymentId,
-                status: 'SUCCEEDED',
-                eventRegistrationId: booked.id,
-                activationError: 'Запись отменена до оплаты',
-            }),
-        ])
+        expect(list.body.unapplied).toEqual({
+            total: 1,
+            data: [
+                expect.objectContaining({
+                    paymentId,
+                    amount: 1500,
+                    activationError: 'Запись отменена до оплаты',
+                }),
+            ],
+        })
         const mine = await ctx
             .http()
             .get(`/workspaces/${c.workspace.id}/me/payments/${paymentId}`)
@@ -332,11 +348,27 @@ describe('event ticket paid online', () => {
             .expect(200)
         expect(mine.body.activationError).toBe('Запись отменена до оплаты')
 
+        // Online only: the money never became a sale.
         await ctx
             .http()
-            .post(`/workspaces/${c.workspace.id}/payments/${paymentId}/refund`)
+            .post(`/workspaces/${c.workspace.id}/refunds`)
             .set(...c.ownerActor.auth)
+            .send({ target: 'unapplied', targetId: paymentId, amount: 1500, method: 'CASH', reason: 'Место занято' })
+            .expect(400)
+        await ctx
+            .http()
+            .post(`/workspaces/${c.workspace.id}/refunds`)
+            .set(...c.ownerActor.auth)
+            .send({ target: 'unapplied', targetId: paymentId, amount: 1500, method: 'ONLINE', reason: 'Место занято' })
             .expect(201)
+        const cleared = await ctx
+            .http()
+            .get(`/workspaces/${c.workspace.id}/payment-journal`)
+            .set(...c.ownerActor.auth)
+            .expect(200)
+        // Out of the strip; its refund is no journal row (not a sale's).
+        expect(cleared.body.unapplied).toEqual({ total: 0, data: [] })
+        expect(cleared.body.data).toEqual([])
         expect(await revenue30d(c)).toBe(before)
         expect((await registrationRow(waiting.id)).isPaid).toBe(false)
     })
@@ -472,15 +504,15 @@ describe('event ticket paid online', () => {
             paymentMethod: 'CASH',
             amountPaid: 1500,
         })
+        // Not a sale: only the «needs decision» strip of «Платежи» shows it.
         const list = await ctx
             .http()
-            .get(`/workspaces/${c.workspace.id}/payments`)
+            .get(`/workspaces/${c.workspace.id}/payment-journal`)
             .set(...c.ownerActor.auth)
             .expect(200)
-        expect(list.body.data).toEqual([
+        expect(list.body.unapplied.data).toEqual([
             expect.objectContaining({
-                id: paymentId,
-                status: 'SUCCEEDED',
+                paymentId,
                 activationError: 'Билет уже отмечен оплаченным',
             }),
         ])
@@ -489,8 +521,9 @@ describe('event ticket paid online', () => {
         // Refunding it gives the online money back and leaves the cash mark.
         await ctx
             .http()
-            .post(`/workspaces/${c.workspace.id}/payments/${paymentId}/refund`)
+            .post(`/workspaces/${c.workspace.id}/refunds`)
             .set(...c.ownerActor.auth)
+            .send({ target: 'unapplied', targetId: paymentId, amount: 1500, method: 'ONLINE', reason: 'Оплачено в клубе' })
             .expect(201)
         expect(await registrationRow(reg.id)).toMatchObject({
             isPaid: true,

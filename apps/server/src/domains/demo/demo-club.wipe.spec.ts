@@ -7,6 +7,7 @@ import { DEMO_CLUBS } from './demo-clubs'
 import { deleteDemoOnlyUsers, wipeDemoWorkspace } from './demo-club.wipe'
 
 const MODELS = [
+    'refund',
     'attendanceRecord',
     'subscriptionFreezeRequest',
     'subscriptionFreeze',
@@ -53,6 +54,8 @@ describe('wipeDemoWorkspace', () => {
         const { tx, order } = buildTx()
         await wipeDemoWorkspace(tx as never, 'w-demo')
         expect(order[order.length - 1]).toBe('workspace')
+        // Refunds hold their sale, holder and author (Restrict): before all of them.
+        expect(order[0]).toBe('refund')
         expect(order.indexOf('subscription')).toBeLessThan(order.indexOf('workspace'))
         expect(order.indexOf('rankPromotion')).toBeLessThan(order.indexOf('workspace'))
         expect(tx.workspace.delete).toHaveBeenCalledWith({ where: { id: 'w-demo' } })
@@ -85,6 +88,9 @@ describe('deleteDemoOnlyUsers', () => {
         expect(where.subscriptions).toEqual({ none: {} })
         expect(where.attendanceRecords).toEqual({ none: {} })
         expect(where.guardianOf).toEqual({ none: { dependent: { workspaceMemberships: { some: {} } } } })
+        // A refund there holds its holder and its author.
+        expect(where.refunds).toEqual({ none: {} })
+        expect(where.refundsMade).toEqual({ none: {} })
         // Only the studio's own fixed accounts get their links rebuilt.
         const accounts = tx.user.findMany.mock.calls[1][0].where.email.in
         expect(accounts).toEqual(['owner@ritm.demo', 'pedagog@ritm.demo', 'student@ritm.demo', 'parent@ritm.demo'])

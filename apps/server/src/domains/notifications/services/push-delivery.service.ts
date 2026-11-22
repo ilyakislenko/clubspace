@@ -5,7 +5,6 @@ import {
     Prisma,
     PrismaService,
 } from '../../../infrastructure/prisma'
-import { TelegramQueueService } from '../../telegram/telegram-queue.service'
 import {
     EXPO_MAX_MESSAGES_PER_REQUEST,
     ExpoPushClient,
@@ -77,7 +76,6 @@ export class PushDeliveryService {
         private readonly prisma: PrismaService,
         private readonly expo: ExpoPushClient,
         private readonly webPush: WebPushClient,
-        private readonly telegram: TelegramQueueService,
     ) {}
 
     /**
@@ -92,10 +90,6 @@ export class PushDeliveryService {
      * still in backoff — finds nothing left to send. A row that no target
      * accepted and that failed transiently is put back to pending and reported
      * in `retry`.
-     *
-     * Each claimed row is also handed to the telegram queue, which keeps the
-     * rows of users with a linked chat and Telegram switched on (its job id
-     * per row makes a re-claim after a retry harmless).
      */
     async deliver(
         ids: string[],
@@ -123,7 +117,6 @@ export class PushDeliveryService {
                 },
             })
         if (rows.length === 0) return result
-        await this.telegram.enqueueForLinkedUsers(rows)
 
         const userIds = [...new Set(rows.map((r) => r.userId))]
         const [devices, webSubs] = await Promise.all([

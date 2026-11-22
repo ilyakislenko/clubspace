@@ -59,7 +59,7 @@ class FakePlatformGateway {
 
 // The platform's contract with clubs end to end: the offer + DPA editions a
 // club owner accepts at self-serve sign-up, from the console, on the first
-// card payment or on the «Тариф» page; a new edition's grace, after which the
+// card payment or on the «Подписка ClubSpace» page; a new edition's grace, after which the
 // club's paid actions are refused until the owner — and only the owner —
 // accepts; clubs never see or touch each other's acceptance.
 describe('club legal acceptance', () => {
@@ -328,7 +328,7 @@ describe('club legal acceptance', () => {
             })
             const refused = await checkout(c.workspace.id, c.actor).expect(403)
             expect(refused.body.code).toBe('LEGAL_ACCEPTANCE_REQUIRED')
-            expect(refused.body.message).toContain('«Тариф»')
+            expect(refused.body.message).toContain('«Подписка ClubSpace»')
             const module = await ctx
                 .http()
                 .post(`/workspaces/${c.workspace.id}/billing/modules`)

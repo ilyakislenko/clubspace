@@ -13,16 +13,40 @@ import type {
 export class FakeGateway {
     created: Array<{ creds: GatewayCredentials; input: CreateGatewayPaymentInput }> = []
     refunds: Array<{ providerPaymentId: string; idempotenceKey: string }> = []
+    // Every refund call in full: amount and the 54-ФЗ receipt asked for.
+    refundRequests: Array<{
+        providerPaymentId: string
+        idempotenceKey: string
+        amount: number
+        receipt?: { customerEmail: string; itemName: string }
+    }> = []
     reads = 0
     private payments = new Map<string, GatewayPayment>()
     private seq = 0
+    // pauseRefunds(): the next refund call waits at the provider until the
+    // spec releases it, so a second request can be made to meet the first one's
+    // locks.
+    private paused: { reached: () => void; gate: Promise<void> } | null = null
 
     reset() {
         this.created = []
         this.refunds = []
+        this.refundRequests = []
         this.reads = 0
         this.payments.clear()
         this.seq = 0
+        this.paused = null
+    }
+
+    pauseRefunds(): { reached: Promise<void>; release: () => void } {
+        // Executor form: the e2e tsconfig's lib (es2022) has no
+        // Promise.withResolvers.
+        let reached: () => void = () => undefined
+        let release: () => void = () => undefined
+        const reachedP = new Promise<void>((r) => (reached = r))
+        const gate = new Promise<void>((r) => (release = r))
+        this.paused = { reached, gate }
+        return { reached: reachedP, release }
     }
 
     setStatus(providerPaymentId: string, status: GatewayPaymentStatus) {
@@ -60,11 +84,28 @@ export class FakeGateway {
 
     refund = async (
         _creds: GatewayCredentials,
-        p: { providerPaymentId: string; idempotenceKey: string },
+        p: {
+            providerPaymentId: string
+            idempotenceKey: string
+            amount: number
+            receipt?: { customerEmail: string; itemName: string }
+        },
     ) => {
+        if (this.paused) {
+            const paused = this.paused
+            this.paused = null
+            paused.reached()
+            await paused.gate
+        }
         this.refunds.push({
             providerPaymentId: p.providerPaymentId,
             idempotenceKey: p.idempotenceKey,
+        })
+        this.refundRequests.push({
+            providerPaymentId: p.providerPaymentId,
+            idempotenceKey: p.idempotenceKey,
+            amount: p.amount,
+            ...(p.receipt ? { receipt: p.receipt } : {}),
         })
     }
 

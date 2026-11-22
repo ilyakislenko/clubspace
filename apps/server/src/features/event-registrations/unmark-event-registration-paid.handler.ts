@@ -2,6 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { assertSportLead } from '../../shared/access/assert-admin-scope'
 import {
@@ -10,16 +11,19 @@ import {
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
+    UNMARK_ONLINE_MESSAGE,
+    UNMARK_REFUNDED_MESSAGE,
+} from '../../domains/payments/unmark-rules'
+import {
     UnmarkEventRegistrationPaidFeature,
     UnmarkEventRegistrationPaidFeatureResponse,
 } from './unmark-event-registration-paid.feature'
 import { serializeRegistrant } from './schemas'
 
-// Takes back a «paid» mark (a mistake, or the money was returned): the ticket
-// leaves the club's revenue. Club money — admins only, like unmarking an
-// abonement's payment. A ticket paid online is unmarked only by refunding its
-// payment (Платежи → «Вернуть»): taking the mark alone would leave the money
-// with the club and out of the revenue.
+// Takes back a «paid» mark made by mistake: the ticket leaves the club's
+// revenue. Club money — admins only, like unmarking an abonement's payment.
+// Money handed back is a refund in «Платежи», not an unmark: a ticket with a
+// refund, or one paid online, keeps its mark (domains/payments/unmark-rules).
 @Feature(UnmarkEventRegistrationPaidFeature)
 export class UnmarkEventRegistrationPaidHandler
     implements
@@ -33,6 +37,7 @@ export class UnmarkEventRegistrationPaidHandler
         private readonly rbac: RbacService,
         private readonly audit: AuditService,
         private readonly registrations: EventRegistrationService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(f: UnmarkEventRegistrationPaidFeature) {
@@ -49,16 +54,17 @@ export class UnmarkEventRegistrationPaidHandler
         if (!registration) {
             throw new NotFoundError({ message: 'Запись не найдена' })
         }
+        if (registration.isPaid && registration.refundedAmount > 0) {
+            throw new BadRequestError({ message: UNMARK_REFUNDED_MESSAGE })
+        }
         if (registration.isPaid && registration.paymentMethod === 'ONLINE') {
-            throw new BadRequestError({
-                message:
-                    'Билет оплачен онлайн — верните деньги в разделе «Абонементы → Платежи», отметка снимется сама',
-            })
+            throw new BadRequestError({ message: UNMARK_ONLINE_MESSAGE })
         }
         const unmarked = await this.prisma.eventRegistration.updateMany({
             where: {
                 id: registration.id,
                 isPaid: true,
+                refundedAmount: 0,
                 paymentMethod: { not: 'ONLINE' },
             },
             data: {
@@ -91,6 +97,8 @@ export class UnmarkEventRegistrationPaidHandler
                 },
             })
             this.registrations.invalidate(f.workspaceId)
+            // The row leaves «Платежи».
+            this.realtime.invalidate(f.workspaceId, ['payments'])
         }
         return serializeRegistrant(row, null)
     }

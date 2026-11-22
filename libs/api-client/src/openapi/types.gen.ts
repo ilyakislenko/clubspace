@@ -3173,25 +3173,6 @@ export type UpdateNotificationPreferencesOutputOutput = {
     reviewRemindersEnabled: boolean;
 };
 
-export type TelegramStatusOutputOutput = {
-    available: boolean;
-    linked: boolean;
-    enabled: boolean;
-};
-
-export type TelegramLinkOutputOutput = {
-    url: string;
-    expiresAt: string;
-};
-
-export type UpdateMyTelegramInput = {
-    enabled: boolean;
-};
-
-export type TelegramWebhookOutputOutput = {
-    ok: true;
-};
-
 export type DeleteAccountInput = {
     code: string;
 };
@@ -3237,10 +3218,6 @@ export type ExportMyDataOutputOutput = {
         createdAt: string;
         lastSeenAt: string;
     };
-    telegram: {
-        chatId: string;
-        linkedAt: string;
-    } | null;
     consents: Array<{
         kind: string;
         version: string;
@@ -4893,6 +4870,7 @@ export type EventRegistrationsOutputOutput = {
         paidAt: string | null;
         amountPaid: number | null;
         currency: string | null;
+        refundedAmount: number;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         promotedAt: string | null;
         cancelledAt: string | null;
@@ -4915,6 +4893,7 @@ export type MarkEventRegistrationPaidOutputOutput = {
     paidAt: string | null;
     amountPaid: number | null;
     currency: string | null;
+    refundedAmount: number;
     paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
     promotedAt: string | null;
     cancelledAt: string | null;
@@ -4932,6 +4911,7 @@ export type UnmarkEventRegistrationPaidOutputOutput = {
     paidAt: string | null;
     amountPaid: number | null;
     currency: string | null;
+    refundedAmount: number;
     paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
     promotedAt: string | null;
     cancelledAt: string | null;
@@ -5752,6 +5732,7 @@ export type AssignSubscriptionOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        refundedAmount: number;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5782,6 +5763,7 @@ export type MemberSubscriptionsOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        refundedAmount: number;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5822,6 +5804,7 @@ export type MemberSubscriptionsOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        refundedAmount: number;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5864,6 +5847,7 @@ export type CancelSubscriptionOutputOutput = {
     startsOnFirstVisit: boolean;
     amountPaid: number;
     currency: string;
+    refundedAmount: number;
     isPaid: boolean;
     paidAt: string | null;
     paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5896,6 +5880,7 @@ export type MarkSubscriptionPaidOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        refundedAmount: number;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5924,6 +5909,7 @@ export type UnmarkSubscriptionPaidOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        refundedAmount: number;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -5968,6 +5954,7 @@ export type FreezeSubscriptionOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        refundedAmount: number;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -6008,6 +5995,7 @@ export type EndSubscriptionFreezeOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        refundedAmount: number;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -6037,6 +6025,7 @@ export type MySubscriptionOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        refundedAmount: number;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -6092,6 +6081,7 @@ export type MySubscriptionOutputOutput = {
         startsOnFirstVisit: boolean;
         amountPaid: number;
         currency: string;
+        refundedAmount: number;
         isPaid: boolean;
         paidAt: string | null;
         paymentMethod: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
@@ -8077,51 +8067,282 @@ export type CreatePaymentOutputOutput = {
     confirmationUrl: string;
 };
 
-export type ListPaymentsOutputOutput = {
+export type ListPaymentJournalOutputOutput = {
     data: Array<{
         id: string;
-        planId: string | null;
-        planName: string;
-        eventRegistrationId: string | null;
-        provider: 'YOOKASSA' | 'STRIPE';
-        status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        kind: 'payment' | 'refund';
+        source: 'abonement' | 'ticket';
+        at: string;
         amount: number;
         currency: string;
-        subscriptionId: string | null;
-        activationError: string | null;
-        createdAt: string;
-        paidAt: string | null;
-        refundedAt: string | null;
+        method: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
         member: {
+            userId: string | null;
+            name: string;
+            isMember: boolean;
+        };
+        itemName: string;
+        subscriptionId: string | null;
+        eventRegistrationId: string | null;
+        eventId: string | null;
+        markedBy: {
             userId: string;
             name: string;
-            email: string | null;
-        };
+        } | null;
+        refundedAmount: number;
+        refundable: number;
+        online: {
+            paymentId: string;
+            provider: 'YOOKASSA' | 'STRIPE';
+            providerRef: string | null;
+            status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+            refundable: number;
+        } | null;
+        reason: string | null;
+        refundOf: {
+            id: string;
+            at: string;
+            amount: number;
+        } | null;
     }>;
     total: number;
-    page: number;
+    curPage: number;
     perPage: number;
+    totals: Array<{
+        currency: string;
+        received: number;
+        refunded: number;
+        net: number;
+        byMethod: Array<{
+            method: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | 'NONE';
+            received: number;
+            refunded: number;
+            count: number;
+        }>;
+    }>;
+    unapplied: {
+        total: number;
+        data: Array<{
+            paymentId: string;
+            at: string;
+            member: {
+                userId: string;
+                name: string;
+                isMember: boolean;
+            };
+            itemName: string;
+            amount: number;
+            refundable: number;
+            currency: string;
+            provider: 'YOOKASSA' | 'STRIPE';
+            activationError: string | null;
+        }>;
+    } | null;
 };
 
-export type RefundPaymentOutputOutput = {
+export type PaymentJournalEntryDetailOutputOutput = {
     id: string;
-    planId: string | null;
-    planName: string;
-    eventRegistrationId: string | null;
-    provider: 'YOOKASSA' | 'STRIPE';
-    status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+    kind: 'payment' | 'refund';
+    source: 'abonement' | 'ticket';
+    at: string;
     amount: number;
     currency: string;
-    subscriptionId: string | null;
-    activationError: string | null;
-    createdAt: string;
-    paidAt: string | null;
-    refundedAt: string | null;
+    method: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
     member: {
+        userId: string | null;
+        name: string;
+        isMember: boolean;
+    };
+    itemName: string;
+    subscriptionId: string | null;
+    eventRegistrationId: string | null;
+    eventId: string | null;
+    markedBy: {
         userId: string;
         name: string;
-        email: string | null;
+    } | null;
+    refundedAmount: number;
+    refundable: number;
+    online: {
+        paymentId: string;
+        provider: 'YOOKASSA' | 'STRIPE';
+        providerRef: string | null;
+        status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+        refundable: number;
+    } | null;
+    reason: string | null;
+    refundOf: {
+        id: string;
+        at: string;
+        amount: number;
+    } | null;
+    refunds: Array<{
+        id: string;
+        kind: 'payment' | 'refund';
+        source: 'abonement' | 'ticket';
+        at: string;
+        amount: number;
+        currency: string;
+        method: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        member: {
+            userId: string | null;
+            name: string;
+            isMember: boolean;
+        };
+        itemName: string;
+        subscriptionId: string | null;
+        eventRegistrationId: string | null;
+        eventId: string | null;
+        markedBy: {
+            userId: string;
+            name: string;
+        } | null;
+        refundedAmount: number;
+        refundable: number;
+        online: {
+            paymentId: string;
+            provider: 'YOOKASSA' | 'STRIPE';
+            providerRef: string | null;
+            status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+            refundable: number;
+        } | null;
+        reason: string | null;
+        refundOf: {
+            id: string;
+            at: string;
+            amount: number;
+        } | null;
+    }>;
+    memberHasCard: boolean;
+    fullRefundCancelsRegistration: boolean;
+};
+
+export type CreateRefundInput = {
+    target: 'abonement' | 'ticket' | 'unapplied';
+    targetId: string;
+    amount: number;
+    method: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE';
+    reason: string;
+};
+
+export type CreateRefundOutputOutput = {
+    refund: {
+        id: string;
+        kind: 'payment' | 'refund';
+        source: 'abonement' | 'ticket';
+        at: string;
+        amount: number;
+        currency: string;
+        method: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        member: {
+            userId: string | null;
+            name: string;
+            isMember: boolean;
+        };
+        itemName: string;
+        subscriptionId: string | null;
+        eventRegistrationId: string | null;
+        eventId: string | null;
+        markedBy: {
+            userId: string;
+            name: string;
+        } | null;
+        refundedAmount: number;
+        refundable: number;
+        online: {
+            paymentId: string;
+            provider: 'YOOKASSA' | 'STRIPE';
+            providerRef: string | null;
+            status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+            refundable: number;
+        } | null;
+        reason: string | null;
+        refundOf: {
+            id: string;
+            at: string;
+            amount: number;
+        } | null;
     };
+    sale: {
+        id: string;
+        kind: 'payment' | 'refund';
+        source: 'abonement' | 'ticket';
+        at: string;
+        amount: number;
+        currency: string;
+        method: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+        member: {
+            userId: string | null;
+            name: string;
+            isMember: boolean;
+        };
+        itemName: string;
+        subscriptionId: string | null;
+        eventRegistrationId: string | null;
+        eventId: string | null;
+        markedBy: {
+            userId: string;
+            name: string;
+        } | null;
+        refundedAmount: number;
+        refundable: number;
+        online: {
+            paymentId: string;
+            provider: 'YOOKASSA' | 'STRIPE';
+            providerRef: string | null;
+            status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+            refundable: number;
+        } | null;
+        reason: string | null;
+        refundOf: {
+            id: string;
+            at: string;
+            amount: number;
+        } | null;
+        refunds: Array<{
+            id: string;
+            kind: 'payment' | 'refund';
+            source: 'abonement' | 'ticket';
+            at: string;
+            amount: number;
+            currency: string;
+            method: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | null;
+            member: {
+                userId: string | null;
+                name: string;
+                isMember: boolean;
+            };
+            itemName: string;
+            subscriptionId: string | null;
+            eventRegistrationId: string | null;
+            eventId: string | null;
+            markedBy: {
+                userId: string;
+                name: string;
+            } | null;
+            refundedAmount: number;
+            refundable: number;
+            online: {
+                paymentId: string;
+                provider: 'YOOKASSA' | 'STRIPE';
+                providerRef: string | null;
+                status: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
+                refundable: number;
+            } | null;
+            reason: string | null;
+            refundOf: {
+                id: string;
+                at: string;
+                amount: number;
+            } | null;
+        }>;
+        memberHasCard: boolean;
+        fullRefundCancelsRegistration: boolean;
+    } | null;
+};
+
+export type DeleteRefundOutputOutput = {
+    status: 'deleted';
 };
 
 export type OnlinePurchaseOptionsOutputOutput = {
@@ -10663,71 +10884,6 @@ export type Update6Responses = {
 
 export type Update6Response = Update6Responses[keyof Update6Responses];
 
-export type UnlinkMyTelegramData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/me/telegram';
-};
-
-export type UnlinkMyTelegramResponses = {
-    default: TelegramStatusOutputOutput;
-};
-
-export type UnlinkMyTelegramResponse = UnlinkMyTelegramResponses[keyof UnlinkMyTelegramResponses];
-
-export type GetMyTelegramData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/me/telegram';
-};
-
-export type GetMyTelegramResponses = {
-    default: TelegramStatusOutputOutput;
-};
-
-export type GetMyTelegramResponse = GetMyTelegramResponses[keyof GetMyTelegramResponses];
-
-export type UpdateMyTelegramData = {
-    body: UpdateMyTelegramInput;
-    path?: never;
-    query?: never;
-    url: '/me/telegram';
-};
-
-export type UpdateMyTelegramResponses = {
-    default: TelegramStatusOutputOutput;
-};
-
-export type UpdateMyTelegramResponse = UpdateMyTelegramResponses[keyof UpdateMyTelegramResponses];
-
-export type CreateTelegramLinkData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/me/telegram/link';
-};
-
-export type CreateTelegramLinkResponses = {
-    default: TelegramLinkOutputOutput;
-};
-
-export type CreateTelegramLinkResponse = CreateTelegramLinkResponses[keyof CreateTelegramLinkResponses];
-
-export type HandleTelegramWebhookData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/telegram/webhook';
-};
-
-export type HandleTelegramWebhookResponses = {
-    default: TelegramWebhookOutputOutput;
-};
-
-export type HandleTelegramWebhookResponse = HandleTelegramWebhookResponses[keyof HandleTelegramWebhookResponses];
-
 export type DeleteMyAccountData = {
     body: DeleteAccountInput;
     path?: never;
@@ -12540,19 +12696,27 @@ export type AttendanceResponses = {
     200: unknown;
 };
 
-export type RevenueData = {
+export type PaymentsData = {
     body?: never;
     path: {
         workspaceId: string;
     };
     query?: {
+        gymId?: string;
+        directionId?: string;
+        groupId?: string;
+        coachId?: string;
         from?: string;
         to?: string;
+        method?: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | 'NONE';
+        kind?: 'all' | 'payment' | 'refund';
+        markedById?: string;
+        q?: string;
     };
-    url: '/workspaces/{workspaceId}/exports/revenue.csv';
+    url: '/workspaces/{workspaceId}/exports/payments.csv';
 };
 
-export type RevenueResponses = {
+export type PaymentsResponses = {
     200: unknown;
 };
 
@@ -13962,25 +14126,6 @@ export type CheckPaymentConnectionResponses = {
 
 export type CheckPaymentConnectionResponse = CheckPaymentConnectionResponses[keyof CheckPaymentConnectionResponses];
 
-export type ListPaymentsData = {
-    body?: never;
-    path: {
-        workspaceId: string;
-    };
-    query?: {
-        status?: 'PENDING' | 'SUCCEEDED' | 'CANCELED' | 'REFUNDED';
-        page?: number;
-        perPage?: number;
-    };
-    url: '/workspaces/{workspaceId}/payments';
-};
-
-export type ListPaymentsResponses = {
-    default: ListPaymentsOutputOutput;
-};
-
-export type ListPaymentsResponse = ListPaymentsResponses[keyof ListPaymentsResponses];
-
 export type CreatePaymentData = {
     body: CreatePaymentInput;
     path: {
@@ -13996,21 +14141,80 @@ export type CreatePaymentResponses = {
 
 export type CreatePaymentResponse = CreatePaymentResponses[keyof CreatePaymentResponses];
 
-export type RefundPaymentData = {
+export type ListPaymentJournalData = {
     body?: never;
     path: {
         workspaceId: string;
-        paymentId: string;
+    };
+    query?: {
+        gymId?: string;
+        directionId?: string;
+        groupId?: string;
+        coachId?: string;
+        from?: string;
+        to?: string;
+        method?: 'CASH' | 'TRANSFER' | 'CARD' | 'ONLINE' | 'NONE';
+        kind?: 'all' | 'payment' | 'refund';
+        markedById?: string;
+        q?: string;
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/payment-journal';
+};
+
+export type ListPaymentJournalResponses = {
+    default: ListPaymentJournalOutputOutput;
+};
+
+export type ListPaymentJournalResponse = ListPaymentJournalResponses[keyof ListPaymentJournalResponses];
+
+export type GetPaymentJournalEntryData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        entryId: string;
     };
     query?: never;
-    url: '/workspaces/{workspaceId}/payments/{paymentId}/refund';
+    url: '/workspaces/{workspaceId}/payment-journal/{entryId}';
 };
 
-export type RefundPaymentResponses = {
-    default: RefundPaymentOutputOutput;
+export type GetPaymentJournalEntryResponses = {
+    default: PaymentJournalEntryDetailOutputOutput;
 };
 
-export type RefundPaymentResponse = RefundPaymentResponses[keyof RefundPaymentResponses];
+export type GetPaymentJournalEntryResponse = GetPaymentJournalEntryResponses[keyof GetPaymentJournalEntryResponses];
+
+export type CreateRefundData = {
+    body: CreateRefundInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/refunds';
+};
+
+export type CreateRefundResponses = {
+    default: CreateRefundOutputOutput;
+};
+
+export type CreateRefundResponse = CreateRefundResponses[keyof CreateRefundResponses];
+
+export type DeleteRefundData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        refundId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/refunds/{refundId}';
+};
+
+export type DeleteRefundResponses = {
+    default: DeleteRefundOutputOutput;
+};
+
+export type DeleteRefundResponse = DeleteRefundResponses[keyof DeleteRefundResponses];
 
 export type GetOnlinePurchaseOptionsData = {
     body?: never;

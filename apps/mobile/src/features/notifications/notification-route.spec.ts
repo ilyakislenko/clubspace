@@ -30,6 +30,8 @@ describe("routeForNotification", () => {
     [{ kind: "freeze.declined" }, "MySubscription"],
     [{ kind: "event.reminder" }, "Events"],
     [{ kind: "payment.succeeded", eventRegistrationId: "reg-1" }, "Events"],
+    [{ kind: "payment.refunded", eventRegistrationId: "reg-1" }, "Events"],
+    [{ kind: "payment.refunded", subscriptionId: "sub-1" }, "MySubscription"],
     [{ kind: "retention.digest" }, "AtRiskMembers"],
     [{ kind: "classbooking.promoted" }, "MyClassBookings"],
     [{ kind: "classbooking.added" }, "MyClassBookings"],
@@ -52,6 +54,21 @@ describe("routeForNotification", () => {
   it("freeze.approved / freeze.declined open nothing while the abonement section is off", () => {
     expect(routeForNotification({ kind: "freeze.approved" }, off)).toBeNull()
     expect(routeForNotification({ kind: "freeze.declined" }, off)).toBeNull()
+  })
+
+  it("payment.refunded opens nothing without a sale, or while its section is off", () => {
+    expect(
+      routeForNotification({ kind: "payment.refunded", refundId: "r1" }, on),
+    ).toBeNull()
+    expect(
+      routeForNotification({ kind: "payment.refunded", subscriptionId: "s1" }, off),
+    ).toBeNull()
+    expect(
+      routeForNotification(
+        { kind: "payment.refunded", eventRegistrationId: "reg-1" },
+        off,
+      ),
+    ).toBeNull()
   })
 
   it("member.approved opens the Home tab", () => {

@@ -53,6 +53,8 @@ const make = (opts: { plan: object | null; userId?: string; role?: string }) => 
             count: jest.fn().mockResolvedValue(4),
             aggregate: jest.fn().mockResolvedValue({ _sum: { amountPaid: 15000 } }),
         },
+        // Refunds of this tariff's abonements made in the window.
+        refund: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 2000 } }) },
     }
     const run = (planId = PLAN) =>
         new GetPlanHandler(prisma as never, new RbacService(prisma as never)).execute(
@@ -76,13 +78,21 @@ describe('GetPlanHandler', () => {
                 endDate: '2026-11-19T00:00:00.000Z',
             }),
         ])
-        expect(out.last30Days).toEqual({ sold: 4, revenue: 15000 })
+        // Sales in the window − refunds of its abonements in the window.
+        expect(out.last30Days).toEqual({ sold: 4, revenue: 13000 })
         // Current abonements of members only; revenue in the tariff's currency.
         const held = prisma.subscription.findMany.mock.calls[0][0].where
         expect(held).toMatchObject({ workspaceId: 'w1', planId: PLAN, status: 'ACTIVE' })
         expect(held.NOT).toEqual({ workspaceMemberId: null })
         const paid = prisma.subscription.aggregate.mock.calls[0][0].where
         expect(paid).toMatchObject({ planId: PLAN, currency: 'RUB', isPaid: true })
+        const refunds = prisma.refund.aggregate.mock.calls[0][0].where
+        expect(refunds).toMatchObject({
+            workspaceId: 'w1',
+            currency: 'RUB',
+            subscription: { planId: PLAN },
+        })
+        expect(refunds.refundedAt.gte).toBeInstanceOf(Date)
         expect(prisma.subscription.count.mock.calls[0][0].where.status).toEqual({
             not: 'CANCELLED',
         })

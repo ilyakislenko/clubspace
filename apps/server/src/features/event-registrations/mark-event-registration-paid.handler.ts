@@ -2,6 +2,7 @@ import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
+import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import {
     BadRequestError,
@@ -36,6 +37,7 @@ export class MarkEventRegistrationPaidHandler
         private readonly rbac: RbacService,
         private readonly audit: AuditService,
         private readonly registrations: EventRegistrationService,
+        private readonly realtime: RealtimeEmitter,
     ) {}
 
     async execute(f: MarkEventRegistrationPaidFeature) {
@@ -130,6 +132,8 @@ export class MarkEventRegistrationPaidHandler
                 },
             })
             this.registrations.invalidate(f.workspaceId)
+            // A new row in «Платежи».
+            this.realtime.invalidate(f.workspaceId, ['payments'])
         }
         return serializeRegistrant(row, null)
     }

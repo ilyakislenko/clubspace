@@ -4,16 +4,16 @@ import {
     currentSubscriptionOrderBy,
     currentSubscriptionWhere,
 } from '../../domains/subscriptions/current-subscriptions'
-import { localDateInTz, wallClockToUtc } from '../attendance/attendance-utils'
+import { loadJournalPeople, loadJournalRows } from '../../domains/payments/journal'
+import { localDateInTz } from '../attendance/attendance-utils'
 import { PrismaService } from '../../infrastructure/prisma'
+import { RbacService } from '../../shared/services/rbac.service'
 import { toCsv } from '../../shared/utils/csv'
+import { type DayRange, localDayRange } from '../../shared/utils/local-day-range'
 import { PAYMENT_METHOD_LABELS } from '../../shared/utils/payment-method'
-import {
-    paidInRangeWhere,
-    paidOn,
-    ticketsPaidInRangeWhere,
-} from '../../domains/metrics/revenue'
 import { loadRenewalDue } from '../../domains/subscriptions/renewal-rules'
+import { resolvePaymentJournalFilter } from '../payment-journal/payment-journal-filter'
+import type { PaymentJournalFilter } from '../payment-journal/schemas'
 
 const fullName = (u: { firstname: string | null; lastname: string | null }) =>
     [u.firstname, u.lastname].filter(Boolean).join(' ').trim()
@@ -28,40 +28,12 @@ const joinCells = (values: ReadonlyArray<string | number | null>) =>
 const day = (d: Date | null | undefined, tz: string) =>
     d ? localDateInTz(d, tz) : ''
 
-// Who recorded the abonement sale: staff by hand, or the club's online checkout.
-const SUBSCRIPTION_SOURCE_LABELS = {
-    MANUAL: 'Вручную',
-    GATEWAY: 'Онлайн-оплата',
-} as const
-
-// Inclusive club-local days (YYYY-MM-DD) as the admin picks them.
-export type DayRange = { from?: string; to?: string }
-
-const nextDay = (date: string) => {
-    const d = new Date(`${date}T00:00:00Z`)
-    d.setUTCDate(d.getUTCDate() + 1)
-    return d.toISOString().slice(0, 10)
-}
-
-// The instants of those days in the club's timezone: from its first moment
-// to the last moment before the next day starts. undefined when unbounded.
-export const rangeFilter = (range: DayRange | undefined, tz: string) => {
-    if (!range?.from && !range?.to) return undefined
-    return {
-        ...(range.from ? { gte: wallClockToUtc(`${range.from}T00:00`, tz) } : {}),
-        ...(range.to
-            ? {
-                  lte: new Date(
-                      wallClockToUtc(`${nextDay(range.to)}T00:00`, tz).getTime() - 1,
-                  ),
-              }
-            : {}),
-    }
-}
-
 @Injectable()
 export class ExportService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly rbac: RbacService,
+    ) {}
 
     private async clubTz(workspaceId: string): Promise<string> {
         const workspace = await this.prisma.workspace.findUnique({
@@ -142,7 +114,7 @@ export class ExportService {
         range?: DayRange,
     ): Promise<string> {
         const tz = await this.clubTz(workspaceId)
-        const startAt = rangeFilter(range, tz)
+        const startAt = localDayRange(range, tz)
         const records = await this.prisma.attendanceRecord.findMany({
             where: {
                 workspaceId,
@@ -184,113 +156,61 @@ export class ExportService {
         )
     }
 
-    // Revenue: every PAID sale, newest payment first — for accounting. The
-    // same sales as the dashboard's revenue (revenue.ts): abonements, and the
-    // event tickets (a master class) staff marked paid — one row each, the
-    // event in the «Тариф / событие» column; unmarking a payment drops its row.
-    // Filtered, sorted and printed by the payment date (paidOn: paidAt, or the
-    // sale date on rows from before payment tracking); unpaid sales are a
-    // receivable, not revenue, and stay out. Sales to members who have since
-    // left stay in, under the buyer's name (Subscription.user).
-    async revenueCsv(workspaceId: string, range?: DayRange): Promise<string> {
-        const tz = await this.clubTz(workspaceId)
-        const paidRange = rangeFilter(range, tz)
-        const [subs, tickets] = await Promise.all([
-            this.prisma.subscription.findMany({
-                where: { workspaceId, ...paidInRangeWhere(paidRange ?? {}) },
-                select: {
-                    createdAt: true,
-                    paidAt: true,
-                    amountPaid: true,
-                    currency: true,
-                    source: true,
-                    paymentMethod: true,
-                    classesTotal: true,
-                    plan: { select: { name: true } },
-                    user: { select: { firstname: true, lastname: true, email: true } },
-                    // Rows sold before Subscription.userId existed.
-                    workspaceMember: {
-                        select: {
-                            user: {
-                                select: {
-                                    firstname: true,
-                                    lastname: true,
-                                    email: true,
-                                },
-                            },
-                        },
-                    },
-                },
-            }),
-            this.prisma.eventRegistration.findMany({
-                where: { workspaceId, ...ticketsPaidInRangeWhere(paidRange ?? {}) },
-                select: {
-                    createdAt: true,
-                    paidAt: true,
-                    amountPaid: true,
-                    currency: true,
-                    paymentMethod: true,
-                    event: { select: { title: true, currency: true } },
-                    user: { select: { firstname: true, lastname: true, email: true } },
-                },
-            }),
-        ])
+    // The payments journal as a file: every row of the «Платежи» view (same
+    // filters, same order: newest payment first), refunds negative from
+    // phase B. The same sales as the dashboard's revenue (revenue.ts) —
+    // abonements, former members' too, and paid event tickets.
+    async paymentsCsv(
+        caller: {
+            workspaceId: string
+            invokerUserId: string
+            roleName: string | null
+            isSuperAdmin: boolean
+        },
+        payload: PaymentJournalFilter,
+    ): Promise<{ csv: string; from: string; to: string }> {
+        const { filter, from, to, tz } = await resolvePaymentJournalFilter(
+            this.prisma,
+            this.rbac,
+            caller,
+            payload,
+            new Date(),
+        )
+        const rows = await loadJournalRows(this.prisma, filter)
+        const people = await loadJournalPeople(this.prisma, caller.workspaceId, rows)
 
-        const rows = [
-            ...subs.map((s) => {
-                const user = s.user ?? s.workspaceMember?.user
-                // A checkout sale from before the method was stored is still
-                // ONLINE; a hand-recorded one without it (sold before, or
-                // imported) is left empty.
-                const method =
-                    s.paymentMethod ?? (s.source === 'GATEWAY' ? 'ONLINE' : null)
-                return {
-                    on: paidOn(s),
-                    cells: [
-                        user ? fullName(user) : '',
-                        user?.email ?? '',
-                        s.plan.name,
-                        s.amountPaid,
-                        s.currency,
-                        SUBSCRIPTION_SOURCE_LABELS[s.source],
-                        s.classesTotal ?? '',
-                        'Абонемент',
-                        method ? PAYMENT_METHOD_LABELS[method] : '',
-                    ],
-                }
-            }),
-            ...tickets.map((t) => ({
-                on: paidOn(t),
-                cells: [
-                    fullName(t.user),
-                    t.user.email ?? '',
-                    t.event.title,
-                    t.amountPaid ?? 0,
-                    t.currency ?? t.event.currency,
-                    '',
-                    '',
-                    'Событие',
-                    t.paymentMethod ? PAYMENT_METHOD_LABELS[t.paymentMethod] : '',
-                ],
-            })),
-        ]
-        rows.sort((a, b) => b.on.getTime() - a.on.getTime())
-
-        return toCsv(
+        const csv = toCsv(
             [
-                'Дата оплаты',
+                'Дата',
+                'Вид',
                 'Участник',
                 'Email',
                 'Тариф / событие',
                 'Сумма',
                 'Валюта',
+                'Способ оплаты',
+                'Отметил / вернул',
+                'Причина возврата',
                 'Источник',
                 'Занятий в пакете',
-                'Вид',
-                'Способ оплаты',
             ],
-            rows.map((r) => [day(r.on, tz), ...r.cells]),
+            rows.map((r) => [
+                day(r.at, tz),
+                r.kind === 'refund' ? 'Возврат' : 'Оплата',
+                r.person ? fullName(r.person) : '',
+                r.person?.email ?? '',
+                r.itemName,
+                // A refund is money out: negative, so the column sums to the net.
+                r.kind === 'refund' ? -r.amount : r.amount,
+                r.currency,
+                r.method ? PAYMENT_METHOD_LABELS[r.method] : '',
+                r.markedById ? (people.names.get(r.markedById) ?? '') : '',
+                r.reason ?? '',
+                r.source === 'abonement' ? 'Абонемент' : 'Событие',
+                r.classesTotal ?? '',
+            ]),
         )
+        return { csv, from, to }
     }
 
     // Outreach list: the same members, in the same order, as «Удержание →

@@ -165,6 +165,9 @@ export type DemoClubPlan = {
     // Places taken and the waitlist of a paid / limited event (a master class).
     eventRegistrations: Prisma.EventRegistrationCreateManyInput[]
     subscriptions: Prisma.SubscriptionCreateManyInput[]
+    // «Возвраты»: after the sales they return money for; each one's sum is
+    // already in its sale's refundedAmount (the sale itself stays paid).
+    refunds: Prisma.RefundCreateManyInput[]
     subscriptionDirections: Prisma.SubscriptionDirectionCreateManyInput[]
     sessions: Prisma.AttendanceSessionCreateManyInput[]
     records: Prisma.AttendanceRecordCreateManyInput[]
@@ -222,6 +225,14 @@ export const demoUuid = (name: string): string => {
 export const demoPaymentMethod = (saleId: string): 'CASH' | 'TRANSFER' | 'CARD' => {
     const r = parseInt(createHash('sha256').update(`clubspace-demo:pay:${saleId}`).digest('hex').slice(0, 8), 16) % 20
     return r < 9 ? 'CARD' : r < 16 ? 'TRANSFER' : 'CASH'
+}
+
+// Who recorded a paid sale (the journal's «Отметил»): the administrator at the
+// reception for most, the owner or the senior coach for the rest. Drawn from
+// the sale's id like the method.
+export const demoPaymentMarker = (saleId: string): StaffKey => {
+    const r = parseInt(createHash('sha256').update(`clubspace-demo:marker:${saleId}`).digest('hex').slice(0, 8), 16) % 10
+    return r < 6 ? 'admin' : r < 8 ? 'owner' : TOP_COACH
 }
 
 // mulberry32 — tiny, fast and good enough for believable noise.
@@ -349,6 +360,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         events: [],
         eventRegistrations: [],
         subscriptions: [],
+        refunds: [],
         subscriptionDirections: [],
         sessions: [],
         records: [],
@@ -1493,6 +1505,39 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         if (s.remaining === 0 && renewed) s.status = 'EXPIRED'
     }
 
+    // ---- a refund ------------------------------------------------------------------
+    // «Возвраты» (docs/design/2026-11-15-payments-journal.md): a member who paid
+    // cash for an abonement got part of it back at the reception two weeks
+    // later. Chosen by rule, not by the generator's noise, so the rest of the
+    // club stays as it is: an adult nobody else's story touches, a cash sale
+    // 16–29 days old (so the refund falls in the last 30 days), the tariff
+    // closest to 4 000 ₽. The sale stays paid with its amount; only its
+    // refundedAmount rises. No online refund: the demo has no online payments.
+    const storied = new Set([...debtors, ...frozen, ...requesters, ...declined])
+    const refundFrom = now.getTime() - 29 * DAY_MS
+    const refundTo = now.getTime() - 16 * DAY_MS
+    const refunded = members
+        .filter((p) => !fixedPeople.has(p) && !storied.has(p) && p.kind === 'adult' && p.email)
+        .flatMap((p) => p.subs.map((s) => ({ p, s })))
+        .filter(
+            ({ s }) =>
+                s.isPaid &&
+                !s.pending &&
+                s.tariff.price >= 2000 &&
+                demoPaymentMethod(s.id) === 'CASH' &&
+                s.soldAt.getTime() >= refundFrom &&
+                s.soldAt.getTime() <= refundTo,
+        )
+        .sort((a, b) => Math.abs(a.s.tariff.price - 4000) - Math.abs(b.s.tariff.price - 4000) || a.p.idx - b.p.idx)[0]
+    const refund = refunded && {
+        ...refunded,
+        id: demoUuid(`refund:${refunded.s.id}`),
+        // A quarter, in whole hundreds: 1 000 of 4 000.
+        amount: Math.round(refunded.s.tariff.price / 400) * 100,
+        at: new Date(refunded.s.soldAt.getTime() + 14 * DAY_MS),
+        reason: 'Пропустил две недели по болезни — вернули часть',
+    }
+
     // ---- subscriptions as rows -------------------------------------------------
     for (const p of persons) {
         for (const s of p.subs) {
@@ -1506,10 +1551,12 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 startsOnFirstVisit: s.tariff.startsOnFirstVisit ?? false,
                 durationDays: s.tariff.days,
                 amountPaid: s.tariff.price,
+                refundedAmount: s === refund?.s ? refund.amount : 0,
                 currency: 'RUB',
                 isPaid: s.isPaid,
                 paidAt: s.isPaid ? s.soldAt : null,
                 paymentMethod: s.isPaid && s.tariff.price > 0 ? demoPaymentMethod(s.id) : null,
+                markedPaidById: s.isPaid ? staffId(demoPaymentMarker(s.id)) : null,
                 classesTotal: s.tariff.classes,
                 classesRemaining: s.remaining,
                 // Those who left keep the abonements with no member.
@@ -1522,6 +1569,22 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 plan.subscriptionDirections.push({ subscriptionId: s.id, directionId: dirId(d) })
             }
         }
+    }
+    if (refund) {
+        plan.refunds.push({
+            id: refund.id,
+            workspaceId,
+            subscriptionId: refund.s.id,
+            userId: refund.p.id,
+            itemName: refund.s.tariff.name,
+            amount: refund.amount,
+            currency: 'RUB',
+            method: 'CASH',
+            reason: refund.reason,
+            createdById: staffId('admin'),
+            refundedAt: refund.at,
+            createdAt: refund.at,
+        })
     }
 
     // ---- members, users, families ------------------------------------------------
@@ -2233,6 +2296,19 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     audit('event.create', 'event', demoUuid('event:club-meetup'), 'owner', at(ago(1), '11:00'), {
         title: 'Клубная встреча: итоги сезона',
     })
+    // As RefundService records it.
+    if (refund) {
+        audit('payment.refund', 'member', refund.p.id, 'admin', refund.at, {
+            refundId: refund.id,
+            target: 'abonement',
+            targetId: refund.s.id,
+            itemName: refund.s.tariff.name,
+            amount: refund.amount,
+            currency: 'RUB',
+            method: 'CASH',
+            reason: refund.reason,
+        })
+    }
 
     // ИИ-ассистент: the owner's Claude token (обезличено) with a few recent
     // questions in the journal, and an old ChatGPT token already revoked.

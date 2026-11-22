@@ -67,23 +67,28 @@ export const periodText = (
 
 // The payment line under «Период». `isPaid === undefined` (an old cache from
 // before payment tracking) reads as paid, like a legacy row on the server; a
-// method not recorded (or an old cache without it) is left out.
+// method not recorded (or an old cache without it) is left out. Money the club
+// returned (`refundedAmount`, 0 or missing in an old cache = none) closes the
+// line: «… · возвращено 1 000 ₽».
 export const paymentLine = (s: {
   amountPaid: number
   currency: string
   isPaid?: boolean
   paidAt?: string | null
   paymentMethod?: PaymentMethod | null
+  refundedAmount?: number
 }): SubscriptionState => {
   const amount = formatMoney(s.amountPaid, s.currency)
   if (s.isPaid === false) {
     return { text: `Ожидает оплаты: ${amount}`, tone: "warn" }
   }
+  const refunded = s.refundedAmount ?? 0
   return {
     text: [
       `Оплачено: ${amount}`,
       s.paymentMethod ? PAYMENT_METHOD_LABEL[s.paymentMethod] : null,
       s.paidAt ? fmtDate(s.paidAt) : null,
+      refunded > 0 ? `возвращено ${formatMoney(refunded, s.currency)}` : null,
     ]
       .filter(Boolean)
       .join(" · "),

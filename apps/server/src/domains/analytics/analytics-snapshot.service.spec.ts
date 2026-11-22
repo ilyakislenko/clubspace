@@ -170,6 +170,7 @@ describe('AnalyticsSnapshotService.refreshRisk', () => {
         paidAt: ago(40),
         isPaid: true,
         amountPaid: 5000,
+        refundedAmount: 0,
         currency: 'RUB',
         classesRemaining: null,
         durationDays: 30,
@@ -237,6 +238,24 @@ describe('AnalyticsSnapshotService.refreshRisk', () => {
                 update: { riskComputedAt: NOW, clubRenewalRate: null, renewalSample: 0 },
             }),
         )
+    })
+
+    // Refunds come off what the club kept: monthly spend and the forecast
+    // read net amounts, so `money_at_stake` follows.
+    it('reads spend and the forecast price net of refunds', async () => {
+        const prisma = makePrisma()
+        prisma.workspaceMember.findMany.mockResolvedValue([
+            member('part', [subRow({ refundedAmount: 2000 })]),
+            member('full', [subRow({ refundedAmount: 5000 })]),
+        ])
+
+        await new AnalyticsSnapshotService(prisma as never).refreshRisk('ws', NOW)
+
+        const rows = prisma.analyticsMemberSnapshot.createMany.mock.calls[0][0].data
+        const byUser = (id: string) => rows.find((r: { userId: string }) => r.userId === id)
+        // (5000 − 2000) over the two months since the payment.
+        expect(byUser('part')).toMatchObject({ monthlySpend: 1500, potential30: 3000 })
+        expect(byUser('full')).toMatchObject({ monthlySpend: 0, potential30: 0 })
     })
 
     it('takes the club’s renewal share over every abonement, the ones of members who left included', async () => {

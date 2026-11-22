@@ -373,27 +373,35 @@ describe('club import', () => {
         expect(empty.body.message).toContain('нет данных')
     })
 
-    it('only an admin or head coach can import, and only into their own club', async () => {
+    // Wave 1 (admin cleanup §1): import is a club-admin capability; the head
+    // coach is a sport role and is refused like a plain coach.
+    it('only a club admin can import, and only into their own club', async () => {
         const { workspace, ownerActor } = await seedClub()
         const { user: coach } = await addMember(ctx, { workspaceId: workspace.id, role: RolesEnum.COACH })
         const { user: headCoach } = await addMember(ctx, { workspaceId: workspace.id, role: RolesEnum.HEAD_COACH })
+        const { user: admin } = await addMember(ctx, { workspaceId: workspace.id, role: RolesEnum.ADMIN })
         const coachActor = await signIn(ctx, coach.email as string)
         const headActor = await signIn(ctx, headCoach.email as string)
+        const adminActor = await signIn(ctx, admin.email as string)
 
         const file = csv([['ФИО', 'E-mail'], ['Новый Ученик', 'new@example.com']])
-        await upload(coachActor, workspace.id, file).expect(403)
-        await ctx.http().get(`${base(workspace.id)}/template.csv`).set(...coachActor.auth).expect(403)
-        const mine = await upload(headActor, workspace.id, file).expect(201)
-        await ctx
-            .http()
-            .get(`${base(workspace.id)}/${mine.body.id}`)
-            .set(...coachActor.auth)
-            .expect(403)
+        for (const actor of [coachActor, headActor]) {
+            await upload(actor, workspace.id, file).expect(403)
+            await ctx.http().get(`${base(workspace.id)}/template.csv`).set(...actor.auth).expect(403)
+        }
+        const mine = await upload(adminActor, workspace.id, file).expect(201)
+        for (const actor of [coachActor, headActor]) {
+            await ctx
+                .http()
+                .get(`${base(workspace.id)}/${mine.body.id}`)
+                .set(...actor.auth)
+                .expect(403)
+        }
 
         const template = await ctx
             .http()
             .get(`${base(workspace.id)}/template.csv`)
-            .set(...headActor.auth)
+            .set(...adminActor.auth)
             .expect(200)
         expect(template.text).toContain(
             'ФИО;E-mail;Телефон;Дата рождения;E-mail родителя;ФИО родителя;Телефон родителя;Зал',

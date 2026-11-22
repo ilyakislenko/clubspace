@@ -406,9 +406,14 @@ export const actionMetaFor = (
     tone: "green",
   },
   "payment.refund": {
-    label: "Возврат платежа",
+    label: "Возврат денег",
     icon: RotateCcw,
     tone: "amber",
+  },
+  "payment.refundDelete": {
+    label: "Запись о возврате удалена",
+    icon: Trash2,
+    tone: "red",
   },
   "workspace.rotateJoinCode": {
     label: "Код клуба сменён",
@@ -568,6 +573,11 @@ export const actionMetaFor = (
   },
   "export.revenue": {
     label: "Выгрузка CSV: выручка",
+    icon: Download,
+    tone: "amber",
+  },
+  "export.payments": {
+    label: "Выгрузка CSV: платежи",
     icon: Download,
     tone: "amber",
   },
@@ -750,6 +760,15 @@ export const META_KEY_LABEL: Record<string, string> = {
   count: "Количество",
   from: "С",
   to: "По",
+  // The payments journal's filters (export.payments); `markedById` and
+  // `directionId` stay ids on the server, so they are left out.
+  method: "Способ оплаты",
+  kind: "Показывать",
+  q: "Поиск",
+  // A refund (payment.refund / payment.refundDelete); amount, currency,
+  // method, reason and provider share the labels above.
+  target: "Возврат за",
+  registrationCancelled: "Запись на событие отменена",
   lockoutMinutes: "Блокировка, мин",
   provider: "Платёжная система",
   previousProvider: "Платёжная система до",
@@ -906,6 +925,19 @@ const ENUM_LABEL: Record<string, Record<string, string>> = {
   dataMode: AI_DATA_MODE_LABEL,
   scopes: { read: "чтение", actions: "действия" },
   currency: { RUB: "₽", USD: "$", EUR: "€" },
+  method: {
+    CASH: "наличные",
+    TRANSFER: "перевод",
+    CARD: "карта в клубе",
+    ONLINE: "онлайн",
+    NONE: "не указан",
+  },
+  kind: { payment: "только оплаты", refund: "только возвраты" },
+  target: {
+    abonement: "абонемент",
+    ticket: "событие",
+    unapplied: "онлайн-оплату без зачисления",
+  },
   provider: PROVIDER_LABEL,
   previousProvider: PROVIDER_LABEL,
   dayOfWeek: { "1": "Пн", "2": "Вт", "3": "Ср", "4": "Чт", "5": "Пт", "6": "Сб", "7": "Вс" },
@@ -1076,7 +1108,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   content: "Контент",
   export: "Выгрузки",
   platform: "Платформа",
-  payment: "Онлайн-оплата",
+  payment: "Платежи",
   ai: "ИИ-ассистент",
 }
 

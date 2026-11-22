@@ -1,7 +1,7 @@
+import type { OnlinePaymentStatus } from "../../shared/api/payment-journal"
 import type {
   PaymentMode,
   PaymentProvider,
-  PaymentStatus,
   PaymentSubject,
 } from "../../shared/api/payments"
 
@@ -37,18 +37,11 @@ export const PAYMENT_MODE_LABEL: Record<PaymentMode, string> = {
   advance: "Аванс",
 }
 
-export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
+export const PAYMENT_STATUS_LABEL: Record<OnlinePaymentStatus, string> = {
   PENDING: "Ожидает оплаты",
   SUCCEEDED: "Оплачен",
   CANCELED: "Отменён",
   REFUNDED: "Возвращён",
-}
-
-export const PAYMENT_STATUS_CLASS: Record<PaymentStatus, string> = {
-  PENDING: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  SUCCEEDED: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-  CANCELED: "bg-zinc-100 text-zinc-700 ring-zinc-600/20",
-  REFUNDED: "bg-sky-50 text-sky-700 ring-sky-600/20",
 }
 
 export const formatDateTime = (iso: string): string =>

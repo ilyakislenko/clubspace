@@ -48,12 +48,10 @@ const build = (opts: {
         publicKey: opts.webPushOff ? null : 'vapid-public',
         send: opts.webSend ?? jest.fn().mockResolvedValue({ status: 'ok' }),
     }
-    const telegram = { enqueueForLinkedUsers: jest.fn().mockResolvedValue(undefined) }
     const service = new PushDeliveryService(
         prisma as never,
         expo as never,
         webPush as never,
-        telegram as never,
     )
     // Every write the call batched into its final transaction.
     const writes = () =>
@@ -61,7 +59,7 @@ const build = (opts: {
             op: string
             args: { where: Record<string, unknown>; data?: Record<string, unknown> }
         }[]
-    return { service, prisma, expo, webPush, telegram, writes }
+    return { service, prisma, expo, webPush, writes }
 }
 
 describe('PushDeliveryService.deliver', () => {
@@ -91,22 +89,6 @@ describe('PushDeliveryService.deliver', () => {
         expect(args.data).toEqual({ sent: true, sentAt: NOW })
         // A duplicate job found nothing left to claim: no send at all.
         expect(expo.send).not.toHaveBeenCalled()
-    })
-
-    it('hands every claimed row to the telegram queue, also without a device', async () => {
-        const claimed = [row('n1', 'u1'), row('n2', 'u2')]
-        const { service, telegram } = build({
-            claimed,
-            devices: [{ userId: 'u1', token: 'tokA' }],
-        })
-        await service.deliver(['n1', 'n2'], NOW)
-        expect(telegram.enqueueForLinkedUsers).toHaveBeenCalledWith(claimed)
-    })
-
-    it('hands nothing to the telegram queue when no row was claimed', async () => {
-        const { service, telegram } = build({ claimed: [] })
-        await service.deliver(['n1'], NOW)
-        expect(telegram.enqueueForLinkedUsers).not.toHaveBeenCalled()
     })
 
     it('sends one message per device and stores only the ticket ids', async () => {

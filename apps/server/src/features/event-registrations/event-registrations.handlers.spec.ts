@@ -54,6 +54,7 @@ const reg = (over: Record<string, unknown> = {}) => ({
     currency: null,
     paymentMethod: null,
     markedPaidById: null,
+    refundedAmount: 0,
     createdAt: new Date('2026-11-01T10:00:00Z'),
     user,
     ...over,
@@ -67,6 +68,7 @@ const services = () => ({
         cancelOwn: jest.fn().mockResolvedValue({ id: 'r1' }),
         withEventLock: jest.fn(),
     },
+    realtime: { invalidate: jest.fn() },
 })
 
 describe('member actions go to the service as the acting member', () => {
@@ -180,6 +182,7 @@ describe('MarkEventRegistrationPaidHandler', () => {
             r as never,
             s.audit as never,
             s.registrations as never,
+            s.realtime as never,
         ).execute(
             new MarkEventRegistrationPaidFeature(
                 { method: 'TRANSFER' },
@@ -195,7 +198,7 @@ describe('MarkEventRegistrationPaidHandler', () => {
 
     it('marks the ticket paid at the event’s price and records it', async () => {
         const p = prisma(reg({ event: event() }))
-        const { out, audit, registrations } = run(p, rbac('coach'))
+        const { out, audit, registrations, realtime } = run(p, rbac('coach'))
         expect(await out).toMatchObject({ isPaid: true, amountPaid: 1500, paymentMethod: 'TRANSFER' })
         const call = p.eventRegistration.updateMany.mock.calls[0][0]
         expect(call.where).toEqual({ id: 'r1', isPaid: false, status: 'BOOKED' })
@@ -213,6 +216,7 @@ describe('MarkEventRegistrationPaidHandler', () => {
             expect.objectContaining({ action: 'event.markRegistrationPaid', targetId: 'e1' }),
         )
         expect(registrations.invalidate).toHaveBeenCalledWith('w1')
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['payments'])
     })
 
     it('a second mark changes nothing and records nothing', async () => {
@@ -268,6 +272,7 @@ describe('UnmarkEventRegistrationPaidHandler', () => {
             r as never,
             s.audit as never,
             s.registrations as never,
+            s.realtime as never,
         ).execute(new UnmarkEventRegistrationPaidFeature('w1', 'r1', 'staff', 'coach', false))
         return { out, ...s }
     }
@@ -276,10 +281,10 @@ describe('UnmarkEventRegistrationPaidHandler', () => {
         const p = prisma()
         await expect(run(p, rbac('coach')).out).rejects.toThrow(/администратора/)
         expect(p.eventRegistration.updateMany).not.toHaveBeenCalled()
-        const { out, audit } = run(p, rbac('admin'))
+        const { out, audit, realtime } = run(p, rbac('admin'))
         expect(await out).toMatchObject({ isPaid: false, amountPaid: null })
         expect(p.eventRegistration.updateMany.mock.calls[0][0]).toEqual({
-            where: { id: 'r1', isPaid: true, paymentMethod: { not: 'ONLINE' } },
+            where: { id: 'r1', isPaid: true, refundedAmount: 0, paymentMethod: { not: 'ONLINE' } },
             data: {
                 isPaid: false,
                 paidAt: null,
@@ -292,6 +297,7 @@ describe('UnmarkEventRegistrationPaidHandler', () => {
         expect(audit.record).toHaveBeenCalledWith(
             expect.objectContaining({ action: 'event.unmarkRegistrationPaid' }),
         )
+        expect(realtime.invalidate).toHaveBeenCalledWith('w1', ['payments'])
     })
 
     it('a ticket paid online is taken back only by refunding its payment', async () => {
@@ -299,7 +305,20 @@ describe('UnmarkEventRegistrationPaidHandler', () => {
         p.eventRegistration.findFirst.mockResolvedValue(
             reg({ isPaid: true, amountPaid: 1500, currency: 'RUB', paymentMethod: 'ONLINE', event: { id: 'e1', title: 'МК' } }),
         )
-        await expect(run(p, rbac('admin')).out).rejects.toThrow(/Платежи/)
+        await expect(run(p, rbac('admin')).out).rejects.toThrow(
+            'Онлайн-оплату отменяют возвратом в «Платежах»',
+        )
+        expect(p.eventRegistration.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('a ticket with a refund keeps its mark: the refund record goes first', async () => {
+        const p = prisma()
+        p.eventRegistration.findFirst.mockResolvedValue(
+            reg({ isPaid: true, amountPaid: 1500, currency: 'RUB', paymentMethod: 'CASH', refundedAmount: 500, event: { id: 'e1', title: 'МК' } }),
+        )
+        await expect(run(p, rbac('admin')).out).rejects.toThrow(
+            'По этой оплате есть возврат — сначала удалите запись о возврате',
+        )
         expect(p.eventRegistration.updateMany).not.toHaveBeenCalled()
     })
 })

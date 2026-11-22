@@ -98,13 +98,21 @@ export const buildStripeGetCheckoutSession = (
     headers: headers(secretKey),
 })
 
-// A full refund of the session's PaymentIntent.
+// A refund of `amount` (whole units, all or part) of the session's
+// PaymentIntent.
 export const buildStripeRefund = (
     secretKey: string,
-    p: { paymentIntentId: string; paymentId: string; idempotenceKey: string },
+    p: {
+        paymentIntentId: string
+        paymentId: string
+        amount: number
+        currency: string
+        idempotenceKey: string
+    },
 ): ProviderRequest =>
     formPost(secretKey, '/refunds', p.idempotenceKey, {
         payment_intent: p.paymentIntentId,
+        amount: toMinorUnits(p.amount, p.currency),
         metadata: { paymentId: p.paymentId },
     })
 

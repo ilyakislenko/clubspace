@@ -49,6 +49,7 @@ export class MarkSubscriptionPaidHandler
             subscriptionId: f.subscriptionId,
             amount: f.payload.amount,
             paymentMethod: f.payload.method,
+            markedById: f.invokerUserId,
         })
 
         await this.audit.record({
@@ -58,13 +59,16 @@ export class MarkSubscriptionPaidHandler
             workspaceId: f.workspaceId,
             actorId: f.invokerUserId,
             metadata: {
+                subscriptionId: subscription.id,
                 planName: subscription.plan.name,
                 amount: subscription.amountPaid,
                 currency: subscription.currency,
+                method: subscription.paymentMethod,
             },
         })
 
-        this.realtime.invalidate(f.workspaceId, ['members', 'subscription'])
+        // A new row in «Платежи».
+        this.realtime.invalidate(f.workspaceId, ['members', 'subscription', 'payments'])
 
         return { subscription: serializeSubscription(subscription) }
     }

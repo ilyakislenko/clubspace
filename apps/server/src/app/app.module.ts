@@ -16,6 +16,7 @@ import { FeaturesModule } from '@shelfjs/features'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { PaymentGatewayClient } from '../domains/payments/payment-gateway.client'
 import { PaymentActivationService } from '../domains/payments/services/payment-activation.service'
+import { RefundService } from '../domains/payments/services/refund.service'
 import { CheckPaymentConnectionHandler } from '../features/online-payments/check-payment-connection.handler'
 import { CreatePaymentHandler } from '../features/online-payments/create-payment.handler'
 import { DeletePaymentSettingsHandler } from '../features/online-payments/delete-payment-settings.handler'
@@ -24,12 +25,16 @@ import { GetOnlinePurchaseOptionsHandler } from '../features/online-payments/get
 import { GetPaymentSettingsHandler } from '../features/online-payments/get-payment-settings.handler'
 import { HandleStripeWebhookHandler } from '../features/online-payments/handle-stripe-webhook.handler'
 import { HandleYookassaWebhookHandler } from '../features/online-payments/handle-yookassa-webhook.handler'
-import { ListPaymentsHandler } from '../features/online-payments/list-payments.handler'
+import { GetPaymentJournalEntryHandler } from '../features/payment-journal/get-payment-journal-entry.handler'
+import { ListPaymentJournalHandler } from '../features/payment-journal/list-payment-journal.handler'
+import { PaymentJournalController } from '../features/payment-journal/payment-journal.controller'
 import { MyPaymentsController } from '../features/online-payments/my-payments.controller'
 import { PaymentSettingsController } from '../features/online-payments/payment-settings.controller'
 import { PaymentWebhooksController } from '../features/online-payments/payment-webhooks.controller'
 import { PaymentsController } from '../features/online-payments/payments.controller'
-import { RefundPaymentHandler } from '../features/online-payments/refund-payment.handler'
+import { CreateRefundHandler } from '../features/refunds/create-refund.handler'
+import { DeleteRefundHandler } from '../features/refunds/delete-refund.handler'
+import { RefundsController } from '../features/refunds/refunds.controller'
 import { UpdatePaymentSettingsHandler } from '../features/online-payments/update-payment-settings.handler'
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod'
 import { z } from 'zod'
@@ -288,7 +293,6 @@ import { LeaderboardCacheService } from '../features/attendance-leaderboard/lead
 import { CheckInFollowUpService } from '../features/attendance/check-in-follow-up.service'
 import { RankService } from '../domains/ranks/services/rank.service'
 import { NotificationProducerModule } from '../domains/notifications/notification-producer.module'
-import { TelegramModule } from '../domains/telegram/telegram.module'
 import { RealtimeModule } from '../domains/realtime/realtime.module'
 import { RealtimeGateway } from '../domains/realtime/realtime.gateway'
 import { RanksController } from '../features/manage-ranks/ranks.controller'
@@ -406,13 +410,6 @@ import { MarkNotificationsSeenHandler } from '../features/notifications-inbox/ma
 import { NotificationPreferencesController } from '../features/notification-preferences/notification-preferences.controller'
 import { GetNotificationPreferencesHandler } from '../features/notification-preferences/get-notification-preferences.handler'
 import { UpdateNotificationPreferencesHandler } from '../features/notification-preferences/update-notification-preferences.handler'
-import { TelegramLinkController } from '../features/telegram-link/telegram-link.controller'
-import { TelegramWebhookController } from '../features/telegram-link/telegram-webhook.controller'
-import { GetMyTelegramHandler } from '../features/telegram-link/get-my-telegram.handler'
-import { CreateTelegramLinkHandler } from '../features/telegram-link/create-telegram-link.handler'
-import { UpdateMyTelegramHandler } from '../features/telegram-link/update-my-telegram.handler'
-import { UnlinkMyTelegramHandler } from '../features/telegram-link/unlink-my-telegram.handler'
-import { HandleTelegramWebhookHandler } from '../features/telegram-link/handle-telegram-webhook.handler'
 import { DeleteAccountController } from '../features/delete-account/delete-account.controller'
 import { DeleteAccountHandler } from '../features/delete-account/delete-account.handler'
 import { MyConsentController } from '../features/personal-data-consent/my-consent.controller'
@@ -808,8 +805,6 @@ const controllers: ModuleMetadata['controllers'] = [
     WebPushSubscriptionsController,
     NotificationsInboxController,
     NotificationPreferencesController,
-    TelegramLinkController,
-    TelegramWebhookController,
     DeleteAccountController,
     MyConsentController,
     ExportMyDataController,
@@ -880,6 +875,8 @@ const controllers: ModuleMetadata['controllers'] = [
     SelfServeController,
     PaymentSettingsController,
     PaymentsController,
+    PaymentJournalController,
+    RefundsController,
     MyPaymentsController,
     PaymentWebhooksController,
     // ИИ-ассистент (docs/mcp.md): tokens in the admin, the MCP endpoint.
@@ -1020,11 +1017,6 @@ const handlers: ModuleMetadata['providers'] = [
     MarkNotificationsSeenHandler,
     GetNotificationPreferencesHandler,
     UpdateNotificationPreferencesHandler,
-    GetMyTelegramHandler,
-    CreateTelegramLinkHandler,
-    UpdateMyTelegramHandler,
-    UnlinkMyTelegramHandler,
-    HandleTelegramWebhookHandler,
     DeleteAccountHandler,
     GetMyConsentHandler,
     AcceptMyConsentHandler,
@@ -1230,8 +1222,10 @@ const handlers: ModuleMetadata['providers'] = [
     UpdatePaymentSettingsHandler,
     DeletePaymentSettingsHandler,
     CheckPaymentConnectionHandler,
-    ListPaymentsHandler,
-    RefundPaymentHandler,
+    ListPaymentJournalHandler,
+    GetPaymentJournalEntryHandler,
+    CreateRefundHandler,
+    DeleteRefundHandler,
     GetOnlinePurchaseOptionsHandler,
     CreatePaymentHandler,
     GetMyPaymentHandler,
@@ -1302,8 +1296,6 @@ const domainModules: ModuleMetadata['imports'] = [
     // VideoService emit through the producer).
     RealtimeModule,
     NotificationProducerModule,
-    // The member-facing Telegram bot (linking handlers use its client).
-    TelegramModule,
     AnalyticsModule,
     BillingModule,
 ]
@@ -1356,6 +1348,7 @@ z.config(z.locales.ru())
       SubscriptionService,
       PaymentGatewayClient,
       PaymentActivationService,
+      RefundService,
       // Clubs paying ClubSpace by card (domains/billing): next to the
       // PaymentGatewayClient they share with the club payments.
       PlatformPaymentsService,

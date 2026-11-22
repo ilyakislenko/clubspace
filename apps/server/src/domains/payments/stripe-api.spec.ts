@@ -78,13 +78,25 @@ describe('Stripe request building', () => {
         const refund = buildStripeRefund('sk_test_1', {
             paymentIntentId: 'pi_1',
             paymentId: 'pay-1',
-            idempotenceKey: 'refund-pay-1',
+            amount: 1500,
+            currency: 'EUR',
+            idempotenceKey: 'refund-pay-1-0-1500',
         })
-        expect(refund.headers['Idempotency-Key']).toBe('refund-pay-1')
+        expect(refund.headers['Idempotency-Key']).toBe('refund-pay-1-0-1500')
+        // All or part: the amount in minor units.
         expect(Object.fromEntries(new URLSearchParams(refund.body!))).toEqual({
             payment_intent: 'pi_1',
+            amount: '150000',
             'metadata[paymentId]': 'pay-1',
         })
+        const yen = buildStripeRefund('sk_test_1', {
+            paymentIntentId: 'pi_1',
+            paymentId: 'pay-1',
+            amount: 1500,
+            currency: 'JPY',
+            idempotenceKey: 'k',
+        })
+        expect(new URLSearchParams(yen.body!).get('amount')).toBe('1500')
         expect(buildStripeBalance('sk_test_1').url).toBe(
             'https://api.stripe.com/v1/balance',
         )
