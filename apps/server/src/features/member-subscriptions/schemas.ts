@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { saleDiscount } from '../../domains/discounts/discount-rules'
+import { isAutopayCharge } from '../../domains/payments/journal'
 import { type PricedByNames, pricedByRef } from '../../domains/discounts/priced-by'
 import {
     PaymentMethodSchema,
@@ -52,6 +53,9 @@ export const SubscriptionOutputSchema = z.object({
     // How it was paid; null while unpaid and when not recorded («не указано»:
     // sold before the method was stored, imported, or not picked).
     paymentMethod: PaymentMethodSchema.nullable(),
+    // Paid online by the member's autopay agreement («Онлайн · автоплатёж»).
+    // Staff reads only (listMemberSubscriptions); false elsewhere.
+    paidByAutopay: z.boolean(),
     // Class-pack balance (null for a time-only tariff).
     classesTotal: z.number().int().nullable(),
     classesRemaining: z.number().int().nullable(),
@@ -152,6 +156,8 @@ export const serializeSubscription = (
         isPaid: boolean
         paidAt: Date | null
         paymentMethod: PaymentMethodValue | null
+        // The checkout that paid it (staff reads include it).
+        payment?: { autopayId: string | null; autopayConsentVersion: string | null } | null
         classesTotal: number | null
         classesRemaining: number | null
         source: string
@@ -182,6 +188,8 @@ export const serializeSubscription = (
     // A checkout sale from before the method was stored is still ONLINE.
     paymentMethod:
         s.paymentMethod ?? (s.isPaid && s.source === 'GATEWAY' ? 'ONLINE' : null),
+    // A renewal charge, not the setup purchase (which carries the consent).
+    paidByAutopay: isAutopayCharge(s.payment),
     classesTotal: s.classesTotal,
     classesRemaining: s.classesRemaining,
     source: s.source,

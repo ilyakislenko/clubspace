@@ -3,6 +3,7 @@ import { createHash } from 'crypto'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { MemberAutopayAgreementsService } from '../../domains/autopay/member-autopay-agreements.service'
 import { UserNoCompleteCodeError } from '../../domains/users/errors/users.errors'
 import { UsersService } from '../../domains/users/services/users.service'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -35,6 +36,7 @@ export class DeleteAccountHandler
         private readonly users: UsersService,
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly autopay: MemberAutopayAgreementsService,
     ) {}
 
     // Re-authentication: a stolen access token must not be enough to erase
@@ -81,6 +83,9 @@ export class DeleteAccountHandler
         })
         await consumeAccountCode(this.prisma, user.id)
 
+        // Every club's autopay stops first: the tokens are wiped before the
+        // account is de-identified (376-ФЗ, docs/design/2026-11-15-member-autopay.md §8).
+        await this.autopay.cancelForUser(null, userId, 'аккаунт удалён')
         await this.users.deleteAccount(userId)
         return { status: 'deleted' as const }
     }

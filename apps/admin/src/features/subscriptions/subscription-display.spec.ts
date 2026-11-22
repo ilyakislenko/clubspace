@@ -171,6 +171,20 @@ describe("paymentLabel", () => {
         }),
       ),
     ).toBe("Оплачено 4 000 ₽ · Онлайн")
+    expect(
+      plain(
+        paymentLabel({
+          isPaid: true,
+          paidAt: null,
+          paymentMethod: "ONLINE",
+          paidByAutopay: true,
+          amountPaid: 4000,
+          refundedAmount: 0,
+          currency: "RUB",
+          ...NO_DISCOUNT,
+        }),
+      ),
+    ).toBe("Оплачено 4 000 ₽ · Онлайн · автоплатёж")
   })
 
   it("appends the named discount and the one-off part with who set the price", () => {

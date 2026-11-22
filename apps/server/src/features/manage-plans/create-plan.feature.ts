@@ -14,6 +14,8 @@ export const CreatePlanInputSchema = z.object({
     startsOnFirstVisit: z.boolean().optional(),
     isActive: z.boolean().optional(),
     purchasableOnline: z.boolean().optional(),
+    // Needs purchasableOnline and the club's autopay setting (400 otherwise).
+    autopayAvailable: z.boolean().optional(),
     // Scope: only these directions' visits draw the abonement («БЖЖ 12
     // занятий»); several = one abonement for several directions; empty =
     // club-wide.

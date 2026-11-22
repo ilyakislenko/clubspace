@@ -26,6 +26,7 @@ import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { ProfileSwitcher } from "../children/ProfileSwitcher"
 import { OnlinePurchaseSection } from "../payments/OnlinePurchaseSection"
+import { AutopayCard } from "../subscription/AutopayCard"
 import { paymentIdFromUrl } from "../payments/payment-helpers"
 import { displayName, switchableWorkspaces } from "./switchable-workspaces"
 
@@ -119,6 +120,12 @@ export function AccessExpiredScreen() {
 
   // Paid: re-read the session — App swaps this screen out once access is back.
   const handlePaid = useCallback(() => void refresh(), [refresh])
+  // An autopay cancelled here: the purchase block offers the switch again.
+  const [paymentsReload, setPaymentsReload] = useState(0)
+  const handleAutopayChanged = useCallback(
+    () => setPaymentsReload((n) => n + 1),
+    [],
+  )
 
   return (
     <SafeAreaView style={styles.root}>
@@ -144,12 +151,21 @@ export function AccessExpiredScreen() {
           {coach.dat} или администратору клуба.
         </Text>
 
-        {/* Paying for a child's abonement isn't offered yet. */}
+        {/* Paying for a child's abonement isn't offered yet, nor autopay.
+            A lapsed member can still refuse autopay here (376-ФЗ). */}
+        {workspace && !actingAs && (
+          <AutopayCard
+            key={`autopay:${workspace.workspaceId}`}
+            workspaceId={workspace.workspaceId}
+            onChanged={handleAutopayChanged}
+          />
+        )}
         {workspace && !actingAs && (
           <OnlinePurchaseSection
             key={workspace.workspaceId}
             workspaceId={workspace.workspaceId}
             active
+            reloadKey={paymentsReload}
             initialPaymentId={launchPaymentId}
             onPaid={handlePaid}
           />

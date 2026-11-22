@@ -28,6 +28,7 @@ import { pluralRu } from "../../../../../shared/lib/plural-ru"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { confirmDialog } from "../../../../../shared/ui/confirm-dialog"
 import { formatAmount } from "../../../../../features/subscriptions/subscription-display"
+import { autopayPeople } from "../../../../../features/subscriptions/autopay-text"
 import { PlanFormSheet } from "../../../../../features/subscriptions/PlanFormSheet"
 import {
   ALL_DIRECTIONS,
@@ -106,6 +107,20 @@ export default function WorkspaceSubscriptionsPage() {
   const toggleActive = async (p: Plan) => {
     if (!workspaceId) return
     try {
+      // Archiving ends the autopay of members renewing this tariff.
+      if (p.isActive && p.autopayAvailable) {
+        const { autopayCount } = await getPlan({ workspaceId, planId: p.id })
+        if (
+          autopayCount > 0 &&
+          !(await confirmDialog({
+            title: `Автоплатёж отключится у ${autopayPeople(autopayCount)}`,
+            description: `Тариф «${p.name}» уйдёт в архив. Ученикам придёт уведомление, деньги больше не будут списываться.`,
+            confirmLabel: "В архив",
+            destructive: true,
+          }))
+        )
+          return
+      }
       await updatePlan({
         workspaceId,
         planId: p.id,

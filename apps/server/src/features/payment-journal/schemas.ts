@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { FORMER_STAFF_NAME } from '../../domains/discounts/priced-by'
 import {
+    isAutopayCharge,
     JOURNAL_KINDS,
     JOURNAL_METHODS,
     type JournalPeople,
@@ -82,6 +83,8 @@ export const PaymentJournalEntrySchema = z.object({
             // What may still go back through the provider (amount − refunded
             // while SUCCEEDED, else 0).
             refundable: z.number().int(),
+            // Charged by the member's autopay agreement («Онлайн · автоплатёж»).
+            autopay: z.boolean(),
         })
         .nullable(),
     // Refund rows only.
@@ -175,6 +178,7 @@ export const serializePaymentJournalEntry = (
                   row.online.status === 'SUCCEEDED'
                       ? Math.max(0, row.online.amount - row.online.refundedAmount)
                       : 0,
+              autopay: isAutopayCharge(row.online),
           }
         : null,
     reason: row.reason,

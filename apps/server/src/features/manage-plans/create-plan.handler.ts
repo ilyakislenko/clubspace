@@ -9,7 +9,11 @@ import {
     CreatePlanFeatureResponse,
 } from './create-plan.feature'
 import {
+    assertClubOffersAutopay,
     assertDirectionsInWorkspace,
+    AUTOPAY_MIN_DURATION_DAYS,
+    AUTOPAY_NEEDS_ONLINE_MESSAGE,
+    AUTOPAY_SHORT_TERM_MESSAGE,
     canSellOnline,
     ONLINE_FREE_PLAN_MESSAGE,
     PLAN_WRITE_REFUSAL,
@@ -46,6 +50,15 @@ export class CreatePlanHandler
         ) {
             throw new BadRequestError({ message: ONLINE_FREE_PLAN_MESSAGE })
         }
+        if (f.payload.autopayAvailable) {
+            if (!f.payload.purchasableOnline) {
+                throw new BadRequestError({ message: AUTOPAY_NEEDS_ONLINE_MESSAGE })
+            }
+            if (f.payload.durationDays < AUTOPAY_MIN_DURATION_DAYS) {
+                throw new BadRequestError({ message: AUTOPAY_SHORT_TERM_MESSAGE })
+            }
+            await assertClubOffersAutopay(this.prisma, f.workspaceId)
+        }
         const directionIds = await assertDirectionsInWorkspace(
             this.prisma,
             f.workspaceId,
@@ -65,6 +78,7 @@ export class CreatePlanHandler
                 startsOnFirstVisit: f.payload.startsOnFirstVisit ?? false,
                 isActive: f.payload.isActive ?? true,
                 purchasableOnline: f.payload.purchasableOnline ?? false,
+                autopayAvailable: f.payload.autopayAvailable ?? false,
                 directions: {
                     create: directionIds.map((directionId) => ({ directionId })),
                 },

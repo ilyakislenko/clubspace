@@ -42,13 +42,15 @@ const build = (
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const realtime = { invalidate: jest.fn(), leaveWorkspaceRoom: jest.fn() }
     const eventRegistrations = { promoteFreed: jest.fn().mockResolvedValue(undefined) }
+    const autopay = { cancelForUser: jest.fn().mockResolvedValue(0) }
     const handler = new LeaveWorkspaceHandler(
         prisma as never,
         audit as never,
         realtime as never,
         eventRegistrations as never,
+        autopay as never,
     )
-    return { handler, prisma, tx, audit, realtime, eventRegistrations }
+    return { handler, prisma, tx, audit, realtime, eventRegistrations, autopay }
 }
 
 const run = (h: LeaveWorkspaceHandler, userId = 'u1') =>
@@ -67,9 +69,10 @@ describe('leaveWorkspace', () => {
     })
 
     it('404s when the caller is not in the club', async () => {
-        const { handler, prisma } = build({ member: null })
+        const { handler, prisma, autopay } = build({ member: null })
         await expect(run(handler)).rejects.toBeInstanceOf(NotFoundError)
         expect(prisma.$transaction).not.toHaveBeenCalled()
+        expect(autopay.cancelForUser).not.toHaveBeenCalled()
     })
 
     it('refuses the primary coach of a group in this club', async () => {
@@ -127,6 +130,17 @@ describe('leaveWorkspace', () => {
         expect(eventRegistrations.promoteFreed).toHaveBeenCalledWith('w1', ['e1'])
         expect(prisma.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
             eventRegistrations.promoteFreed.mock.invocationCallOrder[0],
+        )
+    })
+
+    // docs/design/2026-11-15-member-autopay.md §1: membership ends → autopay
+    // stops (token wiped, notice), after the leave committed.
+    it('stops their autopay in this club once the leave commits', async () => {
+        const { handler, prisma, autopay } = build()
+        await run(handler)
+        expect(autopay.cancelForUser).toHaveBeenCalledWith('w1', 'u1', 'вы вышли из клуба')
+        expect(prisma.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
+            autopay.cancelForUser.mock.invocationCallOrder[0],
         )
     })
 })

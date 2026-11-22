@@ -10,6 +10,8 @@ export const PaymentJournalEntryDetailOutputSchema = PaymentJournalEntrySchema.e
     // A refund of everything still refundable cancels the registration (a
     // ticket whose place is live and whose event has not started).
     fullRefundCancelsRegistration: z.boolean(),
+    // An autopay sale: the saved card («карта •• 4444»); null otherwise.
+    cardLabel: z.string().nullable(),
 })
 
 export class GetPaymentJournalEntryFeature {

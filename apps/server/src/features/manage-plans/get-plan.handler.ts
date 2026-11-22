@@ -48,7 +48,7 @@ export class GetPlanHandler
 
         const now = new Date()
         const since = new Date(now.getTime() - 30 * DAY_MS)
-        const [held, sold, paid, refunded] = await Promise.all([
+        const [held, sold, paid, refunded, autopayCount] = await Promise.all([
             this.prisma.subscription.findMany({
                 where: {
                     workspaceId: f.workspaceId,
@@ -107,6 +107,15 @@ export class GetPlanHandler
                 },
                 _sum: { amount: true },
             }),
+            // Live autopay agreements on this tariff (the page's muted line
+            // and the form's confirmations).
+            this.prisma.memberAutopay.count({
+                where: {
+                    workspaceId: f.workspaceId,
+                    planId: plan.id,
+                    status: { in: ['ACTIVE', 'NEEDS_ACTION'] },
+                },
+            }),
         ])
 
         return {
@@ -135,6 +144,7 @@ export class GetPlanHandler
                 sold,
                 revenue: (paid._sum.amountPaid ?? 0) - (refunded._sum.amount ?? 0),
             },
+            autopayCount,
         }
     }
 }

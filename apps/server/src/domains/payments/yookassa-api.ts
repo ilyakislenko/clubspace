@@ -95,7 +95,11 @@ export const buildYookassaCreatePayment = (
             ? { payment_method_id: input.paymentMethodId }
             : {
                   confirmation: { type: 'redirect', return_url: input.returnUrl },
-                  ...(input.savePaymentMethod ? { save_payment_method: true } : {}),
+                  // Tri-state: a shop with autopay enabled offers to save the
+                  // card on every payment unless told `false`.
+                  ...(input.savePaymentMethod === undefined
+                      ? {}
+                      : { save_payment_method: input.savePaymentMethod }),
               }),
         description: clip(input.description),
         metadata: {
@@ -171,6 +175,7 @@ const YookassaPaymentSchema = z.object({
         })
         .optional(),
     cancellation_details: z.object({ reason: z.string().optional() }).optional(),
+    metadata: z.object({ paymentId: z.string().optional() }).optional(),
 })
 
 const YookassaMeSchema = z.object({
@@ -204,6 +209,7 @@ export const parseYookassaPayment = (json: unknown): GatewayPayment => {
               }
             : null,
         cancellationReason: payment.cancellation_details?.reason ?? null,
+        metadataPaymentId: payment.metadata?.paymentId ?? null,
     }
 }
 

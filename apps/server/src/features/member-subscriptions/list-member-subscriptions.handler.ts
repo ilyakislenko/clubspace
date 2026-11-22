@@ -21,6 +21,9 @@ import {
     serializeSubscriptionFreeze,
 } from './schemas'
 
+// Whether the checkout that paid it was an autopay renewal (isAutopayCharge).
+const autopayChargeSelect = { autopayId: true, autopayConsentVersion: true } as const
+
 @Feature(ListMemberSubscriptionsFeature)
 export class ListMemberSubscriptionsHandler
     implements
@@ -58,7 +61,7 @@ export class ListMemberSubscriptionsHandler
         const [subs, current, freezes, workspace] = await Promise.all([
             this.prisma.subscription.findMany({
                 where: { workspaceId: f.workspaceId, workspaceMemberId: member.id },
-                include: subscriptionDtoInclude,
+                include: { ...subscriptionDtoInclude, payment: { select: autopayChargeSelect } },
                 orderBy: [
                     { startDate: { sort: 'desc', nulls: 'first' } },
                     { createdAt: 'desc' },
@@ -72,6 +75,7 @@ export class ListMemberSubscriptionsHandler
                 },
                 include: {
                     ...subscriptionDtoInclude,
+                    payment: { select: autopayChargeSelect },
                     freezeRequests: {
                         where: { status: 'PENDING' },
                         orderBy: { createdAt: 'desc' },

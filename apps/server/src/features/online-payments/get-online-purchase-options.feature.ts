@@ -1,7 +1,11 @@
 import { z } from 'zod'
 
 import { DirectionRefSchema } from '../../domains/directions/direction-ref'
-import { MyPaymentOutputSchema, PaymentProviderSchema } from './schemas'
+import {
+    AutopayOfferOutputSchema,
+    MyPaymentOutputSchema,
+    PaymentProviderSchema,
+} from './schemas'
 
 export const OnlinePlanOutputSchema = z.object({
     id: z.string().uuid(),
@@ -19,6 +23,11 @@ export const OnlinePlanOutputSchema = z.object({
     classCount: z.number().int().nullable(),
     // Directions an abonement of this tariff may be spent on; empty = club-wide.
     directions: z.array(DirectionRefSchema),
+    // «Продлевать автоматически» may be offered: the club and the tariff allow
+    // autopay (YooKassa) and the member has no ACTIVE agreement on it. The
+    // consent's «сейчас» is `amount`; with a promo code the checkout quote
+    // carries the offer at the quoted price.
+    autopay: AutopayOfferOutputSchema.nullable(),
 })
 
 export const GetOnlinePurchaseOptionsOutputSchema = z.object({
@@ -34,6 +43,8 @@ export const GetOnlinePurchaseOptionsOutputSchema = z.object({
     renewalFrom: z.iso.date().nullable(),
     // The member's latest payment still waiting for the provider.
     pendingPayment: MyPaymentOutputSchema.nullable(),
+    // The public «Условия автоплатежа» page, set when a tariff offers autopay.
+    autopayTermsUrl: z.string().nullable(),
 })
 
 export class GetOnlinePurchaseOptionsFeature {

@@ -91,6 +91,8 @@ const prisma = {
     },
     groupMember: { findMany: jest.fn().mockResolvedValue([]) },
     groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
+    // Nobody on autopay: the «Продлить» rows carry autopay: null.
+    memberAutopay: { findMany: jest.fn().mockResolvedValue([]) },
 }
 
 const sorted = (ids: readonly string[]) => [...ids].sort()

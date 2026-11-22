@@ -1,4 +1,4 @@
-import type { PaymentStatus } from "../../shared/api/payments"
+import type { CreatePaymentInput, PaymentStatus } from "../../shared/api/payments"
 import { formatMoney, formatRuDay } from "../../shared/format-ru"
 import {
   classesWord,
@@ -231,6 +231,60 @@ export const paymentStatusLine = (p: {
       return { text: "Оплата не завершена", tone: "danger" }
     case "REFUNDED":
       return { text: "Платёж возвращён", tone: "muted" }
+  }
+}
+
+// The checkout body for a tariff. Autopay is opt-in: it is sent only when the
+// member switched it on, with the consent the screen showed — its version and
+// renewal amount (the server refuses either when stale).
+export const checkoutInput = (p: {
+  planId: string
+  promoCode?: string
+  autopay: { consentVersion: string; renewalAmount: number } | null
+}): CreatePaymentInput => ({
+  planId: p.planId,
+  ...(p.promoCode ? { promoCode: p.promoCode } : {}),
+  ...(p.autopay
+    ? {
+        autopay: true,
+        autopayConsentVersion: p.autopay.consentVersion,
+        autopayRenewalAmount: p.autopay.renewalAmount,
+      }
+    : {}),
+})
+
+// «Сейчас 3 600 ₽ · дальше 4 000 ₽» under the autopay switch: this payment and
+// each renewal (automatic discounts only — a promo code lowers just «сейчас»).
+export const autopayPriceLine = (
+  amountNow: number,
+  renewalAmount: number,
+  currency: string,
+): string =>
+  `Сейчас ${formatMoney(amountNow, currency)} · дальше ${formatMoney(renewalAmount, currency)}`
+
+// What a settled checkout did about autopay (`MyPayment.autopay`): «on» with
+// the agreement's next charge when it is known, or the card wasn't saved.
+// Null for a payment without autopay.
+export const paymentAutopayLine = (
+  autopay: "on" | "not_saved" | null,
+  next: { on: string; amount: number; kind: "term" | "pack" } | null,
+  currency: string,
+): SubscriptionState | null => {
+  if (autopay === "not_saved") {
+    return {
+      text: "Автоплатёж не подключился — платёжная система не сохранила карту. Включить его можно при следующей оплате.",
+      tone: "warn",
+    }
+  }
+  if (autopay !== "on") return null
+  if (!next) return { text: "Автоплатёж включён", tone: "ok" }
+  const money = formatMoney(next.amount, currency)
+  return {
+    text:
+      next.kind === "pack"
+        ? `Автоплатёж включён: спишем ${money}, когда закончатся занятия, но не позже ${formatRuDay(next.on)}`
+        : `Автоплатёж включён: следующее списание ${formatRuDay(next.on)} — ${money}`,
+    tone: "ok",
   }
 }
 

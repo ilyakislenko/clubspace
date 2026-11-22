@@ -18,6 +18,11 @@ const paymentRow = (over: Record<string, unknown> = {}) => ({
     discountId: null,
     discountName: null,
     discountAmount: 0,
+    autopayId: null,
+    autopayConsentVersion: null,
+    idempotenceKey: 'idem-1',
+    receiptEmail: 'member@example.com',
+    createdAt: new Date('2026-11-01T08:55:00Z'),
     ...over,
 })
 
@@ -75,6 +80,7 @@ const setup = (opts: {
             updateMany: jest
                 .fn()
                 .mockResolvedValue({ count: opts.markCount ?? 1 }),
+            findUnique: jest.fn().mockResolvedValue(null),
         },
         $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
     }
@@ -82,21 +88,39 @@ const setup = (opts: {
         grantFromPlanInTx: opts.grantError
             ? jest.fn().mockRejectedValue(opts.grantError)
             : jest.fn().mockResolvedValue({
-                  subscription: { id: 'sub-1', plan: { name: 'Безлимит' } },
+                  subscription: {
+                      id: 'sub-1',
+                      plan: { name: 'Безлимит' },
+                      startDate: new Date('2026-10-31T21:00:00Z'),
+                      endDate: new Date('2026-11-30T21:00:00Z'),
+                      durationDays: 30,
+                      classesTotal: null,
+                      classesRemaining: null,
+                  },
                   accessUntil: new Date('2026-12-01T00:00:00Z'),
               }),
     }
     const audit = { record: jest.fn() }
     const notifications = { notifyUser: jest.fn().mockResolvedValue(true) }
     const realtime = { invalidate: jest.fn() }
+    const autopay = {
+        setUpFromPaymentInTx: jest.fn().mockResolvedValue(null),
+        announceSetUp: jest.fn().mockResolvedValue(undefined),
+        onChargeSucceededInTx: jest.fn().mockResolvedValue(undefined),
+        onChargeDeclined: jest.fn().mockResolvedValue(undefined),
+        onGrantRefused: jest.fn().mockResolvedValue(undefined),
+        alertChargedAfterCancel: jest.fn().mockResolvedValue(undefined),
+    }
     const service = new PaymentActivationService(
         prisma as never,
         subscriptions as never,
         audit as never,
         notifications as never,
         realtime as never,
+        {} as never,
+        autopay as never,
     )
-    return { service, prisma, tx, subscriptions, audit, notifications, realtime }
+    return { service, prisma, tx, subscriptions, audit, notifications, realtime, autopay }
 }
 
 describe('PaymentActivationService.applyProviderStatus', () => {
@@ -360,8 +384,9 @@ describe('PaymentActivationService.applyProviderStatus', () => {
         ).toBe('canceled')
         expect(s.prisma.payment.updateMany).toHaveBeenCalledWith({
             where: { id: 'pay-1', status: 'PENDING' },
-            data: { status: 'CANCELED' },
+            data: { status: 'CANCELED', failureReason: null },
         })
+        expect(s.autopay.onChargeDeclined).not.toHaveBeenCalled()
         const again = setup({ markCount: 0 })
         expect(
             await again.service.applyProviderStatus({
@@ -399,5 +424,182 @@ describe('PaymentActivationService.applyProviderStatus', () => {
                 now,
             }),
         ).toBe('activated')
+    })
+})
+
+describe('PaymentActivationService — member autopay', () => {
+    const setupPayment = (over: Record<string, unknown> = {}) =>
+        paymentRow({ autopayConsentVersion: '2026-11-15', ...over })
+    const renewalPayment = (over: Record<string, unknown> = {}) =>
+        paymentRow({
+            autopayId: 'ap-1',
+            idempotenceKey: 'autopay:11111111-1111-4111-8111-111111111111:0',
+            ...over,
+        })
+    const saved = {
+        paymentMethod: { id: 'pm-1', saved: true, title: 'Bank card *4444', cardLast4: '4444' },
+    }
+
+    it('sets up the agreement in the claim transaction from a saved card and says the next charge', async () => {
+        const s = setup({ payment: setupPayment() })
+        s.autopay.setUpFromPaymentInTx.mockResolvedValue({
+            autopayId: 'ap-1',
+            replaced: [],
+            termsAmount: 4500,
+            currency: 'RUB',
+            cardLast4: '4444',
+        })
+        const out = await s.service.applyProviderStatus({
+            workspaceId: 'ws-1',
+            gateway: gateway(saved),
+            now,
+        })
+        expect(out).toBe('activated')
+        const [tx, payment, gw, sub, at] = s.autopay.setUpFromPaymentInTx.mock.calls[0]
+        expect(tx).toBe(s.tx)
+        expect(payment).toMatchObject({ id: 'pay-1', autopayConsentVersion: '2026-11-15' })
+        expect(gw.paymentMethod).toMatchObject({ id: 'pm-1', saved: true })
+        expect(sub).toMatchObject({ id: 'sub-1', durationDays: 30, classesTotal: null })
+        expect(at).toBe(now)
+        expect(s.autopay.announceSetUp).toHaveBeenCalled()
+        expect(s.audit.record.mock.calls[0][0].metadata).toMatchObject({
+            autopayId: 'ap-1',
+            autopay: 'setup',
+        })
+        // Ends 2026-12-01 Moscow → charged 30 ноября (S − 1).
+        expect(s.notifications.notifyUser.mock.calls[0][0].message).toBe(
+            'Абонемент «Безлимит» оформлен. Автоплатёж включён: следующее списание — 30 ноября, 4\u00a0500 ₽.',
+        )
+        expect(s.autopay.onChargeSucceededInTx).not.toHaveBeenCalled()
+    })
+
+    it('keeps the abonement and says so when nothing was saved', async () => {
+        const s = setup({ payment: setupPayment() })
+        s.autopay.setUpFromPaymentInTx.mockResolvedValue(null)
+        await s.service.applyProviderStatus({ workspaceId: 'ws-1', gateway: gateway(), now })
+        expect(s.notifications.notifyUser.mock.calls[0][0].message).toBe(
+            'Абонемент «Безлимит» оформлен. Автоплатёж не подключился — платёжная система не сохранила карту.',
+        )
+        expect(s.autopay.announceSetUp).not.toHaveBeenCalled()
+    })
+
+    it('resets a renewal charge’s agreement in the claim transaction', async () => {
+        const s = setup({ payment: renewalPayment() })
+        await s.service.applyProviderStatus({ workspaceId: 'ws-1', gateway: gateway(), now })
+        expect(s.autopay.onChargeSucceededInTx).toHaveBeenCalledWith(
+            s.tx,
+            expect.objectContaining({ id: 'pay-1', autopayId: 'ap-1', amount: 4500 }),
+            now,
+        )
+        expect(s.autopay.setUpFromPaymentInTx).not.toHaveBeenCalled()
+        expect(s.audit.record.mock.calls[0][0].metadata).toMatchObject({
+            autopayId: 'ap-1',
+            autopay: 'charge',
+        })
+        expect(s.notifications.notifyUser.mock.calls[0][0]).toMatchObject({
+            topic: 'Автоплатёж прошёл',
+            message: expect.stringContaining('Автоплатёж: списали 4\u00a0500 ₽ за абонемент «Безлимит»'),
+        })
+    })
+
+    it('stores the decline reason and counts a renewal decline once', async () => {
+        const s = setup({ payment: renewalPayment() })
+        const out = await s.service.applyProviderStatus({
+            workspaceId: 'ws-1',
+            gateway: gateway({ status: 'CANCELED', cancellationReason: 'insufficient_funds' }),
+            now,
+        })
+        expect(out).toBe('canceled')
+        expect(s.prisma.payment.updateMany).toHaveBeenCalledWith({
+            where: { id: 'pay-1', status: 'PENDING' },
+            data: { status: 'CANCELED', failureReason: 'insufficient_funds' },
+        })
+        expect(s.autopay.onChargeDeclined).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'pay-1', autopayId: 'ap-1' }),
+            'insufficient_funds',
+            now,
+        )
+        const again = setup({ payment: renewalPayment(), markCount: 0 })
+        await again.service.applyProviderStatus({
+            workspaceId: 'ws-1',
+            gateway: gateway({ status: 'CANCELED', cancellationReason: 'insufficient_funds' }),
+            now,
+        })
+        expect(again.autopay.onChargeDeclined).not.toHaveBeenCalled()
+    })
+
+    it('a canceled setup checkout is not a decline', async () => {
+        const s = setup({ payment: setupPayment() })
+        await s.service.applyProviderStatus({
+            workspaceId: 'ws-1',
+            gateway: gateway({ status: 'CANCELED' }),
+            now,
+        })
+        expect(s.autopay.onChargeDeclined).not.toHaveBeenCalled()
+    })
+
+    it('stops the agreement when a paid renewal could not be granted', async () => {
+        const s = setup({
+            payment: renewalPayment(),
+            grantError: new BadRequestError({ message: 'Абонемент уже продлён' }),
+        })
+        const out = await s.service.applyProviderStatus({
+            workspaceId: 'ws-1',
+            gateway: gateway(),
+            now,
+        })
+        expect(out).toBe('paid-not-activated')
+        expect(s.autopay.onGrantRefused).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'pay-1', autopayId: 'ap-1' }),
+            'Абонемент уже продлён',
+        )
+        const setupRefused = setup({
+            payment: setupPayment(),
+            grantError: new BadRequestError({ message: 'Абонемент уже продлён' }),
+        })
+        await setupRefused.service.applyProviderStatus({
+            workspaceId: 'ws-1',
+            gateway: gateway(saved),
+            now,
+        })
+        expect(setupRefused.autopay.onGrantRefused).not.toHaveBeenCalled()
+        expect(setupRefused.autopay.setUpFromPaymentInTx).not.toHaveBeenCalled()
+    })
+
+    it('a charge that lands after the member cancelled: granted, tailored notice, staff decide on a refund', async () => {
+        const s = setup({ payment: renewalPayment() })
+        s.autopay.onChargeSucceededInTx.mockResolvedValue('cancelled')
+        expect(await s.service.applyProviderStatus({ workspaceId: 'ws-1', gateway: gateway(), now })).toBe(
+            'activated',
+        )
+        expect(s.autopay.alertChargedAfterCancel).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'pay-1' }),
+        )
+        expect(s.notifications.notifyUser.mock.calls[0][0].message).toContain(
+            'началось до того, как вы отключили автоплатёж',
+        )
+    })
+
+    it('finds a payment whose provider id never reached us by the metadata id (guarded claim)', async () => {
+        const s = setup({ payment: null })
+        const id = '22222222-2222-4222-8222-222222222222'
+        s.prisma.payment.findUnique.mockResolvedValue(renewalPayment({ id, providerPaymentId: 'yk-9' }))
+        await s.service.applyProviderStatus({
+            workspaceId: 'ws-1',
+            gateway: gateway({ providerPaymentId: 'yk-9', metadataPaymentId: id }),
+            now,
+        })
+        expect(s.prisma.payment.updateMany).toHaveBeenCalledWith({
+            where: { id, workspaceId: 'ws-1', providerPaymentId: null },
+            data: { providerPaymentId: 'yk-9' },
+        })
+        expect(s.subscriptions.grantFromPlanInTx).toHaveBeenCalled()
+        const forged = setup({ payment: null })
+        await forged.service.applyProviderStatus({
+            workspaceId: 'ws-1',
+            gateway: gateway({ metadataPaymentId: 'not-a-uuid' }),
+            now,
+        })
+        expect(forged.prisma.payment.updateMany).not.toHaveBeenCalled()
     })
 })

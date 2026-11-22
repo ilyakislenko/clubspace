@@ -16,7 +16,7 @@ jest.mock('../../../environments/environment', () => ({
 import { environment } from '../../../environments/environment'
 import { BadRequestError, NotFoundError } from '../../../shared/errors/shared.errors'
 import { PaymentGatewayError } from '../../payments/payment-gateway.types'
-import { PlatformPaymentsService, declineReasonRu } from './platform-payments.service'
+import { PlatformPaymentsService } from './platform-payments.service'
 
 // The mocked environment, mutable per test.
 const env = environment as unknown as {
@@ -794,11 +794,5 @@ describe('PlatformPaymentsService — card, autopay, refund', () => {
             orderBy: { createdAt: 'desc' },
             take: 50,
         })
-    })
-
-    it('explains decline reasons in Russian', () => {
-        expect(declineReasonRu('card_expired')).toBe('истёк срок действия карты')
-        expect(declineReasonRu('something_new')).toBe('платёж отклонён')
-        expect(declineReasonRu(null)).toBe('платёж отклонён')
     })
 })

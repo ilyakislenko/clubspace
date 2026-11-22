@@ -30,6 +30,9 @@ export const GetPlanOutputSchema = z.object({
         // Money received, in the tariff's currency (revenue.ts rules).
         revenue: z.number().int(),
     }),
+    // Live (not cancelled) autopay agreements on the tariff
+    // (docs/design/2026-11-15-member-autopay.md §3.5).
+    autopayCount: z.number().int(),
 })
 
 export class GetPlanFeature {

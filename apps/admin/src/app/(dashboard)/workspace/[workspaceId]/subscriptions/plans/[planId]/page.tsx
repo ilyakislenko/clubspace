@@ -13,6 +13,7 @@ import {
   formatAmount,
   periodLabel,
 } from "../../../../../../../features/subscriptions/subscription-display"
+import { autopayPeople } from "../../../../../../../features/subscriptions/autopay-text"
 import {
   getPlan,
   type PlanDetails,
@@ -97,7 +98,14 @@ export default function WorkspacePlanPage() {
         "Весь клуб"
       ),
     ],
-    ["Онлайн-продажа", plan.purchasableOnline ? "Да, в приложении" : "Нет"],
+    [
+      "Онлайн-продажа",
+      !plan.purchasableOnline
+        ? "Нет"
+        : plan.autopayAvailable
+          ? "Да, в приложении, можно продлевать автоплатежом"
+          : "Да, в приложении",
+    ],
   ]
 
   return (
@@ -137,6 +145,11 @@ export default function WorkspacePlanPage() {
           </div>
         ))}
       </dl>
+      {details.autopayCount > 0 && (
+        <p className="-mt-4 text-sm text-muted-foreground">
+          Автоплатёж у {autopayPeople(details.autopayCount)}
+        </p>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Действующих абонементов" value={String(holders.length)} />

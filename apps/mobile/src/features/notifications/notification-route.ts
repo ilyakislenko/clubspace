@@ -86,6 +86,9 @@ export const routeForNotification = (
       return gated("Announcements")
     case "member.inactive":
       return gated("MyAttendance")
+    // Autopay (subscription.autopay_*): the reminder, a decline, a price
+    // change to confirm, the cancellation — the agreement's card is on
+    // «Мой абонемент».
     case "classes.low":
     case "classes.exhausted":
     case "access.expiring":
@@ -93,7 +96,15 @@ export const routeForNotification = (
     case "subscription.payment_due":
     case "freeze.approved":
     case "freeze.declined":
+    case "subscription.autopay_reminder":
+    case "subscription.autopay_failed":
+    case "subscription.autopay_terms_changed":
+    case "subscription.autopay_cancelled":
       return gated("MySubscription")
+    // Staff: a failed or stopped autopay. Handled in the admin panel; the
+    // inbox row is the notice.
+    case "subscription.autopay_staff_alert":
+      return null
     case "session.reminder":
     case "exception.notify":
     // A class moved / the weekly time changed (admin calendar drag).

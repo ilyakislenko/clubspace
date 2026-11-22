@@ -12845,6 +12845,193 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/me/autopays": {
+      "get": {
+        "operationId": "listMyAutopays",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMyAutopaysOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/me/autopays/{autopayId}/cancel": {
+      "post": {
+        "operationId": "cancelMyAutopay",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "autopayId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyAutopayOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/me/autopays/{autopayId}/accept-terms": {
+      "post": {
+        "operationId": "acceptMyAutopayTerms",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "autopayId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptMyAutopayTermsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyAutopayOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/members/{userId}/autopays": {
+      "get": {
+        "operationId": "listMemberAutopays",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMemberAutopaysOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/autopays/{autopayId}/cancel": {
+      "post": {
+        "operationId": "cancelMemberAutopay",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "autopayId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelMemberAutopayInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberAutopayOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/me/subscription/freeze-requests": {
       "post": {
         "operationId": "requestSubscriptionFreeze",
@@ -38655,6 +38842,15 @@
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                 "nullable": true
+              },
+              "autopay": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "not_saved",
+                  null
+                ],
+                "nullable": true
               }
             },
             "required": [
@@ -38670,7 +38866,8 @@
               "activationError",
               "createdAt",
               "paidAt",
-              "refundedAt"
+              "refundedAt",
+              "autopay"
             ],
             "additionalProperties": false
           },
@@ -42350,6 +42547,9 @@
           "purchasableOnline": {
             "type": "boolean"
           },
+          "autopayAvailable": {
+            "type": "boolean"
+          },
           "directionIds": {
             "default": [],
             "maxItems": 50,
@@ -42420,6 +42620,9 @@
           "purchasableOnline": {
             "type": "boolean"
           },
+          "autopayAvailable": {
+            "type": "boolean"
+          },
           "directions": {
             "type": "array",
             "items": {
@@ -42470,6 +42673,7 @@
           "startsOnFirstVisit",
           "isActive",
           "purchasableOnline",
+          "autopayAvailable",
           "directions",
           "updatedAt"
         ],
@@ -42532,6 +42736,9 @@
                 "purchasableOnline": {
                   "type": "boolean"
                 },
+                "autopayAvailable": {
+                  "type": "boolean"
+                },
                 "directions": {
                   "type": "array",
                   "items": {
@@ -42582,6 +42789,7 @@
                 "startsOnFirstVisit",
                 "isActive",
                 "purchasableOnline",
+                "autopayAvailable",
                 "directions",
                 "updatedAt"
               ],
@@ -42649,6 +42857,9 @@
               "purchasableOnline": {
                 "type": "boolean"
               },
+              "autopayAvailable": {
+                "type": "boolean"
+              },
               "directions": {
                 "type": "array",
                 "items": {
@@ -42699,6 +42910,7 @@
               "startsOnFirstVisit",
               "isActive",
               "purchasableOnline",
+              "autopayAvailable",
               "directions",
               "updatedAt"
             ],
@@ -42806,12 +43018,18 @@
               "revenue"
             ],
             "additionalProperties": false
+          },
+          "autopayCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
           "plan",
           "holders",
-          "last30Days"
+          "last30Days",
+          "autopayCount"
         ],
         "additionalProperties": false
       },
@@ -42860,6 +43078,9 @@
             "type": "boolean"
           },
           "purchasableOnline": {
+            "type": "boolean"
+          },
+          "autopayAvailable": {
             "type": "boolean"
           },
           "directionIds": {
@@ -42931,6 +43152,9 @@
           "purchasableOnline": {
             "type": "boolean"
           },
+          "autopayAvailable": {
+            "type": "boolean"
+          },
           "directions": {
             "type": "array",
             "items": {
@@ -42981,6 +43205,7 @@
           "startsOnFirstVisit",
           "isActive",
           "purchasableOnline",
+          "autopayAvailable",
           "directions",
           "updatedAt"
         ],
@@ -43150,6 +43375,30 @@
                     ],
                     "additionalProperties": false
                   }
+                },
+                "autopay": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ACTIVE",
+                        "NEEDS_ACTION"
+                      ]
+                    },
+                    "nextChargeOn": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "nextChargeOn"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
                 }
               },
               "required": [
@@ -43166,7 +43415,8 @@
                 "planId",
                 "planName",
                 "endDate",
-                "directions"
+                "directions",
+                "autopay"
               ],
               "additionalProperties": false
             }
@@ -43282,6 +43532,91 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "autopayAttention": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "autopayId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "member": {
+                      "type": "object",
+                      "properties": {
+                        "userId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "userId",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "planName": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "CHARGE_FAILED",
+                        "CARD_EXPIRED",
+                        "TERMS_CHANGED",
+                        "GRANT_REFUSED",
+                        null
+                      ],
+                      "nullable": true
+                    },
+                    "lastError": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "nextAttemptOn": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                      "nullable": true
+                    },
+                    "since": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "autopayId",
+                    "member",
+                    "planName",
+                    "reason",
+                    "lastError",
+                    "nextAttemptOn",
+                    "since"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "total",
+              "data"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -43289,7 +43624,8 @@
           "total",
           "members",
           "curPage",
-          "perPage"
+          "perPage",
+          "autopayAttention"
         ],
         "additionalProperties": false
       },
@@ -43453,6 +43789,9 @@
                 ],
                 "nullable": true
               },
+              "paidByAutopay": {
+                "type": "boolean"
+              },
               "classesTotal": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -43526,6 +43865,7 @@
               "isPaid",
               "paidAt",
               "paymentMethod",
+              "paidByAutopay",
               "classesTotal",
               "classesRemaining",
               "source",
@@ -43672,6 +44012,9 @@
                     null
                   ],
                   "nullable": true
+                },
+                "paidByAutopay": {
+                  "type": "boolean"
                 },
                 "classesTotal": {
                   "type": "integer",
@@ -43834,6 +44177,7 @@
                 "isPaid",
                 "paidAt",
                 "paymentMethod",
+                "paidByAutopay",
                 "classesTotal",
                 "classesRemaining",
                 "source",
@@ -43965,6 +44309,9 @@
                   ],
                   "nullable": true
                 },
+                "paidByAutopay": {
+                  "type": "boolean"
+                },
                 "classesTotal": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -44038,6 +44385,7 @@
                 "isPaid",
                 "paidAt",
                 "paymentMethod",
+                "paidByAutopay",
                 "classesTotal",
                 "classesRemaining",
                 "source",
@@ -44254,6 +44602,9 @@
             ],
             "nullable": true
           },
+          "paidByAutopay": {
+            "type": "boolean"
+          },
           "classesTotal": {
             "type": "integer",
             "minimum": -9007199254740991,
@@ -44327,6 +44678,7 @@
           "isPaid",
           "paidAt",
           "paymentMethod",
+          "paidByAutopay",
           "classesTotal",
           "classesRemaining",
           "source",
@@ -44479,6 +44831,9 @@
                 ],
                 "nullable": true
               },
+              "paidByAutopay": {
+                "type": "boolean"
+              },
               "classesTotal": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -44552,6 +44907,7 @@
               "isPaid",
               "paidAt",
               "paymentMethod",
+              "paidByAutopay",
               "classesTotal",
               "classesRemaining",
               "source",
@@ -44687,6 +45043,9 @@
                 ],
                 "nullable": true
               },
+              "paidByAutopay": {
+                "type": "boolean"
+              },
               "classesTotal": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -44760,6 +45119,7 @@
               "isPaid",
               "paidAt",
               "paymentMethod",
+              "paidByAutopay",
               "classesTotal",
               "classesRemaining",
               "source",
@@ -44973,6 +45333,9 @@
                 ],
                 "nullable": true
               },
+              "paidByAutopay": {
+                "type": "boolean"
+              },
               "classesTotal": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -45046,6 +45409,7 @@
               "isPaid",
               "paidAt",
               "paymentMethod",
+              "paidByAutopay",
               "classesTotal",
               "classesRemaining",
               "source",
@@ -45251,6 +45615,9 @@
                 ],
                 "nullable": true
               },
+              "paidByAutopay": {
+                "type": "boolean"
+              },
               "classesTotal": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -45324,6 +45691,7 @@
               "isPaid",
               "paidAt",
               "paymentMethod",
+              "paidByAutopay",
               "classesTotal",
               "classesRemaining",
               "source",
@@ -45469,6 +45837,9 @@
                     null
                   ],
                   "nullable": true
+                },
+                "paidByAutopay": {
+                  "type": "boolean"
                 },
                 "classesTotal": {
                   "type": "integer",
@@ -45715,6 +46086,7 @@
                 "isPaid",
                 "paidAt",
                 "paymentMethod",
+                "paidByAutopay",
                 "classesTotal",
                 "classesRemaining",
                 "source",
@@ -45847,6 +46219,9 @@
                   ],
                   "nullable": true
                 },
+                "paidByAutopay": {
+                  "type": "boolean"
+                },
                 "classesTotal": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -45920,6 +46295,7 @@
                 "isPaid",
                 "paidAt",
                 "paymentMethod",
+                "paidByAutopay",
                 "classesTotal",
                 "classesRemaining",
                 "source",
@@ -52624,6 +53000,872 @@
         ],
         "additionalProperties": false
       },
+      "ListMyAutopaysOutput_Output": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "planId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "nullable": true
+                },
+                "planName": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ACTIVE",
+                    "NEEDS_ACTION",
+                    "CANCELLED"
+                  ]
+                },
+                "needsActionReason": {
+                  "type": "string",
+                  "enum": [
+                    "CHARGE_FAILED",
+                    "CARD_EXPIRED",
+                    "TERMS_CHANGED",
+                    "GRANT_REFUSED",
+                    null
+                  ],
+                  "nullable": true
+                },
+                "cardLabel": {
+                  "type": "string"
+                },
+                "termsAmount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "termsDurationDays": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "termsClassCount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "nextCharge": {
+                  "type": "object",
+                  "properties": {
+                    "on": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                    },
+                    "amount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "term",
+                        "pack"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "on",
+                    "amount",
+                    "kind"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                },
+                "lastError": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "lastFailedOn": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "nullable": true
+                },
+                "nextAttemptOn": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "nullable": true
+                },
+                "newTerms": {
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "durationDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "classCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "nullable": true
+                    },
+                    "consentVersion": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "durationDays",
+                    "classCount",
+                    "consentVersion"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                },
+                "consentedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "cancelledAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                  "nullable": true
+                },
+                "cancelSource": {
+                  "type": "string",
+                  "enum": [
+                    "MEMBER",
+                    "STAFF",
+                    "SYSTEM",
+                    null
+                  ],
+                  "nullable": true
+                },
+                "cancelReason": {
+                  "type": "string",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "id",
+                "planId",
+                "planName",
+                "status",
+                "needsActionReason",
+                "cardLabel",
+                "termsAmount",
+                "currency",
+                "termsDurationDays",
+                "termsClassCount",
+                "nextCharge",
+                "lastError",
+                "lastFailedOn",
+                "nextAttemptOn",
+                "newTerms",
+                "consentedAt",
+                "cancelledAt",
+                "cancelSource",
+                "cancelReason"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "MyAutopayOutput_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "planId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
+          },
+          "planName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "NEEDS_ACTION",
+              "CANCELLED"
+            ]
+          },
+          "needsActionReason": {
+            "type": "string",
+            "enum": [
+              "CHARGE_FAILED",
+              "CARD_EXPIRED",
+              "TERMS_CHANGED",
+              "GRANT_REFUSED",
+              null
+            ],
+            "nullable": true
+          },
+          "cardLabel": {
+            "type": "string"
+          },
+          "termsAmount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "currency": {
+            "type": "string"
+          },
+          "termsDurationDays": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "termsClassCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
+          "nextCharge": {
+            "type": "object",
+            "properties": {
+              "on": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "amount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "term",
+                  "pack"
+                ]
+              }
+            },
+            "required": [
+              "on",
+              "amount",
+              "kind"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastFailedOn": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "nullable": true
+          },
+          "nextAttemptOn": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "nullable": true
+          },
+          "newTerms": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "durationDays": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "classCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
+              "consentVersion": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "durationDays",
+              "classCount",
+              "consentVersion"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "consentedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "nullable": true
+          },
+          "cancelSource": {
+            "type": "string",
+            "enum": [
+              "MEMBER",
+              "STAFF",
+              "SYSTEM",
+              null
+            ],
+            "nullable": true
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "planId",
+          "planName",
+          "status",
+          "needsActionReason",
+          "cardLabel",
+          "termsAmount",
+          "currency",
+          "termsDurationDays",
+          "termsClassCount",
+          "nextCharge",
+          "lastError",
+          "lastFailedOn",
+          "nextAttemptOn",
+          "newTerms",
+          "consentedAt",
+          "cancelledAt",
+          "cancelSource",
+          "cancelReason"
+        ],
+        "additionalProperties": false
+      },
+      "AcceptMyAutopayTermsInput": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000
+          },
+          "durationDays": {
+            "type": "integer",
+            "exclusiveMinimum": true,
+            "maximum": 3650,
+            "minimum": 0
+          },
+          "classCount": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1000,
+            "nullable": true
+          },
+          "consentVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "amount",
+          "durationDays",
+          "classCount",
+          "consentVersion"
+        ]
+      },
+      "ListMemberAutopaysOutput_Output": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "planId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "nullable": true
+                },
+                "planName": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ACTIVE",
+                    "NEEDS_ACTION",
+                    "CANCELLED"
+                  ]
+                },
+                "needsActionReason": {
+                  "type": "string",
+                  "enum": [
+                    "CHARGE_FAILED",
+                    "CARD_EXPIRED",
+                    "TERMS_CHANGED",
+                    "GRANT_REFUSED",
+                    null
+                  ],
+                  "nullable": true
+                },
+                "cardLabel": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "termsAmount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "termsDurationDays": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "termsClassCount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "nextCharge": {
+                  "type": "object",
+                  "properties": {
+                    "on": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                    },
+                    "amount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "nullable": true
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "term",
+                        "pack"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "on",
+                    "amount",
+                    "kind"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                },
+                "lastError": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "lastFailedOn": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "nullable": true
+                },
+                "nextAttemptOn": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "nullable": true
+                },
+                "newTerms": {
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "nullable": true
+                    },
+                    "durationDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "classCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "nullable": true
+                    },
+                    "consentVersion": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "durationDays",
+                    "classCount",
+                    "consentVersion"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                },
+                "consentedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "cancelledAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                  "nullable": true
+                },
+                "cancelSource": {
+                  "type": "string",
+                  "enum": [
+                    "MEMBER",
+                    "STAFF",
+                    "SYSTEM",
+                    null
+                  ],
+                  "nullable": true
+                },
+                "cancelReason": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "cancelledBy": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "id",
+                "planId",
+                "planName",
+                "status",
+                "needsActionReason",
+                "cardLabel",
+                "termsAmount",
+                "currency",
+                "termsDurationDays",
+                "termsClassCount",
+                "nextCharge",
+                "lastError",
+                "lastFailedOn",
+                "nextAttemptOn",
+                "newTerms",
+                "consentedAt",
+                "cancelledAt",
+                "cancelSource",
+                "cancelReason",
+                "cancelledBy",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "CancelMemberAutopayInput": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "MemberAutopayOutput_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "planId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
+          },
+          "planName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "NEEDS_ACTION",
+              "CANCELLED"
+            ]
+          },
+          "needsActionReason": {
+            "type": "string",
+            "enum": [
+              "CHARGE_FAILED",
+              "CARD_EXPIRED",
+              "TERMS_CHANGED",
+              "GRANT_REFUSED",
+              null
+            ],
+            "nullable": true
+          },
+          "cardLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "termsAmount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "termsDurationDays": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "termsClassCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
+          "nextCharge": {
+            "type": "object",
+            "properties": {
+              "on": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "amount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "term",
+                  "pack"
+                ]
+              }
+            },
+            "required": [
+              "on",
+              "amount",
+              "kind"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastFailedOn": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "nullable": true
+          },
+          "nextAttemptOn": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "nullable": true
+          },
+          "newTerms": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
+              "durationDays": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "classCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "nullable": true
+              },
+              "consentVersion": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "durationDays",
+              "classCount",
+              "consentVersion"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "consentedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "nullable": true
+          },
+          "cancelSource": {
+            "type": "string",
+            "enum": [
+              "MEMBER",
+              "STAFF",
+              "SYSTEM",
+              null
+            ],
+            "nullable": true
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "cancelledBy": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "userId",
+              "name"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "planId",
+          "planName",
+          "status",
+          "needsActionReason",
+          "cardLabel",
+          "termsAmount",
+          "currency",
+          "termsDurationDays",
+          "termsClassCount",
+          "nextCharge",
+          "lastError",
+          "lastFailedOn",
+          "nextAttemptOn",
+          "newTerms",
+          "consentedAt",
+          "cancelledAt",
+          "cancelSource",
+          "cancelReason",
+          "cancelledBy",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
       "RequestSubscriptionFreezeInput": {
         "type": "object",
         "properties": {
@@ -55769,6 +57011,27 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "autopayOffered": {
+            "type": "boolean"
+          },
+          "autopayEnabled": {
+            "type": "boolean"
+          },
+          "autopayLastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "autopayLastErrorAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "nullable": true
+          },
+          "autopayLiveCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -55783,7 +57046,12 @@
           "paymentMode",
           "verifiedAt",
           "webhookUrls",
-          "onlinePlanCount"
+          "onlinePlanCount",
+          "autopayOffered",
+          "autopayEnabled",
+          "autopayLastError",
+          "autopayLastErrorAt",
+          "autopayLiveCount"
         ],
         "additionalProperties": false
       },
@@ -55833,6 +57101,9 @@
               "full_payment",
               "advance"
             ]
+          },
+          "autopayEnabled": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -55882,6 +57153,19 @@
           "promoCode": {
             "type": "string",
             "maxLength": 40
+          },
+          "autopay": {
+            "default": false,
+            "type": "boolean"
+          },
+          "autopayConsentVersion": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "autopayRenewalAmount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000
           }
         },
         "required": [
@@ -55964,6 +57248,15 @@
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                 "nullable": true
+              },
+              "autopay": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "not_saved",
+                  null
+                ],
+                "nullable": true
               }
             },
             "required": [
@@ -55979,7 +57272,8 @@
               "activationError",
               "createdAt",
               "paidAt",
-              "refundedAt"
+              "refundedAt",
+              "autopay"
             ],
             "additionalProperties": false
           },
@@ -56147,6 +57441,9 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "autopay": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -56154,7 +57451,8 @@
                     "provider",
                     "providerRef",
                     "status",
-                    "refundable"
+                    "refundable",
+                    "autopay"
                   ],
                   "additionalProperties": false,
                   "nullable": true
@@ -56627,6 +57925,9 @@
                 "type": "integer",
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
+              },
+              "autopay": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -56634,7 +57935,8 @@
               "provider",
               "providerRef",
               "status",
-              "refundable"
+              "refundable",
+              "autopay"
             ],
             "additionalProperties": false,
             "nullable": true
@@ -56858,6 +58160,9 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "autopay": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -56865,7 +58170,8 @@
                     "provider",
                     "providerRef",
                     "status",
-                    "refundable"
+                    "refundable",
+                    "autopay"
                   ],
                   "additionalProperties": false,
                   "nullable": true
@@ -56972,6 +58278,10 @@
           },
           "fullRefundCancelsRegistration": {
             "type": "boolean"
+          },
+          "cardLabel": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -57000,7 +58310,8 @@
           "pricedBy",
           "refunds",
           "memberHasCard",
-          "fullRefundCancelsRegistration"
+          "fullRefundCancelsRegistration",
+          "cardLabel"
         ],
         "additionalProperties": false
       },
@@ -57571,6 +58882,9 @@
                     "type": "integer",
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991
+                  },
+                  "autopay": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -57578,7 +58892,8 @@
                   "provider",
                   "providerRef",
                   "status",
-                  "refundable"
+                  "refundable",
+                  "autopay"
                 ],
                 "additionalProperties": false,
                 "nullable": true
@@ -57828,6 +59143,9 @@
                     "type": "integer",
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991
+                  },
+                  "autopay": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -57835,7 +59153,8 @@
                   "provider",
                   "providerRef",
                   "status",
-                  "refundable"
+                  "refundable",
+                  "autopay"
                 ],
                 "additionalProperties": false,
                 "nullable": true
@@ -58059,6 +59378,9 @@
                           "type": "integer",
                           "minimum": -9007199254740991,
                           "maximum": 9007199254740991
+                        },
+                        "autopay": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -58066,7 +59388,8 @@
                         "provider",
                         "providerRef",
                         "status",
-                        "refundable"
+                        "refundable",
+                        "autopay"
                       ],
                       "additionalProperties": false,
                       "nullable": true
@@ -58173,6 +59496,10 @@
               },
               "fullRefundCancelsRegistration": {
                 "type": "boolean"
+              },
+              "cardLabel": {
+                "type": "string",
+                "nullable": true
               }
             },
             "required": [
@@ -58201,7 +59528,8 @@
               "pricedBy",
               "refunds",
               "memberHasCard",
-              "fullRefundCancelsRegistration"
+              "fullRefundCancelsRegistration",
+              "cardLabel"
             ],
             "additionalProperties": false,
             "nullable": true
@@ -59145,6 +60473,32 @@
                     ],
                     "additionalProperties": false
                   }
+                },
+                "autopay": {
+                  "type": "object",
+                  "properties": {
+                    "renewalAmount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "consentVersion": {
+                      "type": "string"
+                    },
+                    "consentLines": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "renewalAmount",
+                    "consentVersion",
+                    "consentLines"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
                 }
               },
               "required": [
@@ -59157,7 +60511,8 @@
                 "currency",
                 "durationDays",
                 "classCount",
-                "directions"
+                "directions",
+                "autopay"
               ],
               "additionalProperties": false
             }
@@ -59245,6 +60600,15 @@
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                 "nullable": true
+              },
+              "autopay": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "not_saved",
+                  null
+                ],
+                "nullable": true
               }
             },
             "required": [
@@ -59260,9 +60624,14 @@
               "activationError",
               "createdAt",
               "paidAt",
-              "refundedAt"
+              "refundedAt",
+              "autopay"
             ],
             "additionalProperties": false,
+            "nullable": true
+          },
+          "autopayTermsUrl": {
+            "type": "string",
             "nullable": true
           }
         },
@@ -59272,7 +60641,8 @@
           "plans",
           "blockedReason",
           "renewalFrom",
-          "pendingPayment"
+          "pendingPayment",
+          "autopayTermsUrl"
         ],
         "additionalProperties": false
       },
@@ -59324,6 +60694,32 @@
           "promoCodeNote": {
             "type": "string",
             "nullable": true
+          },
+          "autopay": {
+            "type": "object",
+            "properties": {
+              "renewalAmount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "consentVersion": {
+                "type": "string"
+              },
+              "consentLines": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "renewalAmount",
+              "consentVersion",
+              "consentLines"
+            ],
+            "additionalProperties": false,
+            "nullable": true
           }
         },
         "required": [
@@ -59331,7 +60727,8 @@
           "amount",
           "currency",
           "discount",
-          "promoCodeNote"
+          "promoCodeNote",
+          "autopay"
         ],
         "additionalProperties": false
       },
@@ -59408,6 +60805,15 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "nullable": true
+          },
+          "autopay": {
+            "type": "string",
+            "enum": [
+              "on",
+              "not_saved",
+              null
+            ],
+            "nullable": true
           }
         },
         "required": [
@@ -59423,7 +60829,8 @@
           "activationError",
           "createdAt",
           "paidAt",
-          "refundedAt"
+          "refundedAt",
+          "autopay"
         ],
         "additionalProperties": false
       },

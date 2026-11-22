@@ -82,15 +82,37 @@ describe('YooKassa request building', () => {
         expect(body.receipt).toBeUndefined()
     })
 
-    it('asks YooKassa to save the card on a redirect payment when told to', () => {
+    it('sends save_payment_method tri-state: true, false, or omitted', () => {
         const plain = JSON.parse(buildYookassaCreatePayment(creds, input).body!)
-        expect(plain.save_payment_method).toBeUndefined()
+        expect('save_payment_method' in plain).toBe(false)
         const saving = JSON.parse(
             buildYookassaCreatePayment(creds, { ...input, savePaymentMethod: true })
                 .body!,
         )
         expect(saving.save_payment_method).toBe(true)
         expect(saving.confirmation.type).toBe('redirect')
+        const noSave = JSON.parse(
+            buildYookassaCreatePayment(creds, { ...input, savePaymentMethod: false })
+                .body!,
+        )
+        expect(noSave.save_payment_method).toBe(false)
+        expect(noSave.confirmation.type).toBe('redirect')
+    })
+
+    it('charges a saved card with the 54-ФЗ receipt and our metadata', () => {
+        const body = JSON.parse(
+            buildYookassaCreatePayment(creds, {
+                ...input,
+                paymentMethodId: 'pm-7',
+            }).body!,
+        )
+        expect(body.payment_method_id).toBe('pm-7')
+        expect(body.confirmation).toBeUndefined()
+        expect(body.receipt.customer.email).toBe('member@example.com')
+        expect(body.metadata).toEqual({
+            paymentId: input.paymentId,
+            workspaceId: input.workspaceId,
+        })
     })
 
     it('charges a saved card without a confirmation step', () => {
@@ -204,7 +226,18 @@ describe('YooKassa response parsing', () => {
             currency: 'RUB',
             paymentMethod: null,
             cancellationReason: null,
+            metadataPaymentId: null,
         })
+    })
+
+    it('reads our payment id back from the metadata', () => {
+        expect(
+            parseYookassaPayment({
+                id: 'yk-2',
+                status: 'pending',
+                metadata: { paymentId: '11111111-1111-4111-8111-111111111111', workspaceId: 'ws-1' },
+            }).metadataPaymentId,
+        ).toBe('11111111-1111-4111-8111-111111111111')
     })
 
     it('reads the saved card and the reason of a refusal', () => {

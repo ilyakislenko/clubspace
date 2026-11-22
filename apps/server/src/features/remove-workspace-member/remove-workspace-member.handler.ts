@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { MemberAutopayAgreementsService } from '../../domains/autopay/member-autopay-agreements.service'
 import { EventRegistrationService } from '../../domains/event-registrations/event-registration.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -31,6 +32,7 @@ export class RemoveWorkspaceMemberHandler
         private readonly realtime: RealtimeEmitter,
         private readonly rbac: RbacService,
         private readonly eventRegistrations: EventRegistrationService,
+        private readonly autopay: MemberAutopayAgreementsService,
     ) {}
 
     async execute({
@@ -96,6 +98,9 @@ export class RemoveWorkspaceMemberHandler
             }),
         )
         await this.eventRegistrations.promoteFreed(workspaceId, freedEventIds)
+        // Autopay renews a membership that no longer exists: stop it (token
+        // wiped, the member is told).
+        await this.autopay.cancelForUser(workspaceId, userId, 'участник больше не в клубе')
 
         await this.audit.record({
             action: 'member.remove',

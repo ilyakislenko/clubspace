@@ -11,6 +11,7 @@ import {
     analyticsScopeMemberWhere,
     resolveAnalyticsScope,
 } from '../../domains/analytics/analytics-scope'
+import { loadAutopayAttention } from '../member-autopay/autopay-status'
 import {
     AWAITING_DEFAULT_PER_PAGE,
     ListAwaitingPaymentFeature,
@@ -59,7 +60,7 @@ export class ListAwaitingPaymentHandler
             ...awaitingPaymentWhere(f.workspaceId),
             ...(scope.groupIds === null ? {} : { workspaceMember: memberWhere }),
         }
-        const [total, members, subs] = await Promise.all([
+        const [total, members, subs, autopayAttention] = await Promise.all([
             this.prisma.subscription.count({ where }),
             countAwaitingPaymentMembers(this.prisma, f.workspaceId, {
                 memberWhere,
@@ -95,6 +96,7 @@ export class ListAwaitingPaymentHandler
                     },
                 },
             }),
+            loadAutopayAttention(this.prisma, { workspaceId: f.workspaceId, memberWhere }),
         ])
 
         return {
@@ -102,6 +104,7 @@ export class ListAwaitingPaymentHandler
             members,
             curPage,
             perPage,
+            autopayAttention,
             data: subs.flatMap((s) => {
                 const m = s.workspaceMember
                 if (!m) return []

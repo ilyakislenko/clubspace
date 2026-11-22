@@ -1,5 +1,9 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import {
+    autopayOffered,
+    autopayRenewalPrice,
+} from '../../domains/autopay/autopay-offer'
 import { isWorkspaceEntitled } from '../../domains/billing/module-entitlement'
 import type { SaleItem } from '../../domains/discounts/discount-rules'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -17,6 +21,7 @@ import {
     sectionDisabledError,
 } from './load-buyer'
 import { priceOnlineItem } from './price-online-item'
+import { autopayOfferView } from './autopay-offer-view'
 
 // The member's price of a tariff or of their event ticket before paying —
 // the same priceOnlineItem the checkouts charge by, so «Оплатить N ₽» is what
@@ -30,9 +35,10 @@ export class GetCheckoutQuoteHandler
 
     async execute(f: GetCheckoutQuoteFeature): Promise<GetCheckoutQuoteFeatureResponse> {
         const now = new Date()
-        const { item, timezone, pending } = f.payload.planId
+        const ctx = f.payload.planId
             ? await this.tariff(f, f.payload.planId)
             : await this.ticket(f, f.payload.registrationId as string)
+        const { item, timezone, pending } = ctx
         // The member's own open checkout of this item is the one a tap would
         // reuse: its promo use doesn't count against them.
         const recent = await this.prisma.payment.findFirst({
@@ -56,12 +62,30 @@ export class GetCheckoutQuoteHandler
             today: localDateInTz(now, timezone),
             excludePaymentId: recent?.id,
         })
+        const autopay =
+            ctx.autopay && !price.refusal
+                ? autopayOfferView({
+                      clubName: ctx.autopay.clubName,
+                      plan: ctx.autopay.plan,
+                      amountNow: price.amount,
+                      renewalAmount: (
+                          await autopayRenewalPrice(this.prisma, {
+                              workspaceId: f.workspaceId,
+                              userId: f.userId,
+                              plan: ctx.autopay.plan,
+                              now,
+                              today: localDateInTz(now, ctx.timezone),
+                          })
+                      ).amount,
+                  })
+                : null
         return {
             listPrice: price.listPrice,
             amount: price.amount,
             currency: price.currency,
             discount: price.discount,
             promoCodeNote: price.promoCodeNote,
+            autopay,
         }
     }
 
@@ -76,13 +100,38 @@ export class GetCheckoutQuoteHandler
             })
         }
         if (!member) throw new NotFoundError({ message: 'Участник не найден' })
-        const plan = await this.prisma.plan.findFirst({
-            where: { ...purchasablePlanWhere(f.workspaceId), id: planId },
-            select: { id: true, price: true, currency: true },
-        })
+        const [plan, settings] = await Promise.all([
+            this.prisma.plan.findFirst({
+                where: { ...purchasablePlanWhere(f.workspaceId), id: planId },
+                select: {
+                    id: true,
+                    name: true,
+                    price: true,
+                    currency: true,
+                    classCount: true,
+                    autopayAvailable: true,
+                },
+            }),
+            this.prisma.workspacePaymentSettings.findUnique({
+                where: { workspaceId: f.workspaceId },
+                select: { provider: true, autopayEnabled: true },
+            }),
+        ])
         if (!plan) throw new NotFoundError({ message: 'Этот тариф нельзя купить онлайн' })
         const item: SaleItem = { planId: plan.id, eventId: null, listPrice: plan.price, currency: plan.currency }
-        return { item, timezone: workspace.timezone, pending: { planId: plan.id } }
+        // An ACTIVE agreement on this tariff: the switch isn't offered again.
+        const offered =
+            autopayOffered(settings, plan) &&
+            !(await this.prisma.memberAutopay.findFirst({
+                where: { workspaceId: f.workspaceId, userId: f.userId, planId: plan.id, status: 'ACTIVE' },
+                select: { id: true },
+            }))
+        return {
+            item,
+            timezone: workspace.timezone,
+            pending: { planId: plan.id },
+            autopay: offered ? { clubName: workspace.name, plan } : null,
+        }
     }
 
     // The member's own place on a paid event (a guardian's child via act-as).
@@ -105,6 +154,7 @@ export class GetCheckoutQuoteHandler
             item,
             timezone: registration.workspace.timezone,
             pending: { eventRegistrationId: registration.id },
+            autopay: null,
         }
     }
 }

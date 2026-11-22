@@ -62,14 +62,16 @@ const build = (
         canWriteAllGroups: jest.fn().mockReturnValue(o.admin !== false),
     }
     const eventRegistrations = { promoteFreed: jest.fn().mockResolvedValue(undefined) }
+    const autopay = { cancelForUser: jest.fn().mockResolvedValue(0) }
     const handler = new RemoveWorkspaceMemberHandler(
         prisma as never,
         audit as never,
         realtime as never,
         rbac as never,
         eventRegistrations as never,
+        autopay as never,
     )
-    return { handler, prisma, realtime, eventRegistrations }
+    return { handler, prisma, realtime, eventRegistrations, autopay }
 }
 
 const run = (
@@ -199,19 +201,32 @@ describe('RemoveWorkspaceMemberHandler', () => {
         })
     })
 
+    // docs/design/2026-11-15-member-autopay.md §3.5: membership ends, autopay
+    // stops (token wiped, notice) — after the removal committed.
+    it('stops their autopay in this club once the removal commits', async () => {
+        const { handler, prisma, autopay } = build()
+        await run(handler)
+        expect(autopay.cancelForUser).toHaveBeenCalledWith('w1', 'u1', 'участник больше не в клубе')
+        expect(autopay.cancelForUser.mock.invocationCallOrder[0]).toBeGreaterThan(
+            prisma.$transaction.mock.invocationCallOrder[0],
+        )
+    })
+
     it('refuses a non-admin and deletes nothing', async () => {
-        const { handler, prisma } = build({ admin: false })
+        const { handler, prisma, autopay } = build({ admin: false })
         await expect(run(handler)).rejects.toBeInstanceOf(ForbiddenError)
         expect(prisma.dropInBooking.deleteMany).not.toHaveBeenCalled()
         expect(prisma.groupMember.deleteMany).not.toHaveBeenCalled()
         expect(prisma.personalTrainingCoach.deleteMany).not.toHaveBeenCalled()
+        expect(autopay.cancelForUser).not.toHaveBeenCalled()
     })
 
     it('404s when the user is not a member', async () => {
-        const { handler, prisma } = build({ member: false })
+        const { handler, prisma, autopay } = build({ member: false })
         await expect(run(handler)).rejects.toBeInstanceOf(NotFoundError)
         expect(prisma.dropInBooking.deleteMany).not.toHaveBeenCalled()
         expect(prisma.groupMember.deleteMany).not.toHaveBeenCalled()
+        expect(autopay.cancelForUser).not.toHaveBeenCalled()
     })
 
     describe('who removes whom', () => {

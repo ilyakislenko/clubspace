@@ -284,6 +284,14 @@ export const environment = {
         privateKey: get('WEB_PUSH_VAPID_PRIVATE_KEY').required(false).asString() || null,
         subject: get('WEB_PUSH_SUBJECT').default('mailto:support@clubspace.app').asString(),
     },
+    // Member autopay — members renew a tariff from a card saved by the club's
+    // YooKassa (docs/design/2026-11-15-member-autopay.md). Off by default:
+    // the settings checkbox is hidden, purchase options offer no autopay,
+    // checkouts refuse it and the hourly pass charges nothing. Cancelling and
+    // the member's list always work, so a refusal is never blocked.
+    memberAutopay: {
+        enabled: get('MEMBER_AUTOPAY_ENABLED').default('false').asBool(),
+    },
     // SaaS side: what clubs pay ClubSpace. `enabled: false` is a self-hosted
     // install — every module on, no trial expiry, no billing nags in the admin.
     // Collection: card payments and autopay through the platform's own

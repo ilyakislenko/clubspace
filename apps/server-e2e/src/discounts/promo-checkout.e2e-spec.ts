@@ -87,7 +87,15 @@ describe('promo code checkout', () => {
         await createDiscount(c, { name: 'Весна', value: 10, code: 'ВЕСНА', oncePerMember: true })
 
         const before = await quote(c, c.memberActor, { planId: c.plan.id }).expect(200)
-        expect(before.body).toEqual({ listPrice: 4500, amount: 4500, currency: 'RUB', discount: null, promoCodeNote: null })
+        // `autopay: null` — the tariff isn't offered with autopay here.
+        expect(before.body).toEqual({
+            listPrice: 4500,
+            amount: 4500,
+            currency: 'RUB',
+            discount: null,
+            promoCodeNote: null,
+            autopay: null,
+        })
         const q = await quote(c, c.memberActor, { planId: c.plan.id, promoCode: ' весна ' }).expect(200)
         expect(q.body).toEqual({
             listPrice: 4500,
@@ -95,6 +103,7 @@ describe('promo code checkout', () => {
             currency: 'RUB',
             discount: { name: 'Весна', code: 'ВЕСНА', isFamily: false, endsOn: null },
             promoCodeNote: null,
+            autopay: null,
         })
 
         const created = await buy(c, { planId: c.plan.id, promoCode: 'весна' }).expect(201)

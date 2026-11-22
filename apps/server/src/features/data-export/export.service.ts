@@ -13,6 +13,7 @@ import { toCsv } from '../../shared/utils/csv'
 import { type DayRange, localDayRange } from '../../shared/utils/local-day-range'
 import { PAYMENT_METHOD_LABELS } from '../../shared/utils/payment-method'
 import { loadRenewalDue } from '../../domains/subscriptions/renewal-rules'
+import { isAutopayCharge } from '../../domains/payments/journal'
 import { resolvePaymentJournalFilter } from '../payment-journal/payment-journal-filter'
 import type { PaymentJournalFilter } from '../payment-journal/schemas'
 
@@ -224,7 +225,12 @@ export class ExportService {
                     ? (people.names.get(r.pricedById) ?? FORMER_STAFF_NAME)
                     : '',
                 r.currency,
-                r.method ? PAYMENT_METHOD_LABELS[r.method] : '',
+                // An autopay renewal (docs/design/2026-11-15-member-autopay.md §7).
+                r.kind === 'payment' && isAutopayCharge(r.online)
+                    ? 'Онлайн (автоплатёж)'
+                    : r.method
+                      ? PAYMENT_METHOD_LABELS[r.method]
+                      : '',
                 r.markedById ? (people.names.get(r.markedById) ?? '') : '',
                 r.reason ?? '',
                 r.source === 'abonement' ? 'Абонемент' : 'Событие',

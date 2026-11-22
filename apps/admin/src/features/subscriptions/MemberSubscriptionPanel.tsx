@@ -60,8 +60,9 @@ import {
   renewFromForPlan,
 } from "./subscription-display"
 import { SubscriptionFreezeBlock } from "./SubscriptionFreezeBlock"
+import { MemberAutopayBlock } from "./MemberAutopayBlock"
 import { useVocabulary } from "../../shared/lib/vocabulary"
-import { isClubAdmin } from "../../shared/lib/permissions"
+import { isClubAdmin, isSportLead } from "../../shared/lib/permissions"
 import { useMyMembership } from "../../shared/lib/use-my-membership"
 import { agree, countForm, fromFirstSession } from "@clubspace/ui-kit/brand"
 
@@ -94,8 +95,11 @@ export function MemberSubscriptionPanel({
   onAssigned?: () => void
 }) {
   const vocabulary = useVocabulary()
+  const membership = useMyMembership(workspaceId)
   // Club admins open a paid abonement's payment in «Абонементы → Платежи».
-  const seesJournal = isClubAdmin(useMyMembership(workspaceId))
+  const seesJournal = isClubAdmin(membership)
+  // Autopay state is the sport leads' (renewal work); a plain coach sees none.
+  const seesAutopay = isSportLead(membership)
   const [plans, setPlans] = useState<Plan[]>([])
   const [subs, setSubs] = useState<MemberSubscriptions | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -425,6 +429,11 @@ export function MemberSubscriptionPanel({
         <ul className="divide-y divide-border rounded-md border border-border">
           {abonements.map(renderAbonement)}
         </ul>
+      )}
+
+      {/* Re-read with the abonements: cancelling one may switch its autopay off. */}
+      {seesAutopay && subs && (
+        <MemberAutopayBlock workspaceId={workspaceId} userId={userId} reloadKey={subs} />
       )}
 
       {subs && canManage && plans.length === 0 && (

@@ -18,6 +18,7 @@ import { PaymentGatewayClient } from '../../../server/src/domains/payments/payme
 import { SCHEDULER_PROCESSORS } from '../../../server/src/domains/scheduler/scheduler.processors'
 import { BillingLifecycleProcessor } from '../../../server/src/domains/billing/billing-lifecycle.processor'
 import { PlatformAutopayProcessor } from '../../../server/src/domains/billing/platform-autopay.processor'
+import { MemberAutopayProcessor } from '../../../server/src/domains/autopay/member-autopay.processor'
 import { PrismaService } from '../../../server/src/infrastructure/prisma'
 import { REDIS_CLIENT } from '../../../server/src/infrastructure/redis/redis.constants'
 import { THROTTLE_KEY_PREFIX } from '../../../server/src/infrastructure/redis/redis-throttler.storage'
@@ -209,10 +210,15 @@ export const createTestApp = async (
         getReceipts: async () => ({}),
     })
     // Same for the daily billing pass (trial → past due → suspended) and the
-    // hourly autopay pass: specs drive billing state through the console, or
-    // call BillingLifecycleService / PlatformAutopayService with a chosen
-    // `now` — never a timer.
-    for (const processor of [BillingLifecycleProcessor, PlatformAutopayProcessor]) {
+    // hourly autopay passes (the platform's and the members'): specs drive
+    // billing state through the console, or call BillingLifecycleService /
+    // PlatformAutopayService / MemberAutopayService with a chosen `now` —
+    // never a timer.
+    for (const processor of [
+        BillingLifecycleProcessor,
+        PlatformAutopayProcessor,
+        MemberAutopayProcessor,
+    ]) {
         builder = builder.overrideProvider(processor).useValue({
             onModuleInit: async () => undefined,
             process: async () => undefined,

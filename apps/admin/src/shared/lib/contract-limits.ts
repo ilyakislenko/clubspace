@@ -3,6 +3,7 @@ import {
   AskAiChatInputSchema,
   AddVideoReviewCommentInputSchema,
   AssignSubscriptionInputSchema,
+  CancelMemberAutopayInputSchema,
   CreateAiTokenInputSchema,
   CreateAchievementInputSchema,
   CreateAnnouncementInputSchema,
@@ -258,6 +259,10 @@ export const FORM_LIMITS = {
     // Also capped by what is left of the sale (RefundForm), as the server does.
     amount: int([CreateRefundInputSchema] as const, "amount"),
     reason: text([CreateRefundInputSchema] as const, "reason"),
+  },
+  // «Отключить автоплатёж» at the member's request (MemberAutopayBlock).
+  autopayCancel: {
+    reason: text([CancelMemberAutopayInputSchema] as const, "reason"),
   },
   // «Ученики → Заявки» decisions.
   joinReject: {

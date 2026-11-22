@@ -79,6 +79,8 @@ type PaymentSubscription = DiscountedSale & {
   amountPaid: number
   // Σ of the sale's refunds (0 = none).
   refundedAmount: number
+  // Paid by a renewal charge of the member's autopay (server `paidByAutopay`).
+  paidByAutopay?: boolean
 }
 
 // «Оплачено 5 000 ₽ · Наличные · 22.10.2026 · возвращено 1 000 ₽ · скидка
@@ -92,7 +94,11 @@ export const paymentLabel = (s: PaymentSubscription): string => {
   if (!s.isPaid) return [`Ожидает оплаты: ${amount}`, discount].filter(Boolean).join(" · ")
   return [
     `Оплачено ${amount}`,
-    s.paymentMethod ? PAYMENT_METHOD_LABEL[s.paymentMethod] : null,
+    s.paidByAutopay
+      ? "Онлайн · автоплатёж"
+      : s.paymentMethod
+        ? PAYMENT_METHOD_LABEL[s.paymentMethod]
+        : null,
     s.paidAt ? fmtDate(s.paidAt) : null,
     s.refundedAmount > 0 ? `возвращено ${formatAmount(s.refundedAmount, s.currency)}` : null,
     discount,

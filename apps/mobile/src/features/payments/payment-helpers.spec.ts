@@ -1,11 +1,14 @@
 import {
   PENDING_TEXT,
   POLL_WINDOW_MS,
+  autopayPriceLine,
+  checkoutInput,
   discountedPriceText,
   memberDiscountText,
   offerPrice,
   oneOffLine,
   onlinePlanOffer,
+  paymentAutopayLine,
   paymentIdFromUrl,
   paymentStatusLine,
   planPriceText,
@@ -111,6 +114,83 @@ describe("paymentStatusLine", () => {
     expect(
       paymentStatusLine({ status: "REFUNDED", activationError: null }).text,
     ).toBe("Платёж возвращён")
+  })
+})
+
+describe("checkoutInput", () => {
+  it("sends no autopay while the switch is off (the default)", () => {
+    expect(checkoutInput({ planId: "p1", autopay: null })).toEqual({
+      planId: "p1",
+    })
+    expect(
+      checkoutInput({ planId: "p1", promoCode: "OSEN", autopay: null }),
+    ).toEqual({ planId: "p1", promoCode: "OSEN" })
+  })
+
+  it("sends autopay with the consent version and renewal amount the screen showed", () => {
+    expect(
+      checkoutInput({
+        planId: "p1",
+        promoCode: "OSEN",
+        autopay: { consentVersion: "2026-11-16", renewalAmount: 4000 },
+      }),
+    ).toEqual({
+      planId: "p1",
+      promoCode: "OSEN",
+      autopay: true,
+      autopayConsentVersion: "2026-11-16",
+      autopayRenewalAmount: 4000,
+    })
+  })
+})
+
+describe("autopayPriceLine", () => {
+  it("names this payment and each renewal", () => {
+    expect(autopayPriceLine(3600, 4000, "RUB")).toBe(
+      `Сейчас ${rub("3\u202F600")} · дальше ${rub("4\u202F000")}`,
+    )
+  })
+})
+
+describe("paymentAutopayLine", () => {
+  it("is null for a payment without autopay", () => {
+    expect(paymentAutopayLine(null, null, "RUB")).toBeNull()
+  })
+
+  it("names the next charge of a term and of a pack", () => {
+    expect(
+      paymentAutopayLine(
+        "on",
+        { on: "2026-12-14", amount: 4000, kind: "term" },
+        "RUB",
+      ),
+    ).toEqual({
+      text: `Автоплатёж включён: следующее списание 14 декабря — ${rub("4\u202F000")}`,
+      tone: "ok",
+    })
+    expect(
+      paymentAutopayLine(
+        "on",
+        { on: "2026-12-14", amount: 4000, kind: "pack" },
+        "RUB",
+      )?.text,
+    ).toBe(
+      `Автоплатёж включён: спишем ${rub("4\u202F000")}, когда закончатся занятия, но не позже 14 декабря`,
+    )
+  })
+
+  it("says autopay is on while the next charge is unknown", () => {
+    expect(paymentAutopayLine("on", null, "RUB")).toEqual({
+      text: "Автоплатёж включён",
+      tone: "ok",
+    })
+  })
+
+  it("warns when the card wasn't saved", () => {
+    expect(paymentAutopayLine("not_saved", null, "RUB")).toEqual({
+      text: "Автоплатёж не подключился — платёжная система не сохранила карту. Включить его можно при следующей оплате.",
+      tone: "warn",
+    })
   })
 })
 

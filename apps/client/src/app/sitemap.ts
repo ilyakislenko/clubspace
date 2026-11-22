@@ -12,6 +12,7 @@ const PATHS: Array<{ path: string; priority: number }> = [
   { path: "/legal/privacy", priority: 0.2 },
   { path: "/legal/terms", priority: 0.2 },
   { path: "/legal/consent", priority: 0.1 },
+  { path: "/legal/autopay", priority: 0.1 },
   // For clubs as customers: the current editions (older ones stay reachable
   // at /legal/offer/<version>, /legal/dpa/<version>, not listed).
   { path: "/legal/offer", priority: 0.3 },

@@ -27,6 +27,9 @@ export const DISPATCH_LOG_RETENTION_DAYS: Record<string, number> = {
     'review.due': 7,
     'subscription.payment_due': 60,
     'subscription.first_visit_pending': 60,
+    // Once per agreement and anchor (docs/design/2026-11-15-member-autopay.md
+    // §3.6); the other autopay kinds guard one-off events and stay.
+    'subscription.autopay_reminder': 60,
 }
 
 // «Импорт клуба» runs keep the uploaded file's cells (names, e-mails, phones,

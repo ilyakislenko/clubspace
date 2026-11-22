@@ -76,12 +76,20 @@ const build = (user: unknown) => {
         }),
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
+    // Every club's autopay stops before the account is de-identified.
+    const autopay = {
+        cancelForUser: jest.fn(async () => {
+            calls.push('autopay')
+            return 1
+        }),
+    }
     const handler = new DeleteAccountHandler(
         users as never,
         prisma as never,
         audit as never,
+        autopay as never,
     )
-    return { handler, prisma, users, calls }
+    return { handler, prisma, users, calls, autopay }
 }
 
 const run = (handler: DeleteAccountHandler, code = CODE) =>
@@ -100,7 +108,7 @@ describe('DeleteAccountHandler', () => {
     })
 
     it('refuses an owner/coach before the code is checked or burnt', async () => {
-        const { handler, users, prisma } = build(account())
+        const { handler, users, prisma, autopay } = build(account())
         users.assertDeletable.mockRejectedValueOnce(
             new BadRequestError({ message: 'Передайте эти роли' }),
         )
@@ -111,6 +119,7 @@ describe('DeleteAccountHandler', () => {
         expect(prisma.user.updateMany).not.toHaveBeenCalled()
         expect(prisma.user.update).not.toHaveBeenCalled()
         expect(users.deleteAccount).not.toHaveBeenCalled()
+        expect(autopay.cancelForUser).not.toHaveBeenCalled()
     })
 
     it('refuses a wrong code and counts it like a wrong sign-in code', async () => {
@@ -154,8 +163,8 @@ describe('DeleteAccountHandler', () => {
         expect(users.deleteAccount).not.toHaveBeenCalled()
     })
 
-    it('burns the right code, then deletes the account', async () => {
-        const { handler, users, prisma, calls } = build(account())
+    it('burns the right code, stops autopay in every club, then deletes the account', async () => {
+        const { handler, users, prisma, calls, autopay } = build(account())
         await expect(run(handler)).resolves.toEqual({ status: 'deleted' })
         expect(prisma.user.update).toHaveBeenCalledWith({
             where: { id: 'user-1' },
@@ -164,8 +173,9 @@ describe('DeleteAccountHandler', () => {
                 completeCodeIssuedAt: null,
             }),
         })
+        expect(autopay.cancelForUser).toHaveBeenCalledWith(null, 'user-1', 'аккаунт удалён')
         expect(users.deleteAccount).toHaveBeenCalledWith('user-1')
-        expect(calls).toEqual(['assert', 'consume', 'delete'])
+        expect(calls).toEqual(['assert', 'consume', 'autopay', 'delete'])
     })
 
     describe('store review account', () => {

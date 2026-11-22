@@ -48,6 +48,7 @@ import {
   emptyText,
   entryAmount,
   entryDiscountNote,
+  entryMethodLabel,
   entryWhat,
   formatEntryAt,
   journalFilters,
@@ -377,7 +378,7 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
                       <div className="font-medium">{e.member.name}</div>
                       <div className="text-xs text-muted-foreground">{entryWhat(e)}</div>
                     </td>
-                    <td className="whitespace-nowrap p-3">{methodLabel(e.method)}</td>
+                    <td className="whitespace-nowrap p-3">{entryMethodLabel(e)}</td>
                     <td className="p-3">{e.markedBy?.name ?? "—"}</td>
                     <td className="whitespace-nowrap p-3 text-right">
                       <div

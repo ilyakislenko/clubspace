@@ -1010,6 +1010,12 @@ flows change; reviewer pass before merge (`.claude/agents/README.md`, `cs-review
 
 ## 9. Backlog — business gaps (owner decision required; do not start without a go)
 
+**Status 2026-11-15** (owner go: «стартуй разработку»): E1 → `2026-11-15-payments-journal.md`,
+E6 → `2026-11-15-requests-inbox.md`, E3 → `2026-11-15-discounts.md`, E2 →
+`2026-11-15-member-autopay.md` — designed, implemented, reviewed and committed on the branches
+`feat/payments-journal`, `feat/requests-inbox`, `feat/discounts`, `feat/member-autopay`. E4, E5,
+E7–E9 not started.
+
 Checked in code (UX audit section 5, stability audit «Depth»). Recommended order:
 
 | # | Capability | Now | Sketch | Size |

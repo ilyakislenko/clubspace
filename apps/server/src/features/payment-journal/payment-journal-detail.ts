@@ -1,4 +1,6 @@
+import { autopayCardLabel } from '../../domains/autopay/autopay-rules'
 import {
+    isAutopayCharge,
     fullRefundCancelsRegistration,
     loadJournalEntry,
     loadJournalPeople,
@@ -20,9 +22,17 @@ export const loadPaymentJournalDetail = async (
 ): Promise<GetPaymentJournalEntryFeatureResponse | null> => {
     const row = await loadJournalEntry(prisma, workspaceId, entryId)
     if (!row) return null
-    const [refunds, cancels] = await Promise.all([
+    // The card is shown on a renewal charge, not on the setup purchase.
+    const autopayId = isAutopayCharge(row.online) ? (row.online?.autopayId ?? null) : null
+    const [refunds, cancels, autopay] = await Promise.all([
         loadSaleRefunds(prisma, workspaceId, row),
         fullRefundCancelsRegistration(prisma, row, now),
+        autopayId
+            ? prisma.memberAutopay.findFirst({
+                  where: { id: autopayId, workspaceId },
+                  select: { cardLast4: true },
+              })
+            : null,
     ])
     const people = await loadJournalPeople(prisma, workspaceId, [row, ...refunds])
     const entry = serializePaymentJournalEntry(row, people)
@@ -31,5 +41,6 @@ export const loadPaymentJournalDetail = async (
         refunds: refunds.map((r) => serializePaymentJournalEntry(r, people)),
         memberHasCard: entry.member.isMember,
         fullRefundCancelsRegistration: cancels,
+        cardLabel: autopay ? autopayCardLabel(autopay.cardLast4) : null,
     }
 }
