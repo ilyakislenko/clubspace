@@ -13,9 +13,11 @@ import type { MyConsent } from "../../shared/api/consent"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { CenteredColumn, READABLE_WIDTH } from "../../shared/components/CenteredColumn"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import { isConsentConflictError } from "../../shared/consent-errors"
 import { errorMessage } from "../../shared/error-message"
+import { formatRuDay } from "../../shared/format-ru"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import { confirmDeleteAccount } from "../profile/confirm-delete-account"
@@ -72,16 +74,12 @@ export function ConsentScreen({ consent }: { consent: MyConsent }) {
     <SafeAreaView style={styles.root}>
       <CenteredColumn maxWidth={READABLE_WIDTH}>
         <ScrollView contentContainerStyle={styles.body}>
-          <Text
+          <Icon
+            name="document-text-outline"
+            size={48}
+            color={theme.colors.muted}
             style={styles.icon}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            // react-native-web ignores the two RN props above; aria-hidden is
-            // what keeps a decorative emoji out of the screen-reader output.
-            aria-hidden
-          >
-            📄
-          </Text>
+          />
           <Text style={styles.title} accessibilityRole="header">
             {updated
               ? "Обновилось согласие на обработку данных"
@@ -125,7 +123,13 @@ export function ConsentScreen({ consent }: { consent: MyConsent }) {
               <Text style={styles.link}>Политика конфиденциальности</Text>
             </Pressable>
           </View>
-          <Text style={styles.edition}>Редакция от {consent.currentVersion}</Text>
+          <Text style={styles.edition}>
+            {/* Editions are dated («2026-11-01») — read as «1 ноября 2026». */}
+            Редакция от{" "}
+            {/^\d{4}-\d{2}-\d{2}$/.test(consent.currentVersion)
+              ? `${formatRuDay(consent.currentVersion)} ${consent.currentVersion.slice(0, 4)}`
+              : consent.currentVersion}
+          </Text>
 
           <Pressable
             onPress={() => setAgreed((v) => !v)}
@@ -221,7 +225,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     justifyContent: "center",
     gap: theme.spacing(4),
   },
-  icon: { fontSize: 48, textAlign: "center" },
+  icon: { textAlign: "center" },
   title: {
     ...theme.typography.title,
     fontSize: 24,

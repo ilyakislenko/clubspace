@@ -39,6 +39,7 @@ import {
 import { switchProfileThenOpen } from "./push-routing"
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { pluralRu } from "../../shared/format-ru"
 import type { RootStackParamList } from "../../app/navigation"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Notifications">
@@ -51,7 +52,8 @@ const relativeTime = (iso: string): string => {
   const hours = Math.round(min / 60)
   if (hours < 24) return `${hours} ч назад`
   const days = Math.round(hours / 24)
-  if (days < 7) return `${days} дн назад`
+  if (days === 1) return "вчера"
+  if (days < 7) return `${days} ${pluralRu(days, "день", "дня", "дней")} назад`
   return new Date(iso).toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",

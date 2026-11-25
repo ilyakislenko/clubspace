@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
-import { ActivityIndicator, StyleSheet, Switch, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 
 import { listMyAutopays, type MyAutopay } from "../../shared/api/autopay"
 import {
@@ -13,6 +13,7 @@ import {
 } from "../../shared/api/payments"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { Pressable } from "../../shared/components/Pressable"
+import { Switch } from "../../shared/components/Switch"
 import { useToast, type ToastVariant } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
 import { formatMoney } from "../../shared/format-ru"
@@ -430,10 +431,6 @@ export function OnlinePurchaseSection({
                         onValueChange={(v) =>
                           setAutopayOn((s) => ({ ...s, [plan.id]: v }))
                         }
-                        trackColor={{
-                          true: theme.colors.accent,
-                          false: theme.colors.border,
-                        }}
                       />
                     </View>
                     {switchedOn && (

@@ -130,15 +130,21 @@ export default function ForecastPage() {
               subtitle={
                 renewal.usesDefault
                   ? `мало истории — берём ${formatPercent(renewal.clubRate)}`
-                  : renewal.scopeRate !== null
-                    ? `${renewalSample(renewal.scopeSample)} · по клубу ${formatPercent(renewal.clubRate)}`
-                    : `по клубу, ${renewalSample(renewal.clubSample)}`
+                  : renewal.scopeRate === null
+                    ? // Too few renewals under the filter: the big number is the club's.
+                      `по клубу, ${renewalSample(renewal.clubSample)}`
+                    : renewal.scopeSample !== renewal.clubSample
+                      ? `${renewalSample(renewal.scopeSample)} · по клубу ${formatPercent(renewal.clubRate)}`
+                      : // Unfiltered: «по клубу» would repeat the big number.
+                        renewalSample(renewal.clubSample)
               }
             />
             <AnalyticsCard
               label="Регулярный доход в месяц"
               value={money(data.mrr)}
-              subtitle={`${data.students} ${pluralRu(data.students, "ученик", "ученика", "учеников")} · оплаченные действующие абонементы в пересчёте на 30 дней`}
+              // Same words as on «Сегодня»; the count is every student in scope,
+              // not the paying ones — «313 учеников · оплаченные…» read as 313 payers.
+              subtitle={`оплаченные действующие абонементы в пересчёте на 30 дней · всего ${data.students} ${pluralRu(data.students, "ученик", "ученика", "учеников")}`}
             />
             <AnalyticsCard
               label="На кону у учеников с высоким риском"

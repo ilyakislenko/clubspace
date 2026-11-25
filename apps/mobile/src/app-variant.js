@@ -167,6 +167,11 @@ function resolveAppConfig(env) {
       bundleIdentifier: id.bundleId,
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        // The app speaks Russian only. Without this iOS draws its own UI in
+        // the app — the text edit menu («Paste», «AutoFill»), the paste and
+        // permission prompts, share sheet, pickers — in English.
+        CFBundleDevelopmentRegion: "ru",
+        CFBundleLocalizations: ["ru"],
       },
       // App Store privacy manifest (required since May 2024). Reasons are the
       // ones Expo documents for its own modules: CA92.1 — UserDefaults read
@@ -191,9 +196,11 @@ function resolveAppConfig(env) {
     },
     android: {
       package: id.bundleId,
+      // The foreground is the white mark on transparent; the brand accent
+      // behind it matches the iOS icon.
       adaptiveIcon: {
         foregroundImage: asset(ASSET_FILES.adaptiveIcon),
-        backgroundColor: "#ffffff",
+        backgroundColor: id.accentColor,
       },
       // FCM credentials for Android push (an EAS file variable on the worker).
       ...(googleServicesFile ? { googleServicesFile } : {}),
@@ -271,6 +278,8 @@ function resolveAppConfig(env) {
           microphonePermission: false,
         },
       ],
+      // Brand accent and sentence-case buttons in native Android dialogs.
+      ["./plugins/with-android-brand-dialogs", { color: id.accentColor }],
       ...(httpApi ? ["./plugins/with-android-cleartext"] : []),
     ],
   }

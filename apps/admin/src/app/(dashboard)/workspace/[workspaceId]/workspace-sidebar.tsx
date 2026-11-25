@@ -47,6 +47,7 @@ import { type ClubVocabulary } from "@clubspace/ui-kit/brand"
 
 import { signOut } from "../../../../shared/api/client"
 import { fetchMe, type Me } from "../../../../shared/api/me"
+import { fetchWorkspaces, isAdminWorkspace } from "../../../../shared/api/workspaces"
 import {
   hasAccess,
   isClubAdmin,
@@ -181,10 +182,16 @@ export function WorkspaceSidebar() {
   // console («Сменить клуб» → /workspaces → /platform was two steps).
   const [me, setMe] = useState<Me | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
+  // «Сменить клуб» only when there is another club to switch to: with one,
+  // /workspaces sends the account straight back here.
+  const [adminClubs, setAdminClubs] = useState(0)
   useEffect(() => {
     let alive = true
     fetchMe()
       .then((data) => alive && setMe(data))
+      .catch(() => undefined)
+    fetchWorkspaces()
+      .then((list) => alive && setAdminClubs(list.filter(isAdminWorkspace).length))
       .catch(() => undefined)
     return () => {
       alive = false
@@ -317,12 +324,14 @@ export function WorkspaceSidebar() {
                     </Link>
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem asChild>
-                  <Link href="/workspaces">
-                    <ArrowLeftRight className="size-4" />
-                    Сменить клуб
-                  </Link>
-                </DropdownMenuItem>
+                {(adminClubs > 1 || me?.isSuperAdmin) && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/workspaces">
+                      <ArrowLeftRight className="size-4" />
+                      Сменить клуб
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => void handleSignOut()}>
                   <LogOut className="size-4" />

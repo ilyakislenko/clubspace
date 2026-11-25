@@ -4,7 +4,7 @@ import type {
   PlatformWorkspaceBillingCard,
   UpdatePlatformWorkspaceBillingBody,
 } from "../../shared/api/platform"
-import { inputClsFull } from "../../shared/lib/input-class"
+import { inputCls } from "../../shared/lib/input-class"
 import { formatAmount } from "../subscriptions/subscription-display"
 import { formatBytes, formatDay, formatHours } from "../billing/billing-view"
 
@@ -69,7 +69,7 @@ export function PlatformTrialCost({
       <label className="flex flex-wrap items-center gap-2 text-sm">
         <span>Пробный период с картой</span>
         <select
-          className={`${inputClsFull} w-64`}
+          className={`${inputCls} w-64`}
           value={choice}
           disabled={busy}
           onChange={(e) => change(e.target.value as CardTrialChoice)}

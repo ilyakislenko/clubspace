@@ -6,8 +6,9 @@ import {
 // The coach a member should ask about their abonement: the primary coach of
 // the group they joined first, when they are still part of this club (the owner,
 // or an ACTIVE member — a coach who left must not be advertised). The name is
-// «Фамилия Имя» like everywhere in the club and never falls back to the e-mail
-// (it is shown to the member), so a coach without a name reads as null.
+// «Имя Фамилия» as the member app shows coaches everywhere else and never falls
+// back to the e-mail (it is shown to the member), so a coach without a name
+// reads as null.
 export type MemberCoach = {
     userId: string
     name: string | null
@@ -72,7 +73,7 @@ export const findMemberCoach = async (
         userIds: [coach.id],
     })
     if (!active.has(coach.id)) return null
-    const name = [coach.lastname, coach.firstname]
+    const name = [coach.firstname, coach.lastname]
         .map((part) => part?.trim())
         .filter(Boolean)
         .join(' ')

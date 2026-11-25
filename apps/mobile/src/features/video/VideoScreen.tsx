@@ -54,6 +54,7 @@ import {
   offlineDownloadControls,
   removeOffline,
 } from "../offline/offline-store"
+import { neighbourLessons } from "../courses/course-detail"
 import {
   lostReasonMessage,
   OfflineDownloadInterrupted,
@@ -294,11 +295,15 @@ export function VideoScreen({ route, navigation }: Props) {
   // «Добавить в план»: what the picker would add.
   const [planDraft, setPlanDraft] = useState<PlanItemDraft | null>(null)
 
-  const nextLesson = useMemo(() => {
-    if (!course) return null
-    const i = course.videos.findIndex((v) => v.id === videoId)
-    return i >= 0 && i < course.videos.length - 1 ? course.videos[i + 1] : null
+  // The nearest ready lessons around this one (still-processing ones skipped).
+  const neighbours = useMemo(() => {
+    if (!course) return { prev: null, next: null }
+    const { prev, next } = neighbourLessons(course.videos, videoId)
+    const nav = (v: (typeof course.videos)[number] | null) =>
+      v && { ...v, number: course.videos.indexOf(v) + 1 }
+    return { prev: nav(prev), next: nav(next) }
   }, [course, videoId])
+  const nextLesson = neighbours.next
 
   // A stored copy that won't play (files gone or damaged) must not leave a
   // dead player on screen: say why and how to get it back.
@@ -1320,11 +1325,6 @@ export function VideoScreen({ route, navigation }: Props) {
   const currentIndex = course
     ? course.videos.findIndex((v) => v.id === videoId)
     : -1
-  const prevId = course && currentIndex > 0 ? course.videos[currentIndex - 1].id : null
-  const nextId =
-    course && currentIndex >= 0 && currentIndex < course.videos.length - 1
-      ? course.videos[currentIndex + 1].id
-      : null
 
   const lessonWatched = progressStatus.status === "watched"
   const subtitles = video.subtitles ?? []
@@ -1588,10 +1588,8 @@ export function VideoScreen({ route, navigation }: Props) {
         />
 
         <VideoCourseNav
-          videos={course?.videos ?? []}
-          currentIndex={currentIndex}
-          prevId={prevId}
-          nextId={nextId}
+          prev={neighbours.prev}
+          next={neighbours.next}
           onNavigate={openLesson}
         />
       </ScrollView>

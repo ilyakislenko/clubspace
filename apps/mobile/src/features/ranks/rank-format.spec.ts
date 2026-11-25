@@ -1,5 +1,6 @@
 import {
   formatLevelWithStripes,
+  ladderNamesDirection,
   stripeColorOn,
   swatchBlendsIn,
 } from "./rank-format"
@@ -70,5 +71,19 @@ describe("swatchBlendsIn", () => {
     expect(swatchBlendsIn("#1d4ed8", "dark")).toBe(false)
     expect(swatchBlendsIn(null, "light")).toBe(false)
     expect(swatchBlendsIn("белый", "light")).toBe(false)
+  })
+})
+
+describe("ladderNamesDirection", () => {
+  it("is true when the ladder name carries the direction as whole words", () => {
+    expect(ladderNamesDirection("Пояса БЖЖ", { name: "БЖЖ" })).toBe(true)
+    expect(ladderNamesDirection("Ступени тайского бокса", { name: "Тайский бокс" })).toBe(false)
+    expect(ladderNamesDirection("Уровни тайский бокс", { name: "Тайский бокс" })).toBe(true)
+  })
+
+  it("is false for another direction, a partial word or no direction", () => {
+    expect(ladderNamesDirection("Пояса БЖЖ", { name: "ММА" })).toBe(false)
+    expect(ladderNamesDirection("Йогатерапия", { name: "Йога" })).toBe(false)
+    expect(ladderNamesDirection("Пояса", null)).toBe(false)
   })
 })

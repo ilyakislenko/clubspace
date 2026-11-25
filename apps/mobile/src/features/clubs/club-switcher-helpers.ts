@@ -1,7 +1,4 @@
-import {
-  brandFromWorkspaceType,
-  vocabularyForWorkspaceType,
-} from "@clubspace/ui-kit/brand"
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
 
 import type { WorkspaceSummary } from "../../shared/api/workspaces"
 import { formatRoleName } from "../../shared/role-labels"
@@ -29,8 +26,9 @@ export const sortClubs = <T extends ClubRowData>(clubs: readonly T[]): T[] =>
       a.name.localeCompare(b.name, "ru"),
   )
 
-export const clubEmoji = (type: string | null | undefined): string =>
-  brandFromWorkspaceType(type).emoji
+// The first letter or digit of the name: «Студия танца «Ритм»» → «С».
+export const clubMonogram = (name: string): string =>
+  name.match(/[\p{L}\p{N}]/u)?.[0]?.toUpperCase() ?? "?"
 
 // The owner has no member role of their own, so the label says it outright.
 // Each row speaks its own club's words: «Тренер» in the academy, «Педагог» in

@@ -19,6 +19,9 @@ import { RankChip } from "./RankChip"
 
 const fmtDate = (iso: string): string => new Date(iso).toLocaleDateString("ru-RU")
 
+// Promotions shown before «Вся история».
+const HISTORY_PREVIEW = 3
+
 // Self-contained rank panel for a member profile: current rank per ladder +
 // a promote form (ladder → level → stripes) + promotion history.
 export function MemberRankPanel({
@@ -37,6 +40,10 @@ export function MemberRankPanel({
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  // The promote form opens on «Выдать ранг»; the history shows its latest
+  // rows until «Вся история».
+  const [formOpen, setFormOpen] = useState(false)
+  const [allHistory, setAllHistory] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -83,6 +90,7 @@ export function MemberRankPanel({
       setLevelId("")
       setStripes("0")
       setNote("")
+      setFormOpen(false)
       await load()
     } catch (e) {
       setError(errorMessage(e, "Не удалось выдать ранг"))
@@ -117,13 +125,21 @@ export function MemberRankPanel({
     )
   }
 
+  const openForm = () => {
+    // One ladder in use: start the form on it.
+    if (!ladderId && ranks?.current.length === 1) setLadderId(ranks.current[0].ladderId)
+    setFormOpen(true)
+  }
+  const history = ranks?.history ?? []
+  const shownHistory = allHistory ? history : history.slice(0, HISTORY_PREVIEW)
+
   return (
     <section className="space-y-3 rounded-xl border border-border p-4">
       <h2 className="text-sm font-medium">Ранг</h2>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {ranks && ranks.current.length > 0 ? (
           ranks.current.map((c) => (
             <span key={c.ladderId} className="text-sm">
@@ -134,8 +150,14 @@ export function MemberRankPanel({
         ) : (
           <span className="text-sm text-muted-foreground">Ранг не присвоен</span>
         )}
+        {!formOpen && (
+          <Button variant="outline" size="sm" className="ml-auto" onClick={openForm}>
+            Выдать ранг
+          </Button>
+        )}
       </div>
 
+      {formOpen && (
       <div className="flex flex-wrap items-center gap-2">
         <select
           className={inputCls}
@@ -185,11 +207,15 @@ export function MemberRankPanel({
         <Button disabled={!ladderId || !levelId || busy} onClick={() => void promote()}>
           {busy ? "…" : "Выдать"}
         </Button>
+        <Button variant="ghost" disabled={busy} onClick={() => setFormOpen(false)}>
+          Отмена
+        </Button>
       </div>
+      )}
 
-      {ranks && ranks.history.length > 0 && (
+      {shownHistory.length > 0 && (
         <ul className="divide-y divide-border rounded-md border border-border text-sm">
-          {ranks.history.map((p) => (
+          {shownHistory.map((p) => (
             <li
               key={p.id}
               className="flex items-center justify-between gap-2 px-3 py-2"
@@ -205,6 +231,15 @@ export function MemberRankPanel({
             </li>
           ))}
         </ul>
+      )}
+      {!allHistory && history.length > shownHistory.length && (
+        <button
+          type="button"
+          className="text-xs text-muted-foreground underline hover:text-foreground"
+          onClick={() => setAllHistory(true)}
+        >
+          Вся история ({history.length})
+        </button>
       )}
     </section>
   )

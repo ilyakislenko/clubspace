@@ -215,7 +215,7 @@ describe('getMySubscription', () => {
             ).abonements
             expect(a.freezeRequest).toMatchObject({
                 status: 'DECLINED',
-                decidedByName: 'Кислов Илья',
+                decidedByName: 'Илья Кислов',
             })
             expect(a.freezeRequestWindow).not.toBeNull()
         })
@@ -257,7 +257,7 @@ describe('getMySubscription', () => {
                     },
                 }),
             )
-            expect(out.coach).toEqual({ name: 'Кислов Илья', phone: '+79528849420' })
+            expect(out.coach).toEqual({ name: 'Илья Кислов', phone: '+79528849420' })
         })
 
         it('is null when the member has no group', async () => {

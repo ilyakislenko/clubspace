@@ -76,3 +76,21 @@ export const swatchBlendsIn = (
   if (luminance === null) return false
   return scheme === "light" ? luminance > 0.8 : luminance < 0.2
 }
+
+const words = (s: string): string[] =>
+  s.toLocaleLowerCase("ru").split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+
+/**
+ * The ladder's name already says its direction («Пояса БЖЖ» of БЖЖ), so the
+ * direction tag next to it would only repeat it. Whole words in a row.
+ */
+export const ladderNamesDirection = (
+  ladderName: string,
+  direction: { name: string } | null | undefined,
+): boolean => {
+  if (!direction) return false
+  const dir = words(direction.name)
+  const ladder = words(ladderName)
+  if (dir.length === 0) return false
+  return ladder.some((_, start) => dir.every((w, i) => ladder[start + i] === w))
+}

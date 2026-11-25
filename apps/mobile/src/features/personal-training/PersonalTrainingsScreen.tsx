@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native"
@@ -31,6 +30,7 @@ import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 import { SplitLayout } from "../../shared/components/SplitLayout"
+import { Switch } from "../../shared/components/Switch"
 import { errorMessage } from "../../shared/error-message"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -136,10 +136,6 @@ export function PersonalTrainingsScreen() {
               value={offersPersonalTraining}
               disabled={toggling}
               onValueChange={(v) => void toggleOffer(v)}
-              trackColor={{
-                true: theme.colors.accent,
-                false: theme.colors.border,
-              }}
             />
           </View>
           <Text style={styles.muted}>

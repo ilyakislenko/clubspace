@@ -8,6 +8,7 @@ import { signOut } from "../../../shared/api/client"
 import { fetchMe } from "../../../shared/api/me"
 import {
   fetchWorkspaces,
+  isAdminWorkspace,
   type WorkspaceSummary,
 } from "../../../shared/api/workspaces"
 import { workspaceTypeLabel } from "../../../shared/lib/workspace-type"
@@ -16,13 +17,6 @@ import {
   setActiveWorkspaceId,
 } from "../../../shared/workspace/storage"
 import { CreateClubLink } from "../../../features/billing/CreateClubLink"
-
-// Mirrors STAFF_ROLES on the server — anyone with these names has admin
-// surface access. 'user' is the mobile-only role and gets bounced.
-const ADMIN_ROLE_NAMES = new Set(["admin", "head_coach", "coach"])
-
-const isAdminWorkspace = (w: WorkspaceSummary): boolean =>
-  w.isOwner || ADMIN_ROLE_NAMES.has(w.roleName)
 
 export default function WorkspacesPage() {
   const router = useRouter()

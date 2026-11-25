@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
   type ScrollViewInstance,
@@ -47,6 +46,7 @@ import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 import { SplitLayout } from "../../shared/components/SplitLayout"
 import { TextInput } from "../../shared/components/TextInput"
 import { useToast } from "../../shared/components/Toast"
+import { Switch } from "../../shared/components/Switch"
 import { errorMessage } from "../../shared/error-message"
 import { formatMoney, formatRuDay } from "../../shared/format-ru"
 import type { Theme } from "../../shared/theme"
@@ -502,10 +502,13 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
             {a.classesTotal != null ? ` из ${a.classesTotal}` : ""}
           </Text>
         )}
-        <Text style={styles.meta}>
-          Статус:{" "}
-          {frozenNow ? "заморожен" : (STATUS_LABEL[a.status] ?? a.status)}
-        </Text>
+        {/* «активен» on a current abonement says nothing; a freeze does. */}
+        {(frozenNow || a.status !== "ACTIVE") && (
+          <Text style={styles.meta}>
+            Статус:{" "}
+            {frozenNow ? "заморожен" : (STATUS_LABEL[a.status] ?? a.status)}
+          </Text>
+        )}
         <Text style={styles.meta}>Период: {periodText(a, vocabulary)}</Text>
         {openFreeze && freezeText && (
           <>
@@ -579,7 +582,9 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
   const debtsCard =
     debts.length > 0 ? (
       <View style={styles.card}>
-        <Text style={styles.planName}>Неоплаченные абонементы</Text>
+        <Text style={styles.planName}>
+          {debts.length === 1 ? "Неоплаченный абонемент" : "Неоплаченные абонементы"}
+        </Text>
         {debts.map((d) => (
           <View key={d.id} style={styles.debt}>
             <Text style={styles.meta}>
@@ -816,10 +821,6 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
                   accessibilityLabel="Оплата получена"
                   value={paid}
                   onValueChange={setPaid}
-                  trackColor={{
-                    true: theme.colors.accent,
-                    false: theme.colors.border,
-                  }}
                 />
               </View>
               {paid && methodPicker}

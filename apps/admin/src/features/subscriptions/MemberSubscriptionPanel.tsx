@@ -67,6 +67,8 @@ import { useMyMembership } from "../../shared/lib/use-my-membership"
 import { agree, countForm, fromFirstSession } from "@clubspace/ui-kit/brand"
 
 const SALE_AMOUNT = FORM_LIMITS.payment.saleAmount
+// Past abonements shown before «Все прошлые абонементы».
+const HISTORY_PREVIEW = 3
 
 const fmtDate = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString("ru-RU") : "—"
@@ -118,6 +120,10 @@ export function MemberSubscriptionPanel({
   const [busy, setBusy] = useState(false)
   const [payingId, setPayingId] = useState<string | null>(null)
   const [payBusy, setPayBusy] = useState(false)
+  // The sale form stays folded behind «Новый абонемент» while the member has
+  // an abonement (open with none, and on «Продлить»).
+  const [saleOpen, setSaleOpen] = useState(false)
+  const [allHistory, setAllHistory] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -189,6 +195,7 @@ export function MemberSubscriptionPanel({
       setAmountText("")
       setDiscountId("")
       setPaid(true)
+      setSaleOpen(false)
       await load()
       onAssigned?.()
     } catch (e) {
@@ -292,6 +299,20 @@ export function MemberSubscriptionPanel({
   const salePriced = saleChoice?.amount ?? selectedPlan?.price ?? null
   const saleOneOff =
     salePriced !== null && selectedPlan ? oneOffLine(salePriced, amount, selectedPlan.currency) : null
+  const showSale = abonements.length === 0 || saleOpen || planId !== ""
+  const closeSale = () => {
+    choosePlan("")
+    setStartDate("")
+    setSaleOpen(false)
+  }
+  // Past abonements (the current ones are listed above): the latest few, and
+  // always every one still waiting for its payment.
+  const pastHistory = subs ? subs.history.filter((s) => !currentIds.has(s.id)) : []
+  const shownHistory = allHistory
+    ? pastHistory
+    : pastHistory.filter(
+        (s, i) => i < HISTORY_PREVIEW || (!s.isPaid && s.status !== "CANCELLED"),
+      )
 
   // «Отметить оплату» of one sale: a discount only while it has none and
   // recorded its tariff price (the server reprices from that price).
@@ -455,7 +476,13 @@ export function MemberSubscriptionPanel({
         </p>
       )}
 
-      {canManage && plans.length > 0 && (
+      {canManage && plans.length > 0 && !showSale && (
+        <Button variant="outline" size="sm" onClick={() => setSaleOpen(true)}>
+          Новый абонемент
+        </Button>
+      )}
+
+      {canManage && plans.length > 0 && showSale && (
         <div className="flex flex-wrap items-center gap-2">
           {/* Shrinks below its longest option so «Назначить» stays on the row. */}
           <select
@@ -538,6 +565,11 @@ export function MemberSubscriptionPanel({
           >
             {busy ? "…" : "Назначить"}
           </Button>
+          {abonements.length > 0 && (
+            <Button variant="ghost" disabled={busy} onClick={closeSale}>
+              Отмена
+            </Button>
+          )}
           {planId && amount === null && (
             <p className="basis-full text-xs text-destructive">
               Введите сумму от {SALE_AMOUNT.min} до {SALE_AMOUNT.max.toLocaleString("ru-RU")}
@@ -560,9 +592,9 @@ export function MemberSubscriptionPanel({
         </div>
       )}
 
-      {subs && subs.history.length > 0 && (
+      {shownHistory.length > 0 && (
         <ul className="divide-y divide-border rounded-md border border-border text-sm">
-          {subs.history.map((s) => (
+          {shownHistory.map((s) => (
             <li
               key={s.id}
               className="flex items-center justify-between gap-2 px-3 py-2"
@@ -607,6 +639,15 @@ export function MemberSubscriptionPanel({
             </li>
           ))}
         </ul>
+      )}
+      {!allHistory && pastHistory.length > shownHistory.length && (
+        <button
+          type="button"
+          className="text-xs text-muted-foreground underline hover:text-foreground"
+          onClick={() => setAllHistory(true)}
+        >
+          Все прошлые абонементы ({pastHistory.length})
+        </button>
       )}
 
       {subs &&

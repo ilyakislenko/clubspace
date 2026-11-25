@@ -8,6 +8,15 @@ import { cachedRead, invalidateReads } from "./read-cache"
 export type WorkspaceSummary =
   ApiTypes.GetMyWorkspacesOutputOutput["data"][number]
 
+// Mirrors STAFF_ROLES on the server — anyone with these names has admin
+// surface access. 'user' is the mobile-only role and gets bounced.
+const ADMIN_ROLE_NAMES = new Set(["admin", "head_coach", "coach"])
+
+// A club this account runs in the admin (owner or staff), not one it only
+// trains in.
+export const isAdminWorkspace = (w: WorkspaceSummary): boolean =>
+  w.isOwner || ADMIN_ROLE_NAMES.has(w.roleName)
+
 // How long the club list (roles, app sections) is kept: the sidebar and pages
 // ask for it on every navigation. Writes in this tab that change it drop it.
 const WORKSPACES_TTL_MS = 60_000

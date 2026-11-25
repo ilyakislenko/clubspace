@@ -10,6 +10,12 @@ import {
   type ClassBooking,
   type MyClassBookings,
 } from "../../shared/api/class-bookings"
+import {
+  cancelDropIn,
+  getMyDropIns,
+  type DropInBooking,
+  type MyDropIns,
+} from "../../shared/api/drop-ins"
 import { showAlert } from "../../shared/alert"
 import { useAuth } from "../../shared/auth-context"
 import { useVocabulary } from "../../shared/use-vocabulary"
@@ -42,9 +48,10 @@ const capitalize = (s: string): string =>
 
 /**
  * «Мои записи»: the member's places and waitlist places in booking-mode
- * classes, and the last weeks' history with late cancels, no-shows and the
- * classes they burned. For a guardian acting as a child it is the child's
- * (the client sends X-Act-As).
+ * classes, their guest visits to other groups' classes (the same bookings the
+ * schedule's «Мои записи» strip shows), and the last weeks' history with late
+ * cancels, no-shows and the classes they burned. For a guardian acting as a
+ * child it is the child's (the client sends X-Act-As).
  */
 export function MyClassBookingsScreen() {
   const theme = useTheme()
@@ -67,6 +74,14 @@ export function MyClassBookingsScreen() {
         [workspace],
       ),
     )
+  // Guest visits: same key as the schedule's and Home's.
+  const dropIns = useCachedResource<MyDropIns>(
+    workspace && !workspace.isOwner ? `dropins:me:${workspace.workspaceId}` : null,
+    useCallback(
+      async () => await getMyDropIns({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
 
   if (!workspace) return null
 
@@ -126,10 +141,46 @@ export function MyClassBookingsScreen() {
     ])
   }
 
+  const cancelGuest = async (b: DropInBooking) => {
+    if (busyId) return
+    setBusyId(b.id)
+    setActionError(null)
+    try {
+      await cancelDropIn({ workspaceId: workspace.workspaceId, bookingId: b.id })
+      haptics.success()
+      showToast("Запись отменена", "success")
+      dropIns.mutate((prev) =>
+        prev ? { ...prev, bookings: prev.bookings.filter((g) => g.id !== b.id) } : prev,
+      )
+      dropIns.refetch()
+    } catch (e) {
+      setActionError(errorMessage(e, "Не удалось отменить запись"))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const confirmCancelGuest = (b: DropInBooking) =>
+    showAlert(
+      "Отменить запись?",
+      `${cap(vocabulary.coach.nom)} получит уведомление, что вы не придёте.`,
+      [
+        { text: "Нет", style: "cancel" },
+        {
+          text: "Отменить запись",
+          style: "destructive",
+          onPress: () => void cancelGuest(b),
+        },
+      ],
+    )
+
   const upcoming = data?.upcoming ?? []
   const history = data?.history ?? []
+  const guest = (dropIns.data?.bookings ?? [])
+    .filter((g) => !g.cancelled && new Date(g.endAt).getTime() > now)
+    .sort((a, b) => a.startAt.localeCompare(b.startAt))
 
-  const classLines = (b: ClassBooking) => (
+  const classLines = (b: ClassBooking | DropInBooking) => (
     <>
       <Text style={styles.when}>
         {capitalize(formatSessionStart(b.startAt, b.timezone))}
@@ -163,7 +214,7 @@ export function MyClassBookingsScreen() {
           {data && (
             <>
               <Text style={styles.sectionTitle}>Предстоящие</Text>
-              {upcoming.length === 0 ? (
+              {upcoming.length === 0 && guest.length === 0 ? (
                 <View style={styles.empty}>
                   <Text style={styles.emptyText}>
                     Записей нет. Записаться на {vocabulary.session.acc} можно в расписании.
@@ -177,80 +228,110 @@ export function MyClassBookingsScreen() {
                   </Pressable>
                 </View>
               ) : (
-                upcoming.map((b) => {
-                  const started = new Date(b.startAt).getTime() <= now
-                  const live = b.status === "BOOKED" || b.status === "WAITLISTED"
-                  const promoted = b.status === "BOOKED" && !!b.promotedAt
-                  const busy = busyId === b.id
-                  return (
-                    <View key={b.id} style={styles.card}>
-                      <View style={styles.titleRow}>
-                        <Text style={styles.title}>{b.groupName}</Text>
-                        <Text
-                          style={[
-                            styles.pill,
-                            b.status === "WAITLISTED" && styles.pillMuted,
-                          ]}
-                        >
-                          {b.status === "WAITLISTED" && b.waitlistPosition
-                            ? `Лист ожидания · №${b.waitlistPosition}`
-                            : CLASS_BOOKING_STATUS_LABEL[b.status]}
-                        </Text>
-                      </View>
-                      {classLines(b)}
-                      {b.classCancelled && (
-                        <Text style={styles.danger}>
-                          {cap(vocabulary.session.nom)} {agree(vocabulary.session, "отменена", "отменено")}
-                        </Text>
-                      )}
-                      {promoted && (
-                        <Text style={styles.success}>
-                          Вас записали из листа ожидания. Не сможете прийти —
-                          откажитесь, чтобы место досталось следующему.
-                        </Text>
-                      )}
-                      {b.status === "WAITLISTED" && (
-                        <Text style={styles.note}>
-                          {b.waitlistPosition
-                            ? `Вы в листе ожидания, место №${b.waitlistPosition}. `
-                            : "Вы в листе ожидания. "}
-                          Если место освободится, вас запишут автоматически и
-                          пришлют уведомление.
-                        </Text>
-                      )}
-                      {b.status === "BOOKED" && !started && (
-                        <Text style={[styles.note, b.lateCancelNow && styles.warning]}>
-                          {b.lateCancelNow
-                            ? `Срок бесплатной отмены прошёл (${formatDeadline(b.cancelDeadline, b.timezone)}).${b.lateCancelBurns ? " При отмене спишется занятие." : ""}`
-                            : `Бесплатно отменить можно до ${formatDeadline(b.cancelDeadline, b.timezone)}.`}
-                        </Text>
-                      )}
-                      {started && (
-                        <Text style={styles.note}>
-                          {cap(vocabulary.session.nom)} уже {agree(vocabulary.session, "началась", "началось")}.
-                        </Text>
-                      )}
-                      {live && !started && !b.classCancelled && (
-                        <Pressable
-                          onPress={() => confirmCancel(b)}
-                          disabled={!!busyId}
-                          accessibilityRole="button"
-                          style={styles.button}
-                        >
-                          <Text style={styles.buttonText}>
-                            {busy
-                              ? "Отменяем…"
-                              : b.status === "WAITLISTED"
-                                ? "Покинуть лист ожидания"
-                                : promoted
-                                  ? "Отказаться"
-                                  : "Отменить запись"}
+                <>
+                  {upcoming.map((b) => {
+                    const started = new Date(b.startAt).getTime() <= now
+                    const live = b.status === "BOOKED" || b.status === "WAITLISTED"
+                    const promoted = b.status === "BOOKED" && !!b.promotedAt
+                    const busy = busyId === b.id
+                    return (
+                      <View key={b.id} style={styles.card}>
+                        <View style={styles.titleRow}>
+                          <Text style={styles.title}>{b.groupName}</Text>
+                          <Text
+                            style={[
+                              styles.pill,
+                              b.status === "WAITLISTED" && styles.pillMuted,
+                            ]}
+                          >
+                            {b.status === "WAITLISTED" && b.waitlistPosition
+                              ? `Лист ожидания · №${b.waitlistPosition}`
+                              : CLASS_BOOKING_STATUS_LABEL[b.status]}
                           </Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  )
-                })
+                        </View>
+                        {classLines(b)}
+                        {b.classCancelled && (
+                          <Text style={styles.danger}>
+                            {cap(vocabulary.session.nom)} {agree(vocabulary.session, "отменена", "отменено")}
+                          </Text>
+                        )}
+                        {promoted && (
+                          <Text style={styles.success}>
+                            Вас записали из листа ожидания. Не сможете прийти —
+                            откажитесь, чтобы место досталось следующему.
+                          </Text>
+                        )}
+                        {b.status === "WAITLISTED" && (
+                          <Text style={styles.note}>
+                            {b.waitlistPosition
+                              ? `Вы в листе ожидания, место №${b.waitlistPosition}. `
+                              : "Вы в листе ожидания. "}
+                            Если место освободится, вас запишут автоматически и
+                            пришлют уведомление.
+                          </Text>
+                        )}
+                        {b.status === "BOOKED" && !started && (
+                          <Text style={[styles.note, b.lateCancelNow && styles.warning]}>
+                            {b.lateCancelNow
+                              ? `Срок бесплатной отмены прошёл (${formatDeadline(b.cancelDeadline, b.timezone)}).${b.lateCancelBurns ? " При отмене спишется занятие." : ""}`
+                              : `Бесплатно отменить можно до ${formatDeadline(b.cancelDeadline, b.timezone)}.`}
+                          </Text>
+                        )}
+                        {started && (
+                          <Text style={styles.note}>
+                            {cap(vocabulary.session.nom)} уже {agree(vocabulary.session, "началась", "началось")}.
+                          </Text>
+                        )}
+                        {live && !started && !b.classCancelled && (
+                          <Pressable
+                            onPress={() => confirmCancel(b)}
+                            disabled={!!busyId}
+                            accessibilityRole="button"
+                            style={styles.button}
+                          >
+                            <Text style={styles.buttonText}>
+                              {busy
+                                ? "Отменяем…"
+                                : b.status === "WAITLISTED"
+                                  ? "Покинуть лист ожидания"
+                                  : promoted
+                                    ? "Отказаться"
+                                    : "Отменить запись"}
+                            </Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    )
+                  })}
+                  {guest.map((g) => {
+                    const started = new Date(g.startAt).getTime() <= now
+                    return (
+                      <View key={g.id} style={styles.card}>
+                        <View style={styles.titleRow}>
+                          <Text style={styles.title}>{g.groupName}</Text>
+                          <Text style={[styles.pill, styles.pillMuted]}>Гостевое посещение</Text>
+                        </View>
+                        {classLines(g)}
+                        {started ? (
+                          <Text style={styles.note}>
+                            {cap(vocabulary.session.nom)} уже {agree(vocabulary.session, "началась", "началось")}.
+                          </Text>
+                        ) : (
+                          <Pressable
+                            onPress={() => confirmCancelGuest(g)}
+                            disabled={!!busyId}
+                            accessibilityRole="button"
+                            style={styles.button}
+                          >
+                            <Text style={styles.buttonText}>
+                              {busyId === g.id ? "Отменяем…" : "Отменить запись"}
+                            </Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    )
+                  })}
+                </>
               )}
 
               {history.length > 0 && (

@@ -374,7 +374,7 @@ export class JoinRequestService {
         >(
             new SendNotificationFeature({
                 userId: p.ws.ownerId,
-                topic: `Новая заявка в ${p.ws.name}`,
+                topic: `Новая заявка в «${p.ws.name}»`,
                 message: {
                     htmlTemplateKey: 'pending-member',
                     data: {

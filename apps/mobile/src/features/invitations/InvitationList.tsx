@@ -1,4 +1,3 @@
-import { brandFromWorkspaceType } from "@clubspace/ui-kit/brand"
 import React, { useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 
@@ -22,6 +21,7 @@ import {
   invitationMeta,
   invitationRoleLine,
 } from "./invitation-helpers"
+import { ClubMonogram } from "../clubs/ClubMonogram"
 
 /**
  * Invitation cards with «Принять» / «Отклонить». Shared by the Invitations
@@ -101,14 +101,7 @@ export function InvitationList({
         return (
           <View key={inv.id} style={styles.card}>
             <View style={styles.headerRow}>
-              <Text
-                style={styles.icon}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-                aria-hidden
-              >
-                {brandFromWorkspaceType(inv.workspaceType).emoji}
-              </Text>
+              <ClubMonogram name={inv.workspaceName} />
               <View style={styles.headerText}>
                 <Text style={styles.club} numberOfLines={2}>
                   {inv.workspaceName}
@@ -169,7 +162,6 @@ const makeStyles = (theme: Theme) =>
       ...theme.shadows.sm,
     },
     headerRow: { flexDirection: "row", gap: theme.spacing(3) },
-    icon: { fontSize: 28 },
     headerText: { flex: 1, gap: 2 },
     club: { ...theme.typography.subheading, color: theme.colors.text },
     role: { ...theme.typography.body, color: theme.colors.textSecondary },

@@ -47,6 +47,7 @@ import { SubtitlePopover } from "./VideoSubtitlePicker"
 import { subtitleMenuOptions } from "./subtitle-choice"
 import { PLAYBACK_RATES, clampSeek, frameStepTarget, positionOnTrack } from "./player-math"
 import { Sheet } from "../../shared/components/Sheet"
+import { useOverlayPresence } from "../../shared/overlay-presence"
 import type { PlayerHandle } from "./player-types"
 import { usePlayerGestures, type SeekFeedback } from "./use-player-gestures"
 import { PlanBar, type PlanBarProps } from "../study-plans/PlanBar"
@@ -194,6 +195,9 @@ export function PlayerOverlay({
     strokes: readonly DrawingStroke[]
   } | null>(null)
   const drawingMode = drawingSeed !== null
+  // A speed/subtitle menu, the chapter drawer or a drawing holds the
+  // end-of-lesson countdown, like a sheet does.
+  useOverlayPresence(menu != null || drawerOpen || drawingMode)
   const lastScrubSeek = useRef(0)
 
   const refresh = useCallback(() => setSnapshot(readSnapshot(player)), [player])

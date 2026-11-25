@@ -529,6 +529,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                 ]}
                 onPress={confirmMarkAll}
                 disabled={busy}
+                accessibilityRole="button"
               >
                 <Text style={styles.markAllText}>
                   {roster.booking ? "Отметить записавшихся" : "Отметить всех"}
@@ -559,11 +560,15 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                       ]}
                       onPress={() => void toggle(g.userId, g.present)}
                       disabled={busy}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: g.present, disabled: busy }}
                     >
                       <View
                         style={[styles.check, g.present && styles.checkOn]}
                       >
-                        {g.present && <Text style={styles.checkMark}>✓</Text>}
+                        {g.present && (
+                          <Icon name="checkmark" size={16} color={theme.colors.accentText} />
+                        )}
                       </View>
                       <Text style={styles.name} numberOfLines={1}>
                         {g.displayName}
@@ -615,6 +620,8 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                         ]}
                         onPress={() => void toggle(e.userId, e.present)}
                         disabled={busy}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: e.present, disabled: busy }}
                       >
                         <View
                           style={[
@@ -623,7 +630,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                           ]}
                         >
                           {e.present && (
-                            <Text style={styles.checkMark}>✓</Text>
+                            <Icon name="checkmark" size={16} color={theme.colors.accentText} />
                           )}
                         </View>
                         <Text style={styles.name} numberOfLines={1}>
@@ -751,15 +758,17 @@ const makeStyles = (theme: Theme) =>
       fontWeight: "700",
       fontSize: 14,
     },
+    // Tonal, not filled: marking people one by one is the screen's job; the
+    // bulk shortcut must not be the loudest thing on it.
     markAll: {
       alignSelf: "flex-start",
       paddingHorizontal: theme.spacing(4),
       paddingVertical: theme.spacing(2),
       borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.accent,
+      backgroundColor: theme.colors.accentSoft,
     },
     markAllText: {
-      color: theme.colors.accentText,
+      color: theme.colors.accent,
       fontWeight: "700",
       fontSize: 14,
     },
@@ -825,7 +834,6 @@ const makeStyles = (theme: Theme) =>
       backgroundColor: theme.colors.accent,
       borderColor: theme.colors.accent,
     },
-    checkMark: { color: theme.colors.accentText, fontSize: 14, fontWeight: "700" },
     name: { flex: 1, color: theme.colors.text, fontSize: 15, fontWeight: "600" },
     subscriptionButton: { padding: theme.spacing(1) },
     // Lined up with the name: past the 24pt check and the row gap.

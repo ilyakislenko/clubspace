@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useThemedStyles } from "../../shared/theme-context"
+import { useAnyOverlayOpen } from "../../shared/overlay-presence"
 import type { PlayerHandle } from "./player-types"
 
 const COUNTDOWN_SEC = 5
@@ -22,7 +23,8 @@ type Props = {
  * «Следующий урок через N с» (or a plan's «Дальше через N с») — shown over the
  * picture when a lesson or plan segment ends. Starting playback again (replay,
  * seeking back and pressing play) counts as «Отмена»: the student chose to
- * stay where they are.
+ * stay where they are. It holds while a sheet, modal or menu is open, so a
+ * bookmark or the «⋯» menu never ends with a different lesson underneath.
  */
 export function NextLessonCountdown({
   title,
@@ -34,10 +36,12 @@ export function NextLessonCountdown({
   const playNowLabel = kind === "lesson" ? "Смотреть сейчас" : "Сейчас"
   const styles = useThemedStyles(makeStyles)
   const [left, setLeft] = useState(COUNTDOWN_SEC)
+  const paused = useAnyOverlayOpen()
   const latest = useRef({ onCancel, onPlayNow })
   latest.current = { onCancel, onPlayNow }
 
   useEffect(() => {
+    if (paused) return
     const id = setInterval(() => {
       if (player.playing) {
         latest.current.onCancel()
@@ -47,7 +51,7 @@ export function NextLessonCountdown({
       setLeft((n) => Math.max(n - 1, 0))
     }, 1000)
     return () => clearInterval(id)
-  }, [player])
+  }, [player, paused])
 
   useEffect(() => {
     if (left <= 0) latest.current.onPlayNow()

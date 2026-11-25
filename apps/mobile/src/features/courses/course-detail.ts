@@ -87,6 +87,25 @@ export const stripCourseTitle = (
   return stripped ? stripped : lessonTitle
 }
 
+/**
+ * The lessons the player leads to from `currentId`: the nearest ready one
+ * before and after it in course order. A lesson still processing is skipped,
+ * as the course list greys it out — «Следующий урок» and its countdown must
+ * not land on «Видео ещё обрабатывается».
+ */
+export const neighbourLessons = <T extends { id: string; status: string }>(
+  videos: readonly T[],
+  currentId: string,
+): { prev: T | null; next: T | null } => {
+  const i = videos.findIndex((v) => v.id === currentId)
+  if (i < 0) return { prev: null, next: null }
+  const ready = (v: T) => v.status === "ready"
+  return {
+    prev: videos.slice(0, i).reverse().find(ready) ?? null,
+    next: videos.slice(i + 1).find(ready) ?? null,
+  }
+}
+
 export type CourseActionLesson = {
   id: string
   duration?: number | null

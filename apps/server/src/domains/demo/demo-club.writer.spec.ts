@@ -9,6 +9,7 @@ const plan = buildDemoClubPlan({
     personalDataConsentVersion: '2026-11-01',
     legal: { offerVersion: 'o', dpaVersion: 'd' },
     pseudonymSecret: 's',
+    storageBucket: 'b',
 })
 
 type Model = Record<string, jest.Mock>

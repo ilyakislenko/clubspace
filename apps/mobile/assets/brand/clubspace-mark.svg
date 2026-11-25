@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Interim ClubSpace mark (not final artwork): an open «C» ring with a dot
+       in its mouth. Flat shapes only, so it stays crisp from 1024 px down to
+       a 16 px favicon. #background is the brand accent (BRAND_ACCENT.clubspace
+       in src/app-variant.js); #mark is drawn in currentColor. -->
+  <rect id="background" width="1024" height="1024" fill="#5b58d9"/>
+  <g id="mark" color="#ffffff" transform="translate(512 512) scale(0.9) translate(-514 -512)">
+    <path d="M672.7 320.5 A250 250 0 1 0 672.7 703.5" fill="none" stroke="currentColor" stroke-width="116" stroke-linecap="round"/>
+    <circle cx="762" cy="512" r="62" fill="currentColor"/>
+  </g>
+</svg>

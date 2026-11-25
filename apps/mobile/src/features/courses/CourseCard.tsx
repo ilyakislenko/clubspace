@@ -1,11 +1,12 @@
 import React from "react"
 import { Image, StyleSheet, Text, View } from "react-native"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 
 import { type CourseSummary } from "../../shared/api/courses"
 import { HighlightedText } from "../../shared/components/HighlightedText"
 import { LockBadge } from "./LockBadge"
-import { useThemedStyles } from "../../shared/theme-context"
+import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 
 type Props = {
@@ -23,6 +24,7 @@ export function CourseCard({
   onPress,
   onLongPress,
 }: Props) {
+  const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   return (
     <Pressable
@@ -48,23 +50,13 @@ export function CourseCard({
             resizeMode="cover"
           />
         ) : (
-          <Text style={styles.thumbPlaceholder}>Нет превью</Text>
+          // No cover yet: a quiet play glyph.
+          <Icon name="play-circle-outline" size={32} color={theme.colors.mutedFaint} />
         )}
       </View>
       <View style={styles.cardBody}>
         <View style={styles.cardTitleRow}>
-          {pinned && (
-            <Text
-              style={styles.pinBadge}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              // react-native-web ignores the two RN props above; without this
-              // the card button announces a bare "📌" before its title.
-              aria-hidden
-            >
-              📌
-            </Text>
-          )}
+          {pinned && <Icon name="pin" size={14} color={theme.colors.accent} />}
           <View style={{ flex: 1 }}>
             <HighlightedText
               text={course.title}
@@ -120,9 +112,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
-  pinBadge: {
-    fontSize: 12,
-  },
   thumb: {
     width: 128,
     height: 80,
@@ -134,7 +123,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     overflow: "hidden",
   },
   thumbImage: { width: "100%", height: "100%" },
-  thumbPlaceholder: { fontSize: 11, color: theme.colors.mutedFaint },
   cardBody: {
     flex: 1,
     padding: theme.spacing(4),

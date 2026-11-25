@@ -106,8 +106,17 @@ describe("callListTitle / callListReason", () => {
     expect(callListReason(summary({ total: 10, lapsed: 10 }))).toBe(
       "у 10 кончился абонемент",
     )
+    expect(callListReason(summary({ total: 2, declining: 2 }))).toBe(
+      "2 ходят реже",
+    )
+  })
+
+  it("drops the count when one student is listed", () => {
+    expect(callListReason(summary({ total: 1, lapsed: 1 }))).toBe(
+      "кончился абонемент",
+    )
     expect(callListReason(summary({ total: 1, declining: 1 }))).toBe(
-      "1 ходит реже",
+      "ходит реже",
     )
   })
 

@@ -1,5 +1,6 @@
 import React, { forwardRef } from "react"
 import {
+  Platform,
   StyleSheet,
   TextInput as RNTextInput,
   type TextInputProps,
@@ -8,6 +9,7 @@ import {
 } from "react-native"
 
 import { isWeb } from "../platform"
+import { useTheme } from "../theme-context"
 
 /**
  * The app's TextInput. Import this instead of `react-native`'s — an eslint rule
@@ -23,6 +25,10 @@ import { isWeb } from "../platform"
  * leave the field, so the member is left pinching their way back to a usable
  * layout. Six of this app's inputs (search boxes, the journal entry, session
  * notes, video notes and bookmark labels) were 13–15px and did exactly that.
+ * The caret, selection and Android's selection handles take the brand
+ * accent; left alone, Android paints them the native theme's teal and iOS
+ * its system blue. Android's highlight sits behind the text, so it gets the
+ * soft tint.
  */
 export type AppTextInputProps = TextInputProps
 
@@ -31,8 +37,20 @@ const MIN_WEB_FONT_SIZE = 16
 
 export const TextInput = forwardRef<TextInputInstance, AppTextInputProps>(
   function AppTextInput({ style, ...rest }, ref) {
+    const theme = useTheme()
     if (!isWeb) {
-      return <RNTextInput ref={ref} style={[styles.native, style]} {...rest} />
+      return (
+        <RNTextInput
+          ref={ref}
+          style={[styles.native, style]}
+          cursorColor={theme.colors.accent}
+          selectionHandleColor={theme.colors.accent}
+          selectionColor={
+            Platform.OS === "android" ? theme.colors.accentSoft : theme.colors.accent
+          }
+          {...rest}
+        />
+      )
     }
 
     // Only raise a size that's too small — a deliberately large field (the

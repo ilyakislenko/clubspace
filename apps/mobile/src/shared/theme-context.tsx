@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useState,
 } from "react"
+import { StatusBar } from "expo-status-bar"
 import { useColorScheme } from "react-native"
 
 import {
@@ -90,7 +91,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     )
   }, [value.backgroundGradient, value.colors.background])
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+  // Edge-to-edge Android leaves the status bar icons to the app: without this
+  // they stay white over the light background (and follow the OS, not the
+  // member's own light/dark choice, on iOS).
+  return (
+    <ThemeContext.Provider value={value}>
+      <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+      {children}
+    </ThemeContext.Provider>
+  )
 }
 
 export const useTheme = (): Theme => useContext(ThemeContext)

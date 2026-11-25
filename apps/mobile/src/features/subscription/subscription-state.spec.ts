@@ -4,6 +4,7 @@ import {
   abonementShortLine as abonementShortLineIn,
   accessStatus,
   currentAbonements,
+  fmtDate,
   mySubscriptionState as mySubscriptionStateIn,
   soonestEndingId,
   freezeExtendsText,
@@ -255,7 +256,10 @@ describe("freezePhase / localYmd", () => {
 describe("freezeExtendsText", () => {
   it("states the extension", () => {
     expect(freezeExtendsText(7)).toBe(
-      "Срок абонемента продлён на 7 дн. на время заморозки",
+      "Срок абонемента продлён на 7 дней на время заморозки",
+    )
+    expect(freezeExtendsText(1)).toBe(
+      "Срок абонемента продлён на 1 день на время заморозки",
     )
   })
 })
@@ -333,6 +337,14 @@ describe("subscriptionState waiting for the first visit", () => {
   })
 })
 
+describe("fmtDate", () => {
+  it("drops the year of the current year only", () => {
+    const now = new Date("2026-11-26T10:00:00Z")
+    expect(fmtDate("2026-12-25T12:00:00Z", now)).toBe("25 декабря")
+    expect(fmtDate("2027-01-05T12:00:00Z", now)).toBe("5 января 2027 г.")
+  })
+})
+
 describe("periodText", () => {
   it("names the first visit while the abonement has no dates", () => {
     expect(
@@ -351,13 +363,13 @@ describe("periodText", () => {
   it("shows start → end once started, and just the start when open-ended", () => {
     expect(
       periodText({
-        startDate: "2026-10-24T12:00:00Z",
-        endDate: "2026-11-23T12:00:00Z",
+        startDate: "2025-10-24T12:00:00Z",
+        endDate: "2025-11-23T12:00:00Z",
       }),
-    ).toBe("24 октября 2026 г. → 23 ноября 2026 г.")
+    ).toBe("24 октября 2025 г. → 23 ноября 2025 г.")
     expect(
-      periodText({ startDate: "2026-10-24T12:00:00Z", endDate: null }),
-    ).toBe("24 октября 2026 г.")
+      periodText({ startDate: "2025-10-24T12:00:00Z", endDate: null }),
+    ).toBe("24 октября 2025 г.")
   })
 })
 
@@ -373,9 +385,9 @@ describe("paymentLine", () => {
 
   it("shows what was paid and when, muted", () => {
     expect(
-      paymentLine({ ...base, isPaid: true, paidAt: "2026-10-22T12:00:00Z" }),
+      paymentLine({ ...base, isPaid: true, paidAt: "2025-10-22T12:00:00Z" }),
     ).toEqual({
-      text: "Оплачено: 5\u202F000\u00A0₽ · 22 октября 2026 г.",
+      text: "Оплачено: 5\u202F000\u00A0₽ · 22 октября 2025 г.",
       tone: "muted",
     })
   })
@@ -392,11 +404,11 @@ describe("paymentLine", () => {
       paymentLine({
         ...base,
         isPaid: true,
-        paidAt: "2026-10-22T12:00:00Z",
+        paidAt: "2025-10-22T12:00:00Z",
         paymentMethod: "TRANSFER",
       }),
     ).toEqual({
-      text: "Оплачено: 5\u202F000\u00A0₽ · Перевод · 22 октября 2026 г.",
+      text: "Оплачено: 5\u202F000\u00A0₽ · Перевод · 22 октября 2025 г.",
       tone: "muted",
     })
   })
@@ -406,12 +418,12 @@ describe("paymentLine", () => {
       paymentLine({
         ...base,
         isPaid: true,
-        paidAt: "2026-10-22T12:00:00Z",
+        paidAt: "2025-10-22T12:00:00Z",
         paymentMethod: "CASH",
         refundedAmount: 1000,
       }),
     ).toEqual({
-      text: "Оплачено: 5\u202F000\u00A0₽ · Наличные · 22 октября 2026 г. · возвращено 1\u202F000\u00A0₽",
+      text: "Оплачено: 5\u202F000\u00A0₽ · Наличные · 22 октября 2025 г. · возвращено 1\u202F000\u00A0₽",
       tone: "muted",
     })
     expect(paymentLine({ ...base, refundedAmount: 0 }).text).toBe(

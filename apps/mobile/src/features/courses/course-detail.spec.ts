@@ -2,6 +2,7 @@ import {
   courseAction,
   courseMetaLine,
   lessonProgress,
+  neighbourLessons,
   stripCourseTitle,
 } from "./course-detail"
 
@@ -156,5 +157,20 @@ describe("courseAction", () => {
       courseAction([{ id: "a", duration: 300, playable: false }], {}),
     ).toBeNull()
     expect(courseAction([], {})).toBeNull()
+  })
+})
+
+describe("neighbourLessons", () => {
+  const v = (id: string, status = "ready") => ({ id, status })
+
+  it("skips lessons still processing on both sides", () => {
+    const videos = [v("1"), v("2", "processing"), v("3"), v("4", "processing"), v("5")]
+    expect(neighbourLessons(videos, "3")).toEqual({ prev: v("1"), next: v("5") })
+  })
+
+  it("has no next after the last ready lesson and nothing for an unknown id", () => {
+    const videos = [v("1"), v("2"), v("3", "processing")]
+    expect(neighbourLessons(videos, "2")).toEqual({ prev: v("1"), next: null })
+    expect(neighbourLessons(videos, "x")).toEqual({ prev: null, next: null })
   })
 })

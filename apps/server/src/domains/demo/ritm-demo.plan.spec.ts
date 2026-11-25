@@ -18,6 +18,7 @@ const INPUT = {
     personalDataConsentVersion: '2026-11-01',
     legal: { offerVersion: 'offer-1', dpaVersion: 'dpa-1' },
     pseudonymSecret: 'demo-secret',
+    storageBucket: 'clubspace',
 }
 const build = (now: Date = NOW) => buildRitmDemoPlan({ ...INPUT, now })
 type Plan = DemoClubPlan
@@ -301,6 +302,67 @@ describe('buildRitmDemoPlan', () => {
         expect(substitution).toMatchObject({ status: 'APPROVED', substituteId: plan.accountUserIds.coach })
         expect((substitution.sessionDate as Date).toISOString().slice(0, 10) > localDateInTz(NOW, TZ)).toBe(true)
         expect(plan.groupMembers.some((m) => m.userId === plan.accountUserIds.student && m.groupId === substitution.groupId)).toBe(true)
+    })
+
+    it('has classes every day of the week, so «Сегодня» is never empty', () => {
+        expect(new Set(plan.slots.map((s) => s.dayOfWeek))).toEqual(new Set([1, 2, 3, 4, 5, 6, 7]))
+        // pedagog@ teaches on Friday too.
+        const pedagogGroups = new Set(plan.groups.filter((g) => g.coachId === plan.accountUserIds.coach).map((g) => g.id))
+        expect(plan.slots.some((s) => s.dayOfWeek === 5 && pedagogGroups.has(s.groupId))).toBe(true)
+    })
+
+    it('has a request of every kind: a join, a freeze, a personal class and a video review', () => {
+        const coach = plan.accountUserIds.coach
+        expect(plan.members.filter((m) => m.data.status === 'INVITED')).toHaveLength(1)
+        expect(plan.freezeRequests.filter((r) => r.status === 'PENDING')).toHaveLength(1)
+        expect(plan.ptCoaches.map((c) => c.userId)).toEqual([coach])
+        const [pt] = plan.ptRequests
+        expect(plan.ptRequests).toHaveLength(1)
+        expect(pt).toMatchObject({ status: 'PENDING_COACH', coachId: coach })
+        const options = plan.ptOptions.filter((o) => o.requestId === pt.id)
+        expect(options.length).toBeGreaterThan(0)
+        expect(options.every((o) => o.proposedBy === 'member' && (o.startAt as Date) > NOW)).toBe(true)
+        const [review] = plan.videoReviews
+        expect(plan.videoReviews).toHaveLength(1)
+        expect(review).toMatchObject({ status: 'open', memberUserId: plan.accountUserIds.student })
+        expect(plan.reviewClips).toEqual([
+            expect.objectContaining({ id: review.clipId, status: 'processing', ownerUserId: plan.accountUserIds.student }),
+        ])
+    })
+
+    it('has «Семейная» on the girls, a few «Студенческая», one one-off and one partial cash refund', () => {
+        const check = (p: Plan, now: Date) => {
+            expect(p.discounts.map((d) => [d.name, d.isFamily ?? false, d.value])).toEqual([
+                ['Семейная', true, 10],
+                ['Студенческая', false, 15],
+            ])
+            const named = (name: string) => p.subscriptions.filter((s) => s.discountName === name)
+            const girls = new Set(p.guardianships.filter((g) => g.guardianId === p.accountUserIds.parent).map((g) => g.dependentId))
+            expect(named('Семейная').length).toBeGreaterThan(0)
+            expect(named('Семейная').every((s) => girls.has(s.userId as string))).toBe(true)
+            expect(named('Студенческая').length).toBeGreaterThanOrEqual(1)
+            expect(named('Студенческая').length).toBeLessThanOrEqual(4)
+            for (const s of [...named('Семейная'), ...named('Студенческая')]) {
+                const pct = s.discountName === 'Семейная' ? 10 : 15
+                expect(s.discountAmount).toBe(Math.round(((s.listPrice as number) * pct) / 100))
+                expect(s.amountPaid).toBe((s.listPrice as number) - (s.discountAmount as number))
+            }
+            const oneOffs = p.subscriptions.filter((s) => !s.discountId && (s.amountPaid as number) < (s.listPrice as number))
+            expect(oneOffs.map((s) => (s.listPrice as number) - (s.amountPaid as number))).toEqual([300])
+            const [refund] = p.refunds
+            expect(p.refunds).toHaveLength(1)
+            const sale = p.subscriptions.find((s) => s.id === refund.subscriptionId)!
+            expect(sale).toMatchObject({ isPaid: true, paymentMethod: 'CASH', refundedAmount: refund.amount })
+            expect((refund.amount as number) < (sale.amountPaid as number)).toBe(true)
+            expect(now.getTime() - (refund.refundedAt as Date).getTime()).toBeLessThan(30 * DAY)
+            expect(p.auditEvents.filter((e) => e.action === 'discount.create')).toHaveLength(2)
+            expect(p.auditEvents.filter((e) => e.action === 'payment.refund')).toHaveLength(1)
+        }
+        check(plan, NOW)
+        for (const days of [9, 17, 26]) {
+            const now = new Date(NOW.getTime() + days * DAY)
+            check(build(now), now)
+        }
     })
 
     it('has the owner’s ИИ-чат with one saved question counted against the limit, pseudonyms only', () => {

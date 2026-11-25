@@ -189,9 +189,9 @@ describe('DeclineSubscriptionFreezeRequestHandler', () => {
             kind: 'freeze.declined',
             refId: 'r1:declined:m1',
             topic: 'Заявка на заморозку отклонена',
-            message: 'Кислов Илья: «Приходите в субботу»',
+            message: 'Илья Кислов: «Приходите в субботу»',
         })
-        expect(out).toMatchObject({ status: 'DECLINED', decidedByName: 'Кислов Илья' })
+        expect(out).toMatchObject({ status: 'DECLINED', decidedByName: 'Илья Кислов' })
     })
 
     it('stores an empty comment as null and sends the default message', async () => {

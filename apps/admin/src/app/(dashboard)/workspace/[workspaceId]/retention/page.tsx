@@ -11,13 +11,14 @@ import { RenewList } from "./renew-list"
 type Tab = "call" | "renew"
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "call", label: "Позвонить" },
+  { id: "call", label: "Кому позвонить" },
   { id: "renew", label: "Продлить" },
 ]
 
-// Retention: «Позвонить» (the call list, every staff role in its scope) and
-// «Продлить» (renewals and unpaid abonements — the sport leads', club-wide).
-// ?tab=renew opens the second tab (the dashboard tile links there).
+// Retention: «Кому позвонить» (the call list, every staff role in its scope)
+// and «Продлить» (renewals and unpaid abonements — the sport leads',
+// club-wide). ?tab=renew opens the second tab (the dashboard tile links
+// there). Headed like every section: its sidebar label, then the tabs.
 export default function RetentionPage() {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
@@ -46,26 +47,29 @@ export default function RetentionPage() {
 
   return (
     <div className="space-y-6">
-      {canRenew && (
-        <div role="tablist" aria-label="Удержание" className="flex border-b border-border">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => switchTab(t.id)}
-              className={`relative -mb-px px-4 py-2 text-sm font-medium transition-colors ${
-                tab === t.id
-                  ? "border-b-2 border-primary text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="space-y-4">
+        <h1 className="text-2xl font-semibold">Удержание</h1>
+        {canRenew && (
+          <div role="tablist" aria-label="Удержание" className="flex border-b border-border">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => switchTab(t.id)}
+                className={`relative -mb-px px-4 py-2 text-sm font-medium transition-colors ${
+                  tab === t.id
+                    ? "border-b-2 border-primary text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       {canRenew && tab === "renew" && workspaceId ? (
         <RenewList workspaceId={workspaceId} />
       ) : (

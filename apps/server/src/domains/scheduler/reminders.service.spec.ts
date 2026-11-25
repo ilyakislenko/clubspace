@@ -32,6 +32,7 @@ const slot = (
         gymTz: string | null
         type: string
         noGym: boolean
+        groupName: string
     }> = {},
 ): Slot => ({
     id: extras.id ?? 'slot-1',
@@ -42,7 +43,7 @@ const slot = (
     effectiveUntil: null,
     group: {
         id: 'g-1',
-        name: 'Утренняя',
+        name: extras.groupName ?? 'Утренняя',
         workspaceId: 'ws-1',
         workspace: { timezone: extras.tz ?? 'UTC', type: extras.type ?? 'GRAPPLING' },
         gym: extras.noGym
@@ -188,6 +189,15 @@ describe('RemindersService session reminders', () => {
             skipDuplicates: true,
             select: { refId: true },
         })
+    })
+
+    it('does not repeat the gym the group name already carries', async () => {
+        const prisma = buildPrisma({
+            slots: [slot('13:00', { groupName: 'BJJ Взрослые · Сибиряк' })],
+        })
+        const { svc, rows } = build(prisma)
+        await svc.run(baseNow)
+        expect(rows[0].message).toBe('BJJ Взрослые · Сибиряк в 13:00')
     })
 
     it('says «занятие» for a dance studio and «тренировка» for grappling', async () => {

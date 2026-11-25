@@ -10,6 +10,7 @@ import {
 } from '../../features/attendance/attendance-utils'
 import { GUARDIAN_CONSENT_VERSION } from '../../features/dependents/dependents-utils'
 import { defaultAchievementRows } from '../../features/manage-achievements/default-achievement-rows'
+import { reviewClipKeys } from '../../features/video-reviews/video-reviews-utils'
 import type { Prisma } from '../../infrastructure/prisma'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
@@ -122,6 +123,9 @@ export type DemoPlanInput = {
     // The server secret the ИИ-ассистент pseudonyms are derived from
     // (environment.encryptionKey), so the demo conversation's m_… match a live one.
     pseudonymSecret: string
+    // The storage bucket uploads go to (S3_BUCKET_NAME): a placeholder «Разбор
+    // видео» clip names it like a live upload, so deleting it works the same.
+    storageBucket: string
 }
 
 export type DemoLiveFreeze = {
@@ -194,6 +198,10 @@ export type DemoClubPlan = {
     ptCoaches: Prisma.PersonalTrainingCoachCreateManyInput[]
     ptRequests: Prisma.PersonalTrainingRequestCreateManyInput[]
     ptOptions: Prisma.PersonalTrainingOptionCreateManyInput[]
+    // «Разбор видео»: a member's clip (no media yet — «обрабатывается», like
+    // the course placeholders) and the open request staff see in «Заявки».
+    reviewClips: Prisma.ReviewClipCreateManyInput[]
+    videoReviews: Prisma.VideoReviewRequestCreateManyInput[]
     dropIns: Prisma.DropInBookingCreateManyInput[]
     // Замены: one approved (the head coach runs a БЖЖ class), one a coach's
     // request waiting for the group's coach.
@@ -237,6 +245,45 @@ export const demoPaymentMethod = (saleId: string): 'CASH' | 'TRANSFER' | 'CARD' 
 export const demoPaymentMarker = (saleId: string): StaffKey => {
     const r = parseInt(createHash('sha256').update(`clubspace-demo:marker:${saleId}`).digest('hex').slice(0, 8), 16) % 10
     return r < 6 ? 'admin' : r < 8 ? 'owner' : TOP_COACH
+}
+
+// An open «Разбор видео» whose clip never got media: the clip is
+// «processing» (no HLS, no thumbnail), stored under the keys a live upload
+// gets, so the member can still delete it and the request counts as open
+// (OPEN_REVIEW_CLIP_STATUSES) for the staff who may see it.
+export const addReviewPlaceholder = (
+    plan: DemoClubPlan,
+    r: {
+        id: string
+        workspaceId: string
+        memberUserId: string
+        title: string
+        message: string
+        createdAt: Date
+        bucket: string
+    },
+): void => {
+    const clipId = demoUuid(`clip:${r.id}`)
+    plan.reviewClips.push({
+        id: clipId,
+        workspaceId: r.workspaceId,
+        ownerUserId: r.memberUserId,
+        status: 'processing',
+        rawBucket: r.bucket,
+        rawKey: reviewClipKeys(clipId).rawKey,
+        hlsBucket: r.bucket,
+        createdAt: r.createdAt,
+    })
+    plan.videoReviews.push({
+        id: r.id,
+        workspaceId: r.workspaceId,
+        clipId,
+        memberUserId: r.memberUserId,
+        title: r.title,
+        message: r.message,
+        status: 'open',
+        createdAt: r.createdAt,
+    })
 }
 
 // mulberry32 — tiny, fast and good enough for believable noise.
@@ -384,6 +431,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         ptCoaches: [],
         ptRequests: [],
         ptOptions: [],
+        reviewClips: [],
+        videoReviews: [],
         dropIns: [],
         classSubstitutions: [],
         retentionContacts: [],
@@ -556,7 +605,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             phone: p.phone ?? null,
             dateOfBirth: p.dob ? ymdToDbDate(p.dob) : null,
             personalDataConsentVersion: p.email ? input.personalDataConsentVersion : null,
-            createdAt: at(p.createdYmd, '12:00'),
+            // Before any join request (the oldest is 26 h old), never after now.
+            createdAt: new Date(Math.min(at(p.createdYmd, '12:00').getTime(), now.getTime() - 27 * 60 * 60_000)),
             lastSeenAt: at(p.lastSeenYmd ?? today, '09:00'),
         })
         if (p.email) consentFor(p.id, p.createdYmd)
@@ -870,15 +920,17 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         // counted from the first training starts at that day's club midnight
         // (first-visit-start.ts); the first visit is that day.
         const saleTime = `07:${pad2(draw(0, 59))}`
-        const coverFrom = t.startsOnFirstVisit ? '00:00' : saleTime
+        // A reset before the morning sale of today's first class moves the sale
+        // back to before the reset: nothing is ever sold in the future.
+        const soldAt = new Date(Math.min(at(startYmd, saleTime).getTime(), now.getTime() - 30 * 60_000))
         return {
             id: demoUuid(`sub:${p.idx}:${chain}:${startYmd}`),
             tariff: t,
             chain,
             startYmd,
-            soldAt: at(startYmd, saleTime),
-            startAt: at(startYmd, coverFrom),
-            endAt: at(endYmd, coverFrom),
+            soldAt,
+            startAt: t.startsOnFirstVisit ? at(startYmd, '00:00') : soldAt,
+            endAt: at(endYmd, t.startsOnFirstVisit ? '00:00' : saleTime),
             pending: false,
             remaining: t.classes,
             isPaid: true,
@@ -1586,7 +1638,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         method?: 'CASH'
     }
     const salePrices = new Map<string, SalePrice>()
-    const named = (s: Sub, k: 'family' | 'student', name: string, value: number) => {
+    const named = (s: Sub, k: 'family' | 'student' | 'renew', name: string, value: number) => {
         const priced = priceSale({
             listPrice: s.tariff.price,
             currency: 'RUB',
@@ -1657,6 +1709,23 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         .filter((_, i) => i % 6 === 0)
         .slice(0, 5)
         .forEach(({ s }) => named(s, 'student', 'Студенческая', 15))
+    // «ПРОДЛИ5»: up to three members renewed with the promo code since it
+    // appeared, once each (oncePerMember) — a renewal is a sale after an
+    // earlier abonement of the same chain — so «Скидки» shows it in use.
+    const renewedWithCode = new Set<Person>()
+    plainSales
+        .slice(2)
+        .filter(
+            ({ p, s }) =>
+                !salePrices.has(s.id) &&
+                s.soldAt > at(ago(10), '11:00') &&
+                p.subs.some((x) => x.chain === s.chain && x.soldAt < s.soldAt),
+        )
+        .forEach(({ p, s }) => {
+            if (renewedWithCode.size >= 3 || renewedWithCode.has(p)) return
+            renewedWithCode.add(p)
+            named(s, 'renew', 'Продление −5%', 5)
+        })
 
     // ---- subscriptions as rows -------------------------------------------------
     for (const p of persons) {
@@ -2071,12 +2140,14 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         coach: StaffKey | null
         by: StaffKey
         link?: string
+        // A paid event with limited places (tickets, waitlist), as an admin sets one up.
+        tickets?: { price: number; capacity: number; hostName: string | null }
     }[] = [
         { key: 'openmat-past', title: 'Open mat BJJ', description: 'Свободные спарринги для всех уровней и всех залов. Можно в ги и без.', ymd: prevSat, time: '17:00', hours: 2, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
         { key: 'openmat-next', title: 'Open mat BJJ', description: 'Свободные спарринги для всех уровней и всех залов. Можно в ги и без.', ymd: nextSat, time: '17:00', hours: 2, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
-        { key: 'seminar', title: 'Семинар: проходы гарда — гость клуба, чёрный пояс', description: 'Три часа техники и вопросов. Для синих поясов и старше, белым — по согласованию с тренером.', ymd: addDaysYmd(nextSat, 7), time: '12:00', hours: 3, gym: 'yupiter', dir: 'bjj', coach: null, by: 'reshetyuk', link: 'https://academytomsk.ru' },
+        { key: 'seminar', title: 'Семинар: проходы гарда — гость клуба, чёрный пояс', description: 'Три часа техники и вопросов. Для синих поясов и старше, белым — по согласованию с тренером.', ymd: addDaysYmd(nextSat, 7), time: '12:00', hours: 3, gym: 'yupiter', dir: 'bjj', coach: null, by: 'reshetyuk', link: 'https://academytomsk.ru', tickets: { price: 2500, capacity: 20, hostName: 'Гость клуба, чёрный пояс' } },
         { key: 'mma-sparring', title: 'Спарринг-день ММА', description: 'Раунды по 3 минуты, перчатки и капа обязательны.', ymd: ahead(6), time: '19:00', hours: 2, gym: 'rys', dir: 'mma', coach: 'starokorov', by: 'starokorov' },
-        { key: 'muay-clinch', title: 'Мастер-класс: клинч и колени', description: 'Работа в клинче с Романом Савельевым. Северск, приезжайте из Томска.', ymd: ahead(9), time: '14:00', hours: 2, gym: 'seversk', dir: 'muay', coach: 'savelyev', by: 'savelyev' },
+        { key: 'muay-clinch', title: 'Мастер-класс: клинч и колени', description: 'Работа в клинче с Романом Савельевым. Северск, приезжайте из Томска.', ymd: ahead(9), time: '14:00', hours: 2, gym: 'seversk', dir: 'muay', coach: 'savelyev', by: 'savelyev', tickets: { price: 1500, capacity: 16, hostName: null } },
         { key: 'kids-cup', title: 'Детский турнир по BJJ «Кубок ACADEMY»', description: 'Для детей 5–13 лет из всех залов. Взвешивание с 9:00.', ymd: ahead(20), time: '10:00', hours: 5, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
         { key: 'club-meetup', title: 'Клубная встреча: итоги сезона', description: 'Награждаем самых преданных учеников, рассказываем о планах. Чай и пицца.', ymd: ahead(25), time: '19:00', hours: 2, gym: 'dvorets', dir: null, coach: null, by: 'owner' },
     ]
@@ -2096,7 +2167,72 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             coachId: e.coach ? staffId(e.coach) : null,
             createdById: staffId(e.by),
             createdAt: at(addDaysYmd(e.ymd, -14) < today ? addDaysYmd(e.ymd, -14) : ago(1), '11:00'),
+            ...(e.tickets
+                ? { price: e.tickets.price, currency: 'RUB', capacity: e.tickets.capacity, hostName: e.tickets.hostName }
+                : {}),
         })
+    }
+    // Tickets of the two paid events, booked since each was announced: the
+    // seminar is full with a waitlist (Максим, student@, holds a paid place),
+    // the master class in Северск has places left. Most paid at the
+    // reception, the rest owe — «Новости и события → События» and the
+    // journal's ticket rows show both.
+    const register = (
+        eventKey: string,
+        p: Person,
+        createdAt: Date,
+        status: Prisma.EventRegistrationCreateManyInput['status'],
+        paid: { price: number; at: Date; method: 'CASH' | 'TRANSFER' } | null,
+        extra: Partial<Prisma.EventRegistrationCreateManyInput> = {},
+    ) =>
+        plan.eventRegistrations.push({
+            id: demoUuid(`registration:${eventKey}:${p.idx}`),
+            workspaceId,
+            eventId: demoUuid(`event:${eventKey}`),
+            userId: p.id,
+            status,
+            bookedById: p.id,
+            createdAt,
+            isPaid: paid !== null,
+            paidAt: paid?.at ?? null,
+            amountPaid: paid?.price ?? null,
+            listPrice: paid?.price ?? null,
+            pricedById: paid ? adminId : null,
+            currency: paid ? 'RUB' : null,
+            paymentMethod: paid?.method ?? null,
+            markedPaidById: paid ? adminId : null,
+            ...extra,
+        })
+    const ticketHolders = (dir: DirKey) =>
+        members
+            .filter((p) => !fixedPeople.has(p) && p.kind === 'adult' && !p.stopYmd && p.groups.some((g) => groupDef(g.key).dir === dir))
+            .sort((a, b) => b.visits - a.visits || a.idx - b.idx)
+    const sellTickets = (key: string, people: Person[], places: number, price: number) => {
+        const announced = plan.events.find((e) => e.id === demoUuid(`event:${key}`))!.createdAt as Date
+        const from = announced.getTime() + 60 * 60_000
+        const step = Math.max(10 * 60_000, Math.floor((now.getTime() - 2 * 60 * 60_000 - from) / Math.max(1, people.length)))
+        people.forEach((p, k) => {
+            const createdAt = new Date(from + k * step)
+            if (k >= places) {
+                register(key, p, createdAt, 'WAITLISTED', null)
+                return
+            }
+            const paidAt = new Date(Math.min(createdAt.getTime() + 3 * 60 * 60_000, now.getTime() - 60 * 60_000))
+            const paid = k % 4 === 3 ? null : { price, at: paidAt, method: k % 2 === 0 ? ('CASH' as const) : ('TRANSFER' as const) }
+            register(key, p, createdAt, 'BOOKED', paid)
+        })
+    }
+    {
+        const others = ticketHolders('bjj')
+        sellTickets('seminar', [student, ...others.slice(0, 22)], 20, 2500)
+        const gaveUp = others[22]
+        if (gaveUp) {
+            const announced = plan.events.find((e) => e.id === demoUuid('event:seminar'))!.createdAt as Date
+            register('seminar', gaveUp, new Date(announced.getTime() + 30 * 60_000), 'CANCELLED', null, {
+                cancelledAt: new Date(Math.min(announced.getTime() + 2 * DAY_MS, now.getTime() - 60 * 60_000)),
+            })
+        }
+        sellTickets('muay-clinch', ticketHolders('muay').slice(0, 11), 16, 1500)
     }
     const openMatId = demoUuid('event:openmat-past')
     const openMatStart = at(prevSat, '14:00')
@@ -2130,6 +2266,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     const mmaPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'regular' && p.groups.some((g) => g.key === 'rysMma'))!
     const muayPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'regular' && p.groups.some((g) => g.key === 'svMuay'))!
     const declinedPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'casual')!
+    // Asks coach@ himself, so the coach's phone has a personal request to answer.
+    const muayAsker = members.find((p) => !fixedPeople.has(p) && p !== muayPerson && p.archetype === 'regular' && p.groups.some((g) => g.key === 'svMuay'))!
     const ptPast = demoUuid('pt:past')
     const ptPastStart = at(ago(6), '11:00')
     const ptNext = demoUuid('pt:next')
@@ -2147,7 +2285,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             coachId: staffId(coach),
             createdById: staffId(coach),
             isPersonal: true,
-            createdAt: new Date(startAt.getTime() - 3 * DAY_MS),
+            createdAt: new Date(Math.min(startAt.getTime() - 3 * DAY_MS, now.getTime() - 60 * 60_000)),
         })
         return id
     }
@@ -2170,6 +2308,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         { id: demoUuid('pt:pending-member'), member: mmaPerson, coach: 'starokorov', status: 'PENDING_MEMBER', memberComment: 'Готовлюсь к первому турниру', coachComment: 'Могу в эти дни утром', options: [{ startAt: at(ahead(1), '10:00'), by: 'coach' }, { startAt: at(ahead(4), '10:00'), by: 'coach' }], createdAt: at(ago(1), '20:00') },
         { id: ptNext, member: muayPerson, coach: 'savelyev', status: 'CONFIRMED', memberComment: 'Поставить технику ударов ногами', options: [{ startAt: ptNextStart, by: 'coach' }], confirmed: { startAt: ptNextStart, sessionId: ptNextSession }, createdAt: at(ago(2), '12:00') },
         { id: demoUuid('pt:declined'), member: declinedPerson, coach: 'starokorov', status: 'DECLINED', memberComment: 'Хочу индивидуально раз в неделю', coachComment: 'В эти дни я на сборах — давайте через две недели', options: [{ startAt: at(ahead(2), '09:00'), by: 'member' }], createdAt: at(ago(4), '09:00') },
+        { id: demoUuid('pt:pending-coach-savelyev'), member: muayAsker, coach: 'savelyev', status: 'PENDING_COACH', memberComment: 'Хочу подтянуть клинч перед мастер-классом', options: [{ startAt: at(ahead(2), '12:00'), by: 'member' }, { startAt: at(ahead(4), '12:00'), by: 'member' }], createdAt: new Date(now.getTime() - 5 * 60 * 60 * 1000) },
     ]
     for (const r of ptRows) {
         plan.ptRequests.push({
@@ -2281,7 +2420,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             audience: extra.expiring ? 'EXPIRING' : 'ALL',
             directionId: extra.dir ? dirId(extra.dir) : null,
             publishedAt: daysAgo === null ? null : at(ago(daysAgo), '10:00'),
-            createdAt: at(ago(daysAgo ?? 0), '09:30'),
+            createdAt: at(ago(daysAgo ?? 1), '09:30'),
         })
         for (const key of extra.groups ?? []) {
             plan.announcementGroups.push({ announcementId: id, groupId: groupId(key) })
@@ -2331,7 +2470,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             lessons.forEach((lesson, li) => {
                 const videoId = demoUuid(`video:${c.key}:${chi}:${li}`)
                 // No media in the demo: «processing» renders as «видео
-                // обрабатывается» everywhere and never offers a broken player.
+                // обрабатывается» and never offers a broken player;
+                // `npm run demo:videos` gives every lesson a real clip.
                 plan.videos.push({
                     id: videoId,
                     workspaceId,
@@ -2344,6 +2484,20 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                 plan.courseVideos.push({ courseId, videoId, order: order++, lessonTitle: lesson, chapterId })
             })
         })
+    })
+
+    // ---- «Разбор видео» -----------------------------------------------------------------
+    // Максим (student@) sent a sparring clip for a review two hours ago: one
+    // open request in «Ученики → Заявки» and the coach's app. Its clip has no
+    // media («обрабатывается»); `npm run demo:videos` swaps in a real one.
+    addReviewPlaceholder(plan, {
+        id: demoUuid('review:student'),
+        workspaceId,
+        memberUserId: student.id,
+        title: 'Спарринг: защита от треугольника',
+        message: 'Дважды попал в треугольник из закрытого гарда. Где я ошибаюсь при выходе?',
+        createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+        bucket: input.storageBucket,
     })
 
     // ---- the rest: retention note, journal, audit trail ---------------------------------

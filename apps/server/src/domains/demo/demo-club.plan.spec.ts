@@ -22,6 +22,7 @@ const build = (now: Date = NOW) =>
         personalDataConsentVersion: '2026-11-01',
         legal: { offerVersion: 'offer-1', dpaVersion: 'dpa-1' },
         pseudonymSecret: 'demo-secret',
+        storageBucket: 'clubspace',
     })
 
 const students = (plan: DemoClubPlan) =>
@@ -339,6 +340,19 @@ describe('buildDemoClubPlan', () => {
             }
             expect(named('Студенческая').length).toBeGreaterThanOrEqual(1)
             expect(named('Студенческая').length).toBeLessThanOrEqual(5)
+            // «ПРОДЛИ5»: a few renewals since it appeared, once per member.
+            const code = p.discounts.find((d) => d.code === 'ПРОДЛИ5')!
+            const renewals = named('Продление −5%')
+            expect(renewals.length).toBeGreaterThanOrEqual(1)
+            expect(renewals.length).toBeLessThanOrEqual(3)
+            expect(new Set(renewals.map((s) => s.userId)).size).toBe(renewals.length)
+            for (const s of renewals) {
+                expect((s.createdAt as Date) > (code.createdAt as Date)).toBe(true)
+                expect(s.discountAmount).toBe(Math.round(((s.listPrice as number) * 5) / 100))
+                expect(
+                    p.subscriptions.some((x) => x.userId === s.userId && (x.createdAt as Date) < (s.createdAt as Date)),
+                ).toBe(true)
+            }
             for (const s of [...named('Семейная'), ...named('Студенческая')]) {
                 const pct = s.discountName === 'Семейная' ? 10 : 15
                 expect(s.discountAmount).toBe(Math.round(((s.listPrice as number) * pct) / 100))
@@ -428,6 +442,37 @@ describe('buildDemoClubPlan', () => {
         expect(plan.moduleEntitlements.every((m) => m.mode === 'COMP')).toBe(true)
         expect(plan.billing).toMatchObject({ status: 'ACTIVE', paidTierCode: 'business' })
         expect(plan.legalAcceptance).toMatchObject({ offerVersion: 'offer-1', dpaVersion: 'dpa-1' })
+    })
+
+    it('has an open video review of student@ for the staff', () => {
+        const [review] = plan.videoReviews
+        expect(plan.videoReviews).toHaveLength(1)
+        expect(review).toMatchObject({ status: 'open', memberUserId: plan.accountUserIds.student })
+        expect(plan.reviewClips).toEqual([
+            expect.objectContaining({ id: review.clipId, status: 'processing', ownerUserId: plan.accountUserIds.student, rawBucket: 'clubspace' }),
+        ])
+    })
+
+    it('sells tickets: the seminar full with a waitlist and student@ in it, the master class with places left', () => {
+        const regs = (key: string) => {
+            const event = plan.events.find((e) => e.id === demoUuid(`event:${key}`))!
+            return { event, rows: plan.eventRegistrations.filter((r) => r.eventId === event.id) }
+        }
+        const seminar = regs('seminar')
+        expect(seminar.event).toMatchObject({ price: 2500, capacity: 20, currency: 'RUB' })
+        const booked = seminar.rows.filter((r) => r.status === 'BOOKED')
+        expect(booked).toHaveLength(20)
+        expect(seminar.rows.filter((r) => r.status === 'WAITLISTED')).toHaveLength(3)
+        expect(booked.find((r) => r.userId === plan.accountUserIds.student)).toMatchObject({ isPaid: true, amountPaid: 2500 })
+        expect(booked.some((r) => !r.isPaid)).toBe(true)
+        const clinch = regs('muay-clinch')
+        const clinchBooked = clinch.rows.filter((r) => r.status === 'BOOKED')
+        expect(clinchBooked.length).toBeGreaterThan(0)
+        expect(clinchBooked.length).toBeLessThan(clinch.event.capacity as number)
+        for (const r of [...seminar.rows, ...clinch.rows]) {
+            expect((r.createdAt as Date) <= NOW).toBe(true)
+            if (r.isPaid) expect((r.paidAt as Date) <= NOW && (r.paidAt as Date) >= (r.createdAt as Date)).toBe(true)
+        }
     })
 
     it('shows the ИИ-ассистент with tokens no secret can open', () => {

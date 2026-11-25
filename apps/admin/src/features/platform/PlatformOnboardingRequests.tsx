@@ -11,7 +11,7 @@ import {
   type PlatformOnboardingRequest,
 } from "../../shared/api/platform"
 import { errorMessage } from "../../shared/lib/error-message"
-import { inputClsFull } from "../../shared/lib/input-class"
+import { inputCls, inputClsFull } from "../../shared/lib/input-class"
 import { formatPhone } from "../../shared/lib/phone"
 import { formatAmount } from "../subscriptions/subscription-display"
 import { formatShortDate } from "../billing/billing-view"
@@ -93,7 +93,7 @@ export function PlatformOnboardingRequests({
           </p>
         </div>
         <select
-          className={`${inputClsFull} w-40`}
+          className={`${inputCls} w-40`}
           value={status}
           aria-label="Статус заявки"
           onChange={(e) => setStatus(e.target.value as OnboardingRequestStatus | "")}

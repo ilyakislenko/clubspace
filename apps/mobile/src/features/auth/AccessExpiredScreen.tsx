@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import { useToast } from "../../shared/components/Toast"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -132,16 +133,12 @@ export function AccessExpiredScreen() {
       <CenteredColumn>
       <ScrollView contentContainerStyle={styles.body}>
         <ProfileSwitcher />
-        <Text
+        <Icon
+          name="lock-closed-outline"
+          size={56}
+          color={theme.colors.muted}
           style={styles.icon}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          // react-native-web ignores the two RN props above; aria-hidden is
-          // what keeps a decorative emoji out of the screen-reader output.
-          aria-hidden
-        >
-          🔒
-        </Text>
+        />
         <Text style={styles.title}>Доступ закончился</Text>
         <Text style={styles.subtitle}>
           Доступ в {workspace ? workspace.name : "клуб"} истёк
@@ -289,7 +286,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     justifyContent: "center",
     gap: theme.spacing(5),
   },
-  icon: { fontSize: 56, textAlign: "center" },
+  icon: { textAlign: "center" },
   title: {
     ...theme.typography.title,
     fontSize: 26,

@@ -5,27 +5,24 @@ import { Pressable } from "../../shared/components/Pressable"
 import { useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 
-type NavVideo = { id: string; title: string; thumbnailUrl?: string | null }
+/** A lesson to go to; `number` is its 1-based place in the course. */
+export type NavLesson = {
+  id: string
+  title: string
+  thumbnailUrl?: string | null
+  number: number
+}
 
 type Props = {
-  videos: NavVideo[]
-  currentIndex: number
-  prevId: string | null
-  nextId: string | null
+  prev: NavLesson | null
+  next: NavLesson | null
   onNavigate: (videoId: string, title?: string) => void
 }
 
 // The course around the lesson: the next one as a card (the way on), the
 // previous as a quiet link.
-export function VideoCourseNav({
-  videos,
-  currentIndex,
-  prevId,
-  nextId,
-  onNavigate,
-}: Props) {
+export function VideoCourseNav({ prev, next, onNavigate }: Props) {
   const styles = useThemedStyles(makeStyles)
-  const next = nextId ? videos[currentIndex + 1] : null
 
   return (
     <>
@@ -45,9 +42,7 @@ export function VideoCourseNav({
                 resizeMode="cover"
               />
             ) : (
-              <Text style={styles.upNextThumbPlaceholder}>
-                №{currentIndex + 2}
-              </Text>
+              <Text style={styles.upNextThumbPlaceholder}>№{next.number}</Text>
             )}
           </View>
           <View style={styles.upNextBody}>
@@ -60,9 +55,9 @@ export function VideoCourseNav({
         </Pressable>
       )}
 
-      {prevId && (
+      {prev && (
         <Pressable
-          onPress={() => onNavigate(prevId, videos[currentIndex - 1]?.title)}
+          onPress={() => onNavigate(prev.id, prev.title)}
           accessibilityRole="button"
           style={styles.prevLink}
         >

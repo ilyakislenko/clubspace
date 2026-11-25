@@ -27,7 +27,7 @@ describe("a discount's row", () => {
 
   it("says how it applies", () => {
     expect(discountHowText({ code: "ВЕСНА", isFamily: false })).toBe("Промокод ВЕСНА")
-    expect(discountHowText({ code: null, isFamily: true })).toBe("Семейная — сама")
+    expect(discountHowText({ code: null, isFamily: true })).toBe("Сама, для семьи")
     expect(discountHowText({ code: null, isFamily: false })).toBe("Выбирает сотрудник")
   })
 

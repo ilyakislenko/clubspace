@@ -418,8 +418,11 @@ const wordsOf = (s: string): string[] =>
 // «BJJ Взрослые»: the row names the gym on its own line (or the filter does).
 // The trailing part must be whole words of the gym's name, in a row — «Дети ·
 // А» keeps its «А» though «спорта» contains one. A trailing part naming the
-// gym's city is dropped the same way.
-export const withoutGymEcho = (groupName: string, gym: GymRef | null): string => {
+// gym's city is dropped the same way (when the address is known).
+export const withoutGymEcho = (
+  groupName: string,
+  gym: { name: string; address?: string } | null,
+): string => {
   if (!gym) return groupName
   const cut = groupName.lastIndexOf(" · ")
   if (cut <= 0) return groupName
@@ -430,7 +433,7 @@ export const withoutGymEcho = (groupName: string, gym: GymRef | null): string =>
   const inGymName = gymWords.some((_, start) =>
     tailWords.every((w, i) => gymWords[start + i] === w),
   )
-  const city = cityOfAddress(gym.address)
+  const city = gym.address ? cityOfAddress(gym.address) : null
   const echoes = inGymName || (!!city && lower(city) === lower(tail))
   return echoes ? groupName.slice(0, cut).trim() : groupName
 }

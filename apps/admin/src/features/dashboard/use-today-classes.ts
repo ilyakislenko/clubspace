@@ -13,7 +13,8 @@ import { todayItems, todayRequestRange, type OwnClasses } from "./today-classes"
 export type TodayClassesState =
   | { status: "loading" }
   | { status: "failed" }
-  | { status: "ready"; today: string; nowMin: number; items: CalendarItem[] }
+  // `viewerId`: the signed-in account — a row never names its own coach.
+  | { status: "ready"; today: string; nowMin: number; items: CalendarItem[]; viewerId: string }
 
 /**
  * Today's classes for «Сегодня». `ownOnly` (a plain coach) narrows them to the
@@ -26,7 +27,7 @@ export function useTodayClasses(
   ownOnly: boolean | undefined,
 ): TodayClassesState {
   const [loaded, setLoaded] = useState<
-    { schedule: WorkspaceSchedule; own: OwnClasses } | "failed" | null
+    { schedule: WorkspaceSchedule; own: OwnClasses; viewerId: string } | "failed" | null
   >(null)
   const [now, setNow] = useState(() => new Date())
 
@@ -34,20 +35,22 @@ export function useTodayClasses(
     if (!workspaceId || ownOnly === undefined) return
     const range = todayRequestRange(new Date())
     try {
-      const [schedule, own] = await Promise.all([
+      const [schedule, me, groups] = await Promise.all([
         getSchedule({ workspaceId, ...range }),
-        ownOnly
-          ? Promise.all([listGroups({ workspaceId }), fetchMe()]).then(([groups, me]) => ({
-              userId: me.id,
-              groupIds: new Set(
-                groups.data
-                  .filter((g) => g.coaches.some((c) => c.userId === me.id))
-                  .map((g) => g.id),
-              ),
-            }))
-          : null,
+        fetchMe(),
+        ownOnly ? listGroups({ workspaceId }) : null,
       ])
-      setLoaded({ schedule, own })
+      const own: OwnClasses = groups
+        ? {
+            userId: me.id,
+            groupIds: new Set(
+              groups.data
+                .filter((g) => g.coaches.some((c) => c.userId === me.id))
+                .map((g) => g.id),
+            ),
+          }
+        : null
+      setLoaded({ schedule, own, viewerId: me.id })
     } catch {
       setLoaded("failed")
     }
@@ -69,6 +72,12 @@ export function useTodayClasses(
     if (loaded === null) return { status: "loading" }
     if (loaded === "failed") return { status: "failed" }
     const { today, items } = todayItems(loaded.schedule, now, loaded.own)
-    return { status: "ready", today, nowMin: wallClock(now, loaded.schedule.timezone).minutes, items }
+    return {
+      status: "ready",
+      today,
+      nowMin: wallClock(now, loaded.schedule.timezone).minutes,
+      items,
+      viewerId: loaded.viewerId,
+    }
   }, [loaded, now])
 }

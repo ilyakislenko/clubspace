@@ -133,8 +133,9 @@ describe("abonementLabel / abonementDetail", () => {
 
   it("details remaining of total and the end date, or nothing", () => {
     expect(abonementDetail(ab("p"))).toBe("осталось 5 из 12")
-    const dated = abonementDetail(ab("p", { endDate: "2026-11-30T12:00:00.000Z" }))
-    expect(dated).toMatch(/^осталось 5 из 12 · до 30 ноября 2026/)
+    // A past year keeps its year (fmtDate drops only the current one).
+    const dated = abonementDetail(ab("p", { endDate: "2025-11-30T12:00:00.000Z" }))
+    expect(dated).toMatch(/^осталось 5 из 12 · до 30 ноября 2025/)
     expect(
       abonementDetail(ab("t", { classesTotal: null, classesRemaining: null })),
     ).toBeNull()

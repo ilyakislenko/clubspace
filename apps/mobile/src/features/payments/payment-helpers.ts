@@ -156,7 +156,8 @@ export const oneOffLine = (
     ? `Разовая скидка −${formatMoney(price - typed, currency)} к цене по тарифу — будет видна в «Платежах»`
     : null
 
-// A club discount in the staff sale picker: «Семейная −10% — 3 600 ₽».
+// A club discount in the staff sale picker: «Семейная −10% — 3 600 ₽». A
+// name that already carries the size («Продление −5%») keeps it once.
 export const saleOptionLabel = (
   option: {
     name: string
@@ -164,12 +165,18 @@ export const saleOptionLabel = (
     value: number
   },
   item: { amount: number; currency: string },
-): string =>
-  `${option.name} −${
+): string => {
+  const size =
     option.kind === "PERCENT"
       ? `${option.value}%`
       : formatMoney(option.value, item.currency)
-  } — ${formatMoney(item.amount, item.currency)}`
+  const named =
+    option.kind === "PERCENT"
+      ? new RegExp(`(^|\\D)${String(option.value).replace(".", "[.,]")}\\s?%`).test(option.name)
+      : option.name.includes(size)
+  const head = named ? option.name : `${option.name} −${size}`
+  return `${head} — ${formatMoney(item.amount, item.currency)}`
+}
 
 // The club discounts usable on one tariff, each with its priced item, the
 // family one first (the sale form preselects it). `listPrice` narrows to items

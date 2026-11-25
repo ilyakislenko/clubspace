@@ -58,7 +58,7 @@ describe('findMemberCoach', () => {
             }),
         ).toEqual({
             userId: 'c1',
-            name: 'Чертовских Роман',
+            name: 'Роман Чертовских',
             phone: '+79528849420',
         })
     })
@@ -108,7 +108,7 @@ describe('findMemberCoach', () => {
             }),
         ).toEqual({
             userId: 'c1',
-            name: 'Чертовских Роман',
+            name: 'Роман Чертовских',
             phone: '+79528849420',
         })
         expect(db.workspaceMember.findMany).not.toHaveBeenCalled()

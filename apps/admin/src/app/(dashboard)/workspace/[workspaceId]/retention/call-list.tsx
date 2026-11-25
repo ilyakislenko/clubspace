@@ -49,6 +49,10 @@ const CHIPS: { key: AtRiskReason | null; label: string }[] = [
   { key: "declining", label: "Реже, чем раньше" },
 ]
 
+// «~115 000 ₽»: an estimate shown to the thousand (to the hundred below 10 000).
+const roundForEstimate = (n: number): number =>
+  n >= 10_000 ? Math.round(n / 1000) * 1000 : Math.round(n / 100) * 100
+
 // «Кому позвонить»: the one call list (the dashboard tile and the apps show
 // the same count). Who and why come from the live rules, the risk score and
 // the money at stake from the hourly snapshot; the server scopes it to the
@@ -166,7 +170,6 @@ export function CallList() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Кому позвонить</h1>
         <p className="text-sm text-muted-foreground">
           Ученики, которые могут уйти. Один звонок {vocabulary.coach.gen}{" "}
           заметно продлевает членство.
@@ -176,14 +179,16 @@ export function CallList() {
             <span className="font-semibold tabular-nums">{summary.total}</span>{" "}
             {pluralRu(summary.total, "ученик", "ученика", "учеников")} стоит
             позвонить
-            {summary.high > 0 && <> · с высоким риском — {summary.high}</>}
+            {/* The money is all of them: next to «с высоким риском» it read as
+                theirs. «~» means a rounded figure, not 115 001. */}
             {summary.moneyAtStake !== null && summary.moneyAtStake > 0 && (
               <>
                 {" "}
-                · на кону ~{formatMoney(summary.moneyAtStake, summary.currency)}{" "}
+                · на кону ~{formatMoney(roundForEstimate(summary.moneyAtStake), summary.currency)}{" "}
                 в месяц
               </>
             )}
+            {summary.high > 0 && <> · с высоким риском — {summary.high}</>}
           </p>
         )}
       </div>
@@ -246,15 +251,15 @@ export function CallList() {
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-sm">
+            {/* The reason sits under the name and the last contact under the
+                facts: two columns fewer, so the list fits a 1024 projector. */}
             <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="p-3">Участник</th>
-                <th className="p-3">Причина</th>
                 <th className="p-3">Что видно</th>
                 <th className="p-3">Риск</th>
                 <th className="p-3">Группы</th>
                 <th className="p-3">Телефон</th>
-                <th className="p-3">Последний контакт</th>
                 <th className="p-3" />
               </tr>
             </thead>
@@ -262,22 +267,28 @@ export function CallList() {
               {rows.map((m) => (
                 <Fragment key={m.userId}>
                   <tr className="align-top">
-                    <td className="p-3">
+                    <td className="space-y-1 p-3">
                       <Link
                         href={`/workspace/${workspaceId}/users/${m.userId}`}
-                        className="font-medium hover:underline"
+                        className="block font-medium hover:underline"
                       >
                         {personName(m)}
                       </Link>
-                    </td>
-                    <td className="p-3">
                       <span
                         className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${AT_RISK_CHIP[m.reason]}`}
                       >
                         {AT_RISK_LABEL[m.reason]}
                       </span>
                     </td>
-                    <td className="min-w-64 p-3">{m.factsText}</td>
+                    <td className="min-w-56 p-3">
+                      {m.factsText}
+                      {m.lastContact && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Связывались {formatRelativeDays(m.lastContact.at)} — {m.lastContact.byName}
+                          {m.lastContact.note ? ` «${m.lastContact.note}»` : ""}
+                        </div>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap p-3 text-xs">
                       {m.score !== null && m.level !== null ? (
                         <span className={`tabular-nums ${AT_RISK_LEVEL_TEXT[m.level]}`}>
@@ -293,7 +304,7 @@ export function CallList() {
                         </div>
                       )}
                     </td>
-                    <td className="p-3 text-xs text-muted-foreground">
+                    <td className="min-w-40 p-3 text-xs text-muted-foreground">
                       {m.groups.map((g) => groupOptionLabel(g)).join(", ")}
                     </td>
                     <td className="whitespace-nowrap p-3">
@@ -311,15 +322,8 @@ export function CallList() {
                       ) : null}
                       <GuardianContacts
                         guardians={m.guardians}
-                        className="mt-1 whitespace-normal text-xs text-muted-foreground"
+                        className="mt-1 min-w-40 whitespace-normal text-xs text-muted-foreground [overflow-wrap:anywhere]"
                       />
-                    </td>
-                    <td className="p-3 text-xs text-muted-foreground">
-                      {m.lastContact
-                        ? `${formatRelativeDays(m.lastContact.at)} — ${m.lastContact.byName}${
-                            m.lastContact.note ? ` «${m.lastContact.note}»` : ""
-                          }`
-                        : "—"}
                     </td>
                     <td className="p-3">
                       {!m.snoozed && editingId !== m.userId ? (
@@ -338,7 +342,7 @@ export function CallList() {
                     // A row of its own: inside the last cell the note pushed the
                     // table past the right edge on a 1440 screen.
                     <tr>
-                      <td colSpan={8} className="px-3 pb-3 pt-0">
+                      <td colSpan={6} className="px-3 pb-3 pt-0">
                         <div className="flex flex-wrap items-center justify-end gap-2">
                           <Input
                             value={note}

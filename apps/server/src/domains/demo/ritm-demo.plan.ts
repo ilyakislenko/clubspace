@@ -16,8 +16,10 @@ import {
 } from '../../shared/utils/club-vocabulary'
 import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
 import { pseudonymFor } from '../ai-assistant/pseudonym'
+import { priceSale } from '../discounts/discount-rules'
 import { FIRST_VISIT_AUTO_START_DAYS } from '../subscriptions/first-visit-start'
 import { addDaysYmd, diffDaysYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
+import { isSubscriptionUsable } from '../subscriptions/subscription-status'
 import { defaultFeatureColumnsFor } from '../workspace/feature-flags'
 import { type DemoAccountKey, demoAccountName } from './demo-accounts'
 import {
@@ -31,6 +33,7 @@ import {
     type DemoClubPlan,
     type DemoPlanInput,
     type DemoRoleName,
+    addReviewPlaceholder,
     demoPaymentMethod,
     demoUuid,
 } from './demo-club.plan'
@@ -48,7 +51,9 @@ import {
 // (about a third children with their parents), abonements 4/8/12, a single and
 // a free trial, a year of visits, «Растяжка» by booking with places and a
 // waitlist, a paid master class with a waitlist, a freeze and a freeze request,
-// a substitution, the owner's ИИ-чат and placeholder videos of combinations.
+// a join request, a personal class and a video review waiting, a
+// substitution, discounts with a one-off and a refund, the owner's ИИ-чат and
+// placeholder videos of combinations. Classes every day of the week.
 // Deterministic: the same club-local day always yields the same rows, ids and
 // counts; every date is relative to today. Pure — demo-club.writer.ts inserts
 // the rows. Texts that name a class or a teacher come from the DANCE
@@ -188,10 +193,13 @@ const STAFF: readonly {
     { key: 'akhmetov', role: 'coach', firstname: 'Тимур', lastname: 'Ахметов', description: `${cap(VOCABULARY.coach.nom)} Hip-hop` },
 ]
 
+// Every day of the week has classes, so «Сегодня» is never empty whatever day
+// the studio is shown (Friday High heels is pedagog@'s, Sunday a hip-hop
+// class). Slots are only ever appended: their index is part of their id.
 const GROUPS: readonly GroupDef[] = [
-    { key: 'heelsBeg', name: 'High heels · начинающие', dir: 'heels', gym: 'big', coach: 'korolyova', kind: 'adult', slots: [[2, '19:00', 60], [4, '19:00', 60]] },
+    { key: 'heelsBeg', name: 'High heels · начинающие', dir: 'heels', gym: 'big', coach: 'korolyova', kind: 'adult', slots: [[2, '19:00', 60], [4, '19:00', 60], [5, '19:00', 60]] },
     { key: 'heelsPro', name: 'High heels · продолжающие', dir: 'heels', gym: 'big', coach: 'korolyova', kind: 'adult', slots: [[1, '20:00', 75], [3, '20:00', 75], [6, '14:00', 75]] },
-    { key: 'hipBeg', name: 'Hip-hop · с нуля', dir: 'hiphop', gym: 'small', coach: 'akhmetov', kind: 'adult', slots: [[1, '19:00', 60], [3, '19:00', 60]] },
+    { key: 'hipBeg', name: 'Hip-hop · с нуля', dir: 'hiphop', gym: 'small', coach: 'akhmetov', kind: 'adult', slots: [[1, '19:00', 60], [3, '19:00', 60], [7, '12:00', 60]] },
     { key: 'contemp', name: 'Contemporary', dir: 'contemp', gym: 'big', coach: 'orekhova', kind: 'adult', slots: [[2, '20:15', 75], [4, '20:15', 75], [6, '12:00', 75]] },
     { key: 'kidsJunior', name: 'Дети 6–9 лет', dir: 'kids', gym: 'small', coach: 'orekhova', kind: 'kid', slots: [[2, '17:00', 45], [4, '17:00', 45], [6, '11:00', 45]] },
     { key: 'kidsTeen', name: 'Дети 10–13 лет · hip-hop', dir: 'kids', gym: 'small', coach: 'akhmetov', kind: 'kid', slots: [[1, '17:30', 60], [3, '17:30', 60], [6, '12:30', 60]] },
@@ -386,6 +394,8 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         ptCoaches: [],
         ptRequests: [],
         ptOptions: [],
+        reviewClips: [],
+        videoReviews: [],
         dropIns: [],
         classSubstitutions: [],
         retentionContacts: [],
@@ -523,7 +533,8 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
             phone: p.phone ?? null,
             dateOfBirth: p.dob ? ymdToDbDate(p.dob) : null,
             personalDataConsentVersion: p.email ? input.personalDataConsentVersion : null,
-            createdAt: at(p.createdYmd, '12:00'),
+            // Before the join request (3 h old), never after now.
+            createdAt: new Date(Math.min(at(p.createdYmd, '12:00').getTime(), now.getTime() - 4 * 60 * 60_000)),
             lastSeenAt: at(p.lastSeenYmd ?? today, '09:00'),
         })
         if (p.email) {
@@ -1167,22 +1178,118 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         })
     }
 
+    // ---- discounts, a one-off and a refund ----------------------------------
+    // «Скидки» like ACADEMY's (docs/design/2026-11-15-discounts.md §9):
+    // «Семейная» −10% that applies itself — Соня's and Вика's abonements sold
+    // while their mother or sister held a current one — and a staff-only
+    // «Студенческая» −15% on a few recent adult sales; the owner knocked 300 ₽
+    // off one more, and gave part of a cash abonement back at the reception.
+    // Chosen by rule, not by the noise, so the rest of the studio stays as it is.
+    const discountId = (k: 'family' | 'student') => ritmId(`discount:${k}`)
+    const familyFromYmd = ago(150)
+    const studentFromYmd = ago(90)
+    for (const [k, name, value, fromYmd] of [
+        ['family', 'Семейная', 10, familyFromYmd],
+        ['student', 'Студенческая', 15, studentFromYmd],
+    ] as const) {
+        plan.discounts.push({
+            id: discountId(k),
+            workspaceId,
+            name,
+            kind: 'PERCENT',
+            value,
+            isFamily: k === 'family',
+            allPlans: true,
+            createdById: ownerId,
+            createdAt: at(fromYmd, '11:00'),
+            updatedAt: at(fromYmd, '11:00'),
+        })
+    }
+    const salePrices = new Map<string, { amountPaid: number; discount: { id: string; name: string; amount: number } | null }>()
+    const named = (s: Sub, k: 'family' | 'student', name: string, value: number) => {
+        const priced = priceSale({
+            listPrice: s.tariff.price,
+            currency: 'RUB',
+            discount: { id: discountId(k), name, kind: 'PERCENT', value, currency: null },
+        })
+        salePrices.set(s.id, { amountPaid: priced.amount, discount: { id: discountId(k), name, amount: priced.discountAmount } })
+    }
+    // A sub's row status (below): used up and renewed → EXPIRED.
+    const rowStatus = (p: Person, s: Sub) =>
+        s.remaining === 0 && p.subs.indexOf(s) < p.subs.length - 1 ? 'EXPIRED' : 'ACTIVE'
+    // listSaleDiscounts' family rule (domains/discounts/family.ts): a confirmed
+    // guardianship links them (each girl confirmed on her first day) and that
+    // relative held a current abonement at the sale (currentSubscriptionWhere).
+    const confirmedAt = (p: Person) => (p === parent ? 0 : at(p.joinYmd, '19:00').getTime())
+    for (const kid of [sonya, vika]) {
+        for (const s of kid.subs) {
+            if (s.tariff.price <= 0 || s.soldAt < at(familyFromYmd, '11:00') || s.soldAt > now) continue
+            const eligible = [parent, sonya, vika].some(
+                (p) =>
+                    p !== kid &&
+                    Math.max(confirmedAt(p), confirmedAt(kid)) <= s.soldAt.getTime() &&
+                    p.subs.some(
+                        (x) =>
+                            x.soldAt <= s.soldAt &&
+                            isSubscriptionUsable({ status: rowStatus(p, x), endDate: x.pending ? null : x.endAt }, s.soldAt),
+                    ),
+            )
+            if (eligible) named(s, 'family', 'Семейная', 10)
+        }
+    }
+    // Recent paid adult sales nobody else's story touches, newest first.
+    const plainSales = members
+        .filter((p) => !fixedPeople.has(p) && !onHold.has(p) && p.kind === 'adult')
+        .flatMap((p) => p.subs.map((s) => ({ p, s })))
+        .filter(({ s }) => s.isPaid && s.tariff.price >= 2000 && s.soldAt <= now)
+        .sort((a, b) => b.s.soldAt.getTime() - a.s.soldAt.getTime() || a.p.idx - b.p.idx)
+    const oneOff = plainSales[0]
+    if (oneOff) salePrices.set(oneOff.s.id, { amountPaid: oneOff.s.tariff.price - 300, discount: null })
+    plainSales
+        .slice(1)
+        .filter(({ s }) => s.soldAt >= at(studentFromYmd, '11:00'))
+        .filter((_, i) => i % 5 === 0)
+        .slice(0, 4)
+        .forEach(({ s }) => named(s, 'student', 'Студенческая', 15))
+    // A cash sale 16–29 days old (the refund falls in the last 30 days), a
+    // quarter back two weeks later; the sale stays paid, its refundedAmount rises.
+    const refunded = plainSales
+        .filter(
+            ({ s }) =>
+                !salePrices.has(s.id) &&
+                !s.pending &&
+                demoPaymentMethod(s.id) === 'CASH' &&
+                s.soldAt.getTime() >= now.getTime() - 29 * DAY_MS &&
+                s.soldAt.getTime() <= now.getTime() - 16 * DAY_MS,
+        )
+        .sort((a, b) => Math.abs(a.s.tariff.price - 4000) - Math.abs(b.s.tariff.price - 4000) || a.p.idx - b.p.idx)[0]
+    const refund = refunded && {
+        ...refunded,
+        id: ritmId(`refund:${refunded.s.id}`),
+        amount: Math.round(refunded.s.tariff.price / 400) * 100,
+        at: new Date(refunded.s.soldAt.getTime() + 14 * DAY_MS),
+        reason: 'Пропустила две недели по болезни — вернули часть',
+    }
+
     for (const p of persons) {
-        p.subs.forEach((s, i) => {
-            const renewed = i < p.subs.length - 1
+        p.subs.forEach((s) => {
+            const price = salePrices.get(s.id)
             plan.subscriptions.push({
                 id: s.id,
                 workspaceId,
                 planId: tariffId(s.tariff.key),
-                status: s.remaining === 0 && renewed ? 'EXPIRED' : 'ACTIVE',
+                status: rowStatus(p, s),
                 startDate: s.pending ? null : s.startAt,
                 endDate: s.pending ? null : s.endAt,
                 startsOnFirstVisit: s.tariff.startsOnFirstVisit ?? false,
                 durationDays: s.tariff.days,
-                amountPaid: s.tariff.price,
-                // Sold at the tariff price, no discounts in the studio.
+                amountPaid: price?.amountPaid ?? s.tariff.price,
                 listPrice: s.tariff.price,
+                discountId: price?.discount?.id ?? null,
+                discountName: price?.discount?.name ?? null,
+                discountAmount: price?.discount?.amount ?? 0,
                 pricedById: ownerId,
+                refundedAmount: s === refund?.s ? refund.amount : 0,
                 currency: 'RUB',
                 isPaid: s.isPaid,
                 paidAt: s.isPaid ? s.soldAt : null,
@@ -1198,6 +1305,22 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
                 createdAt: s.soldAt,
             })
             for (const d of s.tariff.dirs) plan.subscriptionDirections.push({ subscriptionId: s.id, directionId: dirId(d) })
+        })
+    }
+    if (refund) {
+        plan.refunds.push({
+            id: refund.id,
+            workspaceId,
+            subscriptionId: refund.s.id,
+            userId: refund.p.id,
+            itemName: refund.s.tariff.name,
+            amount: refund.amount,
+            currency: 'RUB',
+            method: 'CASH',
+            reason: refund.reason,
+            createdById: ownerId,
+            refundedAt: refund.at,
+            createdAt: refund.at,
         })
     }
 
@@ -1233,6 +1356,25 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         for (const k of p.groups) {
             plan.groupMembers.push({ groupId: groupId(k), userId: p.id, joinedAt: at(p.joinYmd, '12:00') })
         }
+    }
+    // A newcomer asked to join with the studio code this morning: «Вступление»
+    // waits for the owner in «Ученики → Заявки».
+    {
+        const id = ritmId('applicant:1')
+        addUser({
+            id,
+            email: `polina.zaytseva.join@${RITM_EMAIL_DOMAIN}`,
+            firstname: 'Полина',
+            lastname: 'Зайцева',
+            createdYmd: today,
+            lastSeenYmd: today,
+            phone: demoPhone(2 * PARENT_PHONE_OFFSET + 1),
+        })
+        const createdAt = new Date(now.getTime() - 3 * 60 * 60 * 1000)
+        plan.members.push({
+            role: 'user',
+            data: { id: ritmId('member:applicant:1'), userId: id, workspaceId, status: 'INVITED', createdAt, lastSeenAt: createdAt, notificationsMuted: true },
+        })
     }
 
     const confirmGuardian = (guardianId: string, child: Person, invitedByClub: boolean) => {
@@ -1487,6 +1629,41 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         })
     }
 
+    // ---- a personal class and a video review for pedagog@ ----------------------
+    // A student of Королёва's asks for a one-to-one class before the concert
+    // (two times of hers ahead), and Дарья (student@) sent a clip of «Связка
+    // № 1» for a review — both wait on pedagog@ in «Заявки». The clip has no
+    // media («обрабатывается»); `npm run demo:videos` swaps in a real one.
+    plan.ptCoaches.push({ workspaceId, userId: staffId('korolyova'), createdAt: at(ago(60), '12:00') })
+    const ptAsker = steady.find((p) => p !== frozen && p !== requester && ofPedagog(p))
+    if (ptAsker) {
+        const id = ritmId('pt:pending-coach')
+        const createdAt = new Date(now.getTime() - 4 * 60 * 60 * 1000)
+        plan.ptRequests.push({
+            id,
+            workspaceId,
+            memberId: ptAsker.id,
+            coachId: staffId('korolyova'),
+            gymId: gymId('small'),
+            timezone: tz,
+            status: 'PENDING_COACH',
+            memberComment: 'Хочу отдельно поставить связку к отчётному концерту',
+            createdAt,
+        })
+        for (const startAt of [at(ahead(2), '12:00'), at(ahead(3), '17:00')]) {
+            plan.ptOptions.push({ requestId: id, startAt, durationMin: 60, proposedBy: 'member', createdAt })
+        }
+    }
+    addReviewPlaceholder(plan, {
+        id: ritmId('review:student'),
+        workspaceId,
+        memberUserId: student.id,
+        title: 'High heels: Связка № 1',
+        message: 'В конце связки не успеваю на восьмёрку — посмотрите, что не так с руками?',
+        createdAt: new Date(now.getTime() - 3 * 60 * 60 * 1000),
+        bucket: input.storageBucket,
+    })
+
     // ---- videos of combinations (placeholders) ---------------------------------
     COURSES.forEach((c, ci) => {
         const courseId = ritmId(`course:${c.key}`)
@@ -1564,6 +1741,37 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
     audit('event.create', 'event', ritmId(`event:${nextMc.key}`), at(addDaysYmd(nextMc.ymd, -14) < today ? addDaysYmd(nextMc.ymd, -14) : ago(1), '11:00'), {
         title: 'Мастер-класс: dancehall',
     })
+    // As the discount handler snapshots a new one, and as RefundService records a refund.
+    for (const d of plan.discounts) {
+        audit('discount.create', 'discount', d.id as string, d.createdAt as Date, {
+            name: d.name,
+            kind: d.kind,
+            value: d.value,
+            currency: null,
+            code: null,
+            isFamily: d.isFamily ?? false,
+            allPlans: true,
+            plans: [],
+            events: false,
+            startsOn: null,
+            endsOn: null,
+            maxUses: null,
+            oncePerMember: false,
+            isActive: true,
+        })
+    }
+    if (refund) {
+        audit('payment.refund', 'member', refund.p.id, refund.at, {
+            refundId: refund.id,
+            target: 'abonement',
+            targetId: refund.s.id,
+            itemName: refund.s.tariff.name,
+            amount: refund.amount,
+            currency: 'RUB',
+            method: 'CASH',
+            reason: refund.reason,
+        })
+    }
 
     // ---- ИИ-чат in the admin ------------------------------------------------------
     // Turned on by the owner a week ago, and her saved question «Кому позвонить

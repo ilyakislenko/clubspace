@@ -17,6 +17,7 @@ import { useVocabulary } from "../../shared/use-vocabulary"
 import { DirectionTag } from "../directions/DirectionTag"
 import {
   formatLevelWithStripes,
+  ladderNamesDirection,
   stripeColorOn,
   swatchBlendsIn,
 } from "./rank-format"
@@ -90,7 +91,9 @@ function RankRow({ promotion }: { promotion: Promotion }) {
       <View style={{ flex: 1 }}>
         <View style={styles.ladderLine}>
           <Text style={styles.rankLadder}>{promotion.ladderName}</Text>
-          <DirectionTag direction={promotion.direction} />
+          {!ladderNamesDirection(promotion.ladderName, promotion.direction) && (
+            <DirectionTag direction={promotion.direction} />
+          )}
         </View>
         <Text style={styles.rankLevel}>
           {formatLevelWithStripes(promotion.levelName, promotion.stripes)}

@@ -126,8 +126,14 @@ export class GetWorkspaceStatsHandler
             ...(scopedUserIds !== null ? { where: userScope } : {}),
         }
 
+        // A lesson with no uploaded source (rawKey null — only the demo
+        // generator's «обрабатывается» placeholders; every upload gets its key
+        // at creation) is not a video waiting on the worker: it never counts
+        // toward «в обработке или с ошибкой».
         const [videos, videosReady] = await this.prisma.$transaction([
-            this.prisma.video.count({ where: { workspaceId } }),
+            this.prisma.video.count({
+                where: { workspaceId, OR: [{ status: 'ready' }, { rawKey: { not: null } }] },
+            }),
             this.prisma.video.count({
                 where: { workspaceId, status: 'ready' },
             }),

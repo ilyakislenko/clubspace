@@ -15,7 +15,7 @@ export const SubscriptionFreezeRequestOutputSchema = z.object({
     reason: z.string(),
     // Shown to the member on a decline.
     decisionComment: z.string().nullable(),
-    // «Фамилия Имя» of the coach who decided; never the e-mail.
+    // «Имя Фамилия» of the coach who decided; never the e-mail.
     decidedByName: z.string().nullable(),
     decidedAt: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),

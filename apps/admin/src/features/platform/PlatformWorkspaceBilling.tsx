@@ -19,7 +19,7 @@ import {
   type UpdatePlatformWorkspaceModuleBody,
 } from "../../shared/api/platform"
 import { errorMessage } from "../../shared/lib/error-message"
-import { inputClsFull } from "../../shared/lib/input-class"
+import { inputCls, inputClsFull } from "../../shared/lib/input-class"
 import { pluralRu } from "../../shared/lib/plural-ru"
 import { confirmDialog } from "../../shared/ui/confirm-dialog"
 import { formatAmount } from "../subscriptions/subscription-display"
@@ -386,7 +386,7 @@ export function PlatformWorkspaceBilling({
                 <div className="flex flex-wrap items-end gap-2">
                   <Field label="Дней">
                     <input
-                      className={`${inputClsFull} w-24`}
+                      className={`${inputCls} w-24`}
                       inputMode="numeric"
                       value={days}
                       onChange={(e) => setDays(e.target.value)}
@@ -545,7 +545,7 @@ export function PlatformWorkspaceBilling({
                       label={`Сумма, ₽ (пусто — всё: ${formatAmount(refund.max, refund.currency)})`}
                     >
                       <input
-                        className={`${inputClsFull} w-32`}
+                        className={`${inputCls} w-32`}
                         inputMode="numeric"
                         value={refund.amount}
                         placeholder={String(refund.max)}
@@ -596,7 +596,7 @@ export function PlatformWorkspaceBilling({
                   <div className="flex flex-wrap items-end gap-2">
                     <Field label="Своя цена в месяц, ₽ (вместо тарифа)">
                       <input
-                        className={`${inputClsFull} w-32`}
+                        className={`${inputCls} w-32`}
                         inputMode="numeric"
                         value={customPrice}
                         placeholder="по тарифу"
@@ -635,7 +635,7 @@ export function PlatformWorkspaceBilling({
                   <div className="flex flex-wrap items-end gap-2">
                     <Field label="Скидка, %">
                       <input
-                        className={`${inputClsFull} w-20`}
+                        className={`${inputCls} w-20`}
                         inputMode="numeric"
                         value={discount}
                         onChange={(e) => setDiscount(e.target.value)}
@@ -644,7 +644,7 @@ export function PlatformWorkspaceBilling({
                     <Field label="До (необязательно)">
                       <input
                         type="date"
-                        className={`${inputClsFull} w-40`}
+                        className={`${inputCls} w-40`}
                         value={discountUntil}
                         onChange={(e) => setDiscountUntil(e.target.value)}
                       />
@@ -679,7 +679,7 @@ export function PlatformWorkspaceBilling({
                     <Field label="Бесплатно до (включительно)">
                       <input
                         type="date"
-                        className={`${inputClsFull} w-40`}
+                        className={`${inputCls} w-40`}
                         value={freeUntil}
                         onChange={(e) => setFreeUntil(e.target.value)}
                       />
@@ -731,7 +731,7 @@ export function PlatformWorkspaceBilling({
                   <label className="flex items-center gap-2">
                     <span>Период оплаты</span>
                     <select
-                      className={`${inputClsFull} w-36`}
+                      className={`${inputCls} w-36`}
                       value={card.overrides.billingPeriodMonths}
                       disabled={busy}
                       onChange={(e) => {
@@ -779,7 +779,7 @@ export function PlatformWorkspaceBilling({
                         <div className="flex flex-wrap items-end gap-2">
                           <Field label="Режим">
                             <select
-                              className={`${inputClsFull} w-40`}
+                              className={`${inputCls} w-40`}
                               value={draft.mode}
                               onChange={(e) =>
                                 patch({ mode: e.target.value as ModuleModeChoice })
@@ -796,7 +796,7 @@ export function PlatformWorkspaceBilling({
                             <Field label="До (включительно)">
                               <input
                                 type="date"
-                                className={`${inputClsFull} w-40`}
+                                className={`${inputCls} w-40`}
                                 value={draft.compUntil}
                                 onChange={(e) => patch({ compUntil: e.target.value })}
                               />
@@ -805,7 +805,7 @@ export function PlatformWorkspaceBilling({
                           {draft.mode === "PAID" && (
                             <Field label="Своя цена, ₽/мес">
                               <input
-                                className={`${inputClsFull} w-28`}
+                                className={`${inputCls} w-28`}
                                 inputMode="numeric"
                                 placeholder={String(m.defaultPriceMonthly)}
                                 value={draft.customPrice}

@@ -34,8 +34,9 @@ export function ProfileSwitcher() {
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.title}>Профиль</Text>
-      <View style={styles.row} accessibilityRole="radiogroup">
+      {/* Not «Профиль»: on the Profile tab that repeats the screen title. */}
+      <Text style={styles.title}>Чей профиль</Text>
+      <View style={styles.row} accessibilityRole="radiogroup" accessibilityLabel="Чей профиль">
         {options.map((o) => {
           const active = o.id === activeId
           const loading = busy === o.key

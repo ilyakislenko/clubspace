@@ -74,9 +74,9 @@ describe('selectReviewReminders', () => {
 
 describe('reviewReminderMessage', () => {
     it('agrees the noun with the count', () => {
-        expect(reviewReminderMessage(1)).toBe('Пора повторить: 1 карточку')
-        expect(reviewReminderMessage(3)).toBe('Пора повторить: 3 карточки')
-        expect(reviewReminderMessage(12)).toBe('Пора повторить: 12 карточек')
+        expect(reviewReminderMessage(1)).toBe('Пора повторить 1 карточку')
+        expect(reviewReminderMessage(3)).toBe('Пора повторить 3 карточки')
+        expect(reviewReminderMessage(12)).toBe('Пора повторить 12 карточек')
     })
 })
 
@@ -169,7 +169,7 @@ describe('ReviewRemindersService', () => {
             kind: 'review.due',
             refId: 'ws-1:u1:2026-05-08',
             topic: 'Клуб',
-            message: 'Пора повторить: 2 карточки',
+            message: 'Пора повторить 2 карточки',
             category: 'reviewRemindersEnabled',
             workspaceId: 'ws-1',
             metadata: { workspaceId: 'ws-1', count: 2 },
