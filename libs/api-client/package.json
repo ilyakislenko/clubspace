@@ -22,8 +22,8 @@
     }
   },
   "dependencies": {
-    "axios": "^1.6.0",
-    "tslib": "^2.3.0"
+    "axios": "^1.21.1",
+    "tslib": "^2.9.1"
   },
   "nx": {
     "targets": {
