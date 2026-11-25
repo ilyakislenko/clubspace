@@ -514,7 +514,7 @@ export function CoursesScreen({ navigation }: Props) {
               />
             )}
             <SheetRow
-              label="⏱ Дрилл-таймер"
+              label="Дрилл-таймер"
               accessibilityLabel="Открыть дрилл-таймер"
               onPress={() => openFromMenu(() => setDrillOpen(true))}
             />

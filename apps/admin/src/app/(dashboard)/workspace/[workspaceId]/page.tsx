@@ -178,6 +178,7 @@ export default function WorkspaceOverviewPage() {
               today={classes.today}
               nowMin={classes.nowMin}
               items={classes.items}
+              viewerId={classes.viewerId}
             />
           ) : null}
         </div>

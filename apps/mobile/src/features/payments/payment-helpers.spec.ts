@@ -402,6 +402,22 @@ describe("saleOptionLabel", () => {
       ),
     ).toBe(`Весна −500\u00A0₽ — ${rub("3\u202F500")}`)
   })
+
+  it("does not repeat a size the name already carries", () => {
+    expect(
+      saleOptionLabel(
+        { name: "Продление −5%", kind: "PERCENT", value: 5 },
+        { amount: 4560, currency: "RUB" },
+      ),
+    ).toBe(`Продление −5% — ${rub("4\u202F560")}`)
+    // «15%» in the name is not «5%».
+    expect(
+      saleOptionLabel(
+        { name: "Акция 15%", kind: "PERCENT", value: 5 },
+        { amount: 3800, currency: "RUB" },
+      ),
+    ).toBe(`Акция 15% −5% — ${rub("3\u202F800")}`)
+  })
 })
 
 describe("saleOptionsForPlan", () => {

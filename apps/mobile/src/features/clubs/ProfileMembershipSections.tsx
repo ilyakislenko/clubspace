@@ -1,31 +1,22 @@
-import { useFocusEffect, useNavigation } from "@react-navigation/native"
+import { useFocusEffect } from "@react-navigation/native"
 import React, { useCallback, useState } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
-import type { AppNavigation } from "../../app/navigation"
 import { listMyJoinRequests, type JoinRequest } from "../../shared/api/join"
-import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
-import { Chevron } from "../../shared/components/Chevron"
-import { Icon } from "../../shared/components/Icon"
-import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
-import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useThemedStyles } from "../../shared/theme-context"
 import { InvitationList } from "../invitations/InvitationList"
 import { useMyInvitations } from "../invitations/useMyInvitations"
 import { myJoinRequestRows } from "../join/my-join-requests"
 
 /**
- * Profile: the current club's settings, pending invitations and my join
- * requests. The last two only appear when there is something in them. In a
- * child's profile only the child's join requests: club settings (mute, leave)
- * and invitations are the signed-in guardian's.
+ * Profile: pending invitations and my join requests, each only when there is
+ * something in it. The current club's settings live on its row in «Клубы» (the
+ * gear).
  */
 export function ProfileMembershipSections() {
-  const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const navigation = useNavigation<AppNavigation>()
-  const { workspace, actingAs } = useAuth()
   const { invitations, reload: reloadInvitations } = useMyInvitations()
   const [requests, setRequests] = useState<JoinRequest[]>([])
 
@@ -48,40 +39,6 @@ export function ProfileMembershipSections() {
 
   return (
     <>
-      {workspace && !actingAs && (
-        <View style={styles.group}>
-          <Text style={styles.groupTitle}>Текущий клуб</Text>
-          <View style={styles.block}>
-            <Pressable
-              onPress={() =>
-                navigation.navigate("ClubSettings", {
-                  workspaceId: workspace.workspaceId,
-                })
-              }
-              accessibilityRole="button"
-              accessibilityLabel={`Настройки клуба ${workspace.name}`}
-              style={[styles.row, styles.rowLast]}
-            >
-              <Icon
-                name="settings-outline"
-                size={20}
-                color={theme.colors.textSecondary}
-              />
-              <Text style={styles.rowLabel}>Настройки клуба</Text>
-              {workspace.notificationsMuted && (
-                <Icon
-                  name="notifications-off-outline"
-                  size={16}
-                  color={theme.colors.muted}
-                  accessibilityLabel="Уведомления клуба выключены"
-                />
-              )}
-              <Chevron style={styles.chev} />
-            </Pressable>
-          </View>
-        </View>
-      )}
-
       {invitations && invitations.length > 0 && (
         <View style={styles.group}>
           <Text style={styles.groupTitle}>Приглашения</Text>
@@ -154,5 +111,4 @@ const makeStyles = (theme: Theme) =>
     },
     status: { fontSize: 13, fontWeight: "600", color: theme.colors.accent },
     statusRejected: { color: theme.colors.danger },
-    chev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
   })

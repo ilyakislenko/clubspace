@@ -8,12 +8,12 @@ import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import {
   clubAccessibilityLabel,
-  clubEmoji,
   clubRoleLabel,
   clubStatusLabel,
   unreadBadgeText,
   type ClubRowData,
 } from "./club-switcher-helpers"
+import { ClubMonogram } from "./ClubMonogram"
 
 /**
  * One club in a list of the member's clubs — the switcher sheet and the
@@ -51,11 +51,7 @@ export function ClubRow({
         accessibilityState={{ selected: current, disabled: !!disabled }}
         style={styles.main}
       >
-        <View style={styles.emojiCircle}>
-          <Text style={styles.emoji} aria-hidden>
-            {clubEmoji(club.type)}
-          </Text>
-        </View>
+        <ClubMonogram name={club.name} />
         <View style={styles.text}>
           <Text
             style={[styles.name, current && styles.nameCurrent]}
@@ -127,7 +123,7 @@ export function AddClubRow({
       accessibilityHint="Ввести код другого клуба"
       style={[styles.row, styles.rowLast, styles.addRow]}
     >
-      <View style={styles.emojiCircle}>
+      <View style={styles.addCircle}>
         <Icon name="add" size={22} color={theme.colors.accent} />
       </View>
       <Text style={styles.addText}>{label}</Text>
@@ -158,7 +154,7 @@ const makeStyles = (theme: Theme) =>
       paddingHorizontal: theme.spacing(4),
       paddingVertical: theme.spacing(3),
     },
-    emojiCircle: {
+    addCircle: {
       width: 40,
       height: 40,
       borderRadius: theme.radius.full,
@@ -166,7 +162,6 @@ const makeStyles = (theme: Theme) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    emoji: { fontSize: 20 },
     text: { flex: 1, gap: 2 },
     name: { fontSize: 15, fontWeight: "600", color: theme.colors.text },
     nameCurrent: { fontWeight: "700", color: theme.colors.accent },

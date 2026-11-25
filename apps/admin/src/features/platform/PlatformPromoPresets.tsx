@@ -12,7 +12,7 @@ import {
   type PlatformWorkspacePromoPreview,
 } from "../../shared/api/platform"
 import { errorMessage } from "../../shared/lib/error-message"
-import { inputClsFull } from "../../shared/lib/input-class"
+import { inputCls } from "../../shared/lib/input-class"
 import { formatAmount } from "../subscriptions/subscription-display"
 import { formatDay } from "../billing/billing-view"
 import { QuoteSummary } from "../billing/QuoteSummary"
@@ -113,7 +113,7 @@ export function PlatformPromoPresets({
           <label className="space-y-1">
             <span className="block text-xs text-muted-foreground">Месяцев</span>
             <input
-              className={`${inputClsFull} w-16`}
+              className={`${inputCls} w-16`}
               inputMode="numeric"
               value={videoMonths}
               onChange={(e) => setVideoMonths(e.target.value)}
@@ -134,7 +134,7 @@ export function PlatformPromoPresets({
           <label className="space-y-1">
             <span className="block text-xs text-muted-foreground">Скидка, %</span>
             <input
-              className={`${inputClsFull} w-16`}
+              className={`${inputCls} w-16`}
               inputMode="numeric"
               value={discountPercent}
               onChange={(e) => setDiscountPercent(e.target.value)}
@@ -143,7 +143,7 @@ export function PlatformPromoPresets({
           <label className="space-y-1">
             <span className="block text-xs text-muted-foreground">Месяцев</span>
             <input
-              className={`${inputClsFull} w-16`}
+              className={`${inputCls} w-16`}
               inputMode="numeric"
               value={discountMonths}
               onChange={(e) => setDiscountMonths(e.target.value)}

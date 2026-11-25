@@ -22,6 +22,7 @@ import {
   formatDuration,
   formatNextSessionLabel,
   formatUpcomingLabel,
+  withoutGymEcho,
   type NextAcrossGroups,
 } from "../schedule/schedule-helpers"
 import type { RecentEntry } from "../profile/preferences-store"
@@ -226,7 +227,9 @@ export function NextClassCard({
         >
           {label}
         </Text>
-        <Text style={styles.line}>{booking.groupName} · гостевой визит</Text>
+        <Text style={styles.line}>
+          {withoutGymEcho(booking.groupName, booking.gym ?? null)} · гостевой визит
+        </Text>
         <Text style={styles.muted}>
           {[booking.gym?.name, formatDuration(booking.durationMin)]
             .filter(Boolean)
@@ -253,7 +256,9 @@ export function NextClassCard({
         >
           {label}
         </Text>
-        <Text style={styles.line}>{booking.groupName} · вы записаны</Text>
+        <Text style={styles.line}>
+          {withoutGymEcho(booking.groupName, booking.gym ?? null)} · вы записаны
+        </Text>
         <Text style={styles.muted}>
           {[booking.gym?.name, formatDuration(minutes)]
             .filter(Boolean)
@@ -275,7 +280,7 @@ export function NextClassCard({
       >
         {formatNextSessionLabel(next)}
       </Text>
-      <Text style={styles.line}>{group.name}</Text>
+      <Text style={styles.line}>{withoutGymEcho(group.name, group.gym ?? null)}</Text>
       <Text style={styles.muted}>
         {[group.gym?.name, formatDuration(next.slot.durationMin)]
           .filter(Boolean)
@@ -688,7 +693,7 @@ export function ReviewsCard({
   grow?: boolean
 }) {
   const styles = useThemedStyles(makeStyles)
-  const line = `Пора повторить: ${due} ${pluralRu(due, "карточку", "карточки", "карточек")}`
+  const line = `Пора повторить ${due} ${pluralRu(due, "карточку", "карточки", "карточек")}`
   return (
     <HomeCard onPress={onPress} grow={grow} accessibilityLabel={line}>
       <Text style={styles.strong}>{line}</Text>

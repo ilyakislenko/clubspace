@@ -28,15 +28,13 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { DirectionTag } from "../directions/DirectionTag"
-import { formatLevelWithStripes, swatchBlendsIn } from "./rank-format"
+import { fmtDate } from "../subscription/subscription-state"
+import {
+  formatLevelWithStripes,
+  ladderNamesDirection,
+  swatchBlendsIn,
+} from "./rank-format"
 import { RankProgressLine } from "./RankProgressLine"
-
-const fmtDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
 
 export function MyRanksScreen() {
   const theme = useTheme()
@@ -89,6 +87,12 @@ export function MyRanksScreen() {
       : theme.colors.border,
   })
 
+  // One ladder: its name and direction head the card above, so the history
+  // rows keep only what differs between them — the date.
+  const severalLadders =
+    new Set([...(data?.current ?? []), ...(data?.history ?? [])].map((p) => p.ladderId))
+      .size > 1
+
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn maxWidth={READABLE_WIDTH}>
@@ -121,7 +125,9 @@ export function MyRanksScreen() {
           <Card key={p.id} style={styles.card}>
             <View style={styles.ladderLine}>
               <Text style={styles.ladderName}>{p.ladderName}</Text>
-              <DirectionTag direction={p.direction} />
+              {!ladderNamesDirection(p.ladderName, p.direction) && (
+                <DirectionTag direction={p.direction} />
+              )}
             </View>
             <View style={styles.levelRow}>
               <View
@@ -158,9 +164,14 @@ export function MyRanksScreen() {
                     </Text>
                     <View style={styles.rowMetaLine}>
                       <Text style={styles.rowMeta}>
-                        {p.ladderName} · {fmtDate(p.awardedAt)}
+                        {severalLadders
+                          ? `${p.ladderName} · ${fmtDate(p.awardedAt)}`
+                          : fmtDate(p.awardedAt)}
                       </Text>
-                      <DirectionTag direction={p.direction} />
+                      {severalLadders &&
+                        !ladderNamesDirection(p.ladderName, p.direction) && (
+                          <DirectionTag direction={p.direction} />
+                        )}
                     </View>
                   </View>
                 </Card>

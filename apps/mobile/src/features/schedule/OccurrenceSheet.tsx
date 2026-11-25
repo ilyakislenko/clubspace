@@ -41,6 +41,7 @@ import {
   foreignTzSuffix,
   formatDuration,
   formatSessionStart,
+  withoutGymEcho,
 } from "./schedule-helpers"
 import { StaffClassActions } from "./StaffClassActions"
 import {
@@ -294,7 +295,9 @@ export function OccurrenceSheet({
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.titleRow}>
-              <Text style={styles.title}>{session.group.name}</Text>
+              <Text style={styles.title}>
+                {withoutGymEcho(session.group.name, session.group.gym)}
+              </Text>
               {isOwnGroup && <Pill label="Ваша группа" />}
               {substituting && <Pill label="Вы ведёте замену" />}
               {booking && <Pill label="Вы записаны" />}
@@ -353,9 +356,10 @@ export function OccurrenceSheet({
             {state === "blocked" && blockedReason && (
               <Text style={styles.muted}>{blockedReason}</Text>
             )}
+            {/* «Вы записаны» is the pill by the title; the line adds what it means. */}
             {state === "booked" && (
               <Text style={styles.success}>
-                Вы записаны — {vocabulary.coach.nom} знает, что вы придёте.
+                {cap(vocabulary.coach.nom)} знает, что вы придёте.
               </Text>
             )}
             {state === "can_book" && (
@@ -375,11 +379,11 @@ export function OccurrenceSheet({
             )}
             {action === "cancel" && (
               <>
-                <Text style={styles.success}>
-                  {myClassBooking?.promotedAt
-                    ? "Вас записали из листа ожидания."
-                    : `Вы записаны на ${sessionNoun.acc}.`}
-                </Text>
+                {myClassBooking?.promotedAt && (
+                  <Text style={styles.success}>
+                    Вас записали из листа ожидания.
+                  </Text>
+                )}
                 <Text style={styles.muted}>
                   {now > new Date(spots!.cancelDeadline).getTime()
                     ? `Срок бесплатной отмены прошёл (${deadline}).`

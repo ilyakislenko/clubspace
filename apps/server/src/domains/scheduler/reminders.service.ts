@@ -26,6 +26,7 @@ import {
     vocabularyForWorkspaceType,
 } from '../../shared/utils/club-vocabulary'
 import { formatRuDate } from '../../shared/utils/format-ru-date'
+import { titleWithGym } from '../../shared/utils/group-label'
 import {
     NotificationProducerService,
     type PushNotificationRow,
@@ -303,7 +304,7 @@ export class RemindersService {
                 rows.push({
                     userId,
                     topic: `Через час ${vocabularyForWorkspaceType(o.slot.group.workspace.type).session.nom}`,
-                    message: `${o.slot.group.name}${gym ? ` · ${gym.name}` : ''} в ${o.slot.startTime}`,
+                    message: `${titleWithGym(o.slot.group.name, gym?.name)} в ${o.slot.startTime}`,
                     link: null,
                     metadata: {
                         kind: 'session.reminder',
@@ -414,7 +415,7 @@ export class RemindersService {
                 rows.push({
                     userId: m.userId,
                     topic: 'Через час событие',
-                    message: `${event.title}${event.gym ? ` · ${event.gym.name}` : ''}`,
+                    message: titleWithGym(event.title, event.gym?.name),
                     link: event.link ?? null,
                     metadata: {
                         kind: 'event.reminder',

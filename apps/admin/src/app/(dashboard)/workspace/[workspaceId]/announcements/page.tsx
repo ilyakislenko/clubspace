@@ -38,11 +38,9 @@ import {
 } from "../../../../../features/announcements/announcement-target"
 import { useDirectionScope } from "../../../../../shared/workspace/use-direction-scope"
 import { SectionTabs } from "../../../../../shared/workspace/section-tabs"
-import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { newsTabs } from "../sections"
 
 export default function WorkspaceAnnouncementsPage() {
-  const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
   // A direction manager gets only their directions' announcements and may
@@ -164,16 +162,14 @@ export default function WorkspaceAnnouncementsPage() {
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    // The tab row spans the page like on «События»; the feed keeps a reading width.
+    <div className="space-y-6">
       <SectionTabs title="Новости и события" tabs={newsTabs} />
+      <div className="max-w-3xl space-y-6">
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Лента клуба. Опубликованные объявления видят все участники; черновики —
-          только персонал. Закреплённые всплывают наверх.
-          {directions.length > 0 &&
-            ` Объявление направления получат только его ученики и ${vocabulary.coach.nomPl}.`}
-          {groups.length > 0 &&
-            ` Объявление для групп — только ученики этих групп (за детей — родители), их ${vocabulary.coach.nomPl} и персонал.`}
+          Лента клуба в приложении. Объявление видят те, кому оно адресовано;
+          черновики — только персонал.
         </p>
         <Button type="button" className="shrink-0" onClick={() => openSheet(null)}>
           Новое объявление
@@ -244,26 +240,26 @@ export default function WorkspaceAnnouncementsPage() {
                         Только на продление
                       </span>
                     )}
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[11px] ${
-                        pub === null
-                          ? "bg-muted text-muted-foreground"
-                          : scheduled
-                            ? "bg-amber-500/10 text-amber-600"
-                            : "bg-emerald-500/10 text-emerald-600"
-                      }`}
-                    >
-                      {pub === null
-                        ? "Черновик"
-                        : scheduled
-                          ? `Запланировано · ${pub.toLocaleString("ru-RU", {
+                    {/* Published is the normal state: only a draft or a
+                        scheduled post is marked. */}
+                    {(pub === null || scheduled) && (
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[11px] ${
+                          pub === null
+                            ? "bg-muted text-muted-foreground"
+                            : "bg-amber-500/10 text-amber-600"
+                        }`}
+                      >
+                        {pub === null
+                          ? "Черновик"
+                          : `Запланировано · ${pub.toLocaleString("ru-RU", {
                               day: "numeric",
                               month: "short",
                               hour: "2-digit",
                               minute: "2-digit",
-                            })}`
-                          : "Опубликовано"}
-                    </span>
+                            })}`}
+                      </span>
+                    )}
                   </span>
                   <span className="mt-1 block whitespace-pre-wrap text-sm text-muted-foreground">
                     {a.body}
@@ -304,6 +300,7 @@ export default function WorkspaceAnnouncementsPage() {
           })}
         </ul>
       )}
+      </div>
 
       {workspaceId && (
         <AnnouncementFormSheet

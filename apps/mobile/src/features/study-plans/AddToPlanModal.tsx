@@ -24,6 +24,7 @@ import { pluralRu } from "../../shared/format-ru"
 import { haptics } from "../../shared/haptics"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useOverlayPresence } from "../../shared/overlay-presence"
 import { formatBookmarkTime } from "../video/format-position"
 import type { PlanItemDraft } from "./plan-drafts"
 import { planChanged, planEditErrorMessage, plansCacheKey } from "./plan-store"
@@ -41,6 +42,7 @@ export function AddToPlanModal({ draft, onClose }: Props) {
   const { workspace } = useAuth()
   const { showToast } = useToast()
   const workspaceId = workspace?.workspaceId ?? null
+  useOverlayPresence(true)
   const plans = useCachedResource(
     workspaceId ? plansCacheKey(workspaceId) : null,
     useCallback(

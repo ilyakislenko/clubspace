@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import type { Theme } from "../theme"
 import { useTheme, useThemedStyles } from "../theme-context"
+import { useOverlayPresence } from "../overlay-presence"
 import { useResponsive } from "../useResponsive"
 import { Chevron } from "./Chevron"
 import { CountBadge } from "./CountBadge"
@@ -38,6 +39,7 @@ export function Sheet({
   const insets = useSafeAreaInsets()
   const { sizeClass, height } = useResponsive()
   const compact = sizeClass === "compact"
+  useOverlayPresence(visible)
 
   const onDismissRef = useRef(onDismiss)
   useEffect(() => {

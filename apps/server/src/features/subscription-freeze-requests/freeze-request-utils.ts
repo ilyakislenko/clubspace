@@ -11,13 +11,14 @@ import {
 } from '../../shared/utils/club-vocabulary'
 import { localDateInTz } from '../attendance/attendance-utils'
 
-// «Фамилия Имя» like everywhere in the club; never falls back to the e-mail
-// (it is shown to the member), so a nameless person reads as null.
+// «Имя Фамилия»: only the member sees it (freeze decline text, «Мой
+// абонемент»), like the member's coach name; never falls back to the e-mail,
+// so a nameless person reads as null.
 export const personName = (
     u: { firstname: string | null; lastname: string | null } | null | undefined,
 ): string | null => {
     if (!u) return null
-    const name = [u.lastname, u.firstname]
+    const name = [u.firstname, u.lastname]
         .map((part) => part?.trim())
         .filter(Boolean)
         .join(' ')

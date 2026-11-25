@@ -11,7 +11,7 @@ import {
   unlockPlatformWorkspaceFeature,
   type PlatformWorkspaceBillingCard,
 } from "../../shared/api/platform"
-import { inputClsFull } from "../../shared/lib/input-class"
+import { inputCls } from "../../shared/lib/input-class"
 import { formatDay } from "../billing/billing-view"
 import { appSections, type AppSectionFeature } from "../settings/app-sections"
 
@@ -71,7 +71,7 @@ export function PlatformAppSections({
           <span>Закреплять до (необязательно)</span>
           <input
             type="date"
-            className={`${inputClsFull} w-40`}
+            className={`${inputCls} w-40`}
             value={until}
             onChange={(e) => setUntil(e.target.value)}
           />

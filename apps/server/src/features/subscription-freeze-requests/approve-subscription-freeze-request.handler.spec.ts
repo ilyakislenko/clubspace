@@ -288,7 +288,7 @@ describe('ApproveSubscriptionFreezeRequestHandler', () => {
         })
         expect(out.request).toMatchObject({
             status: 'APPROVED',
-            decidedByName: 'Кислов Илья',
+            decidedByName: 'Илья Кислов',
         })
         expect(out.freeze).toMatchObject({ id: 'f1', days: 7 })
     })

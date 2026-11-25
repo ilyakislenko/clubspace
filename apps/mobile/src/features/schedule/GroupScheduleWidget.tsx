@@ -6,6 +6,7 @@ import type {
   GroupScheduleException,
   GroupScheduleSlot,
 } from "../../shared/api/groups"
+import { formatRuDayRange } from "../../shared/format-ru"
 import { useThemedStyles } from "../../shared/theme-context"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import type { Theme } from "../../shared/theme"
@@ -72,7 +73,7 @@ export function GroupScheduleWidget({ slots, exceptions, timeZone }: Props) {
       {activeVacation && (
         <View style={styles.vacationBanner}>
           <Text style={styles.vacationText}>
-            🌴 Перерыв {activeVacation.fromDate} → {activeVacation.untilDate}
+            Перерыв {formatRuDayRange(activeVacation.fromDate, activeVacation.untilDate)}
             {activeVacation.reason ? ` — ${activeVacation.reason}` : ""}
           </Text>
         </View>

@@ -57,9 +57,9 @@ export const selectReviewReminders = (
         .map(([userId, dueVideoIds]) => ({ userId, dueVideoIds }))
 }
 
-/** «Пора повторить: 5 карточек». */
+/** «Пора повторить 5 карточек» (accusative after the verb — no colon). */
 export const reviewReminderMessage = (count: number): string =>
-    `Пора повторить: ${count} ${pluralRu(count, 'карточку', 'карточки', 'карточек')}`
+    `Пора повторить ${count} ${pluralRu(count, 'карточку', 'карточки', 'карточек')}`
 
 /**
  * «Повторение»: once a day, at club-local evening, a push + inbox entry for

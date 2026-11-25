@@ -1,6 +1,6 @@
 import {
   clubAccessibilityLabel,
-  clubEmoji,
+  clubMonogram,
   clubRoleLabel,
   clubStatusLabel,
   clubSubtitle,
@@ -67,12 +67,12 @@ describe("labels", () => {
     )
   })
 
-  it("maps the club type to its brand emoji, generic when unknown", () => {
-    expect(clubEmoji("grappling")).toBe("🥋")
-    expect(clubEmoji("YOGA")).toBe("🧘")
-    expect(clubEmoji("DANCE")).toBe("💃")
-    expect(clubEmoji("chess")).toBe("🎬")
-    expect(clubEmoji(null)).toBe("🎬")
+  it("takes the club's first letter or digit as its monogram", () => {
+    expect(clubMonogram("ACADEMY")).toBe("A")
+    expect(clubMonogram("Студия танца «Ритм»")).toBe("С")
+    expect(clubMonogram("«Ритм»")).toBe("Р")
+    expect(clubMonogram("5 элемент")).toBe("5")
+    expect(clubMonogram("  ")).toBe("?")
   })
 
   it("reads the whole row for a screen reader", () => {

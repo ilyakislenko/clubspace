@@ -1,4 +1,3 @@
-import { brandFromWorkspaceType } from "@clubspace/ui-kit/brand"
 import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
@@ -7,6 +6,7 @@ import {
   Text,
   View,
 } from "react-native"
+import { BrandMark } from "../../shared/components/BrandMark"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
@@ -16,7 +16,6 @@ import { getAuthApi, storeAuthTokens } from "../../shared/api/client"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
-import { environment } from "../../shared/env"
 import { errorCode, errorMessage, retryAfterSeconds } from "../../shared/error-message"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
@@ -30,7 +29,6 @@ export function SignInScreen() {
   const styles = useThemedStyles(makeStyles)
   const { refresh } = useAuth()
   const { showToast } = useToast()
-  const { emoji } = brandFromWorkspaceType(environment.brand)
 
   const [step, setStep] = useState<"email" | "code">("email")
   const [email, setEmail] = useState("")
@@ -126,7 +124,7 @@ export function SignInScreen() {
           contentContainerStyle={styles.center}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.emoji}>{emoji}</Text>
+          <BrandMark />
           <Text style={styles.title}>{brand.displayName}</Text>
           <Text style={styles.subtitle}>{brand.tagline}</Text>
           {peekPendingJoin() && (
@@ -186,7 +184,16 @@ export function SignInScreen() {
             <View style={styles.form}>
               <View style={styles.emailRow}>
                 <Text style={styles.muted}>Отправлено на</Text>
-                <Text style={styles.emailText}>{email}</Text>
+                {/* An address has no break points: iOS would split it mid-word. */}
+                <Text
+                  style={styles.emailText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                  ellipsizeMode="middle"
+                >
+                  {email}
+                </Text>
                 <Pressable
                   onPress={() => {
                     setStep("email")
@@ -311,7 +318,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     paddingHorizontal: theme.spacing(6),
     gap: theme.spacing(3),
   },
-  emoji: { fontSize: 56, textAlign: "center", marginBottom: theme.spacing(1) },
   title: {
     ...theme.typography.title,
     fontSize: 26,

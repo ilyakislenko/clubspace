@@ -115,6 +115,7 @@ export class DemoClubService {
                 dpaVersion: environment.billing.legal.dpaVersion,
             },
             pseudonymSecret: environment.encryptionKey,
+            storageBucket: environment.s3Storage.s3BucketName,
         })
         await this.prisma.$transaction(
             async (tx) => {

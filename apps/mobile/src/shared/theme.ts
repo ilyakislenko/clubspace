@@ -70,11 +70,10 @@ export const typography: Typography = {
   bodyStrong: { fontSize: 15, fontWeight: "600", lineHeight: 22 },
   caption: { fontSize: 13, fontWeight: "400", color: "#605e68" },
   captionStrong: { fontSize: 13, fontWeight: "600", color: "#3a3940" },
+  // Sentence case: tracked uppercase eyebrows read as shouting in Russian.
   label: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "600",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
     color: "#605e68",
   },
 }

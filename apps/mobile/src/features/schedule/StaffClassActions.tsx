@@ -317,12 +317,11 @@ const makeStyles = (theme: Theme) =>
       paddingVertical: theme.spacing(1),
     },
     pickerTitle: {
-      fontSize: 12,
-      fontWeight: "700",
+      fontSize: 13,
+      fontWeight: "600",
       color: theme.colors.muted,
       paddingHorizontal: theme.spacing(3),
       paddingVertical: theme.spacing(2),
-      textTransform: "uppercase",
     },
     pickerRow: {
       paddingHorizontal: theme.spacing(3),

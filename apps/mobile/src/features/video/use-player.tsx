@@ -78,6 +78,9 @@ export function usePlayer(uri: string | null): UsePlayerResult {
             contentFit={contentFit}
             nativeControls={false}
             surfaceType="textureView"
+            // iOS puts its Live Text button («Detect Text») on a paused
+            // frame, right over our fullscreen button.
+            allowsVideoFrameAnalysis={false}
           />
         )
       },

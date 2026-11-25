@@ -87,8 +87,10 @@ export default function WorkspaceRanksPage() {
   if (!workspaceId) return null
 
   return (
-    <div className="max-w-3xl space-y-6">
+    // The tab row spans the page like on «Аттестации»; the ladders keep a reading width.
+    <div className="space-y-6">
       <SectionTabs title="Пояса" tabs={beltTabs} />
+      <div className="max-w-3xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="min-w-0 flex-1 text-sm text-muted-foreground">
           Лестницы рангов клуба (например, «Взрослые» и «Дети»). Ранг выдают по
@@ -138,6 +140,7 @@ export default function WorkspaceRanksPage() {
           ))}
         </div>
       )}
+      </div>
 
       <LadderFormSheet
         workspaceId={workspaceId}

@@ -387,9 +387,12 @@ export function PlatformAuditFeed() {
                 <span className="font-medium">
                   {auditActionLabel(e)}
                 </span>
-                <span className="text-muted-foreground">
-                  {e.workspaceName ?? "— клуб удалён —"}
-                </span>
+                {/* Sign-ins and other account events belong to no club. */}
+                {e.workspaceId && (
+                  <span className="text-muted-foreground">
+                    {e.workspaceName ?? "— клуб удалён —"}
+                  </span>
+                )}
                 {detail && (
                   <span className="text-muted-foreground">· {detail}</span>
                 )}

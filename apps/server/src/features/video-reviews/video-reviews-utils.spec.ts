@@ -83,6 +83,8 @@ describe('member clips stay out of club content', () => {
             .map((f) => relative(SRC, f))
             .filter((f) => !f.startsWith('features/video-reviews/'))
         expect(touching).toEqual([
+            // The demo generator: student@'s placeholder review (no media).
+            'domains/demo/demo-club.writer.ts',
             // «Заявки»: counts and lists open reviews for staff, no club content.
             'domains/requests/open-requests.ts',
             'domains/users/services/users.service.ts',

@@ -1,6 +1,6 @@
 import { cap } from "@clubspace/ui-kit/brand"
 import React, { useState } from "react"
-import { StyleSheet, Text, View } from "react-native"
+import { ScrollView, StyleSheet, Text, View } from "react-native"
 
 import { showAlert } from "../../shared/alert"
 import {
@@ -27,7 +27,7 @@ import {
   startChoices,
   untilChoices,
 } from "./freeze-request-helpers"
-import { freezeExtendsText } from "./subscription-state"
+import { pluralRu } from "../../shared/format-ru"
 
 type Props = {
   workspaceId: string
@@ -210,14 +210,20 @@ export function FreezeRequestSection({
           <Text style={styles.title}>Попросить заморозку</Text>
 
           <Text style={styles.label}>С какого дня</Text>
-          <View style={styles.chips}>
+          {/* Up to a month of days: one sideways row, not a wall of chips. */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.chipsLine}
+          >
             {startChoices(window).map((c) =>
               chip(c.ymd, c.label, from === c.ymd, () => {
                 setFromYmd(c.ymd)
                 setUntilYmd(null)
               }),
             )}
-          </View>
+          </ScrollView>
 
           <Text style={styles.label}>Сколько</Text>
           <View style={styles.chips}>
@@ -251,13 +257,18 @@ export function FreezeRequestSection({
             </>
           ) : (
             from !== null && (
-              <View style={styles.chips}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.chipsLine}
+              >
                 {untilChoices(from, maxDays).map((c) =>
                   chip(c.ymd, c.label, untilYmd === c.ymd, () =>
                     setUntilYmd(c.ymd),
                   ),
                 )}
-              </View>
+              </ScrollView>
             )
           )}
 
@@ -291,7 +302,11 @@ export function FreezeRequestSection({
                   days: validDays,
                 })}
               </Text>
-              <Text style={styles.meta}>{freezeExtendsText(validDays)}</Text>
+              {/* Not frozen yet: the extension comes with the approval. */}
+              <Text style={styles.meta}>
+                Если {coach.nom} одобрит, срок абонемента продлится на {validDays}{" "}
+                {pluralRu(validDays, "день", "дня", "дней")}
+              </Text>
             </>
           )}
 
@@ -339,6 +354,7 @@ const makeStyles = (theme: Theme) =>
     invalid: { ...theme.typography.caption, color: theme.colors.danger },
     row: { flexDirection: "row", gap: theme.spacing(2), flexWrap: "wrap" },
     chips: { flexDirection: "row", gap: theme.spacing(2), flexWrap: "wrap" },
+    chipsLine: { flexDirection: "row", gap: theme.spacing(2) },
     chip: {
       paddingHorizontal: theme.spacing(3),
       paddingVertical: theme.spacing(2),

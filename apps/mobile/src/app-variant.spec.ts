@@ -12,7 +12,7 @@ type ExpoConfig = {
     package: string
     googleServicesFile?: string
     blockedPermissions: string[]
-    adaptiveIcon: { foregroundImage: string }
+    adaptiveIcon: { foregroundImage: string; backgroundColor: string }
     intentFilters?: { data: Record<string, string>[] }[]
   }
   web: { favicon: string }
@@ -66,6 +66,7 @@ describe("resolveAppConfig — the neutral ClubSpace app", () => {
     expect(out.android.adaptiveIcon.foregroundImage).toBe(
       "./assets/images/adaptive-icon.png",
     )
+    expect(out.android.adaptiveIcon.backgroundColor).toBe("#5b58d9")
     expect(pluginOptions(out, "expo-splash-screen")?.image).toBe(
       "./assets/images/splash-icon.png",
     )
@@ -112,6 +113,7 @@ describe("resolveAppConfig — a club's branded app", () => {
     expect(out.android.adaptiveIcon.foregroundImage).toBe(
       "./branding/yoga/adaptive-icon.png",
     )
+    expect(out.android.adaptiveIcon.backgroundColor).toBe(BRAND_ACCENT.yoga)
     expect(out.web.favicon).toBe("./branding/yoga/favicon.png")
     expect(pluginOptions(out, "expo-splash-screen")?.image).toBe(
       "./branding/yoga/splash-icon.png",

@@ -483,7 +483,7 @@ describe('CompleteMyVideoReviewUploadHandler', () => {
             workspaceId: W,
             kind: REVIEW_REQUESTED_KIND,
             refId: 'r1',
-            topic: 'Новый разбор от Анна Смирнова',
+            topic: 'Новый разбор: Анна Смирнова',
             message: 'Sparring r1',
             metadata: { requestId: 'r1' },
             memberWhere: {

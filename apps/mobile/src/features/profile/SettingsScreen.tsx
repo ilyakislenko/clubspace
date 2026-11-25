@@ -7,7 +7,6 @@ import {
   Linking,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native"
@@ -29,6 +28,7 @@ import { isFeatureEnabled } from "../../shared/feature-flags"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
 import { Chevron } from "../../shared/components/Chevron"
+import { Switch } from "../../shared/components/Switch"
 import { environment } from "../../shared/env"
 import { errorMessage } from "../../shared/error-message"
 import { isWeb, supportsPushNotifications } from "../../shared/platform"
@@ -256,10 +256,6 @@ export function SettingsScreen(_props: Props) {
                 accessibilityLabel="Автовоспроизведение"
                 value={prefs.autoplay}
                 onValueChange={(v) => update({ autoplay: v })}
-                trackColor={{
-                  true: theme.colors.accent,
-                  false: theme.colors.border,
-                }}
               />
             }
           />
@@ -270,10 +266,6 @@ export function SettingsScreen(_props: Props) {
                 accessibilityLabel="Следующий урок автоматически"
                 value={prefs.autoplayNext}
                 onValueChange={(v) => update({ autoplayNext: v })}
-                trackColor={{
-                  true: theme.colors.accent,
-                  false: theme.colors.border,
-                }}
               />
             }
           />
@@ -296,10 +288,6 @@ export function SettingsScreen(_props: Props) {
                   onValueChange={(v) =>
                     void (v ? webPush.enable() : webPush.disable())
                   }
-                  trackColor={{
-                    true: theme.colors.accent,
-                    false: theme.colors.border,
-                  }}
                 />
               }
             />
@@ -332,10 +320,6 @@ export function SettingsScreen(_props: Props) {
                 disabled={!notif}
                 value={notif?.newVideosEnabled ?? true}
                 onValueChange={(v) => updateNotif({ newVideosEnabled: v })}
-                trackColor={{
-                  true: theme.colors.accent,
-                  false: theme.colors.border,
-                }}
               />
             }
           />
@@ -349,10 +333,6 @@ export function SettingsScreen(_props: Props) {
                   disabled={!notif}
                   value={notif?.reviewRemindersEnabled ?? true}
                   onValueChange={(v) => updateNotif({ reviewRemindersEnabled: v })}
-                  trackColor={{
-                    true: theme.colors.accent,
-                    false: theme.colors.border,
-                  }}
                 />
               }
             />
@@ -368,10 +348,6 @@ export function SettingsScreen(_props: Props) {
                 onValueChange={(v) =>
                   updateNotif({ accessExpiringEnabled: v })
                 }
-                trackColor={{
-                  true: theme.colors.accent,
-                  false: theme.colors.border,
-                }}
               />
             }
           />
@@ -384,10 +360,6 @@ export function SettingsScreen(_props: Props) {
                   disabled={!notif}
                   value={notif?.promotionsEnabled ?? true}
                   onValueChange={(v) => updateNotif({ promotionsEnabled: v })}
-                  trackColor={{
-                    true: theme.colors.accent,
-                    false: theme.colors.border,
-                  }}
                 />
               }
             />
@@ -401,10 +373,6 @@ export function SettingsScreen(_props: Props) {
                   disabled={!notif}
                   value={notif?.announcementsEnabled ?? true}
                   onValueChange={(v) => updateNotif({ announcementsEnabled: v })}
-                  trackColor={{
-                    true: theme.colors.accent,
-                    false: theme.colors.border,
-                  }}
                 />
               }
             />
@@ -419,10 +387,6 @@ export function SettingsScreen(_props: Props) {
                   disabled={!notif}
                   value={notif?.inactivityEnabled ?? true}
                   onValueChange={(v) => updateNotif({ inactivityEnabled: v })}
-                  trackColor={{
-                    true: theme.colors.accent,
-                    false: theme.colors.border,
-                  }}
                 />
               }
             />
@@ -442,10 +406,6 @@ export function SettingsScreen(_props: Props) {
                   onValueChange={(v) =>
                     updateNotif({ analyticsDigestEnabled: v })
                   }
-                  trackColor={{
-                    true: theme.colors.accent,
-                    false: theme.colors.border,
-                  }}
                 />
               }
             />
@@ -467,10 +427,6 @@ export function SettingsScreen(_props: Props) {
                 accessibilityLabel="Загрузка только по Wi-Fi"
                 value={prefs.wifiOnlyDownloads}
                 onValueChange={(v) => update({ wifiOnlyDownloads: v })}
-                trackColor={{
-                  true: theme.colors.accent,
-                  false: theme.colors.border,
-                }}
               />
             }
           />

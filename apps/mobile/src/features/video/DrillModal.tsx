@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Pressable } from "../../shared/components/Pressable"
 
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { useOverlayPresence } from "../../shared/overlay-presence"
 import type { Theme } from "../../shared/theme"
 import { type DrillConfig } from "../profile/preferences-store"
 import { formatClock, isDrillRunning, useDrill } from "./drill-context"
@@ -33,6 +34,7 @@ export function DrillModal({ onClose }: { onClose: () => void }) {
   const { phase, config, setConfig, start, stop, togglePause, skipRest } =
     drill
   const running = isDrillRunning(phase)
+  useOverlayPresence(true)
 
   return (
     <Modal

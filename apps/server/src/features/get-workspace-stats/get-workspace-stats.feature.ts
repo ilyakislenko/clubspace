@@ -42,8 +42,9 @@ const TodaySchema = z.object({
 export const GetWorkspaceStatsFeatureOutputSchema = z.object({
     today: TodaySchema,
     counts: z.object({
-        // The club's video library (shared, never narrowed): all / ready to
-        // watch — the difference is «в обработке или с ошибкой».
+        // The club's video library (shared, never narrowed): uploaded or ready
+        // (no sourceless placeholders) / ready to watch — the difference is
+        // «в обработке или с ошибкой».
         videos: z.number().int(),
         videosReady: z.number().int(),
         // `students_total`: active student memberships (no owner, no staff).

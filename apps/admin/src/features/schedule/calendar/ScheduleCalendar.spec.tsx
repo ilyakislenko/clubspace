@@ -111,6 +111,10 @@ const dragClass = async () => {
 }
 
 describe("ScheduleCalendar", () => {
+  // Each case renders the whole week grid and drags through it; under a
+  // parallel full run that took 5–25 s and tripped jest's 5 s default.
+  jest.setTimeout(30_000)
+
   it("loads the week from the deep link and shows the classes", async () => {
     render(<ScheduleCalendar workspaceId="w1" />)
     await screen.findByRole("button", { name: /Группа g1, 19:00–20:30/ })

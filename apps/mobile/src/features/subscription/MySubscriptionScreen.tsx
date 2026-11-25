@@ -119,8 +119,13 @@ export function MySubscriptionScreen() {
     )
   }
 
-  const banner = data ? mySubscriptionState(data, vocabulary) : null
   const abonements = data ? currentAbonements(data) : []
+  // One healthy abonement: its card already says what is left and until
+  // when, so the access line would only repeat it. A warning, a freeze or
+  // several abonements keep it.
+  const state = data ? mySubscriptionState(data, vocabulary) : null
+  const banner =
+    state && !(abonements.length === 1 && state.tone === "ok") ? state : null
   // «Весь клуб» only contrasts a club-wide abonement with scoped neighbours.
   const showClubWide = abonements.length > 1 && hasScoped(abonements)
   // Per render, never memoized: the device day decides the phase.
@@ -133,6 +138,10 @@ export function MySubscriptionScreen() {
   // member to the coach for it.
   const hasFreezeAsk = abonements.some(
     (a) => a.freezeRequest || a.freezeRequestWindow,
+  )
+  // The current abonements are on their cards above; history is the rest.
+  const pastSubscriptions = (data?.history ?? []).filter(
+    (s) => !abonements.some((a) => a.id === s.id),
   )
 
   return (
@@ -224,11 +233,11 @@ export function MySubscriptionScreen() {
           {autopayLive && !actingAs ? " Отключить автоплатёж можно здесь же." : ""}
         </Text>
 
-        {data && data.history.length > 0 && (
+        {pastSubscriptions.length > 0 && (
           <View>
             <Text style={styles.sectionTitle}>История</Text>
             <View style={styles.rows}>
-              {data.history.map((s: Subscription) => (
+              {pastSubscriptions.map((s: Subscription) => (
                 <View key={s.id} style={styles.row}>
                   <Text style={styles.rowTitle} numberOfLines={1}>
                     {s.planName}
@@ -281,9 +290,12 @@ function AbonementCard({
           {a.classesTotal != null ? ` из ${a.classesTotal}` : ""}
         </Text>
       )}
-      <Text style={styles.meta}>
-        Статус: {frozenNow ? "заморожен" : statusLabelFor(a)}
-      </Text>
+      {/* «активен» on the current abonement says nothing; a freeze does. */}
+      {(frozenNow || statusLabelFor(a) !== STATUS_LABEL.ACTIVE) && (
+        <Text style={styles.meta}>
+          Статус: {frozenNow ? "заморожен" : statusLabelFor(a)}
+        </Text>
+      )}
       <Text style={styles.meta}>Период: {periodText(a, vocabulary)}</Text>
       {a.freeze && freezeText && (
         <>

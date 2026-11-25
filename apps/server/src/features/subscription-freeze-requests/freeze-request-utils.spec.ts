@@ -164,9 +164,9 @@ describe('freezeRequestWindow', () => {
 })
 
 describe('personName', () => {
-    it('is «Фамилия Имя» and null when nameless', () => {
+    it('is «Имя Фамилия» and null when nameless', () => {
         expect(personName({ firstname: 'Иван', lastname: 'Петров' })).toBe(
-            'Петров Иван',
+            'Иван Петров',
         )
         expect(personName({ firstname: ' Иван ', lastname: null })).toBe('Иван')
         expect(personName({ firstname: null, lastname: ' ' })).toBeNull()

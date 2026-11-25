@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native"
@@ -28,6 +27,7 @@ import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { useToast } from "../../shared/components/Toast"
+import { Switch } from "../../shared/components/Switch"
 import { errorMessage } from "../../shared/error-message"
 import { pluralRu } from "../../shared/format-ru"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
@@ -41,11 +41,6 @@ const PERIODS: { key: LeaderboardPeriod; label: string }[] = [
   { key: "week", label: "Неделя" },
   { key: "month", label: "Месяц" },
 ]
-
-const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" }
-
-const streakLabel = (n: number): string =>
-  `${n} ${pluralRu(n, "неделя", "недели", "недель")}`
 
 export function LeaderboardScreen() {
   const theme = useTheme()
@@ -126,8 +121,6 @@ export function LeaderboardScreen() {
           />
         }
       >
-        <Text style={styles.title}>Рейтинг посещаемости</Text>
-
         {error && !data && <ErrorRetry message={error} onRetry={refetch} />}
 
         {stale && data ? <OfflineNotice /> : null}
@@ -187,8 +180,10 @@ export function LeaderboardScreen() {
               </View>
               <View style={styles.meDivider} />
               <View style={styles.meStat}>
-                <Text style={styles.meValue}>🔥 {data.me.streakWeeks}</Text>
-                <Text style={styles.meLabel}>{streakLabel(data.me.streakWeeks)} подряд</Text>
+                <Text style={styles.meValue}>{data.me.streakWeeks}</Text>
+                <Text style={styles.meLabel}>
+                  {pluralRu(data.me.streakWeeks, "неделя", "недели", "недель")} подряд
+                </Text>
               </View>
             </View>
 
@@ -205,7 +200,9 @@ export function LeaderboardScreen() {
                     key={e.userId}
                     style={[styles.row, e.isMe && styles.rowMe]}
                   >
-                    <Text style={styles.rank}>{MEDAL[e.rank] ?? e.rank}</Text>
+                    <Text style={[styles.rank, e.rank <= 3 && styles.rankTop]}>
+                      {e.rank}
+                    </Text>
                     <Text style={styles.name} numberOfLines={1}>
                       {e.name}
                       {e.isMe ? " (вы)" : ""}
@@ -228,10 +225,6 @@ export function LeaderboardScreen() {
                 accessibilityLabel="Показывать меня в рейтинге"
                 value={!data.me.hidden}
                 onValueChange={(v) => void onToggleVisibility(v)}
-                trackColor={{
-                  true: theme.colors.accent,
-                  false: theme.colors.border,
-                }}
               />
             </View>
           </>
@@ -252,7 +245,6 @@ const makeStyles = (theme: Theme) =>
       backgroundColor: theme.colors.background,
     },
     body: { padding: theme.spacing(5), gap: theme.spacing(3) },
-    title: { ...theme.typography.title, fontSize: 22, color: theme.colors.text },
     banner: {
       padding: theme.spacing(3),
       borderRadius: theme.radius.md,
@@ -318,6 +310,8 @@ const makeStyles = (theme: Theme) =>
       fontSize: 15,
       fontWeight: "700",
     },
+    // The podium stands out by colour, not by medal emoji.
+    rankTop: { color: theme.colors.accent, fontWeight: "800" },
     name: { flex: 1, color: theme.colors.text, fontSize: 15, fontWeight: "500" },
     count: {
       color: theme.colors.muted,

@@ -3,6 +3,7 @@ import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
 import type { ScheduleEvent } from "../../shared/api/groups"
 import {
   canMarkClassNow,
+  checkInOpenNow,
   coachNextAfterToday,
   coachNextLine,
   coachTodayView,
@@ -274,6 +275,158 @@ describe("showCheckInButton", () => {
     for (const role of ["coach", "head_coach", "admin"]) {
       expect(showCheckInButton(role, [])).toBe(true)
     }
+  })
+})
+
+describe("checkInOpenNow", () => {
+  // Tue 27 Oct 2026 in Moscow (UTC+3); the group trains Tue 20:00–21:30.
+  const slot = (dayOfWeek: number, startTime: string) => ({
+    id: `s-${startTime}`,
+    dayOfWeek,
+    startTime,
+    durationMin: 90,
+    effectiveFrom: null,
+    effectiveUntil: null,
+  })
+  const group = (over: Record<string, unknown> = {}) =>
+    ({
+      id: "g",
+      role: "student",
+      timezone: "Europe/Moscow",
+      slots: [slot(2, "20:00")],
+      exceptions: [],
+      ...over,
+    }) as never
+  const span = (startAt: string, over: Record<string, unknown> = {}) =>
+    ({
+      startAt,
+      endAt: new Date(new Date(startAt).getTime() + 60 * 60_000).toISOString(),
+      ...over,
+    }) as never
+  const none = { groups: [], bookings: [], classBookings: [], events: [] }
+
+  it("is closed all day before an evening class", () => {
+    const mine = { ...none, groups: [group()] }
+    // 03:00 and 19:29 Moscow.
+    expect(checkInOpenNow(mine, new Date("2026-10-27T00:00:00Z"))).toBe(false)
+    expect(checkInOpenNow(mine, new Date("2026-10-27T16:29:00Z"))).toBe(false)
+  })
+
+  it("opens 30 min before the start and closes 30 min after the end", () => {
+    const mine = { ...none, groups: [group()] }
+    expect(checkInOpenNow(mine, new Date("2026-10-27T16:30:00Z"))).toBe(true)
+    expect(checkInOpenNow(mine, new Date("2026-10-27T18:00:00Z"))).toBe(true)
+    expect(checkInOpenNow(mine, new Date("2026-10-27T19:00:00Z"))).toBe(true)
+    expect(checkInOpenNow(mine, new Date("2026-10-27T19:01:00Z"))).toBe(false)
+  })
+
+  it("keeps a late class open past midnight", () => {
+    const mine = { ...none, groups: [group({ slots: [slot(2, "23:30")] })] }
+    // Wed 01:20 Moscow: the Tue 23:30 class ended at 01:00.
+    expect(checkInOpenNow(mine, new Date("2026-10-27T22:20:00Z"))).toBe(true)
+  })
+
+  it("skips a class cancelled by an exception", () => {
+    const mine = {
+      ...none,
+      groups: [
+        group({
+          exceptions: [
+            { slotId: "s-20:00", fromDate: "2026-10-27", untilDate: "2026-10-27" },
+          ],
+        }),
+      ],
+    }
+    expect(checkInOpenNow(mine, new Date("2026-10-27T17:30:00Z"))).toBe(false)
+  })
+
+  it("follows the coached-group classes only as a student", () => {
+    const mine = {
+      ...none,
+      groups: [
+        group({ role: "coach", slots: [slot(2, "12:00")] }),
+        group(),
+      ],
+    }
+    expect(checkInOpenNow(mine, new Date("2026-10-27T09:30:00Z"))).toBe(false)
+  })
+
+  it("adds windows for a guest booking, a held place and an event", () => {
+    const now = new Date("2026-10-27T09:45:00Z")
+    const soon = "2026-10-27T10:00:00Z"
+    const timetable = { ...none, groups: [group()] }
+    expect(checkInOpenNow(timetable, now)).toBe(false)
+    expect(
+      checkInOpenNow(
+        { ...timetable, bookings: [span(soon, { cancelled: false })] },
+        now,
+      ),
+    ).toBe(true)
+    expect(
+      checkInOpenNow(
+        {
+          ...timetable,
+          classBookings: [span(soon, { status: "BOOKED", classCancelled: false })],
+        },
+        now,
+      ),
+    ).toBe(true)
+    expect(
+      checkInOpenNow(
+        {
+          ...timetable,
+          events: [span(soon, { registration: { mine: { status: "REGISTERED" } } })],
+        },
+        now,
+      ),
+    ).toBe(true)
+  })
+
+  it("keeps the grace for a held place the server already moved to history", () => {
+    // The 10:00–11:00 class ended; the place is in history, still BOOKED.
+    const mine = {
+      ...none,
+      groups: [group()],
+      classBookings: [
+        span("2026-10-27T10:00:00Z", { status: "BOOKED", classCancelled: false }),
+      ],
+    }
+    expect(checkInOpenNow(mine, new Date("2026-10-27T11:20:00Z"))).toBe(true)
+    expect(checkInOpenNow(mine, new Date("2026-10-27T11:31:00Z"))).toBe(false)
+  })
+
+  it("ignores cancelled bookings and waitlist places", () => {
+    const now = new Date("2026-10-27T09:45:00Z")
+    const soon = "2026-10-27T10:00:00Z"
+    const mine = {
+      ...none,
+      groups: [group()],
+      bookings: [span(soon, { cancelled: true })],
+      classBookings: [span(soon, { status: "WAITLISTED", classCancelled: false })],
+    }
+    expect(checkInOpenNow(mine, now)).toBe(false)
+  })
+
+  it("stays open without a group timetable to go by", () => {
+    const now = new Date("2026-10-27T00:00:00Z")
+    expect(checkInOpenNow(none, now)).toBe(true)
+    expect(checkInOpenNow({ ...none, groups: [group({ slots: [] })] }, now)).toBe(
+      true,
+    )
+  })
+
+  it("never lets bookings or events alone take the button away", () => {
+    // A cancelled drop-in from yesterday and a seminar weeks out.
+    const mine = {
+      ...none,
+      bookings: [span("2026-10-26T10:00:00Z", { cancelled: true })],
+      events: [
+        span("2026-11-20T10:00:00Z", {
+          registration: { mine: { status: "REGISTERED" } },
+        }),
+      ],
+    }
+    expect(checkInOpenNow(mine, new Date("2026-10-27T00:00:00Z"))).toBe(true)
   })
 })
 
@@ -734,7 +887,7 @@ describe("eventStatusLine", () => {
   it("shows the waitlist position when known", () => {
     const waiting = { ...base, status: "WAITLISTED" as const }
     expect(eventStatusLine({ ...waiting, waitlistPosition: 2 }, 1500)).toBe(
-      "В листе ожидания, 2-я",
+      "В листе ожидания, место №2",
     )
     expect(eventStatusLine(waiting, 1500)).toBe("В листе ожидания")
   })

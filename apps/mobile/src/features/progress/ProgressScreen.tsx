@@ -22,6 +22,7 @@ import {
   DASHBOARD_WIDTH,
 } from "../../shared/components/CenteredColumn"
 import { Chevron } from "../../shared/components/Chevron"
+import { Icon } from "../../shared/components/Icon"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
@@ -271,13 +272,19 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
               {achievements.data?.recentWeeks && (
                 <WeeklyBars counts={achievements.data.recentWeeks} />
               )}
-              {achievementsOn && (
-                <Text style={streak > 0 ? styles.line : styles.muted}>
-                  {streak > 0
-                    ? `🔥 ${streak} ${pluralRu(streak, "неделя", "недели", "недель")} подряд`
-                    : `${vocabulary.practiceImperative} раз в неделю — начнётся серия`}
-                </Text>
-              )}
+              {achievementsOn &&
+                (streak > 0 ? (
+                  <View style={styles.streakRow}>
+                    <Icon name="flame" size={18} color={theme.colors.warning} />
+                    <Text style={styles.line}>
+                      {streak} {pluralRu(streak, "неделя", "недели", "недель")} подряд
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.muted}>
+                    {vocabulary.practiceImperative} раз в неделю — начнётся серия
+                  </Text>
+                ))}
             </Pressable>
           )}
 
@@ -288,9 +295,19 @@ export function ProgressScreen({ navigation }: TabScreenProps<"Progress">) {
                 accessibilityRole="button"
                 style={styles.card}
               >
-                <Text style={styles.milestoneIcon}>
-                  {next ? (next.icon ?? next.threshold) : "🏆"}
-                </Text>
+                {/* A badge's own mark is the club's (an emoji it picked, or
+                    the threshold); with every badge open, the icon set's. */}
+                {next ? (
+                  <Text
+                    style={styles.milestoneIcon}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  >
+                    {next.icon ?? next.threshold}
+                  </Text>
+                ) : (
+                  <Icon name="trophy-outline" size={32} color={theme.colors.accent} />
+                )}
                 <View style={styles.cardText}>
                   {next ? (
                     <>
@@ -417,6 +434,7 @@ const makeStyles = (theme: Theme) =>
     cardTitle: { ...theme.typography.label },
     strong: { ...theme.typography.bodyStrong, color: theme.colors.text },
     line: { ...theme.typography.body, color: theme.colors.text },
+    streakRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1) },
     muted: { ...theme.typography.caption, color: theme.colors.muted },
     chev: { fontSize: 20, color: theme.colors.mutedFaint, lineHeight: 20 },
     milestoneIcon: { fontSize: 32 },

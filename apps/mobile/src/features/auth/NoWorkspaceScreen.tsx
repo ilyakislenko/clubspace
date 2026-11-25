@@ -1,7 +1,12 @@
-import { brandFromWorkspaceType } from "@clubspace/ui-kit/brand"
 import { useFocusEffect } from "@react-navigation/native"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react"
 import {
   ActivityIndicator,
   Linking,
@@ -10,6 +15,8 @@ import {
   Text,
   View,
 } from "react-native"
+import { BrandMark } from "../../shared/components/BrandMark"
+import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import { useToast } from "../../shared/components/Toast"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -67,7 +74,6 @@ export function NoWorkspaceScreen({ navigation }: Props) {
   } = useMyInvitations()
   const mounted = useRef(true)
   const name = displayName(me)
-  const { emoji } = brandFromWorkspaceType(environment.brand)
 
   useEffect(
     () => () => {
@@ -215,16 +221,8 @@ export function NoWorkspaceScreen({ navigation }: Props) {
     </Pressable>
   )
 
-  const icon = (glyph: string) => (
-    <Text
-      style={styles.icon}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      // react-native-web ignores the two RN props above.
-      aria-hidden
-    >
-      {glyph}
-    </Text>
+  const icon = (name: ComponentProps<typeof Icon>["name"]) => (
+    <Icon name={name} size={56} color={theme.colors.muted} style={styles.icon} />
   )
 
   const renderBody = () => {
@@ -246,7 +244,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
       case "welcome":
         return (
           <>
-            {icon(emoji)}
+            <BrandMark />
             <Text style={styles.title}>
               {actingAs
                 ? `Клуб для профиля «${dependentName(actingAs)}»`
@@ -335,7 +333,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
       case "wl-rejected":
         return (
           <>
-            {icon("⚠️")}
+            {icon("alert-circle-outline")}
             <Text style={styles.title}>Заявка отклонена</Text>
             <Text style={styles.subtitle}>
               Клуб отклонил заявку. Свяжитесь с клубом.
@@ -351,7 +349,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
         const prompt = brandJoinPrompt(brand.displayName)
         return (
           <>
-            {icon(emoji)}
+            <BrandMark />
             <Text style={styles.title}>{prompt.title}</Text>
             <Text style={styles.subtitle}>{prompt.message}</Text>
             <View style={styles.actions}>
@@ -393,7 +391,7 @@ export function NoWorkspaceScreen({ navigation }: Props) {
       case "wl-pending":
         return (
           <>
-            {icon("⏳")}
+            {icon("hourglass-outline")}
             <Text style={styles.title}>Ожидаем подтверждения</Text>
             <Text style={styles.subtitle}>
               Заявка в клуб отправлена. Как только администратор клуба её
@@ -503,7 +501,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     justifyContent: "center",
     gap: theme.spacing(5),
   },
-  icon: { fontSize: 56, textAlign: "center" },
+  icon: { textAlign: "center" },
   title: {
     ...theme.typography.title,
     fontSize: 26,

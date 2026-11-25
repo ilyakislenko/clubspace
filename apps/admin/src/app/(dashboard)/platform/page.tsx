@@ -24,7 +24,7 @@ import { PlatformDemoRequests } from "../../../features/platform/PlatformDemoReq
 import { PlatformDemoClub } from "../../../features/platform/PlatformDemoClub"
 import { PlatformWorkspaceBilling } from "../../../features/platform/PlatformWorkspaceBilling"
 import { TimezoneSelect } from "../../../features/settings/TimezoneSelect"
-import { inputClsFull } from "../../../shared/lib/input-class"
+import { inputCls, inputClsFull } from "../../../shared/lib/input-class"
 import { browserTimezone } from "../../../shared/lib/timezones"
 import {
   WORKSPACE_TYPE_OPTIONS,
@@ -506,7 +506,7 @@ export default function PlatformConsolePage() {
           placeholder="Поиск по названию, ключу или почте владельца"
         />
         <select
-          className={`${inputClsFull} w-44`}
+          className={`${inputCls} w-44`}
           value={status}
           aria-label="Статус оплаты"
           onChange={(e) => {
@@ -522,7 +522,7 @@ export default function PlatformConsolePage() {
           ))}
         </select>
         <select
-          className={`${inputClsFull} w-36`}
+          className={`${inputCls} w-36`}
           value={tier}
           aria-label="Тариф"
           onChange={(e) => {
@@ -538,7 +538,7 @@ export default function PlatformConsolePage() {
           ))}
         </select>
         <select
-          className={`${inputClsFull} w-40`}
+          className={`${inputCls} w-40`}
           value={promo}
           aria-label="Промо"
           onChange={(e) => {
@@ -551,7 +551,7 @@ export default function PlatformConsolePage() {
           <option value="no">Без промо</option>
         </select>
         <select
-          className={`${inputClsFull} w-48`}
+          className={`${inputCls} w-48`}
           value={sort}
           aria-label="Сортировка"
           onChange={(e) => {
@@ -575,7 +575,7 @@ export default function PlatformConsolePage() {
           <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
             {search || status || tier || promo
               ? "Ничего не нашлось по этому запросу."
-              : "Пока ни одного клуба. Нажми «Создать клуб»."}
+              : "Пока ни одного клуба. Нажмите «Создать клуб»."}
           </div>
         ) : (
           workspaces.map((w) => (

@@ -57,6 +57,14 @@ const REASON_LINE: Record<AtRiskReason, (n: number) => string> = {
 export const callListTitle = (n: number): string =>
   `${n} ${pluralRu(n, "ученику", "ученикам", "ученикам")} стоит позвонить`
 
+// The one listed member's reason, without «у 1»: «кончился абонемент».
+const SINGLE_REASON_LINE: Record<AtRiskReason, string> = {
+  lapsed: "кончился абонемент",
+  newcomer: "новичок",
+  absent: "давно не был",
+  declining: "ходит реже",
+}
+
 /**
  * The biggest reason (ties go to the higher-priority one) as one muted line;
  * the full breakdown lives on «Кому позвонить». Null when no reason counts.
@@ -66,7 +74,10 @@ export const callListReason = (summary: AtRiskSummary): string | null => {
   for (const r of REASON_ORDER) {
     if (summary[r] > 0 && (top === null || summary[r] > summary[top])) top = r
   }
-  return top === null ? null : REASON_LINE[top](summary[top])
+  if (top === null) return null
+  return summary.total === 1
+    ? SINGLE_REASON_LINE[top]
+    : REASON_LINE[top](summary[top])
 }
 
 // Cache keys live under `atrisk:<workspaceId>`, so

@@ -28,15 +28,9 @@ import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import { fmtDate } from "../subscription/subscription-state"
 
 const PER_PAGE = 30
-
-const fmtDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
 
 // Match the server feed order: pinned first, then newest.
 const sortFeed = (list: Announcement[]): Announcement[] =>
@@ -121,7 +115,7 @@ export function AnnouncementsScreen() {
           <View key={a.id} style={styles.card}>
             {a.pinned && (
               <View style={styles.pinChip}>
-                <Text style={styles.pinChipText}>📌 Закреплено</Text>
+                <Text style={styles.pinChipText}>Закреплено</Text>
               </View>
             )}
             <Text style={styles.cardTitle}>{a.title}</Text>

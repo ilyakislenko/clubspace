@@ -188,7 +188,9 @@ describe('demo kit', () => {
         expect(byName.get('Семейная')).toMatchObject({ isFamily: true })
         expect(byName.get('Семейная')!.uses).toBeGreaterThan(0)
         expect(byName.get('Студенческая')!.uses).toBeGreaterThan(0)
-        expect(byName.get('Продление −5%')).toMatchObject({ code: 'ПРОДЛИ5', uses: 0 })
+        // ПРОДЛИ5: a few renewals with the promo code, once per member.
+        expect(byName.get('Продление −5%')).toMatchObject({ code: 'ПРОДЛИ5' })
+        expect(byName.get('Продление −5%')!.uses).toBeGreaterThan(0)
         const coachId = (await ctx.prisma.user.findFirstOrThrow({ where: { email: 'coach@academy.demo' } })).id
         const staff = discounts.body.byStaff as { userId: string; oneOff: { count: number; amount: number } }[]
         expect(staff.find((s) => s.userId === coachId)?.oneOff).toEqual({ count: 1, amount: 1000 })
@@ -235,6 +237,46 @@ describe('demo kit', () => {
         const forecast = await analytics('forecast')
         expect(forecast.body.trial.converted).toBeGreaterThan(0)
         expect(forecast.body.trial.converted).toBeLessThan(forecast.body.trial.trials)
+    })
+
+    it('gives the staff of both demo clubs something on every «Сегодня» row and classes today', async () => {
+        const admin = await signIn(ctx, PLATFORM_OWNER)
+        const academy = (await reset(admin).send({ club: 'academy' }).expect(201)).body.workspaceId as string
+        const ritm = (await reset(admin).send({ club: 'ritm' }).expect(201)).body.workspaceId as string
+        // As the platform admin: club-wide, like the owner, without a second
+        // fixed-code sign-in right after the first.
+        const check = async (workspaceId: string) => {
+            const get = (path: string) => ctx.http().get(`/workspaces/${workspaceId}${path}`).set(...admin.auth).expect(200)
+            // «Заявки»: a join, a freeze, a personal training and a video review wait.
+            const requests = await get('/requests')
+            for (const kind of ['join', 'freeze', 'personal', 'video']) {
+                expect(requests.body.counts[kind]).toBeGreaterThan(0)
+            }
+            const stats = await get('/stats')
+            // Course placeholders are not «Видео в обработке или с ошибкой».
+            expect(stats.body.counts.videos - stats.body.counts.videosReady).toBe(0)
+            expect(stats.body.retention.renewalsDue).toBeGreaterThan(0)
+            expect(stats.body.revenue.awaitingPayment.students).toBeGreaterThan(0)
+            const atRisk = await get('/at-risk-members?perPage=1')
+            expect(atRisk.body.summary.total).toBeGreaterThan(0)
+            // Classes today in the club's own calendar day, whatever the weekday.
+            const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tomsk' }).format(new Date())
+            const day = await get(`/schedule?from=${today}&to=${today}`)
+            expect(
+                (day.body.sessions as { occurrenceId: string; cancelled: boolean }[]).filter(
+                    (s) => s.occurrenceId.endsWith(`:${today}`) && !s.cancelled,
+                ).length,
+            ).toBeGreaterThan(0)
+            // The journal (30 days): a refund, and who marked every sale.
+            const journal = await get('/payment-journal?perPage=200')
+            expect(journal.body.totals[0].refunded).toBeGreaterThan(0)
+            const rows = journal.body.data as { kind: string; markedBy: unknown }[]
+            expect(rows.filter((r) => r.kind === 'payment').every((r) => r.markedBy !== null)).toBe(true)
+            const discounts = await get('/discounts')
+            expect((discounts.body.data as { uses: number }[]).every((d) => d.uses > 0)).toBe(true)
+        }
+        await check(academy)
+        await check(ritm)
     })
 
     it('signs demo accounts in with the fixed code only in demo mode', async () => {

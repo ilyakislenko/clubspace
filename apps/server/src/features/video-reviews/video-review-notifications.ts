@@ -8,7 +8,7 @@ export const REVIEW_ANSWERED_KIND = 'videoReview.answered'
 const HEAD_COACH_ROLE: RoleName = 'head_coach'
 
 /**
- * «Новый разбор от <name>» to the coaches of the member's groups plus the
+ * «Новый разбор: <name>» to the coaches of the member's groups plus the
  * club's head coaches and owner. A member in no coached group falls back to
  * all the club's staff. Never the member who sent it; the owner gets their
  * own copy below (usually no member row), so they're excluded here.
@@ -41,7 +41,8 @@ export async function notifyCoachesOfReview(
     ])
     const ownerId = workspace?.ownerId ?? null
     const coachIds = [...new Set(groupCoaches.map((c) => c.userId))]
-    const topic = `Новый разбор от ${p.memberName}`
+    // A colon, not «от <name>»: names aren't declined server-side.
+    const topic = `Новый разбор: ${p.memberName}`
     const metadata = { requestId: p.requestId }
     const notIn = { notIn: [p.memberUserId, ...(ownerId ? [ownerId] : [])] }
     const staff = { role: { name: { in: [...STAFF_ROLES] } } }

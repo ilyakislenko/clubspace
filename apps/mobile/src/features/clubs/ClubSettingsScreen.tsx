@@ -1,11 +1,9 @@
-import { brandFromWorkspaceType } from "@clubspace/ui-kit/brand"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useState } from "react"
 import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native"
@@ -19,6 +17,7 @@ import {
 import { useAuth } from "../../shared/auth-context"
 import { CenteredColumn, READABLE_WIDTH } from "../../shared/components/CenteredColumn"
 import { Pressable } from "../../shared/components/Pressable"
+import { Switch } from "../../shared/components/Switch"
 import { useToast } from "../../shared/components/Toast"
 import { errorMessage } from "../../shared/error-message"
 import { haptics } from "../../shared/haptics"
@@ -31,6 +30,7 @@ import {
   MUTE_HINT,
   muteToast,
 } from "./club-settings-helpers"
+import { ClubMonogram } from "./ClubMonogram"
 
 type Props = NativeStackScreenProps<RootStackParamList, "ClubSettings">
 
@@ -109,14 +109,7 @@ export function ClubSettingsScreen({ navigation, route }: Props) {
       <CenteredColumn maxWidth={READABLE_WIDTH}>
         <ScrollView contentContainerStyle={styles.body}>
           <View style={styles.header}>
-            <Text
-              style={styles.icon}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              aria-hidden
-            >
-              {brandFromWorkspaceType(club.type).emoji}
-            </Text>
+            <ClubMonogram name={club.name} size={56} />
             <View style={styles.headerText}>
               <Text style={styles.title} numberOfLines={2}>
                 {view.name}
@@ -133,10 +126,6 @@ export function ClubSettingsScreen({ navigation, route }: Props) {
                 value={notificationsOn}
                 disabled={pendingOn !== null}
                 onValueChange={(v) => void toggleNotifications(v)}
-                trackColor={{
-                  true: theme.colors.accent,
-                  false: theme.colors.border,
-                }}
               />
             </View>
             <Text style={styles.hint}>{MUTE_HINT}</Text>
@@ -175,7 +164,6 @@ const makeStyles = (theme: Theme) =>
     center: { alignItems: "center", justifyContent: "center" },
     body: { padding: theme.spacing(5), gap: theme.spacing(5) },
     header: { flexDirection: "row", alignItems: "center", gap: theme.spacing(3) },
-    icon: { fontSize: 36 },
     headerText: { flex: 1, gap: 2 },
     title: { ...theme.typography.heading, color: theme.colors.text },
     muted: { fontSize: 14, color: theme.colors.muted },

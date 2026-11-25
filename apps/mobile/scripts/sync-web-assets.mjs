@@ -44,7 +44,8 @@ for (const file of ["plyr.css", "plyr.svg"]) {
 // Chrome only offers "Install" when the manifest advertises icons at the sizes
 // it asks for, and Android masks the icon to the launcher's shape — a
 // non-maskable icon gets letterboxed into a white square. So: exact-size `any`
-// icons plus a padded `maskable` one whose art stays inside the safe zone.
+// icons plus a padded `maskable` one whose art stays inside the safe zone,
+// padded with the brand accent so the opaque icon has no pale frame.
 const icons = join(publicDir, "icons")
 mkdirSync(icons, { recursive: true })
 const source = resolve(root, identity.assetsDir, ASSET_FILES.icon)
@@ -52,8 +53,14 @@ await Promise.all([
   sharp(source).resize(192, 192).png().toFile(join(icons, "icon-192.png")),
   sharp(source).resize(512, 512).png().toFile(join(icons, "icon-512.png")),
   sharp(source)
-    .resize(410, 410, { fit: "contain", background: "#ffffff" })
-    .extend({ top: 51, bottom: 51, left: 51, right: 51, background: "#ffffff" })
+    .resize(410, 410, { fit: "contain", background: identity.accentColor })
+    .extend({
+      top: 51,
+      bottom: 51,
+      left: 51,
+      right: 51,
+      background: identity.accentColor,
+    })
     .png()
     .toFile(join(icons, "icon-maskable-512.png")),
 ])

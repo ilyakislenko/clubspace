@@ -20,6 +20,7 @@ import {
   listTodaySlots,
   parseHHMM,
   zonedParts,
+  withoutGymEcho,
   zonedWallTimeToDate,
   type NextAcrossGroups,
 } from "../schedule/schedule-helpers"
@@ -139,7 +140,8 @@ export const pickNextEvent = (
 }
 
 // «Вы записаны · оплата в клубе» / «Вы записаны · можно оплатить онлайн» /
-// «Оплачено» / «В листе ожидания, 2-я». `onlinePayment`: the club takes this
+// «Оплачено» / «В листе ожидания, место №2» (as the class sheet says it).
+// `onlinePayment`: the club takes this
 // ticket online (the card opens the event, where the button is).
 export const eventStatusLine = (
   mine: MyEventRegistration,
@@ -148,7 +150,7 @@ export const eventStatusLine = (
 ): string => {
   if (mine.status === "WAITLISTED") {
     return mine.waitlistPosition
-      ? `В листе ожидания, ${mine.waitlistPosition}-я`
+      ? `В листе ожидания, место №${mine.waitlistPosition}`
       : "В листе ожидания"
   }
   if (mine.isPaid) return "Оплачено"
@@ -212,6 +214,98 @@ export const showCheckInButton = (
   groups.some((g) => g.role === "student") ||
   groups.length === 0 ||
   !isCoachView(roleName, groups)
+
+/** Self check-in opens this long before a class starts… */
+export const CHECK_IN_LEAD_MIN = 30
+/** …and stays open this long after it ends (a code read out at the bow). */
+export const CHECK_IN_GRACE_MIN = 30
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// Start and end (epoch ms) of a student group's classes on the club calendar
+// day of `now` and the day before (a late class runs past midnight).
+const groupClassSpans = (
+  g: MyGroup,
+  now: Date,
+): Array<{ start: number; end: number }> =>
+  [now, new Date(now.getTime() - DAY_MS)].flatMap((day) => {
+    const { slots, dateStr } = listTodaySlots(
+      g.slots,
+      g.exceptions,
+      day,
+      g.timezone,
+    )
+    const [year, month, date] = dateStr.split("-").map(Number)
+    return slots.map((slot) => {
+      const { hour, minute } = parseHHMM(slot.startTime)
+      const start = zonedWallTimeToDate(
+        year!,
+        month!,
+        date!,
+        hour,
+        minute,
+        g.timezone,
+      ).getTime()
+      return { start, end: start + slot.durationMin * 60_000 }
+    })
+  })
+
+/**
+ * Whether Home offers «Отметиться на тренировке» now: from
+ * {@link CHECK_IN_LEAD_MIN} before one of the member's classes starts until
+ * {@link CHECK_IN_GRACE_MIN} after it ends — their student groups' timetable,
+ * guest bookings, held places in «Запись на занятие» classes and events.
+ * The server takes a code within 12 h of the class start, so this window sits
+ * well inside it and a phone clock a few minutes off still gets through.
+ * Without a student group with a timetable (staff with no groups of theirs,
+ * groups off, a guest) the app can't tell when they train, so the button
+ * stays: the code alone decides. Bookings and events only add windows to a
+ * timetable, never take the button away on their own.
+ * `classBookings`: the upcoming ones plus history — the server moves a held
+ * place to history the moment its class ends, and the grace still covers it.
+ */
+export const checkInOpenNow = (
+  mine: {
+    groups: readonly MyGroup[]
+    bookings: readonly DropInBooking[]
+    classBookings: readonly ClassBooking[]
+    events: readonly ScheduleEvent[]
+  },
+  now: Date,
+): boolean => {
+  const studentGroups = mine.groups.filter(
+    (g) => g.role !== "coach" && g.slots.length > 0,
+  )
+  if (studentGroups.length === 0) return true
+  const events = mine.events.filter(
+    (e) => e.registration?.mine && e.registration.mine.status !== "CANCELLED",
+  )
+  const spans = [
+    ...studentGroups.flatMap((g) => groupClassSpans(g, now)),
+    ...mine.bookings
+      .filter((b) => !b.cancelled)
+      .map((b) => ({
+        start: new Date(b.startAt).getTime(),
+        end: new Date(b.endAt).getTime(),
+      })),
+    ...mine.classBookings
+      .filter((b) => b.status === "BOOKED" && !b.classCancelled)
+      .map((b) => ({
+        start: new Date(b.startAt).getTime(),
+        end: new Date(b.endAt).getTime(),
+      })),
+    ...events.map((e) => ({
+      start: new Date(e.startAt).getTime(),
+      end: new Date(e.endAt).getTime(),
+    })),
+  ]
+  const t = now.getTime()
+  return spans.some(
+    ({ start, end }) =>
+      start - CHECK_IN_LEAD_MIN * 60_000 <= t &&
+      t <= end + CHECK_IN_GRACE_MIN * 60_000,
+  )
+}
 
 export type CoachClassToday = {
   key: string
@@ -305,7 +399,7 @@ const pickSubstitutionsToday = (
         at,
         item: {
           key: `${s.slotId}:${s.sessionDate}`,
-          groupName: s.groupName,
+          groupName: withoutGymEcho(s.groupName, s.gym ?? null),
           gymName: s.gym?.name ?? null,
           slotId: s.slotId,
           sessionDate: s.sessionDate,
@@ -356,7 +450,7 @@ export const pickCoachClassesToday = (
             at,
             item: {
               key: `${slot.id}:${dateStr}`,
-              groupName: g.name,
+              groupName: withoutGymEcho(g.name, g.gym ?? null),
               gymName: g.gym?.name ?? null,
               slotId: slot.id,
               sessionDate: dateStr,

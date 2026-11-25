@@ -28,6 +28,7 @@ import {
   type Role,
 } from "../../../../../../shared/api/groups"
 import { errorMessage } from "../../../../../../shared/lib/error-message"
+import { namesGym } from "../../../../../../shared/lib/group-label"
 import {
   getMemberProgress,
   removeWorkspaceMember,
@@ -326,6 +327,11 @@ export default function MemberProgressPage() {
           Math.round((summary.completedCount / summary.totalVideos) * 100),
         )
       : 0
+  // Video progress only where the club has videos, and only once the member
+  // has opened one: three blocks of zeros say nothing a single line can't.
+  const showVideos = featureOn(features, "videos")
+  const watchedAny =
+    summary.completedCount > 0 || summary.inProgressCount > 0 || recentActivity.length > 0
   const accessExpired =
     member.accessUntil !== null && new Date(member.accessUntil) < new Date()
   const endOfAbonements = abonementEnd(data.currentAbonements)
@@ -609,10 +615,15 @@ export default function MemberProgressPage() {
                 title={`${g.gym?.name ?? "Без зала"}${g.role === "coach" ? " · ведёт" : ""}`}
               >
                 <span className="font-medium">{g.name}</span>
-                <span className="text-[11px] opacity-70">·</span>
-                <span className="text-[11px]">
-                  {g.gym?.name ?? "без зала"}
-                </span>
+                {/* A gym the group name already names is not repeated. */}
+                {!(g.gym && namesGym(g.name, g.gym.name)) && (
+                  <>
+                    <span className="text-[11px] opacity-70">·</span>
+                    <span className="text-[11px]">
+                      {g.gym?.name ?? "без зала"}
+                    </span>
+                  </>
+                )}
                 {g.role === "coach" && (
                   <span className="text-[11px] font-semibold">{vocabulary.coach.nom}</span>
                 )}
@@ -622,6 +633,17 @@ export default function MemberProgressPage() {
         </div>
       )}
 
+      {showVideos && !watchedAny && (
+        <section className="space-y-1">
+          <h2 className="text-sm font-medium">Курсы и видео</h2>
+          <p className="text-sm text-muted-foreground">
+            Видео в приложении ещё не открывались.
+          </p>
+        </section>
+      )}
+
+      {showVideos && watchedAny && (
+      <>
       <div className="rounded-lg border border-border bg-card p-5">
         <div className="flex flex-wrap items-center gap-3">
           <span
@@ -688,6 +710,8 @@ export default function MemberProgressPage() {
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {!showAttendancePanel && (
         <section className="space-y-3">
@@ -722,6 +746,8 @@ export default function MemberProgressPage() {
         </section>
       )}
 
+      {showVideos && watchedAny && (
+      <>
       <section className="space-y-3">
         <h2 className="text-sm font-medium">Прогресс по курсам</h2>
         {courses.length === 0 ? (
@@ -806,6 +832,8 @@ export default function MemberProgressPage() {
           </ul>
         )}
       </section>
+      </>
+      )}
     </div>
   )
 }

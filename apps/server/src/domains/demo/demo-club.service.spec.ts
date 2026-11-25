@@ -4,6 +4,7 @@ jest.mock('../../environments/environment', () => ({
         consent: { personalDataVersion: '2026-11-01' },
         billing: { legal: { offerVersion: 'o', dpaVersion: 'd' } },
         encryptionKey: 'demo-secret',
+        s3Storage: { s3BucketName: 'clubspace' },
     },
 }))
 jest.mock('./demo-club.wipe', () => ({

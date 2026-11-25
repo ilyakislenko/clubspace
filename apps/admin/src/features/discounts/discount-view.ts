@@ -14,9 +14,9 @@ export const discountSizeText = (d: Size): string =>
     ? `−${d.value}%`
     : `−${formatAmount(d.value, d.currency ?? "RUB")}`
 
-// «Промокод ВЕСНА» / «Семейная — сама» / «Выбирает сотрудник».
+// «Промокод ВЕСНА» / «Сама, для семьи» / «Выбирает сотрудник».
 export const discountHowText = (d: { code: string | null; isFamily: boolean }): string =>
-  d.isFamily ? "Семейная — сама" : d.code ? `Промокод ${d.code}` : "Выбирает сотрудник"
+  d.isFamily ? "Сама, для семьи" : d.code ? `Промокод ${d.code}` : "Выбирает сотрудник"
 
 // The server's `normalizePromoCode` (domains/discounts/discount-rules.ts), a
 // rule the contract can't carry: trimmed, upper-case, Ё → Е, 3–32 letters,

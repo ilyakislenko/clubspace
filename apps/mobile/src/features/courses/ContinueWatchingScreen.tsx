@@ -19,6 +19,7 @@ import {
 import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
+import { pluralRu } from "../../shared/format-ru"
 import {
   clearRecents,
   listRecents,
@@ -36,7 +37,8 @@ const formatRelative = (iso: string): string => {
   const hr = Math.floor(min / 60)
   if (hr < 24) return `${hr} ч назад`
   const d = Math.floor(hr / 24)
-  if (d < 30) return `${d} дн назад`
+  if (d === 1) return "вчера"
+  if (d < 30) return `${d} ${pluralRu(d, "день", "дня", "дней")} назад`
   return new Date(iso).toLocaleDateString("ru-RU")
 }
 

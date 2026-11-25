@@ -18,6 +18,7 @@ import {
   REASON_LABEL,
   REASON_TONE,
 } from "./retention-helpers"
+import { withoutGymEcho } from "../schedule/schedule-helpers"
 
 /** One at-risk member: the facts, a call button and the «Связались» note. */
 export function AtRiskMemberCard({
@@ -44,7 +45,11 @@ export function AtRiskMemberCard({
   const contact = callContact(member)
   const tone = REASON_TONE[member.reason]
   const groups = member.groups
-    .map((g) => (g.gymName ? `${g.name} · ${g.gymName}` : g.name))
+    .map((g) =>
+      g.gymName
+        ? `${withoutGymEcho(g.name, { name: g.gymName })} · ${g.gymName}`
+        : g.name,
+    )
     .join(", ")
 
   const call = () => {
@@ -147,9 +152,9 @@ export function AtRiskMemberCard({
                 ? `Позвонить: ${contact.guardian.name}`
                 : "Позвонить"
             }
-            style={[styles.primary, !contact.phone && styles.disabled]}
+            style={[styles.call, !contact.phone && styles.disabled]}
           >
-            <Text style={styles.primaryText}>
+            <Text style={styles.callText}>
               {contact.guardian ? "Позвонить родителю" : "Позвонить"}
             </Text>
           </Pressable>
@@ -220,6 +225,18 @@ const makeStyles = (theme: Theme) =>
     },
     primaryText: {
       color: theme.colors.accentText,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    // A tonal button: every card carries one, so none of them shouts.
+    call: {
+      paddingHorizontal: theme.spacing(4),
+      paddingVertical: theme.spacing(2),
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.accentSoft,
+    },
+    callText: {
+      color: theme.colors.accent,
       fontSize: 14,
       fontWeight: "600",
     },

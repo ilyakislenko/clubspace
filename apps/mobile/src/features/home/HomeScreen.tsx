@@ -57,6 +57,7 @@ import {
   SubscriptionCard,
 } from "./HomeCards"
 import {
+  checkInOpenNow,
   coachNextAfterToday,
   greetingName,
   pickCoachClassesToday,
@@ -108,9 +109,15 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
   const [editingName, setEditingName] = useState(false)
   const [recents, setRecents] = useState<RecentEntry[]>([])
 
+  // Home reads the clock per render; while it's focused a minute tick
+  // re-renders it, so an open tab shows «Отметиться» at T−30 by itself.
+  const [, setClock] = useState(0)
   useFocusEffect(
     useCallback(() => {
       void listRecents().then(setRecents)
+      setClock(Date.now())
+      const id = setInterval(() => setClock(Date.now()), 60_000)
+      return () => clearInterval(id)
     }, []),
   )
 
@@ -371,8 +378,23 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
+  // Only around one of the member's classes, not all day (see checkInOpenNow);
+  // hidden until the groups arrive, so it doesn't flash before the timetable.
   const checkIn = attendanceOn &&
-    showCheckInButton(workspace.roleName, myGroups) && (
+    !(groups.loading && !groups.data) &&
+    showCheckInButton(workspace.roleName, myGroups) &&
+    checkInOpenNow(
+      {
+        groups: myGroups,
+        bookings,
+        classBookings: [
+          ...myClassBookings,
+          ...(classBookings.data?.history ?? []),
+        ],
+        events: events.data ?? [],
+      },
+      now,
+    ) && (
     <Pressable
       onPress={() => navigation.navigate("CheckIn")}
       accessibilityRole="button"
@@ -651,7 +673,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             // What's on screen, not the feature flag: staff with no group of
             // theirs get no class card. While the groups load, one may come.
             hasClassCard: !!nextClass || !!coachToday || (groupsOn && groups.loading),
-            attendanceOn,
+            attendanceOn: !!checkIn,
             subscriptionOn,
             hasRecents,
             hasAnnouncement: !!announcementCard,

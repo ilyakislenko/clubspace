@@ -18,12 +18,16 @@ export type SubscriptionState = {
   tone: SubscriptionTone
 }
 
-export const fmtDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString("ru-RU", {
+// «25 декабря»; the year only when it isn't the current one («3 мая 2025 г.»),
+// so a period line doesn't repeat «2026 г.» twice.
+export const fmtDate = (iso: string, now: Date = new Date()): string => {
+  const d = new Date(iso)
+  return d.toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
-    year: "numeric",
+    ...(d.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
   })
+}
 
 // A first-visit abonement starts by itself this many days after the sale.
 const FIRST_VISIT_AUTO_START_DAYS = 14
@@ -153,7 +157,7 @@ export const freezeLine = (
 }
 
 export const freezeExtendsText = (days: number): string =>
-  `Срок абонемента продлён на ${days} дн. на время заморозки`
+  `Срок абонемента продлён на ${days} ${pluralRu(days, "день", "дня", "дней")} на время заморозки`
 
 type Input = {
   accessUntil: string | null
