@@ -21,6 +21,7 @@ const MODELS = [
     'videoTag',
     'trainingJournalEntry',
     'auditEvent',
+    'notification',
     'consentRecord',
     'guardianship',
 ]
@@ -69,11 +70,22 @@ describe('wipeDemoWorkspace', () => {
         })
         expect(tx.workspace.delete).toHaveBeenCalledWith({ where: { id: 'w-demo' } })
         for (const m of MODELS.filter(
-            (x) => !['videoTag', 'consentRecord', 'guardianship', 'eventRegistration'].includes(x),
+            (x) =>
+                !['videoTag', 'consentRecord', 'guardianship', 'eventRegistration', 'notification'].includes(x),
         )) {
             expect(tx[m].deleteMany).toHaveBeenCalledWith({ where: { workspaceId: 'w-demo' } })
         }
         expect(tx.videoTag.deleteMany).toHaveBeenCalledWith({ where: { video: { workspaceId: 'w-demo' } } })
+        // The fixed accounts' inbox copies of this club's messages, before the club.
+        expect(tx.notification.deleteMany).toHaveBeenCalledWith({
+            where: {
+                AND: [
+                    { metadata: { path: ['workspaceId'], equals: 'w-demo' } },
+                    { metadata: { path: ['kind'], string_starts_with: 'message.' } },
+                ],
+            },
+        })
+        expect(order.indexOf('notification')).toBeLessThan(order.indexOf('workspace'))
     })
 })
 

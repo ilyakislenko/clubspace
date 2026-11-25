@@ -1,13 +1,14 @@
 import { z } from 'zod'
 
-import { AnnouncementAudienceSchema, AnnouncementOutputSchema } from './schemas'
+import { AnnouncementAudienceInputSchema, AnnouncementOutputSchema } from './schemas'
 
 export const CreateAnnouncementInputSchema = z.object({
     title: z.string().trim().min(1).max(255),
     body: z.string().trim().min(1).max(20000),
     pinned: z.boolean().optional(),
-    // Who it reaches: everyone (default) or only members due for renewal.
-    audience: AnnouncementAudienceSchema.optional(),
+    // Who it reaches: everyone (the only value; «Только на продление» moved to
+    // «Сообщения → Продлить», so EXPIRING is refused).
+    audience: AnnouncementAudienceInputSchema.optional(),
     // Only members of this direction (and the staff); null/omitted = the whole
     // club. AND-ed with `audience`.
     directionId: z.string().uuid().nullish(),

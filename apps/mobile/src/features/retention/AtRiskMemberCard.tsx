@@ -1,5 +1,8 @@
+import { useNavigation } from "@react-navigation/native"
 import React, { useState } from "react"
 import { Linking, StyleSheet, Text, View } from "react-native"
+
+import type { AppNavigation } from "../../app/navigation"
 
 import { logAtRiskContact, type AtRiskMember } from "../../shared/api/retention"
 import { showAlert } from "../../shared/alert"
@@ -36,6 +39,7 @@ export function AtRiskMemberCard({
   const [editing, setEditing] = useState(false)
   const [note, setNote] = useState("")
   const [saving, setSaving] = useState(false)
+  const navigation = useNavigation<AppNavigation>()
 
   const name =
     [member.firstname, member.lastname].filter(Boolean).join(" ") ||
@@ -159,8 +163,9 @@ export function AtRiskMemberCard({
             </Text>
           </Pressable>
           {/* Every listed member is the caller's to call; the contacted ones
-              are already marked. */}
+              are already marked. Writing counts as «Связались» too. */}
           {!member.snoozed && (
+            <>
             <Pressable
               onPress={() => setEditing(true)}
               accessibilityRole="button"
@@ -168,6 +173,22 @@ export function AtRiskMemberCard({
             >
               <Text style={styles.secondaryText}>Связались</Text>
             </Pressable>
+            <Pressable
+              onPress={() =>
+                navigation.navigate("ComposeClubMessage", {
+                  segment: "MEMBERS",
+                  memberIds: [member.userId],
+                  audienceLabel: name,
+                  logContact: true,
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`Написать сообщение: ${name}`}
+              style={styles.secondary}
+            >
+              <Text style={styles.secondaryText}>Написать</Text>
+            </Pressable>
+            </>
           )}
         </View>
       )}

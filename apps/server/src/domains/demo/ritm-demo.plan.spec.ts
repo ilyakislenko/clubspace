@@ -469,4 +469,22 @@ describe('buildRitmDemoPlan', () => {
         expect(later.workspaceId).toBe(plan.workspaceId)
         expect(later.accountUserIds).toEqual(plan.accountUserIds)
     })
+
+    it('mutes only a couple of students', () => {
+        const muted = plan.members.filter((m) => m.role === 'user' && m.data.notificationsMuted)
+        expect(muted.length).toBeGreaterThanOrEqual(2)
+        expect(muted.length).toBeLessThanOrEqual(3)
+        const accounts = new Set(Object.values(plan.accountUserIds))
+        expect(muted.some((m) => accounts.has(m.data.userId as string))).toBe(false)
+    })
+
+    it("message rows say «muted» only for the members who muted the studio", () => {
+        const mutedIds = new Set(
+            plan.members.filter((m) => m.data.notificationsMuted).map((m) => m.data.userId as string),
+        )
+        for (const r of plan.clubMessageRecipients) {
+            if (r.pushSkip === 'muted') expect(mutedIds.has(r.userId)).toBe(true)
+        }
+        expect(plan.clubMessageRecipients.filter((r) => r.pushSkip === 'no_device').length).toBeGreaterThan(0)
+    })
 })

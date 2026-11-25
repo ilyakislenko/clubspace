@@ -49,6 +49,9 @@ import { MyRanksScreen } from '../features/ranks/MyRanksScreen';
 import { AchievementsScreen } from '../features/achievements/AchievementsScreen';
 import { JournalScreen } from '../features/journal/JournalScreen';
 import { AnnouncementsScreen } from '../features/announcements/AnnouncementsScreen';
+import { ClubMessagesScreen } from '../features/messages/ClubMessagesScreen';
+import { ClubMessageScreen } from '../features/messages/ClubMessageScreen';
+import { ComposeClubMessageScreen } from '../features/messages/ComposeClubMessageScreen';
 import { LeaderboardScreen } from '../features/leaderboard/LeaderboardScreen';
 import { ClubInviteScreen } from '../features/invite/ClubInviteScreen';
 import { AtRiskMembersScreen } from '../features/retention/AtRiskMembersScreen';
@@ -445,6 +448,21 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
                   name="Announcements"
                   component={AnnouncementsScreen}
                   options={{ title: 'Объявления' }}
+                />
+                <Stack.Screen
+                  name="ClubMessages"
+                  component={ClubMessagesScreen}
+                  options={{ title: 'Сообщения клуба' }}
+                />
+                <Stack.Screen
+                  name="ClubMessage"
+                  component={ClubMessageScreen}
+                  options={{ title: 'Сообщение' }}
+                />
+                <Stack.Screen
+                  name="ComposeClubMessage"
+                  component={ComposeClubMessageScreen}
+                  options={{ title: 'Новое сообщение' }}
                 />
                 <Stack.Screen
                   name="Leaderboard"

@@ -8,6 +8,8 @@ export const NotificationPreferencesOutputSchema = z.object({
     inactivityEnabled: z.boolean(),
     analyticsDigestEnabled: z.boolean(),
     reviewRemindersEnabled: z.boolean(),
+    clubMessagesEnabled: z.boolean(),
+    clubMessagesEmailEnabled: z.boolean(),
 })
 
 export const GetNotificationPreferencesFeatureOutputSchema =

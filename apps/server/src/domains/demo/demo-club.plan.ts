@@ -31,6 +31,7 @@ import {
     demoAccountName,
     type DemoAccountKey,
 } from './demo-accounts'
+import { buildDemoMessages, type DemoMessageRecipient, type DemoMessageSpec } from './demo-messages'
 import {
     BOOKING_GROUP,
     COURSES,
@@ -220,6 +221,11 @@ export type DemoClubPlan = {
     // The question of that conversation counts against the monthly limit,
     // as a live one would — the counter reads «1 из N» next to it.
     aiChatUsages: Prisma.AiChatUsageCreateManyInput[]
+    // «Сообщения»: messages with their recipients (after the users), and the
+    // inbox rows of the fixed accounts (sent, no push).
+    clubMessages: Prisma.ClubMessageCreateManyInput[]
+    clubMessageRecipients: Prisma.ClubMessageRecipientCreateManyInput[]
+    notifications: Prisma.NotificationCreateManyInput[]
 }
 
 // A stable uuid per logical entity: a reset recreates the club with the same
@@ -443,6 +449,9 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         aiChatAcceptances: [],
         aiChatConversations: [],
         aiChatUsages: [],
+        clubMessages: [],
+        clubMessageRecipients: [],
+        notifications: [],
     }
 
     // ---- ids -----------------------------------------------------------
@@ -475,6 +484,9 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         leaderboardEnabled: true,
         guestVisitsEnabled: true,
         ...defaultFeatureColumnsFor('GRAPPLING'),
+        // «Сообщения ученикам на e-mail»: the «Напоминаем об оплате» message
+        // went out with its e-mail copy.
+        messagesEmailEnabled: true,
         // Placeholders: never a real coach's number in the seed.
         aboutContacts: [
             { label: 'Администратор', phone: '+7 900 000-00-01' },
@@ -1619,7 +1631,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     // ---- discounts ---------------------------------------------------------------
     // «Скидки» (docs/design/2026-11-15-discounts.md §9): the family discount
     // that applies itself, a staff-only student one and the renewal promo the
-    // «абонемент заканчивается» announcement names. A handful of sales carry
+    // «Ваш абонемент заканчивается» message («Продлить») names. A handful of sales carry
     // them, plus one admin one-off and one head-coach cash part-payment, so
     // «Кто давал скидки» and the journal's «Со скидкой» have rows. Every sale
     // records the tariff price it was sold against and who priced it.
@@ -1849,7 +1861,12 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
                         ? new Date(now.getTime() - (i % 2 === 0 ? 3 : 26) * 60 * 60 * 1000)
                         : at(p.joinYmd, '12:00'),
                 lastSeenAt: at(seen, '20:00'),
-                notificationsMuted: !p.account,
+                // A few members muted the club, as in a real one (their
+                // «выключили уведомления клуба» line in the message preview).
+                // Nobody else is: e-mail to demo accounts is dropped at
+                // dispatch (SendEmailNotificationProcessor) and generated
+                // students have no devices, so nothing leaves the server.
+                notificationsMuted: !p.account && p.status === 'ACTIVE' && i % 150 === 13,
                 notes: !p.account && i % 37 === 5 ? notes[Math.floor(i / 37) % notes.length] : null,
             },
         })
@@ -2428,7 +2445,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         title: string,
         body: string,
         daysAgo: number | null,
-        extra: { pinned?: boolean; dir?: DirKey; groups?: GroupKey[]; expiring?: boolean } = {},
+        extra: { pinned?: boolean; dir?: DirKey; groups?: GroupKey[] } = {},
     ) => {
         const id = demoUuid(`announcement:${plan.announcements.length}`)
         plan.announcements.push({
@@ -2438,7 +2455,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             title,
             body,
             pinned: extra.pinned ?? false,
-            audience: extra.expiring ? 'EXPIRING' : 'ALL',
+            audience: 'ALL',
             directionId: extra.dir ? dirId(extra.dir) : null,
             publishedAt: daysAgo === null ? null : at(ago(daysAgo), '10:00'),
             createdAt: at(ago(daysAgo ?? 1), '09:30'),
@@ -2449,7 +2466,6 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     }
     announce('owner', 'Тайский бокс теперь и в Северске', 'Группа «Тайский бокс Взрослые» в СК «Центр тайского бокса», ул. Транспортная, 32. Персональные тренировки — по записи в приложении.', 20, { pinned: true })
     announce('admin', 'Заморозка — в приложении', 'Заявку на заморозку абонемента можно отправить прямо в приложении: Профиль → «Мой абонемент». Рассмотрим в течение дня. Продлить абонемент можно у тренера или на ресепшене.', 6)
-    announce('admin', 'Ваш абонемент скоро закончится', 'Продлите абонемент до конца недели — и следующая неделя тренировок пройдёт без перерыва. Промокод ПРОДЛИ5 даёт скидку 5% на продление: введите его при оплате в приложении или назовите на ресепшене.', 2, { expiring: true })
     // Only the adult BJJ groups: the kids (Миша) never see the adults' grading,
     // so it can stay pinned on top of the adults' home.
     announce('reshetyuk', `Аттестация взрослых на синие пояса — ${nextGradingYmd.split('-').reverse().slice(0, 2).join('.')}`, 'Кто допущен и сколько тренировок осталось до готовности — в «Прогресс» → «Мой ранг». Готовность считается по посещениям.', 3, {
@@ -2783,6 +2799,130 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         toolCalls: 1,
         createdAt: askedAt,
     })
+
+    // ---- «Сообщения» (docs/design/2026-11-26-broadcast-and-direct-messages.md §8) -------
+    const staffName = (k: StaffKey) => {
+        const s = STAFF.find((x) => x.key === k)!
+        return [s.firstname, s.lastname].filter(Boolean).join(' ')
+    }
+    const parentKids = new Map([misha, anya].map((k) => [k.id, k]))
+    // The rows a recipient leaves: muted as their membership is (a few
+    // generated members muted the club), generated members have no devices;
+    // the fixed accounts get inbox rows (a child's go to Елена).
+    const mutedMembers = new Set(
+        plan.members.filter((m) => m.data.notificationsMuted).map((m) => m.data.userId as string),
+    )
+    const recipientOf = (p: Person): DemoMessageRecipient => {
+        const kid = parentKids.get(p.id)
+        return {
+            userId: p.id,
+            muted: mutedMembers.has(p.id),
+            inbox: p.account
+                ? [{ userId: p.id }]
+                : kid
+                  ? [{ userId: parent.id, dependent: { id: kid.id, name: kid.firstname } }]
+                  : [],
+            email: p.email,
+        }
+    }
+    const messageAt = (daysAgo: number, hm: string) => at(ago(daysAgo), hm)
+    const visitedSince = (since: Date) =>
+        new Set(plan.records.filter((r) => (r.markedAt as Date) >= since).map((r) => r.userId))
+    const accessUntilOf = new Map(plan.members.map((m) => [m.data.userId, m.data.accessUntil as Date | null]))
+    const owing = new Set(plan.subscriptions.filter((s) => !s.isPaid).map((s) => s.userId))
+    const inactive9 = visitedSince(new Date(messageAt(9, '18:00').getTime() - 30 * DAY_MS))
+    const renewSentAt = messageAt(2, '12:00')
+    const coachGroups = new Set(GROUPS.filter((g) => g.coach === 'savelyev').map((g) => g.key))
+    const msg = (key: string) => demoUuid(`club-message:${key}`)
+    const sent = (
+        key: string,
+        by: StaffKey,
+        daysAgo: number,
+        hm: string,
+        fields: Omit<DemoMessageSpec, 'id' | 'authorId' | 'authorName' | 'createdAt' | 'sentAt' | 'sendAt' | 'recipients'>,
+        who: Person[],
+    ): DemoMessageSpec => ({
+        id: msg(key),
+        authorId: staffId(by),
+        authorName: staffName(by),
+        createdAt: messageAt(daysAgo, hm),
+        sentAt: messageAt(daysAgo, hm),
+        sendAt: messageAt(daysAgo, hm),
+        recipients: who.map(recipientOf),
+        ...fields,
+    })
+    const bjjGroups = GROUPS.filter((g) => g.dir === 'bjj').map((g) => g.key)
+    const messages = buildDemoMessages(workspaceId, [
+        sent('holiday', 'admin', 21, '18:00', {
+            title: 'Тренировок 4 ноября не будет',
+            body: '4 ноября — государственный праздник, все залы закрыты. Занятия по расписанию с 5 ноября. Абонементы продлеваем на этот день автоматически.',
+            segment: 'ALL',
+            isService: true,
+            readShare: 0.81,
+        }, members),
+        sent('seminar', 'reshetyuk', 5, '19:30', {
+            title: 'Семинар по работе из гарда в субботу',
+            body: 'В субботу в 12:00 в «Юпитере» — двухчасовой семинар по работе из закрытого и паук-гарда. Для учеников БЖЖ бесплатно, запись у тренера группы.',
+            segment: 'DIRECTION',
+            directionId: dirId('bjj'),
+            readShare: 0.64,
+        }, members.filter((p) => p.groups.some((g) => bjjGroups.includes(g.key)))),
+        sent('renew', 'admin', 2, '12:00', {
+            title: 'Ваш абонемент заканчивается',
+            body: 'Продлите абонемент до конца недели — и следующая неделя тренировок пройдёт без перерыва. Промокод ПРОДЛИ5 даёт скидку 5% на продление: введите его при оплате в приложении или назовите на ресепшене.',
+            segment: 'RENEW',
+            readShare: 0.47,
+        }, members.filter((p) => {
+            const until = accessUntilOf.get(p.id)
+            return !!until && until.getTime() - renewSentAt.getTime() <= 7 * DAY_MS
+        })),
+        sent('unpaid', 'admin', 4, '11:00', {
+            title: 'Напоминаем об оплате абонемента',
+            body: 'За вами числится неоплаченный абонемент. Оплатить можно в приложении («Мой абонемент» → «Оплатить») или на ресепшене. Если уже оплатили — напишите администратору, отметим.',
+            segment: 'UNPAID',
+            isService: true,
+            withEmail: true,
+            readShare: 0.6,
+        }, members.filter((p) => owing.has(p.id))),
+        sent('inactive', 'savelyev', 9, '18:00', {
+            title: 'Давно вас не видели — ждём на тренировке',
+            body: 'Вы давно не были на занятиях. Если что-то мешает — расписание, травма, время — напишите или подойдите к тренеру, подберём удобную группу.',
+            segment: 'INACTIVE',
+            readShare: 0.3,
+        }, members.filter((p) => p.groups.some((g) => coachGroups.has(g.key)) && !inactive9.has(p.id))),
+        sent('kimono', 'reshetyuk', 1, '17:40', {
+            title: 'Максим, возьмите кимоно на аттестацию',
+            body: 'Аттестация на синие пояса — в эту субботу. Возьмите чистое белое кимоно и пояс, приходите к 11:30 на разминку.',
+            segment: 'MEMBERS',
+            memberIds: [student.id],
+            readShare: 0,
+            readBy: { [student.id]: false },
+        }, [student]),
+        sent('uniform', 'savelyev', 3, '16:20', {
+            title: 'Форма на соревнования',
+            body: 'Миша заявлен на детский турнир в воскресенье. Нужны белое кимоно с нашивкой клуба и рашгард под него — нашивку можно забрать на ресепшене.',
+            segment: 'MEMBERS',
+            memberIds: [misha.id],
+            readShare: 0,
+            readBy: { [misha.id]: false },
+        }, [misha]),
+        {
+            id: msg('holidays-schedule'),
+            authorId: adminId,
+            authorName: staffName('admin'),
+            title: 'Расписание на праздники',
+            body: 'С 31 декабря по 8 января залы работают по особому расписанию. Подробности — в разделе «Расписание» и у тренеров групп.',
+            segment: 'ALL',
+            readShare: 0,
+            createdAt: new Date(now.getTime() - 60 * 60_000),
+            sentAt: null,
+            sendAt: at(ahead(1), '09:00'),
+            recipients: [],
+        },
+    ])
+    plan.clubMessages = messages.clubMessages
+    plan.clubMessageRecipients = messages.clubMessageRecipients
+    plan.notifications = messages.notifications
 
     return plan
 }

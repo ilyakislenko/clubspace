@@ -16,6 +16,8 @@ export const UpdateWorkspaceSettingsFeatureInputSchema = z.object({
     joinAutoApprove: z.boolean().optional(),
     // «Поздравлять с днём рождения» (the daily pass at club-local 10:00).
     birthdayGreetingsEnabled: z.boolean().optional(),
+    // «Сообщения ученикам на e-mail» (club messages' e-mail copy; trial allowance applies).
+    messagesEmailEnabled: z.boolean().optional(),
     // leaderboardEnabled + the app-section flags — each optional so the admin
     // can PATCH a single toggle.
     ...FeatureFlagColumnsSchema.partial().shape,
@@ -32,6 +34,7 @@ export const UpdateWorkspaceSettingsFeatureOutputSchema = z.object({
     timezone: z.string(),
     joinAutoApprove: z.boolean(),
     birthdayGreetingsEnabled: z.boolean(),
+    messagesEmailEnabled: z.boolean(),
     ...FeatureFlagColumnsSchema.shape,
     ...WorkspaceBookingSettingsFields,
     // Switches the platform pinned: the club cannot change these.

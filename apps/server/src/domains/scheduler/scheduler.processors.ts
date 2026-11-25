@@ -90,9 +90,10 @@ export class RemindersProcessor extends SchedulerJobProcessor {
             s.sessionsNotified +
             s.eventsNotified +
             s.cancellationsNotified +
-            s.scheduledAnnouncementsPublished
+            s.scheduledAnnouncementsPublished +
+            s.clubMessagesSent
         return total > 0
-            ? `${s.sessionsNotified} classes, ${s.eventsNotified} events, ${s.cancellationsNotified} cancellations, ${s.scheduledAnnouncementsPublished} announcements`
+            ? `${s.sessionsNotified} classes, ${s.eventsNotified} events, ${s.cancellationsNotified} cancellations, ${s.scheduledAnnouncementsPublished} announcements, ${s.clubMessagesSent} club messages`
             : null
     }
 }

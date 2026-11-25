@@ -823,8 +823,7 @@ export const UpdateAnnouncementInputSchema = {
         audience: {
             type: 'string',
             enum: [
-                'ALL',
-                'EXPIRING'
+                'ALL'
             ]
         },
         directionId: {
@@ -878,8 +877,7 @@ export const CreateAnnouncementInputSchema = {
         audience: {
             type: 'string',
             enum: [
-                'ALL',
-                'EXPIRING'
+                'ALL'
             ]
         },
         directionId: {
@@ -909,6 +907,143 @@ export const CreateAnnouncementInputSchema = {
     required: [
         'title',
         'body'
+    ]
+} as const;
+
+export const SendClubMessageInputSchema = {
+    type: 'object',
+    properties: {
+        segment: {
+            type: 'string',
+            enum: [
+                'ALL',
+                'GROUPS',
+                'DIRECTION',
+                'RENEW',
+                'UNPAID',
+                'INACTIVE',
+                'CALL_LIST',
+                'MEMBERS'
+            ]
+        },
+        directionId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        groupIds: {
+            minItems: 1,
+            maxItems: 100,
+            type: 'array',
+            items: {
+                type: 'string',
+                format: 'uuid',
+                pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+            }
+        },
+        memberIds: {
+            minItems: 1,
+            maxItems: 200,
+            type: 'array',
+            items: {
+                type: 'string',
+                format: 'uuid',
+                pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+            }
+        },
+        isService: {
+            type: 'boolean'
+        },
+        urgent: {
+            type: 'boolean'
+        },
+        withEmail: {
+            type: 'boolean'
+        },
+        sendAt: {
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        },
+        title: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 120
+        },
+        body: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 2000
+        },
+        logContact: {
+            type: 'boolean'
+        }
+    },
+    required: [
+        'segment',
+        'title',
+        'body'
+    ]
+} as const;
+
+export const PreviewClubMessageInputSchema = {
+    type: 'object',
+    properties: {
+        segment: {
+            type: 'string',
+            enum: [
+                'ALL',
+                'GROUPS',
+                'DIRECTION',
+                'RENEW',
+                'UNPAID',
+                'INACTIVE',
+                'CALL_LIST',
+                'MEMBERS'
+            ]
+        },
+        directionId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        groupIds: {
+            minItems: 1,
+            maxItems: 100,
+            type: 'array',
+            items: {
+                type: 'string',
+                format: 'uuid',
+                pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+            }
+        },
+        memberIds: {
+            minItems: 1,
+            maxItems: 200,
+            type: 'array',
+            items: {
+                type: 'string',
+                format: 'uuid',
+                pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+            }
+        },
+        isService: {
+            type: 'boolean'
+        },
+        urgent: {
+            type: 'boolean'
+        },
+        withEmail: {
+            type: 'boolean'
+        },
+        sendAt: {
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    },
+    required: [
+        'segment'
     ]
 } as const;
 
@@ -3030,6 +3165,12 @@ export const UpdateNotificationPreferencesInputSchema = {
         },
         reviewRemindersEnabled: {
             type: 'boolean'
+        },
+        clubMessagesEnabled: {
+            type: 'boolean'
+        },
+        clubMessagesEmailEnabled: {
+            type: 'boolean'
         }
     }
 } as const;
@@ -3181,6 +3322,9 @@ export const UpdateWorkspaceSettingsBodySchema = {
             type: 'boolean'
         },
         birthdayGreetingsEnabled: {
+            type: 'boolean'
+        },
+        messagesEmailEnabled: {
             type: 'boolean'
         },
         announcementsEnabled: {

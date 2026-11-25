@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 jest.mock("../../../../../shared/api/subscriptions", () => ({
   listRenewalCandidates: jest.fn(),
@@ -10,6 +10,21 @@ jest.mock("../../../../../shared/realtime/useWorkspaceRealtime", () => ({
 }))
 jest.mock("../analytics/analytics-toolbar", () => ({
   AnalyticsFilters: () => null,
+}))
+// The panel itself is ComposeMessageSheet.spec's; here only what opens it.
+jest.mock("../../../../../features/messages/ComposeMessageSheet", () => ({
+  ComposeMessageSheet: ({
+    open,
+    prefill,
+  }: {
+    open: boolean
+    prefill: { segment: string; memberIds?: string[]; label: string } | null
+  }) =>
+    open && prefill ? (
+      <div data-testid="compose">
+        {`${prefill.segment}:${(prefill.memberIds ?? []).join(",")}:${prefill.label}`}
+      </div>
+    ) : null,
 }))
 
 import {
@@ -121,5 +136,27 @@ describe("RenewList — «Автоплатёж не прошёл»", () => {
     })
     await renderList()
     expect(screen.getByText("продлится автоплатежом 14 дек.")).toBeTruthy()
+  })
+})
+
+describe("RenewList — «Написать»", () => {
+  const oneRenewal = () => {
+    awaitingMock.mockResolvedValue(awaiting({ total: 0, data: [] }))
+    renewalsMock.mockResolvedValue({ data: [candidate()], total: 1, curPage: 1, perPage: 50 })
+  }
+
+  it("opens compose for the row's student from its trailing icon", async () => {
+    oneRenewal()
+    await renderList()
+    expect(screen.queryByTestId("compose")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Написать" }))
+    expect(screen.getByTestId("compose").textContent).toBe(`MEMBERS:${USER}:Иван Петров`)
+  })
+
+  it("writes to everyone due for renewal from the header", async () => {
+    oneRenewal()
+    await renderList()
+    fireEvent.click(screen.getByRole("button", { name: "Написать всем" }))
+    expect(screen.getByTestId("compose").textContent).toBe("RENEW::Пора продлить")
   })
 })

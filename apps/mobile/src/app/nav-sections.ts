@@ -203,6 +203,15 @@ export const PROFILE_SECTIONS: readonly NavSection[] = [
     feature: "events",
     group: "club",
   },
+  // Not behind a flag: a message reaches the member even with every app
+  // section off, and stays here when its push was switched off.
+  {
+    route: "ClubMessages",
+    icon: "mail-outline",
+    label: "Сообщения клуба",
+    shortLabel: "Сообщения",
+    group: "club",
+  },
   {
     route: "ClubAbout",
     icon: "information-circle-outline",

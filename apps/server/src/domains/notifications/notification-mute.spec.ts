@@ -18,6 +18,8 @@ describe('isMuteExempt', () => {
         'substitution.requested',
         'payment.succeeded',
         'payment.refunded',
+        'message.direct',
+        'message.service',
     ])('keeps %s', (kind) => {
         expect(isMuteExempt(kind)).toBe(true)
     })
@@ -29,6 +31,7 @@ describe('isMuteExempt', () => {
         'event.reminder',
         'member.inactive',
         'achievement.unlocked',
+        'message.broadcast',
         'constructor',
     ])('mutes %s', (kind) => {
         expect(isMuteExempt(kind)).toBe(false)

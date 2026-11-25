@@ -327,6 +327,22 @@ import { AtRiskMembersController } from '../features/at-risk-members/at-risk-mem
 import { CallListCacheService } from '../domains/retention/call-list-cache.service'
 import { ListAtRiskMembersHandler } from '../features/at-risk-members/list-at-risk-members.handler'
 import { LogAtRiskContactHandler } from '../features/at-risk-members/log-at-risk-contact.handler'
+import { MessagesModule } from '../domains/messages/messages.module'
+import { CancelClubMessageHandler } from '../features/club-messages/cancel-club-message.handler'
+import {
+    ClubMessagesController,
+    MyClubMessagesController,
+} from '../features/club-messages/club-messages.controller'
+import { GetClubMessageHandler } from '../features/club-messages/get-club-message.handler'
+import { GetMyClubMessageHandler } from '../features/club-messages/get-my-club-message.handler'
+import { ListClubMessageRecipientsHandler } from '../features/club-messages/list-club-message-recipients.handler'
+import { ListClubMessagesHandler } from '../features/club-messages/list-club-messages.handler'
+import { ListMyClubMessagesHandler } from '../features/club-messages/list-my-club-messages.handler'
+import { MarkClubMessageReadHandler } from '../features/club-messages/mark-club-message-read.handler'
+import { PreviewClubMessageHandler } from '../features/club-messages/preview-club-message.handler'
+import { SendClubMessageHandler } from '../features/club-messages/send-club-message.handler'
+import { PublicUnsubscribeController } from '../features/public-unsubscribe/public-unsubscribe.controller'
+import { UnsubscribeClubMessagesHandler } from '../features/public-unsubscribe/unsubscribe-club-messages.handler'
 import { ClubAnalyticsController } from '../features/club-analytics/club-analytics.controller'
 import { GetCoachAnalyticsHandler } from '../features/club-analytics/get-coach-analytics.handler'
 import { GetCohortRetentionHandler } from '../features/club-analytics/get-cohort-retention.handler'
@@ -890,6 +906,9 @@ const controllers: ModuleMetadata['controllers'] = [
     RanksController,
     MemberRanksController,
     AtRiskMembersController,
+    ClubMessagesController,
+    MyClubMessagesController,
+    PublicUnsubscribeController,
     ClubAnalyticsController,
     AnnouncementsController,
     GetMeController,
@@ -1218,6 +1237,16 @@ const handlers: ModuleMetadata['providers'] = [
     CallListCacheService,
     ListAtRiskMembersHandler,
     LogAtRiskContactHandler,
+    PreviewClubMessageHandler,
+    SendClubMessageHandler,
+    ListClubMessagesHandler,
+    GetClubMessageHandler,
+    ListClubMessageRecipientsHandler,
+    CancelClubMessageHandler,
+    ListMyClubMessagesHandler,
+    GetMyClubMessageHandler,
+    MarkClubMessageReadHandler,
+    UnsubscribeClubMessagesHandler,
     GetCohortRetentionHandler,
     GetScheduleOccupancyHandler,
     GetCoachAnalyticsHandler,
@@ -1352,6 +1381,8 @@ const domainModules: ModuleMetadata['imports'] = [
     NotificationProducerModule,
     AnalyticsModule,
     BillingModule,
+    // «Сообщения»: ClubMessageDeliveryService (send handler + dispatcher).
+    MessagesModule,
 ]
 
 const listeners: ModuleMetadata['providers'] = [

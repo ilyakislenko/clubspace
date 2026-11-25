@@ -142,6 +142,10 @@ const buildPrisma = (
         announcement: {
             findMany: jest.fn().mockResolvedValue([]),
         },
+        clubMessage: {
+            findMany: jest.fn().mockResolvedValue([]),
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
     }
 }
 
@@ -155,12 +159,14 @@ const build = (prisma: ReturnType<typeof buildPrisma>) => {
         notifyWorkspace: jest.fn().mockResolvedValue(1),
     }
     const realtime = { emitListDelta: jest.fn(), invalidate: jest.fn() }
+    const clubMessages = { deliver: jest.fn().mockResolvedValue(true) }
     const svc = new RemindersService(
         prisma as never,
         notifications as never,
         realtime as never,
+        clubMessages as never,
     )
-    return { svc, rows, notifications, realtime }
+    return { svc, rows, notifications, realtime, clubMessages }
 }
 
 describe('RemindersService session reminders', () => {
@@ -592,5 +598,55 @@ describe('RemindersService scheduled announcements', () => {
         const { svc, notifications } = build(prisma)
         expect((await svc.run(baseNow)).scheduledAnnouncementsPublished).toBe(0)
         expect(notifications.notifyWorkspace).not.toHaveBeenCalled()
+    })
+})
+
+describe('RemindersService club messages', () => {
+    // 2026-11-26 12:00 Tomsk = 05:00Z; 23:00 Tomsk = 16:00Z.
+    const due = (id: string, urgent: boolean) => ({ id, urgent, workspace: { timezone: 'Asia/Tomsk' } })
+
+    it('delivers the scheduled messages whose time came', async () => {
+        const prisma = buildPrisma()
+        prisma.clubMessage.findMany.mockResolvedValue([due('m1', false), due('m2', true)])
+        const { svc, clubMessages } = build(prisma)
+        const now = new Date('2026-11-26T05:00:00Z')
+        expect((await svc.run(now)).clubMessagesSent).toBe(2)
+        expect(clubMessages.deliver.mock.calls.map((c) => c[0])).toEqual(['m1', 'm2'])
+        expect(prisma.clubMessage.findMany.mock.calls[0][0]).toMatchObject({
+            where: { status: 'SCHEDULED', sendAt: { lte: now } },
+            take: 50,
+        })
+    })
+
+    it('holds a non-urgent one during the club’s quiet hours, sends an urgent one', async () => {
+        const prisma = buildPrisma()
+        prisma.clubMessage.findMany.mockResolvedValue([due('m1', false), due('m2', true)])
+        const { svc, clubMessages } = build(prisma)
+        expect((await svc.run(new Date('2026-11-26T16:00:00Z'))).clubMessagesSent).toBe(1)
+        expect(clubMessages.deliver.mock.calls.map((c) => c[0])).toEqual(['m2'])
+    })
+
+    it('moves a held message to 09:00 club time so held ones never fill the batch', async () => {
+        const prisma = buildPrisma()
+        prisma.clubMessage.findMany.mockResolvedValue([due('m1', false)])
+        const { svc } = build(prisma)
+        await svc.run(new Date('2026-11-26T16:00:00Z'))
+        // 09:00 Tomsk next day = 02:00Z.
+        expect(prisma.clubMessage.updateMany).toHaveBeenCalledWith({
+            where: { id: 'm1', status: 'SCHEDULED' },
+            data: { sendAt: new Date('2026-11-27T02:00:00Z') },
+        })
+    })
+
+    it('keeps going past a failed delivery and counts only claimed ones', async () => {
+        const prisma = buildPrisma()
+        prisma.clubMessage.findMany.mockResolvedValue([due('m1', false), due('m2', false), due('m3', false)])
+        const { svc, clubMessages } = build(prisma)
+        clubMessages.deliver
+            .mockRejectedValueOnce(new Error('db blip'))
+            .mockResolvedValueOnce(false)
+            .mockResolvedValueOnce(true)
+        expect((await svc.run(new Date('2026-11-26T05:00:00Z'))).clubMessagesSent).toBe(1)
+        expect(clubMessages.deliver).toHaveBeenCalledTimes(3)
     })
 })

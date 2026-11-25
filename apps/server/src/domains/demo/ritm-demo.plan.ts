@@ -23,6 +23,7 @@ import { addDaysYmd, diffDaysYmd, ymdToDbDate } from '../subscriptions/freeze-da
 import { isSubscriptionUsable } from '../subscriptions/subscription-status'
 import { defaultFeatureColumnsFor } from '../workspace/feature-flags'
 import { type DemoAccountKey, demoAccountName } from './demo-accounts'
+import { buildDemoMessages, type DemoMessageRecipient, type DemoMessageSpec } from './demo-messages'
 import {
     FEMALE_NAMES,
     MALE_NAMES,
@@ -406,6 +407,9 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         aiChatAcceptances: [],
         aiChatConversations: [],
         aiChatUsages: [],
+        clubMessages: [],
+        clubMessageRecipients: [],
+        notifications: [],
     }
 
     // ---- ids ---------------------------------------------------------------
@@ -1364,7 +1368,10 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
                 accessUntil: p.subs.reduce<Date | null>((max, s) => (!max || s.endAt > max ? s.endAt : max), null),
                 createdAt: at(p.joinYmd, '12:00'),
                 lastSeenAt: at(seen, '20:00'),
-                notificationsMuted: !p.account,
+                // Two members muted the studio, as in a real club; nobody
+                // else (demo e-mail is dropped at dispatch, generated
+                // students have no devices).
+                notificationsMuted: !p.account && p.idx % 31 === 9,
             },
         })
         for (const k of p.groups) {
@@ -1387,7 +1394,7 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         const createdAt = new Date(now.getTime() - 3 * 60 * 60 * 1000)
         plan.members.push({
             role: 'user',
-            data: { id: ritmId('member:applicant:1'), userId: id, workspaceId, status: 'INVITED', createdAt, lastSeenAt: createdAt, notificationsMuted: true },
+            data: { id: ritmId('member:applicant:1'), userId: id, workspaceId, status: 'INVITED', createdAt, lastSeenAt: createdAt },
         })
     }
 
@@ -1592,7 +1599,7 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         title: string,
         body: string,
         daysAgo: number,
-        extra: { pinned?: boolean; dir?: DirKey; groups?: GroupKey[]; expiring?: boolean } = {},
+        extra: { pinned?: boolean; dir?: DirKey; groups?: GroupKey[] } = {},
     ) => {
         const id = ritmId(`announcement:${plan.announcements.length}`)
         plan.announcements.push({
@@ -1602,7 +1609,7 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
             title,
             body,
             pinned: extra.pinned ?? false,
-            audience: extra.expiring ? 'EXPIRING' : 'ALL',
+            audience: 'ALL',
             directionId: extra.dir ? dirId(extra.dir) : null,
             publishedAt: at(ago(daysAgo), '10:00'),
             createdAt: at(ago(daysAgo), '09:30'),
@@ -1614,7 +1621,6 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
     announce('owner', `Отчётный концерт — ${ddmm(ahead(24))}`, 'Выступают все группы. Костюмы обсуждаем на ближайших занятиях, генеральная репетиция — в субботу перед концертом.', 5)
     announce('korolyova', 'Каблуки на занятие', `Берите туфли на устойчивом каблуке и наколенники. Новые связки — в «Видео» после каждого ${VOCABULARY.session.gen}.`, 8, { dir: 'heels' })
     announce('orekhova', 'Родителям: детские группы на каникулах', 'Расписание детских групп на каникулах не меняется. Номер к концерту можно повторять дома — видео в приложении.', 4, { groups: ['kidsJunior', 'kidsTeen'] })
-    announce('owner', 'Ваш абонемент скоро закончится', `Продлите абонемент — и следующее ${VOCABULARY.session.nom} пройдёт без перерыва.`, 1, { expiring: true })
     announce('korolyova', 'Растяжка — по записи', `В группе ${bg.capacity} мест, в субботу — 12. Записывайтесь в приложении на каждое ${VOCABULARY.session.acc}; мест нет — встаньте в лист ожидания. Отменить запись без списания можно за ${BOOKING_CANCEL_HOURS} часов.`, 6, { dir: 'stretch' })
 
     // ---- a substitution ahead ---------------------------------------------------
@@ -1873,6 +1879,83 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         toolCalls: 1,
         createdAt: askedAt,
     })
+
+    // ---- «Сообщения» (docs/design/2026-11-26-broadcast-and-direct-messages.md §8) -------
+    // Muted as their membership is (two generated members muted the studio);
+    // generated members have no devices; the fixed accounts get inbox rows
+    // (Соня's and Вика's go to their mother).
+    const kidsOfParent = new Map([sonya, vika].map((k) => [k.id, k]))
+    const active = new Set(plan.members.filter((m) => m.data.status === 'ACTIVE').map((m) => m.data.userId))
+    const mutedMembers = new Set(
+        plan.members.filter((m) => m.data.notificationsMuted).map((m) => m.data.userId as string),
+    )
+    const enrolled = members.filter((p) => active.has(p.id))
+    const recipientOf = (p: Person): DemoMessageRecipient => {
+        const kid = kidsOfParent.get(p.id)
+        return {
+            userId: p.id,
+            muted: mutedMembers.has(p.id),
+            inbox: p.account
+                ? [{ userId: p.id }]
+                : kid
+                  ? [{ userId: parent.id, dependent: { id: kid.id, name: kid.firstname } }]
+                  : [],
+            email: p.email,
+        }
+    }
+    const staffName = (k: StaffKey) => {
+        const s = STAFF.find((x) => x.key === k)!
+        return `${s.firstname} ${s.lastname}`
+    }
+    const accessUntilOf = new Map(plan.members.map((m) => [m.data.userId, m.data.accessUntil as Date | null]))
+    const sentAt = (daysAgo: number, hm: string) => at(ago(daysAgo), hm)
+    const message = (
+        key: string,
+        by: StaffKey,
+        when: Date,
+        fields: Pick<DemoMessageSpec, 'title' | 'body' | 'segment' | 'groupIds' | 'memberIds' | 'readShare' | 'readBy'>,
+        who: Person[],
+    ): DemoMessageSpec => ({
+        id: ritmId(`club-message:${key}`),
+        authorId: staffId(by),
+        authorName: staffName(by),
+        createdAt: when,
+        sentAt: when,
+        sendAt: when,
+        recipients: who.map(recipientOf),
+        ...fields,
+    })
+    const kidsGroups: GroupKey[] = ['kidsJunior', 'kidsTeen']
+    const renewAt = sentAt(1, '12:00')
+    const messages = buildDemoMessages(workspaceId, [
+        message('costumes', 'orekhova', sentAt(3, '18:30'), {
+            title: 'Отчётный концерт: костюмы',
+            body: 'Для номера детских групп нужны чёрные лосины или брюки и белая футболка без рисунка. Принесите на генеральную репетицию в субботу.',
+            segment: 'GROUPS',
+            groupIds: kidsGroups.map(groupId),
+            readShare: 0.55,
+        }, enrolled.filter((p) => p.groups.some((g) => kidsGroups.includes(g)))),
+        message('renew', 'owner', renewAt, {
+            title: 'Ваш абонемент заканчивается',
+            body: `Продлите абонемент — и следующее ${VOCABULARY.session.nom} пройдёт без перерыва.`,
+            segment: 'RENEW',
+            readShare: 0.5,
+        }, enrolled.filter((p) => {
+            const until = accessUntilOf.get(p.id)
+            return !!until && until.getTime() - renewAt.getTime() <= 7 * DAY_MS
+        })),
+        message('video', 'korolyova', sentAt(1, '21:10'), {
+            title: `${student.firstname}, новая связка — в «Видео»`,
+            body: 'Выложила разбор связки с прошлого занятия. Посмотрите до четверга — начнём с неё.',
+            segment: 'MEMBERS',
+            memberIds: [student.id],
+            readShare: 0,
+            readBy: { [student.id]: false },
+        }, [student]),
+    ])
+    plan.clubMessages = messages.clubMessages
+    plan.clubMessageRecipients = messages.clubMessageRecipients
+    plan.notifications = messages.notifications
 
     return plan
 }

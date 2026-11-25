@@ -30,6 +30,8 @@ import {
   Percent,
   Archive,
   ArchiveRestore,
+  MessageSquare,
+  MessageSquareX,
 } from "lucide-react"
 
 import {
@@ -427,6 +429,13 @@ export const actionMetaFor = (
     tone: "blue",
   },
   "discount.delete": { label: "Скидка удалена", icon: Trash2, tone: "red" },
+  // «Ученики → Сообщения»: the segment and the flags, never the text.
+  "message.send": { label: "Сообщение ученикам", icon: MessageSquare, tone: "blue" },
+  "message.cancel": {
+    label: "Отправка сообщения отменена",
+    icon: MessageSquareX,
+    tone: "amber",
+  },
   "autopay.enabled": { label: "Автоплатёж включён", icon: CreditCard, tone: "green" },
   "autopay.cancelled": { label: "Автоплатёж отключён", icon: CreditCard, tone: "amber" },
   "autopay.termsAccepted": {
@@ -663,6 +672,7 @@ export const TARGET_LABEL: Record<string, string> = {
   direction: "Направление",
   aiToken: "Токен ИИ-ассистента",
   aiChat: "Чат ИИ-ассистента",
+  clubMessage: "Сообщение",
 }
 
 // Unknown types (a newer server) get a neutral word, never the raw slug.
@@ -895,6 +905,13 @@ export const META_KEY_LABEL: Record<string, string> = {
   toRoleId: "Роль после",
   chapterId: "Глава",
   direction: "Направление",
+  // message.send: who it went to and how («Ученики → Сообщения»).
+  segment: "Кому",
+  isDirect: "Личное",
+  isService: "Служебное",
+  urgent: "Срочно",
+  withEmail: "Копия на e-mail",
+  sendAt: "Отправка",
 }
 
 // Entity fields named in `fields` (what an edit touched) and as keys of
@@ -963,6 +980,7 @@ const FIELD_LABEL: Record<string, string> = {
   autopayEnabled: "автоплатежи для учеников",
   // «Настройки → Уведомления → Ученикам».
   birthdayGreetingsEnabled: "поздравления с днём рождения",
+  messagesEmailEnabled: "сообщения ученикам на e-mail",
 }
 
 // Course edits naming a video or a chapter. The server resolves most of them
@@ -1033,6 +1051,17 @@ const ENUM_LABEL: Record<string, Record<string, string>> = {
   // The AI assistant's tools (server `features/mcp/tools`).
   tool: AI_TOOL_LABEL,
   tools: AI_TOOL_LABEL,
+  // message.send: the segment of «Ученики → Сообщения».
+  segment: {
+    ALL: "все ученики",
+    GROUPS: "группы",
+    DIRECTION: "направление",
+    RENEW: "пора продлить",
+    UNPAID: "не оплатили",
+    INACTIVE: "не были 30 дней",
+    CALL_LIST: "кому позвонить",
+    MEMBERS: "выбранные ученики",
+  },
 }
 
 // The club area a platform request opened, by the path segment after the
@@ -1223,6 +1252,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   discount: "Скидки",
   autopay: "Автоплатежи",
   ai: "ИИ-ассистент",
+  message: "Сообщения",
 }
 
 // Account-level families are recorded without a club (workspaceId null), so

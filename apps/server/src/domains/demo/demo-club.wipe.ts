@@ -30,6 +30,16 @@ export const wipeDemoWorkspace = async (
     await tx.videoTag.deleteMany({ where: { video: { workspaceId } } })
     await tx.trainingJournalEntry.deleteMany(byClub)
     await tx.auditEvent.deleteMany(byClub)
+    // The fixed accounts outlive the reset: their inbox copies of the club's
+    // messages (no foreign key to the club) go, or every reset would add more.
+    await tx.notification.deleteMany({
+        where: {
+            AND: [
+                { metadata: { path: ['workspaceId'], equals: workspaceId } },
+                { metadata: { path: ['kind'], string_starts_with: 'message.' } },
+            ],
+        },
+    })
     await tx.workspace.delete({ where: { id: workspaceId } })
 }
 

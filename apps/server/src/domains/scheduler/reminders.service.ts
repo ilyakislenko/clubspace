@@ -31,8 +31,13 @@ import {
     NotificationProducerService,
     type PushNotificationRow,
 } from '../notifications/services/notification-producer.service'
+import { ClubMessageDeliveryService } from '../messages/deliver'
+import { isQuietHour, nextSendAt } from '../notifications/quiet-hours'
 import { RealtimeEmitter } from '../realtime/realtime-emitter.service'
 import { claimDispatchMany } from './dispatch-claims'
+
+// Club messages delivered per minute run.
+const CLUB_MESSAGES_PER_RUN = 50
 
 // Absorb a few missed runs; the dispatch-log check below prevents re-sending.
 const ANNOUNCEMENT_GOLIVE_LOOKBACK_MS = 10 * 60_000
@@ -87,9 +92,10 @@ const slotInTimezone = (tz: string): Prisma.GroupWhereInput => ({
 
 /**
  * The minute-sensitive fan-outs: session and event reminders an hour ahead,
- * cancellation notices, scheduled announcements going live. Runs every
- * minute as its own BullMQ job (see scheduler.processors.ts); each pass is
- * idempotent through NotificationDispatchLog claims.
+ * cancellation notices, scheduled announcements going live, club messages
+ * whose time came. Runs every minute as its own BullMQ job (see
+ * scheduler.processors.ts); each pass is idempotent through
+ * NotificationDispatchLog claims (a club message through its status flip).
  */
 @Injectable()
 export class RemindersService {
@@ -99,6 +105,7 @@ export class RemindersService {
         private readonly prisma: PrismaService,
         private readonly notifications: NotificationProducerService,
         private readonly realtime: RealtimeEmitter,
+        private readonly clubMessages: ClubMessageDeliveryService,
     ) {}
 
     async run(now: Date = new Date()): Promise<{
@@ -106,18 +113,54 @@ export class RemindersService {
         eventsNotified: number
         cancellationsNotified: number
         scheduledAnnouncementsPublished: number
+        clubMessagesSent: number
     }> {
         const sessionsNotified = await this.dispatchSessionReminders(now)
         const eventsNotified = await this.dispatchEventReminders(now)
         const cancellationsNotified = await this.dispatchExceptionNotices(now)
         const scheduledAnnouncementsPublished =
             await this.dispatchScheduledAnnouncements(now)
+        const clubMessagesSent = await this.dispatchDueClubMessages(now)
         return {
             sessionsNotified,
             eventsNotified,
             cancellationsNotified,
             scheduledAnnouncementsPublished,
+            clubMessagesSent,
         }
+    }
+
+    // Scheduled club messages whose time came, 50 per run (the rest next
+    // minute). A non-urgent one still waits while it is quiet hours in the club
+    // (its zone may have changed since it was scheduled): its sendAt moves to
+    // the end of them, so held messages never fill the batch and starve the
+    // ones due elsewhere. One failure doesn't hold the others back.
+    private async dispatchDueClubMessages(now: Date): Promise<number> {
+        const due = await this.prisma.clubMessage.findMany({
+            where: { status: 'SCHEDULED', sendAt: { lte: now } },
+            orderBy: { sendAt: 'asc' },
+            take: CLUB_MESSAGES_PER_RUN,
+            select: { id: true, urgent: true, workspace: { select: { timezone: true } } },
+        })
+        let sent = 0
+        for (const m of due) {
+            if (!m.urgent && isQuietHour(now, m.workspace.timezone)) {
+                await this.prisma.clubMessage.updateMany({
+                    where: { id: m.id, status: 'SCHEDULED' },
+                    data: { sendAt: nextSendAt(now, m.workspace.timezone) },
+                })
+                continue
+            }
+            try {
+                if (await this.clubMessages.deliver(m.id, now)) sent += 1
+            } catch (error) {
+                this.logger.error(
+                    `club message ${m.id} failed`,
+                    error instanceof Error ? error.stack : String(error),
+                )
+            }
+        }
+        return sent
     }
 
     // A future-dated announcement is published silently by the handler; this

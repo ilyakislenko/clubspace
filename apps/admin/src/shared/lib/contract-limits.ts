@@ -22,9 +22,11 @@ import {
   DeclineSubscriptionFreezeRequestInputSchema,
   FreezeSubscriptionInputSchema,
   LogAtRiskContactInputSchema,
+  PreviewClubMessageInputSchema,
   PromoteMemberInputSchema,
   ProposePersonalTrainingTimeInputSchema,
   RejectPendingMemberInputSchema,
+  SendClubMessageInputSchema,
   MarkSubscriptionPaidInputSchema,
   MarkEventRegistrationPaidInputSchema,
   SetClassCapacityInputSchema,
@@ -294,6 +296,12 @@ export const FORM_LIMITS = {
   },
   callNote: {
     note: text([LogAtRiskContactInputSchema] as const, "note"),
+  },
+  // «Новое сообщение»: the groups go to the preview and the send alike.
+  clubMessage: {
+    title: text([SendClubMessageInputSchema] as const, "title"),
+    body: text([SendClubMessageInputSchema] as const, "body"),
+    groupIds: items([PreviewClubMessageInputSchema, SendClubMessageInputSchema] as const, "groupIds"),
   },
   aiChat: {
     question: text([AskAiChatInputSchema] as const, "question"),

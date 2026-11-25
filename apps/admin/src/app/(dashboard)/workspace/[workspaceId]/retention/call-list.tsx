@@ -35,6 +35,10 @@ import { useThrottledCallback } from "../../../../../shared/lib/throttle"
 import { useVocabulary } from "../../../../../shared/lib/vocabulary"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
+import {
+  ComposeMessageSheet,
+  type ComposePrefill,
+} from "../../../../../features/messages/ComposeMessageSheet"
 import { AnalyticsFilters, formatMoney } from "../analytics/analytics-toolbar"
 
 const PER_PAGE = 50
@@ -73,6 +77,9 @@ export function CallList() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [note, setNote] = useState("")
   const [saving, setSaving] = useState(false)
+  // «Написать»: one member from the contact row (counts as «Связались»), or
+  // everyone on the list.
+  const [compose, setCompose] = useState<ComposePrefill | null>(null)
   // Rows already on screen, so a refresh doesn't fold «Показать ещё» back.
   const shown = useRef(0)
 
@@ -170,6 +177,20 @@ export function CallList() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
+        {!snoozed && summary && summary.total > 0 && (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setCompose({ segment: "CALL_LIST", label: "Кому позвонить" })
+              }
+            >
+              Написать всем ({summary.total})
+            </Button>
+          </div>
+        )}
         <p className="text-sm text-muted-foreground">
           Ученики, которые могут уйти. Один звонок {vocabulary.coach.gen}{" "}
           заметно продлевает членство.
@@ -363,6 +384,22 @@ export function CallList() {
                           <Button
                             type="button"
                             size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              setCompose({
+                                segment: "MEMBERS",
+                                memberIds: [m.userId],
+                                label: personName(m),
+                                logContact: true,
+                              })
+                            }
+                            disabled={saving}
+                          >
+                            Написать сообщение
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
                             variant="secondary"
                             onClick={() => setEditingId(null)}
                             disabled={saving}
@@ -392,6 +429,19 @@ export function CallList() {
             {loadingMore ? "Загружаем..." : "Показать ещё"}
           </Button>
         </div>
+      )}
+      {workspaceId && (
+        <ComposeMessageSheet
+          workspaceId={workspaceId}
+          open={compose !== null}
+          prefill={compose}
+          onClose={() => setCompose(null)}
+          onSent={() => {
+            // A direct message from a row logged the contact: the row leaves.
+            setEditingId(null)
+            void load()
+          }}
+        />
       )}
     </div>
   )

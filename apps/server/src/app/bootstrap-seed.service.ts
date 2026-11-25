@@ -329,6 +329,27 @@ export class BootstrapSeedService implements OnApplicationBootstrap {
                 </html>
             `,
         })
+
+        // A club message's e-mail copy (domains/messages/deliver.ts). Every
+        // value arrives HTML-escaped; the footer is the one-click unsubscribe.
+        await this.emailTemplatesService.createTemplate({
+            key: 'club-message',
+            content: `
+                <html>
+                    <body style="font-family: Arial, sans-serif; background-color: #f7f6f9; padding: 30px;">
+                        <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 32px;">
+                            <div style="font-size: 12px; color: #605e68; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0;">{{clubName}}</div>
+                            <h2 style="color:#18171b; font-size: 22px; margin: 0 0 12px 0;">{{title}}</h2>
+                            <p style="font-size: 15px; color: #3a3940; margin: 0 0 20px 0;">{{bodyHtml}}</p>
+                            <div>{{appLinkHtml}}</div>
+                            <p style="font-size: 12px; color: #605e68; margin: 24px 0 0 0;">
+                                Это письмо клуба «{{clubName}}». <a href="{{unsubscribeUrl}}" style="color: #605e68;">Отписаться от писем клуба</a>
+                            </p>
+                        </div>
+                    </body>
+                </html>
+            `,
+        })
     }
 
     async setupTfa() {

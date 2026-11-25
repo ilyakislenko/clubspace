@@ -6,8 +6,9 @@ import type { SectionTab } from "../../../../shared/workspace/section-tabs"
 // section title. The sidebar item opens the first tab the role may see, and
 // stays lit on every tab. Each tab's `access` matches its route's gate.
 
-// «Ученики»: the roster and the requests waiting for the viewer's decision
-// (the server scopes both to what the role may see and decide).
+// «Ученики»: the roster, the requests waiting for the viewer's decision and
+// the messages sent to students (the server scopes each to what the role may
+// see, decide and write).
 export const memberTabs: SectionTab[] = [
   {
     key: "users",
@@ -19,6 +20,12 @@ export const memberTabs: SectionTab[] = [
     key: "users-requests",
     label: "Заявки",
     path: "users/requests",
+    access: "staff",
+  },
+  {
+    key: "users-messages",
+    label: "Сообщения",
+    path: "users/messages",
     access: "staff",
   },
 ]

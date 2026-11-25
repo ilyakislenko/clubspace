@@ -13,6 +13,9 @@ import {
 } from '../../domains/notifications/services/mail-health.service'
 import { NotificationsService } from '../../domains/notifications/services/notifications.service'
 import { PrismaService } from '../../infrastructure/prisma'
+import { escapeHtml } from '../../shared/utils/escape-html'
+
+export const DEMO_EMAIL_SKIPPED = 'demo account: not e-mailed'
 
 // Delivers the `email` queue. A home server's mail relay blips (Wi-Fi drop,
 // relay restart) far more often than it dies: a transport failure is thrown
@@ -35,19 +38,43 @@ export class SendEmailNotificationProcessor extends WorkerHost {
         const { notificationId, to } = job.data
         let subject: string
         let body: string
+        // A club message e-mail carries its one-click unsubscribe link
+        // (metadata.unsubscribeUrl), sent as List-Unsubscribe (RFC 8058).
+        let unsubscribeUrl: string | null = null
         if (notificationId === undefined) {
             subject = job.data.subject
             body = job.data.html
         } else {
             const row = await this.prisma.notification.findUnique({
                 where: { id: notificationId },
-                select: { topic: true, message: true, sent: true },
+                select: {
+                    topic: true,
+                    message: true,
+                    sent: true,
+                    metadata: true,
+                    user: { select: { isDemo: true } },
+                },
             })
             // Gone (the user was deleted) or already delivered by an earlier
             // attempt that crashed before the job was acknowledged.
             if (!row || row.sent) return
+            // A demo account's address is a placeholder (@academy.demo): the
+            // row stays in the inbox, the mail never leaves.
+            if (row.user.isDemo) {
+                await this.notifications.updateNotificationStatus({
+                    id: notificationId,
+                    sent: false,
+                    error: DEMO_EMAIL_SKIPPED,
+                })
+                return
+            }
             subject = row.topic
             body = row.message
+            const meta = row.metadata
+            if (meta && typeof meta === 'object' && !Array.isArray(meta)) {
+                const url = meta.unsubscribeUrl
+                unsubscribeUrl = typeof url === 'string' ? url : null
+            }
         }
 
         let result: { messageId?: string } | undefined
@@ -60,11 +87,19 @@ export class SendEmailNotificationProcessor extends WorkerHost {
                     <head>
                       <meta charset="utf-8" />
                       <meta name="viewport" content="width=device-width" />
-                      <title>${subject}</title>
+                      <title>${escapeHtml(subject)}</title>
                     </head>
                     <body>
                         ${body}
                     </body>`,
+                ...(unsubscribeUrl
+                    ? {
+                          headers: {
+                              'List-Unsubscribe': `<${unsubscribeUrl}>`,
+                              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+                          },
+                      }
+                    : {}),
             })
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error)

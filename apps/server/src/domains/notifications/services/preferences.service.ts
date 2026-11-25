@@ -15,6 +15,11 @@ export const NOTIFICATION_CATEGORY_KEYS = [
     'analyticsDigestEnabled',
     // Members: evening «Пора повторить» when bookmark cards are due.
     'reviewRemindersEnabled',
+    // «Сообщения клуба»: push + inbox of non-service club broadcasts (direct
+    // and service messages ignore it), and the e-mail copies (set false by
+    // the one-click unsubscribe link).
+    'clubMessagesEnabled',
+    'clubMessagesEmailEnabled',
 ] as const
 
 export type NotificationCategoryKey =

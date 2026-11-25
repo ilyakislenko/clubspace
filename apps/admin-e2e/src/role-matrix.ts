@@ -62,31 +62,38 @@ const RENEW_TAB = 'retention?tab=renew'
 // kind waits. A kind the role has no requests of falls back to the whole list.
 const REQUESTS_KIND_TAB = 'users/requests?kind=freeze'
 
+// «Ученики → Сообщения» (every role; the list is crawled from the tab row)
+// with the compose panel open: its live preview asks the server with the
+// role's segment, so a refused segment fails the visit. «Не оплатили» is the
+// sport leads' (the roster's «Должники → Написать этим ученикам»).
+const COMPOSE_TAB = 'users/messages?compose=1'
+const COMPOSE_UNPAID_TAB = 'users/messages?compose=1&segment=UNPAID'
+
 export const ROLE_MATRIX: readonly RoleCase[] = [
   {
     role: 'owner',
     email: 'owner@academy.demo',
     blocked: [],
     offMenu: CLUB_ADMIN_OFF_MENU,
-    tabs: [RENEW_TAB, REQUESTS_KIND_TAB],
+    tabs: [RENEW_TAB, REQUESTS_KIND_TAB, COMPOSE_TAB, COMPOSE_UNPAID_TAB],
   },
   {
     role: 'admin',
     email: 'admin@academy.demo',
     blocked: [],
     offMenu: CLUB_ADMIN_OFF_MENU,
-    tabs: [RENEW_TAB, REQUESTS_KIND_TAB],
+    tabs: [RENEW_TAB, REQUESTS_KIND_TAB, COMPOSE_TAB, COMPOSE_UNPAID_TAB],
   },
   {
     role: 'head_coach',
     email: 'coach@academy.demo',
     blocked: CLUB_ADMIN_ONLY,
     offMenu: [],
-    tabs: [RENEW_TAB, REQUESTS_KIND_TAB],
+    tabs: [RENEW_TAB, REQUESTS_KIND_TAB, COMPOSE_TAB, COMPOSE_UNPAID_TAB],
   },
   {
-    // Sidebar: Сегодня, Расписание, Ученики (Список · Заявки), Удержание (no
-    // «Отчёты»: every report is a lead's).
+    // Sidebar: Сегодня, Расписание, Ученики (Список · Заявки · Сообщения),
+    // Удержание (no «Отчёты»: every report is a lead's).
     role: 'coach',
     email: 'pedagog@ritm.demo',
     blocked: [
@@ -100,7 +107,7 @@ export const ROLE_MATRIX: readonly RoleCase[] = [
       'announcements',
     ],
     offMenu: ['groups', 'content', 'events', 'analytics/cohorts', 'analytics/occupancy'],
-    tabs: [REQUESTS_KIND_TAB],
+    tabs: [REQUESTS_KIND_TAB, COMPOSE_TAB],
   },
 ]
 

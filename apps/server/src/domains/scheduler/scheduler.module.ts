@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common'
 import { PrismaModule } from '../../infrastructure/prisma'
 import { AnalyticsModule } from '../analytics/analytics.module'
 import { NotificationProducerModule } from '../notifications/notification-producer.module'
+import { MessagesModule } from '../messages/messages.module'
 import { RealtimeModule } from '../realtime/realtime.module'
 import { RetentionDigestService } from '../retention/retention-digest.service'
 import { FirstVisitPendingService } from '../subscriptions/services/first-visit-pending.service'
@@ -27,6 +28,8 @@ import { SCHEDULER_PROCESSORS, SCHEDULER_QUEUES } from './scheduler.processors'
         AnalyticsModule,
         // CourseAccessService: review reminders count only cards still watchable.
         PlaylistModule,
+        // ClubMessageDeliveryService: due club messages go out from the minute job.
+        MessagesModule,
         ...Object.values(SCHEDULER_QUEUES).map((name) =>
             BullModule.registerQueue({ name }),
         ),

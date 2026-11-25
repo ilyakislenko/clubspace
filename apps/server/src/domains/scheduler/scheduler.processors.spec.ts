@@ -68,6 +68,7 @@ describe('scheduler processors', () => {
                 eventsNotified: 0,
                 cancellationsNotified: 0,
                 scheduledAnnouncementsPublished: 0,
+                clubMessagesSent: 0,
             }),
         }
         const p = new RemindersProcessor(reminders as never, queue('q') as never)
@@ -80,6 +81,7 @@ describe('scheduler processors', () => {
             eventsNotified: 1,
             cancellationsNotified: 0,
             scheduledAnnouncementsPublished: 0,
+            clubMessagesSent: 1,
         })
         await p.process(job)
         expect(log).toHaveBeenCalledWith(expect.stringContaining('2 classes, 1 events'))
