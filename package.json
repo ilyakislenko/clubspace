@@ -174,7 +174,7 @@
     "jsonc-eslint-parser": "^2.1.0",
     "metro-config": "~0.88.0",
     "metro-resolver": "~0.88.0",
-    "nx": "22.3.3",
+    "nx": "24.0.6",
     "openapi-ts": "^0.3.4",
     "postcss": "^8.5.33",
     "prettier": "~3.10.1",
