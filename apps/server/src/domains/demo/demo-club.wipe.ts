@@ -40,6 +40,9 @@ export const wipeDemoWorkspace = async (
             ],
         },
     })
+    // «Пробные»: would cascade with the club; explicit, so a linked lead never
+    // holds a generated person the user cleanup is about to delete.
+    await tx.lead.deleteMany(byClub)
     await tx.workspace.delete({ where: { id: workspaceId } })
 }
 

@@ -20,10 +20,13 @@ const WORKSPACE = {
     publicDescription: 'Лучший зал',
     logoKey: null as string | null,
     isListed: false,
+    trialRequestsEnabled: false,
+    pdOperatorName: null as string | null,
+    pdOperatorAddress: null as string | null,
     updatedAt: new Date('2026-11-14T10:00:00.000Z'),
 }
 
-const build = (workspace: typeof WORKSPACE | null = WORKSPACE) => {
+const build = (workspace: typeof WORKSPACE | null = WORKSPACE, dpaVersion: string | null = null) => {
     const prisma = {
         workspace: {
             findUnique: jest
@@ -39,6 +42,9 @@ const build = (workspace: typeof WORKSPACE | null = WORKSPACE) => {
         },
         workspaceJoinCode: {
             findUnique: jest.fn().mockResolvedValue({ code: 'ABCD2345' }),
+        },
+        clubLegalAcceptance: {
+            findFirst: jest.fn().mockResolvedValue(dpaVersion ? { dpaVersion } : null),
         },
     }
     const files = {
@@ -105,6 +111,11 @@ describe('getClubPublicProfile', () => {
             isListed: false,
             pageUrl: 'https://app.club.example/c/akademiya-bzhzh',
             joinPageUrl: 'https://app.club.example/join/ABCD2345',
+            trialRequestsEnabled: false,
+            pdOperatorName: null,
+            pdOperatorAddress: null,
+            trialFormUrl: 'https://app.club.example/c/akademiya-bzhzh/trial',
+            leadsDpaAccepted: false,
             updatedAt: '2026-11-14T10:00:00.000Z',
         })
         expect(files.getPresignedGetUrl).not.toHaveBeenCalled()
@@ -129,8 +140,29 @@ describe('getClubPublicProfile', () => {
             const out = await run(handler)
             expect(out.pageUrl).toBeNull()
             expect(out.joinPageUrl).toBeNull()
+            expect(out.trialFormUrl).toBeNull()
         } finally {
             Object.assign(environment, { appUrl: saved })
         }
+    })
+
+    it('reports whether the latest DPA acceptance covers trial requests', async () => {
+        const old = build(WORKSPACE, '2026-11-01')
+        expect((await run(old.handler)).leadsDpaAccepted).toBe(false)
+        const covered = build(
+            { ...WORKSPACE, trialRequestsEnabled: true, pdOperatorName: 'ИП Орлов', pdOperatorAddress: 'г. Москва' },
+            '2026-12-01',
+        )
+        const out = await run(covered.handler)
+        expect(out).toMatchObject({
+            leadsDpaAccepted: true,
+            trialRequestsEnabled: true,
+            pdOperatorName: 'ИП Орлов',
+            pdOperatorAddress: 'г. Москва',
+        })
+        expect(covered.prisma.clubLegalAcceptance.findFirst.mock.calls[0][0]).toMatchObject({
+            where: { workspaceId: 'w1' },
+            orderBy: { acceptedAt: 'desc' },
+        })
     })
 })

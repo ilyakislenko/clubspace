@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 
 import { ClubDetails, ClubHeader } from "../../../features/public-club/ClubProfile"
 import { getPublicClubBySlug } from "../../../shared/api/public-clubs"
+import { getPublicTrialForm } from "../../../shared/api/public-trial"
 
 export const dynamic = "force-dynamic"
 
@@ -20,11 +21,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-// The public page of a club that chose to be listed. «Вступить» leads to the
-// join page for the club's code, which opens the app (or a store) from there.
+const PRIMARY =
+  "flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-base font-semibold text-primary-foreground transition-opacity hover:opacity-90 sm:w-auto sm:px-10"
+
+// The public page of a club that chose to be listed. With its trial form on,
+// «Записаться на пробное» is the one filled button and joining by code (for
+// people already training there) steps back to an outline link; otherwise
+// «Вступить» leads to the join page, which opens the app (or a store).
 export default async function ClubPage({ params }: Props) {
   const { slug } = await params
-  const club = await getPublicClubBySlug(slug)
+  const [club, trialForm] = await Promise.all([
+    getPublicClubBySlug(slug),
+    // Optional: a failing trial endpoint hides the button, never the page.
+    getPublicTrialForm(slug).catch(() => null),
+  ])
   if (!club) notFound()
 
   return (
@@ -38,13 +48,29 @@ export default async function ClubPage({ params }: Props) {
 
       <ClubHeader club={club} />
 
-      {club.joinCode && (
-        <Link
-          href={`/join/${club.joinCode}`}
-          className="flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-base font-semibold text-primary-foreground transition-opacity hover:opacity-90 sm:w-auto sm:px-10"
-        >
-          Вступить
-        </Link>
+      {trialForm ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Link
+            href={`/c/${club.slug ?? slug}/trial`}
+            className={PRIMARY}
+          >
+            Записаться на пробное
+          </Link>
+          {club.joinCode && (
+            <Link
+              href={`/join/${club.joinCode}`}
+              className="flex h-11 w-full items-center justify-center rounded-full border border-border bg-card px-5 text-sm font-medium transition-colors hover:bg-muted sm:w-auto"
+            >
+              Уже занимаетесь? Вступить в приложении
+            </Link>
+          )}
+        </div>
+      ) : (
+        club.joinCode && (
+          <Link href={`/join/${club.joinCode}`} className={PRIMARY}>
+            Вступить
+          </Link>
+        )
       )}
 
       <ClubDetails club={club} />

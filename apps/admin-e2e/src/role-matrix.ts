@@ -49,6 +49,7 @@ const CLUB_ADMIN_ONLY = [
   ...SETTINGS_SECTIONS,
   'club-import',
   'analytics/forecast',
+  'analytics/payroll',
   'analytics/export',
 ] as const
 
@@ -69,27 +70,31 @@ const REQUESTS_KIND_TAB = 'users/requests?kind=freeze'
 const COMPOSE_TAB = 'users/messages?compose=1'
 const COMPOSE_UNPAID_TAB = 'users/messages?compose=1&segment=UNPAID'
 
+// «Ученики → Пробные» (sport leads; the tab is crawled from the tab row) on
+// a view other than the default «Нужно действие» — anonymised rows show here.
+const TRIALS_VIEW_TAB = 'users/trials?view=all'
+
 export const ROLE_MATRIX: readonly RoleCase[] = [
   {
     role: 'owner',
     email: 'owner@academy.demo',
     blocked: [],
     offMenu: CLUB_ADMIN_OFF_MENU,
-    tabs: [RENEW_TAB, REQUESTS_KIND_TAB, COMPOSE_TAB, COMPOSE_UNPAID_TAB],
+    tabs: [RENEW_TAB, REQUESTS_KIND_TAB, COMPOSE_TAB, COMPOSE_UNPAID_TAB, TRIALS_VIEW_TAB],
   },
   {
     role: 'admin',
     email: 'admin@academy.demo',
     blocked: [],
     offMenu: CLUB_ADMIN_OFF_MENU,
-    tabs: [RENEW_TAB, REQUESTS_KIND_TAB, COMPOSE_TAB, COMPOSE_UNPAID_TAB],
+    tabs: [RENEW_TAB, REQUESTS_KIND_TAB, COMPOSE_TAB, COMPOSE_UNPAID_TAB, TRIALS_VIEW_TAB],
   },
   {
     role: 'head_coach',
     email: 'coach@academy.demo',
     blocked: CLUB_ADMIN_ONLY,
     offMenu: [],
-    tabs: [RENEW_TAB, REQUESTS_KIND_TAB, COMPOSE_TAB, COMPOSE_UNPAID_TAB],
+    tabs: [RENEW_TAB, REQUESTS_KIND_TAB, COMPOSE_TAB, COMPOSE_UNPAID_TAB, TRIALS_VIEW_TAB],
   },
   {
     // Sidebar: Сегодня, Расписание, Ученики (Список · Заявки · Сообщения),
@@ -102,6 +107,9 @@ export const ROLE_MATRIX: readonly RoleCase[] = [
       // the first report the role may open, a plain coach has none.
       'analytics',
       'analytics/coaches',
+      // «Пробные»: strangers' phones and their funnel (SportLeadGate).
+      'users/trials',
+      'analytics/trials',
       'ai-assistant',
       'ranks',
       'announcements',

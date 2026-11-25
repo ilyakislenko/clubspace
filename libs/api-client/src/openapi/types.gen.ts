@@ -2499,6 +2499,7 @@ export type GetMyWorkspaceMembershipOutputOutput = {
     createdAt: string;
     managedDirectionIds: Array<string>;
     marksAnyClass: boolean;
+    canSeeOwnPay: boolean;
 };
 
 export type GetMemberProgressOutputOutput = {
@@ -2966,6 +2967,7 @@ export type GetWorkspaceSettingsOutputOutput = {
     type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
     coachSeesAllGroups: boolean;
     coachesMarkAnyClass: boolean;
+    coachPayVisible: boolean;
     timezone: string;
     joinAutoApprove: boolean;
     birthdayGreetingsEnabled: boolean;
@@ -2998,6 +3000,7 @@ export type GetWorkspaceSettingsOutputOutput = {
 export type UpdateWorkspaceSettingsBody = {
     coachSeesAllGroups?: boolean;
     coachesMarkAnyClass?: boolean;
+    coachPayVisible?: boolean;
     timezone?: string;
     joinAutoApprove?: boolean;
     birthdayGreetingsEnabled?: boolean;
@@ -3029,6 +3032,7 @@ export type UpdateWorkspaceSettingsOutputOutput = {
     name: string;
     coachSeesAllGroups: boolean;
     coachesMarkAnyClass: boolean;
+    coachPayVisible: boolean;
     timezone: string;
     joinAutoApprove: boolean;
     birthdayGreetingsEnabled: boolean;
@@ -4224,6 +4228,11 @@ export type ClubPublicProfileOutputDtoOutput = {
     isListed: boolean;
     pageUrl: string | null;
     joinPageUrl: string | null;
+    trialRequestsEnabled: boolean;
+    pdOperatorName: string | null;
+    pdOperatorAddress: string | null;
+    trialFormUrl: string | null;
+    leadsDpaAccepted: boolean;
     updatedAt: string;
 };
 
@@ -4233,6 +4242,9 @@ export type UpdateClubPublicProfileInput = {
     description: string | null;
     logoKey: string | null;
     isListed: boolean;
+    trialRequestsEnabled?: boolean;
+    pdOperatorName?: string | null;
+    pdOperatorAddress?: string | null;
     /**
      * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
      */
@@ -4248,6 +4260,11 @@ export type UpdateClubPublicProfileOutputDtoOutput = {
     isListed: boolean;
     pageUrl: string | null;
     joinPageUrl: string | null;
+    trialRequestsEnabled: boolean;
+    pdOperatorName: string | null;
+    pdOperatorAddress: string | null;
+    trialFormUrl: string | null;
+    leadsDpaAccepted: boolean;
     updatedAt: string;
 };
 
@@ -9246,6 +9263,425 @@ export type ListSaleDiscountsOutputOutput = {
     }>;
 };
 
+export type PayrollMonthOutputOutput = {
+    month: string;
+    status: 'open' | 'closed';
+    canClose: boolean;
+    closedAt: string | null;
+    closedBy: {
+        id: string;
+        name: string;
+    } | null;
+    currency: string;
+    total: number;
+    drift: number | null;
+    driftByCoach: Array<{
+        coachId: string;
+        name: string;
+        delta: number;
+    }>;
+    unattributed: {
+        classes: number;
+        revenue: number;
+        otherCurrency: number;
+    };
+    lines: Array<{
+        coachId: string;
+        name: string;
+        rate: {
+            effectiveFrom: string;
+            fixedMonthly: number;
+            perClass: number;
+            perClassMinStudents: number;
+            perStudent: number;
+            revenueBp: number;
+            currency: string;
+        } | null;
+        ignoredRate: {
+            effectiveFrom: string;
+            fixedMonthly: number;
+            perClass: number;
+            perClassMinStudents: number;
+            perStudent: number;
+            revenueBp: number;
+            currency: string;
+        } | null;
+        classes: number;
+        classesPaid: number;
+        marks: number;
+        marksPaid: number;
+        revenueBase: number;
+        amounts: {
+            fixed: number;
+            classes: number;
+            students: number;
+            revenue: number;
+            adjustments: number;
+        };
+        total: number;
+        adjustments: Array<{
+            id: string;
+            amount: number;
+            currency: string;
+            comment: string;
+            createdAt: string;
+            createdByName: string;
+            ignored: boolean;
+        }>;
+    }>;
+};
+
+export type MyPayrollOutputOutput = {
+    months: Array<{
+        month: string;
+        closedAt: string;
+        currency: string;
+        rate: {
+            effectiveFrom: string;
+            fixedMonthly: number;
+            perClass: number;
+            perClassMinStudents: number;
+            perStudent: number;
+            revenueBp: number;
+            currency: string;
+        } | null;
+        classes: number;
+        classesPaid: number;
+        marks: number;
+        marksPaid: number;
+        revenueBase: number;
+        amounts: {
+            fixed: number;
+            classes: number;
+            students: number;
+            revenue: number;
+            adjustments: number;
+        };
+        total: number;
+        adjustments: Array<{
+            id: string;
+            amount: number;
+            comment: string;
+            createdAt: string;
+        }>;
+    }>;
+    current: {
+        month: string;
+        classes: number;
+        marks: number;
+    };
+};
+
+export type CoachRatesOutputOutput = {
+    currency: string;
+    coaches: Array<{
+        coachId: string;
+        name: string;
+        role: string;
+        updatedAt: string | null;
+        rates: Array<{
+            effectiveFrom: string;
+            fixedMonthly: number;
+            perClass: number;
+            perClassMinStudents: number;
+            perStudent: number;
+            revenueBp: number;
+            currency: string;
+            id: string;
+            coachId: string;
+            updatedAt: string;
+        }>;
+    }>;
+};
+
+export type PayrollClassesOutputOutput = {
+    month: string;
+    coachId: string;
+    items: Array<{
+        sessionId: string;
+        date: string;
+        startAt: string;
+        groupId: string;
+        groupName: string;
+        marks: number;
+        status: 'paid' | 'unpaid' | 'cancelled' | 'other_coach';
+        substitute: boolean;
+        ranBy: {
+            coachId: string | null;
+            name: string;
+        } | null;
+    }>;
+};
+
+export type SetCoachRateInput = {
+    effectiveFrom: string;
+    fixedMonthly: number;
+    perClass: number;
+    perClassMinStudents: number;
+    perStudent: number;
+    revenueBp: number;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
+};
+
+export type CoachRateOutputOutput = {
+    effectiveFrom: string;
+    fixedMonthly: number;
+    perClass: number;
+    perClassMinStudents: number;
+    perStudent: number;
+    revenueBp: number;
+    currency: string;
+    id: string;
+    coachId: string;
+    updatedAt: string;
+};
+
+export type AddPayrollAdjustmentInput = {
+    month: string;
+    coachId: string;
+    amount: number;
+    comment: string;
+};
+
+export type PayrollAdjustmentOutputOutput = {
+    id: string;
+    amount: number;
+    currency: string;
+    comment: string;
+    createdAt: string;
+    createdByName: string;
+    month: string;
+    coachId: string;
+};
+
+export type DeletePayrollAdjustmentOutputOutput = {
+    status: 'deleted';
+};
+
+export type ClosePayrollMonthInput = {
+    expectedTotal: number;
+    expectedLines?: Array<{
+        coachId: string;
+        total: number;
+    }>;
+};
+
+export type ReopenPayrollMonthInput = {
+    reason: string;
+};
+
+export type ListLeadsOutputOutput = {
+    data: Array<{
+        id: string;
+        source: 'PUBLIC_PAGE' | 'QR' | 'MANUAL';
+        status: 'NEW' | 'CONTACTED' | 'TRIAL_BOOKED' | 'CAME' | 'LOST';
+        displayStatus: 'NEW' | 'CONTACTED' | 'TRIAL_BOOKED' | 'CAME' | 'LOST' | 'BOUGHT';
+        needsAction: boolean;
+        name: string | null;
+        phone: string | null;
+        email: string | null;
+        forChild: boolean;
+        childName: string | null;
+        childAge: number | null;
+        directionId: string | null;
+        directionName: string | null;
+        comment: string | null;
+        staffNote: string | null;
+        trialAt: string | null;
+        trialGroupId: string | null;
+        trialGroupName: string | null;
+        contactedAt: string | null;
+        trialBookedAt: string | null;
+        cameAt: string | null;
+        lostAt: string | null;
+        lostReason: 'NO_ANSWER' | 'CHANGED_MIND' | 'PRICE' | 'SCHEDULE' | 'LOCATION' | 'CHOSE_OTHER' | 'SPAM' | 'OTHER' | null;
+        lostComment: string | null;
+        convertedUserId: string | null;
+        convertedUserName: string | null;
+        convertedAt: string | null;
+        consentVersion: string;
+        consentAt: string;
+        consentRecordedByName: string | null;
+        resubmittedAt: string | null;
+        anonymizedAt: string | null;
+        createdAt: string;
+        updatedAt: string;
+        timezone: string;
+        trialTimezone: string;
+    }>;
+    total: number;
+    counts: {
+        needsAction: number;
+        new: number;
+        trialOverdue: number;
+        contacted: number;
+        trialBooked: number;
+        came: number;
+        bought: number;
+        lost: number;
+    };
+    formEnabled: boolean;
+    timezone: string;
+};
+
+export type LeadConversionReportOutputOutput = {
+    from: string;
+    to: string;
+    total: {
+        received: number;
+        contacted: number;
+        trialBooked: number;
+        came: number;
+        bought: number;
+        lostByReason: Array<{
+            reason: 'NO_ANSWER' | 'CHANGED_MIND' | 'PRICE' | 'SCHEDULE' | 'LOCATION' | 'CHOSE_OTHER' | 'SPAM' | 'OTHER';
+            count: number;
+        }>;
+        medianContactHours: number | null;
+    };
+    bySource: Array<{
+        received: number;
+        contacted: number;
+        trialBooked: number;
+        came: number;
+        bought: number;
+        lostByReason: Array<{
+            reason: 'NO_ANSWER' | 'CHANGED_MIND' | 'PRICE' | 'SCHEDULE' | 'LOCATION' | 'CHOSE_OTHER' | 'SPAM' | 'OTHER';
+            count: number;
+        }>;
+        medianContactHours: number | null;
+        source: 'PUBLIC_PAGE' | 'QR' | 'MANUAL';
+    }>;
+};
+
+export type TrialLinkOutputOutput = {
+    url: string | null;
+    qrPngDataUrl: string | null;
+    missing: 'disabled' | 'slug' | 'operator' | null;
+};
+
+export type LeadOutputOutput = {
+    id: string;
+    source: 'PUBLIC_PAGE' | 'QR' | 'MANUAL';
+    status: 'NEW' | 'CONTACTED' | 'TRIAL_BOOKED' | 'CAME' | 'LOST';
+    displayStatus: 'NEW' | 'CONTACTED' | 'TRIAL_BOOKED' | 'CAME' | 'LOST' | 'BOUGHT';
+    needsAction: boolean;
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+    forChild: boolean;
+    childName: string | null;
+    childAge: number | null;
+    directionId: string | null;
+    directionName: string | null;
+    comment: string | null;
+    staffNote: string | null;
+    trialAt: string | null;
+    trialGroupId: string | null;
+    trialGroupName: string | null;
+    contactedAt: string | null;
+    trialBookedAt: string | null;
+    cameAt: string | null;
+    lostAt: string | null;
+    lostReason: 'NO_ANSWER' | 'CHANGED_MIND' | 'PRICE' | 'SCHEDULE' | 'LOCATION' | 'CHOSE_OTHER' | 'SPAM' | 'OTHER' | null;
+    lostComment: string | null;
+    convertedUserId: string | null;
+    convertedUserName: string | null;
+    convertedAt: string | null;
+    consentVersion: string;
+    consentAt: string;
+    consentRecordedByName: string | null;
+    resubmittedAt: string | null;
+    anonymizedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+    timezone: string;
+    trialTimezone: string;
+};
+
+export type CreateLeadInput = {
+    name: string;
+    phone: string;
+    email?: string;
+    forChild: boolean;
+    childName?: string;
+    childAge?: number;
+    directionId?: string;
+    comment?: string;
+    staffNote?: string;
+    consentConfirmed: true;
+};
+
+export type UpdateLeadInput = {
+    name?: string;
+    phone?: string;
+    email?: string | null;
+    forChild?: boolean;
+    childName?: string | null;
+    childAge?: number | null;
+    directionId?: string | null;
+    staffNote?: string | null;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
+};
+
+export type SetLeadStatusInput = {
+    from: 'NEW' | 'CONTACTED' | 'TRIAL_BOOKED' | 'CAME' | 'LOST';
+    to: 'NEW' | 'CONTACTED' | 'TRIAL_BOOKED' | 'CAME' | 'LOST';
+    trialAt?: string;
+    trialGroupId?: string | null;
+    notifyCoach?: boolean;
+    lostReason?: 'NO_ANSWER' | 'CHANGED_MIND' | 'PRICE' | 'SCHEDULE' | 'LOCATION' | 'CHOSE_OTHER' | 'SPAM' | 'OTHER';
+    lostComment?: string;
+};
+
+export type LinkLeadMemberInput = {
+    userId: string;
+};
+
+export type PublicTrialFormOutputOutput = {
+    clubName: string;
+    logoUrl: string | null;
+    directions: Array<{
+        id: string;
+        name: string;
+    }>;
+    operator: {
+        name: string;
+        address: string;
+    };
+    consentVersion: string;
+    contacts: Array<{
+        label: string;
+        phone: string;
+    }>;
+    isListed: boolean;
+};
+
+export type CreatePublicTrialRequestInput = {
+    name: string;
+    phone: string;
+    email?: string;
+    forChild: boolean;
+    childName?: string;
+    childAge?: number;
+    directionId?: string;
+    comment?: string;
+    source: 'page' | 'qr';
+    consent: boolean;
+    consentVersion: string;
+    website?: string;
+};
+
+export type CreatePublicTrialRequestOutputOutput = {
+    status: 'received';
+};
+
 export type OnlinePurchaseOptionsOutputOutput = {
     available: boolean;
     provider: 'YOOKASSA' | 'STRIPE' | null;
@@ -13714,6 +14150,37 @@ export type PaymentsResponses = {
     200: unknown;
 };
 
+export type PayrollData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query: {
+        month: string;
+    };
+    url: '/workspaces/{workspaceId}/exports/payroll.csv';
+};
+
+export type PayrollResponses = {
+    200: unknown;
+};
+
+export type LeadsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        from?: string;
+        to?: string;
+    };
+    url: '/workspaces/{workspaceId}/exports/leads.csv';
+};
+
+export type LeadsResponses = {
+    200: unknown;
+};
+
 export type AssignSubscriptionData = {
     body: AssignSubscriptionInput;
     path: {
@@ -15576,6 +16043,329 @@ export type ListSaleDiscountsResponses = {
 };
 
 export type ListSaleDiscountsResponse = ListSaleDiscountsResponses[keyof ListSaleDiscountsResponses];
+
+export type GetPayrollMonthData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query: {
+        month: string;
+    };
+    url: '/workspaces/{workspaceId}/payroll';
+};
+
+export type GetPayrollMonthResponses = {
+    default: PayrollMonthOutputOutput;
+};
+
+export type GetPayrollMonthResponse = GetPayrollMonthResponses[keyof GetPayrollMonthResponses];
+
+export type GetMyPayrollData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payroll/me';
+};
+
+export type GetMyPayrollResponses = {
+    default: MyPayrollOutputOutput;
+};
+
+export type GetMyPayrollResponse = GetMyPayrollResponses[keyof GetMyPayrollResponses];
+
+export type ListCoachRatesData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payroll/rates';
+};
+
+export type ListCoachRatesResponses = {
+    default: CoachRatesOutputOutput;
+};
+
+export type ListCoachRatesResponse = ListCoachRatesResponses[keyof ListCoachRatesResponses];
+
+export type ListPayrollClassesData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        coachId: string;
+    };
+    query: {
+        month: string;
+    };
+    url: '/workspaces/{workspaceId}/payroll/coaches/{coachId}/classes';
+};
+
+export type ListPayrollClassesResponses = {
+    default: PayrollClassesOutputOutput;
+};
+
+export type ListPayrollClassesResponse = ListPayrollClassesResponses[keyof ListPayrollClassesResponses];
+
+export type SetCoachRateData = {
+    body: SetCoachRateInput;
+    path: {
+        workspaceId: string;
+        coachId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payroll/rates/{coachId}';
+};
+
+export type SetCoachRateResponses = {
+    default: CoachRateOutputOutput;
+};
+
+export type SetCoachRateResponse = SetCoachRateResponses[keyof SetCoachRateResponses];
+
+export type AddPayrollAdjustmentData = {
+    body: AddPayrollAdjustmentInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payroll/adjustments';
+};
+
+export type AddPayrollAdjustmentResponses = {
+    default: PayrollAdjustmentOutputOutput;
+};
+
+export type AddPayrollAdjustmentResponse = AddPayrollAdjustmentResponses[keyof AddPayrollAdjustmentResponses];
+
+export type DeletePayrollAdjustmentData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        adjustmentId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payroll/adjustments/{adjustmentId}';
+};
+
+export type DeletePayrollAdjustmentResponses = {
+    default: DeletePayrollAdjustmentOutputOutput;
+};
+
+export type DeletePayrollAdjustmentResponse = DeletePayrollAdjustmentResponses[keyof DeletePayrollAdjustmentResponses];
+
+export type ClosePayrollMonthData = {
+    body: ClosePayrollMonthInput;
+    path: {
+        workspaceId: string;
+        month: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payroll/{month}/close';
+};
+
+export type ClosePayrollMonthResponses = {
+    default: PayrollMonthOutputOutput;
+};
+
+export type ClosePayrollMonthResponse = ClosePayrollMonthResponses[keyof ClosePayrollMonthResponses];
+
+export type ReopenPayrollMonthData = {
+    body: ReopenPayrollMonthInput;
+    path: {
+        workspaceId: string;
+        month: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/payroll/{month}/reopen';
+};
+
+export type ReopenPayrollMonthResponses = {
+    default: PayrollMonthOutputOutput;
+};
+
+export type ReopenPayrollMonthResponse = ReopenPayrollMonthResponses[keyof ReopenPayrollMonthResponses];
+
+export type ListLeadsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        view?: 'needsAction' | 'new' | 'contacted' | 'trialBooked' | 'came' | 'bought' | 'lost' | 'all';
+        source?: 'PUBLIC_PAGE' | 'QR' | 'MANUAL';
+        q?: string;
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/leads';
+};
+
+export type ListLeadsResponses = {
+    default: ListLeadsOutputOutput;
+};
+
+export type ListLeadsResponse = ListLeadsResponses[keyof ListLeadsResponses];
+
+export type CreateLeadData = {
+    body: CreateLeadInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/leads';
+};
+
+export type CreateLeadResponses = {
+    default: LeadOutputOutput;
+};
+
+export type CreateLeadResponse = CreateLeadResponses[keyof CreateLeadResponses];
+
+export type GetLeadConversionReportData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        from?: string;
+        to?: string;
+    };
+    url: '/workspaces/{workspaceId}/leads/report';
+};
+
+export type GetLeadConversionReportResponses = {
+    default: LeadConversionReportOutputOutput;
+};
+
+export type GetLeadConversionReportResponse = GetLeadConversionReportResponses[keyof GetLeadConversionReportResponses];
+
+export type GetTrialLinkData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/leads/trial-link';
+};
+
+export type GetTrialLinkResponses = {
+    default: TrialLinkOutputOutput;
+};
+
+export type GetTrialLinkResponse = GetTrialLinkResponses[keyof GetTrialLinkResponses];
+
+export type GetLeadData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        leadId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/leads/{leadId}';
+};
+
+export type GetLeadResponses = {
+    default: LeadOutputOutput;
+};
+
+export type GetLeadResponse = GetLeadResponses[keyof GetLeadResponses];
+
+export type UpdateLeadData = {
+    body: UpdateLeadInput;
+    path: {
+        workspaceId: string;
+        leadId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/leads/{leadId}';
+};
+
+export type UpdateLeadResponses = {
+    default: LeadOutputOutput;
+};
+
+export type UpdateLeadResponse = UpdateLeadResponses[keyof UpdateLeadResponses];
+
+export type SetLeadStatusData = {
+    body: SetLeadStatusInput;
+    path: {
+        workspaceId: string;
+        leadId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/leads/{leadId}/status';
+};
+
+export type SetLeadStatusResponses = {
+    default: LeadOutputOutput;
+};
+
+export type SetLeadStatusResponse = SetLeadStatusResponses[keyof SetLeadStatusResponses];
+
+export type LinkLeadMemberData = {
+    body: LinkLeadMemberInput;
+    path: {
+        workspaceId: string;
+        leadId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/leads/{leadId}/link';
+};
+
+export type LinkLeadMemberResponses = {
+    default: LeadOutputOutput;
+};
+
+export type LinkLeadMemberResponse = LinkLeadMemberResponses[keyof LinkLeadMemberResponses];
+
+export type EraseLeadData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        leadId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/leads/{leadId}/erase';
+};
+
+export type EraseLeadResponses = {
+    default: LeadOutputOutput;
+};
+
+export type EraseLeadResponse = EraseLeadResponses[keyof EraseLeadResponses];
+
+export type GetPublicTrialFormData = {
+    body?: never;
+    path: {
+        slug: string;
+    };
+    query?: never;
+    url: '/public/clubs/{slug}/trial';
+};
+
+export type GetPublicTrialFormResponses = {
+    default: PublicTrialFormOutputOutput;
+};
+
+export type GetPublicTrialFormResponse = GetPublicTrialFormResponses[keyof GetPublicTrialFormResponses];
+
+export type CreatePublicTrialRequestData = {
+    body: CreatePublicTrialRequestInput;
+    path: {
+        slug: string;
+    };
+    query?: never;
+    url: '/public/clubs/{slug}/trial';
+};
+
+export type CreatePublicTrialRequestResponses = {
+    default: CreatePublicTrialRequestOutputOutput;
+};
+
+export type CreatePublicTrialRequestResponse = CreatePublicTrialRequestResponses[keyof CreatePublicTrialRequestResponses];
 
 export type GetOnlinePurchaseOptionsData = {
     body?: never;

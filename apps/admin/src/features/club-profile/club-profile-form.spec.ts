@@ -11,6 +11,9 @@ const saved: ClubProfileDraft = {
     description: "",
     logoKey: null,
     isListed: false,
+    trialRequestsEnabled: false,
+    pdOperatorName: "",
+    pdOperatorAddress: "",
   },
   about: {
     contacts: [{ label: "Администратор", phone: "+79528849420" }],

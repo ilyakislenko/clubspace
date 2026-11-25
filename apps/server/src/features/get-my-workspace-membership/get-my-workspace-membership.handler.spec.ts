@@ -6,7 +6,12 @@ const MEMBER_ROW = {
     status: 'ACTIVE',
     accessUntil: null,
     createdAt: new Date('2026-01-02T00:00:00.000Z'),
-    workspace: { name: 'BJJ School', ownerId: 'owner-1', coachesMarkAnyClass: false },
+    workspace: {
+        name: 'BJJ School',
+        ownerId: 'owner-1',
+        coachesMarkAnyClass: false,
+        coachPayVisible: false,
+    },
     role: { name: 'coach' },
 }
 
@@ -14,6 +19,7 @@ const WORKSPACE_ROW = {
     name: 'BJJ School',
     ownerId: 'owner-1',
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    coachPayVisible: false,
 }
 
 type BuildOpts = {
@@ -113,6 +119,19 @@ describe('GetMyWorkspaceMembershipHandler', () => {
         expect((await run(build().handler, 'u1', true)).marksAnyClass).toBe(true)
     })
 
+    it('staff see their own pay only while the club shows it; a student never', async () => {
+        expect((await run(build().handler, 'u1')).canSeeOwnPay).toBe(false)
+        const shown = { ...MEMBER_ROW.workspace, coachPayVisible: true }
+        expect(
+            (await run(build({ member: { ...MEMBER_ROW, workspace: shown } }).handler, 'u1'))
+                .canSeeOwnPay,
+        ).toBe(true)
+        const student = build({ member: { ...MEMBER_ROW, workspace: shown, role: { name: 'user' } } })
+        expect((await run(student.handler, 'u1')).canSeeOwnPay).toBe(false)
+        const owner = build({ member: null, workspace: { ...WORKSPACE_ROW, coachPayVisible: true } })
+        expect((await run(owner.handler, 'owner-1')).canSeeOwnPay).toBe(true)
+    })
+
     // Both of the following used to 404, which made clients render a
     // read-only screen for people the server lets write.
     it('synthesises admin access for an owner with no membership row', async () => {
@@ -128,6 +147,7 @@ describe('GetMyWorkspaceMembershipHandler', () => {
             createdAt: '2026-01-01T00:00:00.000Z',
             managedDirectionIds: [],
             marksAnyClass: true,
+            canSeeOwnPay: false,
         })
     })
 

@@ -22,6 +22,7 @@ const MODELS = [
     'trainingJournalEntry',
     'auditEvent',
     'notification',
+    'lead',
     'consentRecord',
     'guardianship',
 ]

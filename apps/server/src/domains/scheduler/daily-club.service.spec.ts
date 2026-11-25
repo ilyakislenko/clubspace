@@ -28,6 +28,9 @@ const make = (
         logged: string[]
         runClaimed: boolean
         backfillDone: boolean
+        staleLeads: number
+        sportLeads: string[]
+        leadStaleClaimed: boolean
     }> = {},
 ) => {
     const logged = new Set(o.logged ?? [])
@@ -41,12 +44,18 @@ const make = (
         },
         workspaceMember: {
             findMany: jest.fn(async (args: { where: Record<string, unknown> }) =>
-                'role' in args.where
-                    ? (o.birthdays ?? [])
-                    : 'lastAttendedAt' in args.where
-                      ? (o.stale ?? [])
+                'lastAttendedAt' in args.where
+                    ? (o.stale ?? [])
+                    : 'role' in args.where
+                      ? // Birthdays read the students, stale-lead pushes the sport leads.
+                        (args.where.role as { name: unknown }).name === 'user'
+                          ? (o.birthdays ?? [])
+                          : (o.sportLeads ?? []).map((userId) => ({ userId }))
                       : (o.expiring ?? []),
             ),
+        },
+        lead: {
+            count: jest.fn().mockResolvedValue(o.staleLeads ?? 0),
         },
         notificationPreferences: {
             findMany: jest
@@ -59,6 +68,7 @@ const make = (
                     throw p2002()
                 }
                 if (data.kind === 'club.daily.run' && o.runClaimed) throw p2002()
+                if (data.kind === 'lead.stale' && o.leadStaleClaimed) throw p2002()
                 return data
             }),
             deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -101,6 +111,7 @@ describe('DailyClubService', () => {
             inactivityNotified: 0,
             accessExpiryNotified: 0,
             birthdaysGreeted: 0,
+            leadStaleNotified: 0,
         })
         expect(prisma.workspace.findMany).toHaveBeenCalledTimes(1)
         expect(prisma.workspaceMember.findMany).not.toHaveBeenCalled()
@@ -370,6 +381,61 @@ describe('DailyClubService', () => {
             })
             expect((await svc.run(NOW)).birthdaysGreeted).toBe(0)
             expect(rows).toHaveLength(0)
+        })
+    })
+
+    describe('lead.stale (docs/design/2026-11-26-leads.md §3.4)', () => {
+        it('pushes the sport leads once a club-day: a count, no personal data', async () => {
+            const { svc, prisma, rows } = make({ staleLeads: 2, sportLeads: ['head1', 'own'] })
+
+            const s = await svc.run(NOW)
+
+            expect(s.leadStaleNotified).toBe(2)
+            expect(prisma.lead.count.mock.calls[0][0].where).toEqual({
+                workspaceId: 'ws-1',
+                status: 'NEW',
+                anonymizedAt: null,
+                createdAt: { lt: new Date(NOW.getTime() - DAY) },
+            })
+            expect(prisma.notificationDispatchLog.create).toHaveBeenCalledWith({
+                data: { kind: 'lead.stale', refId: 'ws-1:2026-05-08' },
+            })
+            const leadRows = rows.filter((r) => r.metadata.kind === 'lead.stale')
+            expect(leadRows.map((r) => r.userId).sort()).toEqual(['head1', 'own'])
+            expect(leadRows[0]).toEqual({
+                userId: expect.any(String),
+                topic: 'Заявки ждут звонка',
+                message: 'Заявки на пробное ждут ответа больше суток: 2',
+                link: null,
+                metadata: { kind: 'lead.stale', workspaceId: 'ws-1', count: 2 },
+            })
+        })
+
+        it('skips a club with nothing waiting, and a club-day already claimed', async () => {
+            const quiet = make({ staleLeads: 0 })
+            expect((await quiet.svc.run(NOW)).leadStaleNotified).toBe(0)
+            expect(quiet.prisma.notificationDispatchLog.create).not.toHaveBeenCalledWith({
+                data: { kind: 'lead.stale', refId: 'ws-1:2026-05-08' },
+            })
+
+            const claimed = make({ staleLeads: 3, leadStaleClaimed: true })
+            expect((await claimed.svc.run(NOW)).leadStaleNotified).toBe(0)
+            expect(claimed.rows.filter((r) => r.metadata.kind === 'lead.stale')).toHaveLength(0)
+        })
+
+        it('gives the club-day claim back when the push write fails, so the retry sends it', async () => {
+            const { svc, prisma, notifications } = make({ staleLeads: 2, sportLeads: ['head1'] })
+            notifications.writeMany.mockRejectedValueOnce(new Error('db down'))
+
+            const s = await svc.run(NOW)
+
+            expect(s.failed).toBe(1)
+            expect(prisma.notificationDispatchLog.deleteMany).toHaveBeenCalledWith({
+                where: { kind: 'lead.stale', refId: 'ws-1:2026-05-08' },
+            })
+            expect(prisma.notificationDispatchLog.deleteMany).toHaveBeenCalledWith({
+                where: { kind: 'club.daily.run', refId: 'ws-1:2026-05-08' },
+            })
         })
     })
 })

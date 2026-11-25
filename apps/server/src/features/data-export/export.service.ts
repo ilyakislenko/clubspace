@@ -6,13 +6,21 @@ import {
 } from '../../domains/subscriptions/current-subscriptions'
 import { FORMER_STAFF_NAME } from '../../domains/discounts/priced-by'
 import { type JournalRow, loadJournalPeople, loadJournalRows } from '../../domains/payments/journal'
-import { localDateInTz } from '../attendance/attendance-utils'
+import { localDateInTz, localMinuteInTz } from '../attendance/attendance-utils'
+import {
+    boughtSubscriptionWhere,
+    displayStatus,
+    LEAD_LOST_REASON_LABELS,
+    LEAD_SOURCE_LABELS,
+    LEAD_STATUS_LABELS,
+} from '../../domains/leads/lead-rules'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import { toCsv } from '../../shared/utils/csv'
 import { type DayRange, localDayRange } from '../../shared/utils/local-day-range'
 import { PAYMENT_METHOD_LABELS } from '../../shared/utils/payment-method'
 import { loadRenewalDue } from '../../domains/subscriptions/renewal-rules'
+import { computePayrollMonth, type PayrollMonthLine } from '../../domains/payroll/payroll-month'
 import { isAutopayCharge } from '../../domains/payments/journal'
 import { resolvePaymentJournalFilter } from '../payment-journal/payment-journal-filter'
 import type { PaymentJournalFilter } from '../payment-journal/schemas'
@@ -247,6 +255,93 @@ export class ExportService {
         return { csv, from, to }
     }
 
+    // «Выплаты» of one month for the accountant
+    // (docs/design/2026-11-26-coach-payroll.md §7): the same lines as the page —
+    // the frozen snapshot of a closed month, the live figures of an open one —
+    // then «Итого» and, when non-zero, «Не распределено».
+    async payrollCsv(workspaceId: string, month: string): Promise<string> {
+        const view = await computePayrollMonth(this.prisma, {
+            workspaceId,
+            month,
+            now: new Date(),
+        })
+        const status = view.status === 'closed' ? 'закрыт' : 'предварительно'
+        const sum = (pick: (l: PayrollMonthLine) => number) =>
+            view.lines.reduce((acc, l) => acc + pick(l), 0)
+        const rows: Array<Array<string | number>> = view.lines.map((l) => [
+            month,
+            status,
+            l.name,
+            l.classes,
+            l.classesPaid,
+            l.marks,
+            l.revenueBase,
+            l.amounts.fixed,
+            l.amounts.classes,
+            l.amounts.students,
+            l.amounts.revenue,
+            l.amounts.adjustments,
+            l.total,
+            view.currency,
+        ])
+        rows.push([
+            month,
+            status,
+            'Итого',
+            sum((l) => l.classes),
+            sum((l) => l.classesPaid),
+            sum((l) => l.marks),
+            sum((l) => l.revenueBase),
+            sum((l) => l.amounts.fixed),
+            sum((l) => l.amounts.classes),
+            sum((l) => l.amounts.students),
+            sum((l) => l.amounts.revenue),
+            sum((l) => l.amounts.adjustments),
+            view.total,
+            view.currency,
+        ])
+        const { classes, revenue, otherCurrency } = view.unattributed
+        if (classes !== 0 || revenue !== 0 || otherCurrency !== 0) {
+            rows.push([
+                month,
+                status,
+                otherCurrency !== 0
+                    ? `Не распределено (оплат в другой валюте: ${otherCurrency})`
+                    : 'Не распределено',
+                view.unattributed.classes,
+                '',
+                '',
+                view.unattributed.revenue,
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                view.currency,
+            ])
+        }
+        return toCsv(
+            [
+                'Месяц',
+                'Статус',
+                'Тренер',
+                'Занятий',
+                'Оплачено занятий',
+                'Отметок',
+                'Оплаты учеников',
+                'Оклад',
+                'За занятия',
+                'За отметки',
+                'Процент',
+                'Корректировки',
+                'Итого',
+                'Валюта',
+            ],
+            rows,
+        )
+    }
+
     // Outreach list: the same members, in the same order, as «Удержание →
     // Продлить» (renewal-rules) — a ready call/message list. The last column
     // names the abonement to renew.
@@ -283,6 +378,92 @@ export class ExportService {
                 'Занятий всего',
                 'Доступ до',
                 'Абонемент',
+            ],
+            rows,
+        )
+    }
+
+    // «Пробные» received in the range (docs/design/2026-11-26-leads.md §7),
+    // newest first, SPAM included as «Отказ: Спам» but already blank.
+    // Anonymised leads keep their row with empty personal columns.
+    async leadsCsv(workspaceId: string, range?: DayRange): Promise<string> {
+        const tz = await this.clubTz(workspaceId)
+        const createdAt = localDayRange(range, tz)
+        const leads = await this.prisma.lead.findMany({
+            where: { workspaceId, ...(createdAt ? { createdAt } : {}) },
+            select: {
+                createdAt: true,
+                source: true,
+                status: true,
+                name: true,
+                phone: true,
+                email: true,
+                forChild: true,
+                childName: true,
+                childAge: true,
+                directionName: true,
+                trialAt: true,
+                trialGroupName: true,
+                trialGroup: { select: { gym: { select: { timezone: true } } } },
+                lostReason: true,
+                comment: true,
+                convertedUserId: true,
+                convertedUser: { select: { firstname: true, lastname: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+        })
+        const linked = [
+            ...new Set(leads.flatMap((l) => (l.convertedUserId ? [l.convertedUserId] : []))),
+        ]
+        const bought = new Set(
+            (linked.length
+                ? await this.prisma.subscription.findMany({
+                      where: { ...boughtSubscriptionWhere(workspaceId), userId: { in: linked } },
+                      select: { userId: true },
+                      distinct: ['userId'],
+                  })
+                : []
+            ).map((s) => s.userId),
+        )
+        const rows = leads.map((l) => [
+            day(l.createdAt, tz),
+            LEAD_SOURCE_LABELS[l.source],
+            LEAD_STATUS_LABELS[
+                displayStatus(l, l.convertedUserId !== null && bought.has(l.convertedUserId))
+            ],
+            l.name,
+            l.phone,
+            l.email,
+            l.forChild ? 'да' : '',
+            l.childName,
+            l.childAge,
+            l.directionName,
+            // In the zone it was booked in: the trial group's gym, else the club's.
+            l.trialAt
+                ? localMinuteInTz(l.trialAt, l.trialGroup?.gym?.timezone ?? tz).replace('T', ' ')
+                : '',
+            l.trialGroupName,
+            l.lostReason ? LEAD_LOST_REASON_LABELS[l.lostReason] : '',
+            l.comment,
+            l.convertedUser ? fullName(l.convertedUser) : '',
+        ])
+        return toCsv(
+            [
+                'Получена',
+                'Источник',
+                'Статус',
+                'Имя',
+                'Телефон',
+                'E-mail',
+                'Для ребёнка',
+                'Имя ребёнка',
+                'Возраст',
+                'Направление',
+                'Пробное',
+                'Группа',
+                'Причина отказа',
+                'Комментарий',
+                'Связан с учеником',
             ],
             rows,
         )

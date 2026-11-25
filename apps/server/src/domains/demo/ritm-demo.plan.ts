@@ -18,6 +18,9 @@ import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
 import { pseudonymFor } from '../ai-assistant/pseudonym'
 import { priceSale } from '../discounts/discount-rules'
 import { birthdateTurningOn, isBirthdayOn } from '../birthdays/birthdays'
+import { dpaCoversLeads } from '../leads/lead-consent'
+import { shiftMonth } from '../metrics/revenue'
+import { type DemoLeadSpec, demoLeadRow } from './demo-leads'
 import { FIRST_VISIT_AUTO_START_DAYS } from '../subscriptions/first-visit-start'
 import { addDaysYmd, diffDaysYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
 import { isSubscriptionUsable } from '../subscriptions/subscription-status'
@@ -410,6 +413,10 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         clubMessages: [],
         clubMessageRecipients: [],
         notifications: [],
+        coachRates: [],
+        payrollAdjustments: [],
+        payrollClose: null,
+        leads: [],
     }
 
     // ---- ids ---------------------------------------------------------------
@@ -438,6 +445,12 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
         city: 'Томск',
         leaderboardEnabled: true,
         guestVisitsEnabled: false,
+        // pedagog@ shows «Профиль → Мои выплаты».
+        coachPayVisible: true,
+        // «Пробные»: as ACADEMY — on while the DPA in force lists lead subjects.
+        trialRequestsEnabled: dpaCoversLeads(input.legal.dpaVersion),
+        pdOperatorName: 'ИП Белова Марина Игоревна (демо)',
+        pdOperatorAddress: 'г. Томск, ул. Летняя, 15',
         ...defaultFeatureColumnsFor('DANCE'),
         // Placeholders: never a real number or link in the seed.
         aboutContacts: [
@@ -1956,6 +1969,72 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
     plan.clubMessages = messages.clubMessages
     plan.clubMessageRecipients = messages.clubMessageRecipients
     plan.notifications = messages.notifications
+
+    // ---- «Пробные» (docs/design/2026-11-26-leads.md §9) ----------------------------
+    // Six requests for the children's groups; two bought (linked to children
+    // whose first paid abonement follows the request).
+    {
+        const kids = GROUPS.find((g) => g.key === 'kidsJunior') as (typeof GROUPS)[number]
+        const kidsDir = { id: dirId('kids'), name: DIRECTIONS.find((d) => d.key === 'kids')?.name ?? 'Детские группы' }
+        const trial = (ymd: string) => ({ at: at(ymd, '17:00'), groupId: groupId('kidsJunior'), groupName: kids.name })
+        const buyers = persons
+            .filter((p) => p.kind === 'kid' && !p.left)
+            .flatMap((p) => {
+                const s = p.subs
+                    .filter((x) => x.isPaid && x.tariff.price > 0 && !x.tariff.isFreeTrial)
+                    .sort((a, b) => +a.soldAt - +b.soldAt)[0]
+                const days = s ? (now.getTime() - s.soldAt.getTime()) / (24 * 60 * 60_000) : -1
+                return s && days >= 3 && days <= 55 ? [{ p, s }] : []
+            })
+            .slice(0, 2)
+        const lead = (k: string, s: Omit<DemoLeadSpec, 'id' | 'staffId'>) =>
+            plan.leads.push(demoLeadRow(workspaceId, { id: ritmId(`lead:${k}`), staffId: ownerId, ...s }))
+        lead('new', { name: 'Светлана Юдина', phoneN: 101, source: 'PUBLIC_PAGE', createdAt: new Date(now.getTime() - 3 * 60 * 60_000), stage: 'NEW', child: { name: 'Вера', age: 7 }, direction: kidsDir })
+        lead('contacted', { name: 'Олег Панов', phoneN: 102, source: 'QR', createdAt: at(ago(2), '11:00'), stage: 'CONTACTED', child: { name: 'Даня', age: 9 }, direction: kidsDir })
+        lead('booked', { name: 'Мария Левина', phoneN: 103, source: 'PUBLIC_PAGE', createdAt: at(ago(3), '10:00'), stage: 'TRIAL_BOOKED', child: { name: 'Соня', age: 6 }, direction: kidsDir, trial: trial(addDaysYmd(today, 2)) })
+        lead('lost', { name: 'Андрей Сомов', phoneN: 104, source: 'MANUAL', createdAt: at(ago(20), '15:00'), stage: 'LOST', lost: 'LOCATION', child: { name: 'Ева', age: 8 }, direction: kidsDir })
+        buyers.forEach(({ p, s }, i) => {
+            const soldYmd = localDateInTz(s.soldAt, tz)
+            lead(`bought-${i}`, {
+                name: `Родитель: ${p.lastname}`,
+                phoneN: 105 + i,
+                source: i === 0 ? 'QR' : 'PUBLIC_PAGE',
+                createdAt: at(addDaysYmd(soldYmd, -4), '12:00'),
+                stage: 'CAME',
+                child: { name: p.firstname, age: 8 },
+                direction: kidsDir,
+                trial: trial(addDaysYmd(soldYmd, -1)),
+                convertedUserId: p.id,
+            })
+        })
+    }
+
+    // ---- «Выплаты» --------------------------------------------------------------
+    // Королёва (pedagog@) is paid per student; last month is closed by the owner.
+    {
+        const thisMonth = today.slice(0, 7)
+        const since = shiftMonth(thisMonth, -6)
+        const setAt = at(`${since}-01`, '10:00')
+        plan.coachRates.push({
+            id: ritmId('rate:korolyova'),
+            workspaceId,
+            coachId: staffId('korolyova'),
+            effectiveFrom: ymdToDbDate(`${since}-01`),
+            perStudent: 250,
+            currency: 'RUB',
+            updatedById: ownerId,
+            createdAt: setAt,
+            updatedAt: setAt,
+        })
+        plan.payrollClose = {
+            month: shiftMonth(thisMonth, -1),
+            closedById: ownerId,
+            closedByName: demoAccountName(account('owner')),
+            closedAt: new Date(
+                Math.min(now.getTime() - 60 * 60 * 1000, at(`${thisMonth}-02`, '11:00').getTime()),
+            ),
+        }
+    }
 
     return plan
 }

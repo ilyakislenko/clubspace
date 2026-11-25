@@ -50,6 +50,7 @@ const build = (
         subscriptionFreezeRequest: jest.fn().mockResolvedValue(2),
         personalTrainingRequest: jest.fn().mockResolvedValue(3),
         videoReviewRequest: jest.fn().mockResolvedValue(4),
+        lead: jest.fn().mockResolvedValue(5),
     }
     const groupMember = {
         findMany: jest.fn().mockResolvedValue([{ userId: 's1' }]),
@@ -93,7 +94,14 @@ const run = async (a: AiAccess, ws = workspace(), messages?: MessagesAggregate) 
         now: NOW,
     } as unknown as McpToolContext
     const out = await clubOverviewTool.run(ctx, {})
-    return { requests: out.data.requests, messages: out.data.messages, counts, groupMember, clubMessage }
+    return {
+        requests: out.data.requests,
+        messages: out.data.messages,
+        leads: out.data.leads,
+        counts,
+        groupMember,
+        clubMessage,
+    }
 }
 
 const whereOf = (fn: jest.Mock) => fn.mock.calls[0][0].where
@@ -172,5 +180,21 @@ describe('club_overview messages', () => {
     it('nothing sent: zero counts and no share', async () => {
         const { messages } = await run(OWNER)
         expect(messages).toEqual({ sent30d: 0, recipients30d: 0, readShare: null })
+    })
+})
+
+// «Пробные» (docs/design/2026-11-26-leads.md §7): counts only, whole-club
+// scope; no lead list or contact reaches the assistant.
+describe('club_overview leads', () => {
+    it('a sport lead gets three counts', async () => {
+        const { leads, counts } = await run(HEAD_COACH)
+        expect(leads).toEqual({ needsAction: 5, received30d: 0, bought30d: 0 })
+        expect(whereOf(counts.lead)).toMatchObject({ workspaceId: 'w1', anonymizedAt: null })
+    })
+
+    it('a direction manager gets none', async () => {
+        const { leads, counts } = await run(DIRECTION_MANAGER)
+        expect(leads).toBeNull()
+        expect(counts.lead).not.toHaveBeenCalled()
     })
 })

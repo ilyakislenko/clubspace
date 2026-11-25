@@ -19,6 +19,7 @@ describe('getWorkspaceSettings', () => {
             timezone: 'Europe/Moscow',
             joinAutoApprove: true,
             coachesMarkAnyClass: true,
+            coachPayVisible: false,
         }
         const { handler, findUnique } = build({
             ...row,
@@ -32,6 +33,7 @@ describe('getWorkspaceSettings', () => {
         expect(findUnique.mock.calls[0][0].where).toEqual({ id: 'w1' })
         expect(findUnique.mock.calls[0][0].select.joinAutoApprove).toBe(true)
         expect(findUnique.mock.calls[0][0].select.coachesMarkAnyClass).toBe(true)
+        expect(findUnique.mock.calls[0][0].select.coachPayVisible).toBe(true)
         expect(out).toEqual({
             ...row,
             // The version a settings edit sends back.

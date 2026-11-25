@@ -107,6 +107,14 @@ describe("routeForNotification", () => {
     expect(routeForNotification({ kind: "member.joined" }, on)).toBeNull()
   })
 
+  it("lead notifications have no screen to open (leads are worked in the admin)", () => {
+    for (const kind of ["lead.created", "lead.stale", "lead.trialBooked"]) {
+      expect(
+        routeForNotification({ kind, workspaceId: "ws-1", leadId: "l-1", videoId: "v-1" }, on),
+      ).toBeNull()
+    }
+  })
+
   it("member.join_declined has no screen to open (the inbox row is the notice)", () => {
     expect(
       routeForNotification({ kind: "member.join_declined", workspaceId: "ws-9" }, on),
@@ -256,6 +264,14 @@ describe("routeForNotification", () => {
     expect(
       routeForNotification({ kind: "session.reminder" }, neither),
     ).toBeNull()
+  })
+
+  it("opens «Мои выплаты» on the closed month, ungated (the screen answers a switched-off club)", () => {
+    expect(routeForNotification({ kind: "payroll.closed", month: "2026-11" }, off)).toEqual({
+      name: "MyPay",
+      params: { month: "2026-11" },
+    })
+    expect(routeForNotification({ kind: "payroll.closed" }, on)).toEqual({ name: "MyPay" })
   })
 
   it("never throws on unknown or malformed metadata", () => {

@@ -264,7 +264,10 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d media
    `PLATFORM_DPA_VERSION`, `PLATFORM_LEGAL_ACCEPT_GRACE_DAYS`) по умолчанию
    берутся из кода — задавайте их только при выпуске новой редакции; тексты —
    проекты для проверки юристом (`docs/legal/README.md`). Подробнее — разделы
-   *Offer, DPA and seller requisites* и *Card payments* ниже.
+   *Offer, DPA and seller requisites* и *Card payments* ниже. Для «Пробных»
+   после выкладки клиента с редакцией поручения 2026-12-01 задайте
+   `PLATFORM_DPA_VERSION=2026-12-01`: без неё ни один клуб не включит форму
+   записи на пробное.
 4. Демо-клуб для показов (необязательно, по умолчанию выключен). Чтобы
    показывать продукт на этом сервере, добавьте в `.env.production`
    `DEMO_MODE=true`, `DEMO_WORKSPACE_KEY=academy-demo` и
@@ -1033,6 +1036,10 @@ is recorded at self-serve sign-up, by the console («владелец уже п�
    restart the API. Owners see a banner; after
    `PLATFORM_LEGAL_ACCEPT_GRACE_DAYS` (14) days from that date their payments,
    card binding and module connection are refused until they accept.
+   **«Пробные» (DPA 2026-12-01):** after the client with that edition is
+   deployed, set `PLATFORM_DPA_VERSION=2026-12-01` and restart the API. Until
+   then no owner can accept it, so no club can switch on the public trial form
+   (manual entry and the pipeline work regardless).
 3. Schema change is additive (`ClubLegalAcceptance`).
 
 ### Trial guards and «пробный период с картой»

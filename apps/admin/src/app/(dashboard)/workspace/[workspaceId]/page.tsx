@@ -29,6 +29,7 @@ import { AttendanceBlock, MoneyBlock } from "../../../../features/dashboard/Figu
 import { TodayClasses } from "../../../../features/dashboard/TodayClasses"
 import { useTodayClasses } from "../../../../features/dashboard/use-today-classes"
 import { useRequestCounts } from "../../../../features/requests/use-request-counts"
+import { useLeadCounts } from "../../../../features/leads/use-lead-counts"
 
 const numberFmt = new Intl.NumberFormat("ru-RU")
 const formatMoney = (amount: number, currency: string | null) =>
@@ -69,6 +70,9 @@ export default function WorkspaceOverviewPage() {
   // «Заявки»: join, freeze, personal, video — the server counts what this
   // viewer may decide, the same read as the «Ученики» tab badge.
   const requests = useRequestCounts(workspaceId)
+  // «Заявки на пробное»: sport leads only (null for anyone else), the same
+  // read as the «Пробные» tab badge.
+  const leads = useLeadCounts(workspaceId)
   const [error, setError] = useState<string | null>(null)
 
   const loadStats = useCallback(async () => {
@@ -116,7 +120,7 @@ export default function WorkspaceOverviewPage() {
   // The at-risk list recomputes club-wide, so its refetch is throttled.
   const refreshAtRisk = useThrottledCallback(() => void loadAtRisk(), AT_RISK_REFRESH_MS)
 
-  // «Заявки» reload themselves on the `requests` signal (useRequestCounts).
+  // «Заявки» and «Заявки на пробное» reload themselves on their own signals.
   useWorkspaceRealtime(workspaceId, ["members", "attendance", "subscription"], () => {
     void loadStats()
     void loadRows()
@@ -133,6 +137,7 @@ export default function WorkspaceOverviewPage() {
     renew: canLead && showSubscriptions ? (stats?.retention.renewalsDue ?? null) : null,
     awaiting: awaitingCount,
     requests: requests?.counts.total ?? null,
+    leads: leads?.needsAction ?? null,
     video: isLead && showVideos && stats ? stats.counts.videos - stats.counts.videosReady : null,
   }
   const money = canAdmin && showSubscriptions ? (stats?.revenue ?? null) : null
@@ -165,6 +170,7 @@ export default function WorkspaceOverviewPage() {
                 : null
             }
             requestCounts={requests?.counts ?? null}
+            leadCounts={leads}
           />
           {classes.status === "failed" ? (
             <section className="space-y-2">

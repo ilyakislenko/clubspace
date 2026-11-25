@@ -44,6 +44,7 @@ import { MyClassBookingsScreen } from '../features/schedule/MyClassBookingsScree
 import { CheckInScreen } from '../features/attendance/CheckInScreen';
 import { CoachMemberSubscriptionScreen } from '../features/subscription/CoachMemberSubscriptionScreen';
 import { PaymentReturnScreen } from '../features/payments/PaymentReturnScreen';
+import { MyPayScreen } from '../features/payroll/MyPayScreen';
 import { MySubscriptionScreen } from '../features/subscription/MySubscriptionScreen';
 import { MyRanksScreen } from '../features/ranks/MyRanksScreen';
 import { AchievementsScreen } from '../features/achievements/AchievementsScreen';
@@ -428,6 +429,11 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
                   name="MySubscription"
                   component={MySubscriptionScreen}
                   options={{ title: 'Мой абонемент' }}
+                />
+                <Stack.Screen
+                  name="MyPay"
+                  component={MyPayScreen}
+                  options={{ title: 'Мои выплаты' }}
                 />
                 <Stack.Screen
                   name="MyRanks"

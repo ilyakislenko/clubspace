@@ -31,6 +31,14 @@ export const UpdateClubPublicProfileFeatureInputSchema = z.object({
     // A key returned by the logo-upload endpoint, or null to remove the logo.
     logoKey: z.string().max(255).nullable(),
     isListed: z.boolean(),
+    // «Заявки на пробное с сайта» (docs/design/2026-11-26-leads.md §3.3).
+    // Omitted = unchanged. Switching the form on needs both operator fields
+    // and the owner's acceptance of the DPA edition that lists lead subjects.
+    trialRequestsEnabled: z.boolean().optional(),
+    // The operator of the prospects' data (usually the club's ИП or company),
+    // named in the consent text.
+    pdOperatorName: optionalText(255).optional(),
+    pdOperatorAddress: optionalText(500).optional(),
     ...ExpectedUpdatedAtField,
 })
 

@@ -20,6 +20,9 @@ describe('isMuteExempt', () => {
         'payment.refunded',
         'message.direct',
         'message.service',
+        'lead.created',
+        'lead.stale',
+        'lead.trialBooked',
     ])('keeps %s', (kind) => {
         expect(isMuteExempt(kind)).toBe(true)
     })

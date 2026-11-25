@@ -13,6 +13,8 @@ export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     coachSeesAllGroups: z.boolean(),
     // «Тренеры могут отмечать в чужих группах без замены».
     coachesMarkAnyClass: z.boolean(),
+    // «Тренеры видят свои выплаты»: own closed payroll months in the app.
+    coachPayVisible: z.boolean(),
     timezone: z.string(),
     joinAutoApprove: z.boolean(),
     // «Поздравлять с днём рождения» (the daily pass at club-local 10:00).

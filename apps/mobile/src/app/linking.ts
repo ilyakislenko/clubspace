@@ -56,6 +56,7 @@ export const STACK_PATHS = {
   MyClassBookings: "my-class-bookings",
   CheckIn: "check-in",
   MySubscription: "subscription",
+  MyPay: "my-pay",
   MyRanks: "ranks",
   Achievements: "achievements",
   Journal: "journal",

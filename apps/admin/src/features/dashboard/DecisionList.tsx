@@ -3,8 +3,10 @@
 import { ChevronRight } from "lucide-react"
 import Link from "next/link"
 
+import type { LeadCounts } from "../../shared/api/leads"
 import type { RequestCounts } from "../../shared/api/requests"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+import { todayHint } from "../leads/lead-view"
 import { requestsBreakdown, requestsHref } from "../requests/request-view"
 import { openDecisions, type DecisionCounts, type DecisionKey } from "./decisions"
 
@@ -14,13 +16,14 @@ const ROW = "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:
  * «Нужно решение»: what is waiting for staff right now, one row per kind and
  * only while there is something (decisions.ts). A row opens the list where it
  * is decided; «Заявки» opens «Ученики → Заявки» with the per-kind breakdown
- * from the same read as the tab badge.
+ * from the same read as the tab badge, «Заявки на пробное» opens «Пробные».
  */
 export function DecisionList({
   workspaceId,
   counts,
   awaitingAmount,
   requestCounts,
+  leadCounts,
 }: {
   workspaceId: string
   counts: DecisionCounts
@@ -28,6 +31,8 @@ export function DecisionList({
   awaitingAmount: string | null
   // The «Заявки» breakdown; null while it loads or failed (the row is absent).
   requestCounts: RequestCounts | null
+  // The «Заявки на пробное» breakdown (sport leads); null otherwise.
+  leadCounts: LeadCounts | null
 }) {
   const vocabulary = useVocabulary()
   const rows = openDecisions(counts)
@@ -46,6 +51,11 @@ export function DecisionList({
       label: "Заявки",
       hint: requestCounts ? requestsBreakdown(requestCounts, vocabulary) : undefined,
       href: requestCounts ? requestsHref(workspaceId, requestCounts) : `${base}/users/requests`,
+    },
+    leads: {
+      label: "Заявки на пробное",
+      hint: leadCounts ? todayHint(leadCounts) : undefined,
+      href: `${base}/users/trials`,
     },
     video: { label: "Видео в обработке или с ошибкой", href: `${base}/content` },
   }

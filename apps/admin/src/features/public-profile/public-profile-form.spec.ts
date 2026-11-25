@@ -12,6 +12,9 @@ const draft: PublicProfileDraft = {
   description: "Зал у реки",
   logoKey: null,
   isListed: false,
+  trialRequestsEnabled: false,
+  pdOperatorName: "",
+  pdOperatorAddress: "",
 }
 
 describe("profileToDraft / draftToInput", () => {
@@ -25,6 +28,11 @@ describe("profileToDraft / draftToInput", () => {
       isListed: true,
       pageUrl: null,
       joinPageUrl: null,
+      trialRequestsEnabled: true,
+      pdOperatorName: "ИП Орлов А. С.",
+      pdOperatorAddress: null,
+      trialFormUrl: null,
+      leadsDpaAccepted: true,
     })
     expect(d).toEqual({
       slug: "gracie-tomsk",
@@ -32,13 +40,21 @@ describe("profileToDraft / draftToInput", () => {
       description: "",
       logoKey: "workspaces/w1/logo/x",
       isListed: true,
+      trialRequestsEnabled: true,
+      pdOperatorName: "ИП Орлов А. С.",
+      pdOperatorAddress: "",
     })
-    expect(draftToInput({ ...d, slug: " Gracie-Tomsk ", city: "  " })).toEqual({
+    expect(
+      draftToInput({ ...d, slug: " Gracie-Tomsk ", city: "  ", pdOperatorName: " ИП Орлов А. С. " }),
+    ).toEqual({
       slug: "gracie-tomsk",
       city: null,
       description: null,
       logoKey: "workspaces/w1/logo/x",
       isListed: true,
+      trialRequestsEnabled: true,
+      pdOperatorName: "ИП Орлов А. С.",
+      pdOperatorAddress: null,
     })
   })
 })
@@ -61,6 +77,17 @@ describe("validatePublicProfileDraft", () => {
     expect(
       validatePublicProfileDraft({ ...draft, description: "x".repeat(2001) }),
     ).toContain("Описание")
+  })
+
+  it("refuses the trial form without the data operator's name and address", () => {
+    const on = { ...draft, trialRequestsEnabled: true }
+    expect(validatePublicProfileDraft(on)).toBe("Укажите оператора персональных данных — название и адрес")
+    expect(validatePublicProfileDraft({ ...on, pdOperatorName: "ИП Орлов" })).not.toBeNull()
+    expect(
+      validatePublicProfileDraft({ ...on, pdOperatorName: "ИП Орлов", pdOperatorAddress: "Томск, ул. Ленина, 1" }),
+    ).toBeNull()
+    // Off: the operator may stay empty.
+    expect(validatePublicProfileDraft(draft)).toBeNull()
   })
 })
 

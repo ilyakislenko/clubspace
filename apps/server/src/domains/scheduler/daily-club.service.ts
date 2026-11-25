@@ -12,6 +12,8 @@ import { currentSubscriptionWhere } from '../subscriptions/current-subscriptions
 import { isAwaitingFirstVisit } from '../subscriptions/subscription-status'
 import { birthdayGreeting, loadBirthdayMembers } from '../birthdays/birthdays'
 import { type DueClub, findClubsDue, localHourInTz } from './clubs-due'
+import { loadLeadRecipients, leadStaleText } from '../leads/lead-notifications'
+import { LEAD_STALE_HOURS } from '../leads/lead-rules'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import {
     claimDispatch,
@@ -53,6 +55,7 @@ export class DailyClubService {
         inactivityNotified: number
         accessExpiryNotified: number
         birthdaysGreeted: number
+        leadStaleNotified: number
     }> {
         await this.backfillOnce()
 
@@ -65,6 +68,7 @@ export class DailyClubService {
             inactivityNotified: 0,
             accessExpiryNotified: 0,
             birthdaysGreeted: 0,
+            leadStaleNotified: 0,
         }
         for (const club of clubs) {
             const refId = `${club.id}:${localDateInTz(now, club.timezone)}`
@@ -77,6 +81,7 @@ export class DailyClubService {
                     now,
                 )
                 summary.birthdaysGreeted += await this.greetBirthdays(club, now)
+                summary.leadStaleNotified += await this.remindStaleLeads(club, now)
             } catch (err) {
                 // Release so the next run retries; the per-member keys keep
                 // anyone already notified from a second push. One club's
@@ -185,6 +190,45 @@ export class DailyClubService {
                     }),
                 ),
         )
+    }
+
+    // «Заявки ждут звонка» (docs/design/2026-11-26-leads.md §3.4): NEW leads
+    // older than a day, one push per sport lead and club-day. Counts only —
+    // no names, no phones.
+    private async remindStaleLeads(club: DueClub, now: Date): Promise<number> {
+        const count = await this.prisma.lead.count({
+            where: {
+                workspaceId: club.id,
+                status: 'NEW',
+                anonymizedAt: null,
+                createdAt: { lt: new Date(now.getTime() - LEAD_STALE_HOURS * 60 * 60_000) },
+            },
+        })
+        if (count === 0) return 0
+        const refId = `${club.id}:${localDateInTz(now, club.timezone)}`
+        if (!(await claimDispatch(this.prisma, 'lead.stale', refId))) return 0
+        // A failed write gives the claim back, so the club's retried pass
+        // still sends today's reminder.
+        try {
+            const recipients = await loadLeadRecipients(this.prisma, {
+                workspaceId: club.id,
+                ownerId: club.ownerId,
+            })
+            const text = leadStaleText(count)
+            return await this.notifications.writeMany(
+                recipients.map(
+                    (userId): PushNotificationRow => ({
+                        userId,
+                        ...text,
+                        link: null,
+                        metadata: { kind: 'lead.stale', workspaceId: club.id, count },
+                    }),
+                ),
+            )
+        } catch (err) {
+            await releaseDispatch(this.prisma, 'lead.stale', refId)
+            throw err
+        }
     }
 
     // Owners have no member row, so this only targets granted members.

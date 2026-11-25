@@ -19,7 +19,9 @@ const visibleSections = (
   isFeatureOn: (key: AppFeatureKey) => boolean,
   offlineDownloadsAllowed: boolean,
   canSeeInvite?: boolean,
-) => visibleSectionsIn(sections, SPORT, isFeatureOn, offlineDownloadsAllowed, canSeeInvite)
+  canSeeOwnPay?: boolean,
+) =>
+  visibleSectionsIn(sections, SPORT, isFeatureOn, offlineDownloadsAllowed, canSeeInvite, canSeeOwnPay)
 
 describe("section lists", () => {
   it("are disjoint, so a destination is reachable from one place", () => {
@@ -42,6 +44,7 @@ describe("section lists", () => {
   it("keeps the Profile rows in the order members know", () => {
     expect(PROFILE_SECTIONS.map((s) => s.route)).toEqual([
       "MySubscription",
+      "MyPay",
       "MyGroups",
       "Gyms",
       "Events",
@@ -138,6 +141,14 @@ describe("visibleSections", () => {
     ]
     expect(visibleSections(invite, allOn, true)).toHaveLength(0)
     expect(visibleSections(invite, allOn, true, true)).toHaveLength(1)
+  })
+
+  it("shows «Мои выплаты» only to staff whose club shows payouts", () => {
+    const routes = (canSeeOwnPay?: boolean) =>
+      visibleSections(PROFILE_SECTIONS, allOn, true, true, canSeeOwnPay).map((s) => s.route)
+    expect(routes()).not.toContain("MyPay")
+    expect(routes(false)).not.toContain("MyPay")
+    expect(routes(true)).toContain("MyPay")
   })
 
   it("needs both flags when a section names a second one", () => {

@@ -10,7 +10,11 @@ import {
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { UpdateClubPublicProfileFeature } from './update-club-public-profile.feature'
-import { UpdateClubPublicProfileHandler } from './update-club-public-profile.handler'
+import {
+    TRIAL_DPA_REQUIRED,
+    TRIAL_OPERATOR_REQUIRED,
+    UpdateClubPublicProfileHandler,
+} from './update-club-public-profile.handler'
 
 const OLD_LOGO = 'workspaces/w1/logo/0b8f7a52-7c5f-4c5e-9d1e-7f1a2b3c4d5e'
 const NEW_LOGO = 'workspaces/w1/logo/1c9e8b63-8d6a-4d6f-8e2f-8a2b3c4d5e6f'
@@ -26,10 +30,13 @@ const CURRENT = {
     publicDescription: null as string | null,
     logoKey: null as string | null,
     isListed: false,
+    trialRequestsEnabled: false,
+    pdOperatorName: null as string | null,
+    pdOperatorAddress: null as string | null,
     updatedAt: STORED_AT,
 }
 
-const build = (current: typeof CURRENT | null = CURRENT) => {
+const build = (current: typeof CURRENT | null = CURRENT, dpaVersion: string | null = null) => {
     const prisma = {
         workspace: {
             findUnique: jest
@@ -62,6 +69,9 @@ const build = (current: typeof CURRENT | null = CURRENT) => {
         workspaceJoinCode: {
             findUnique: jest.fn().mockResolvedValue({ code: 'ABCD2345' }),
         },
+        clubLegalAcceptance: {
+            findFirst: jest.fn().mockResolvedValue(dpaVersion ? { dpaVersion } : null),
+        },
         $transaction(fn: (tx: unknown) => unknown) {
             return fn(this)
         },
@@ -91,7 +101,12 @@ const payload = {
 
 const run = (
     handler: UpdateClubPublicProfileHandler,
-    body: Partial<typeof payload> & { expectedUpdatedAt?: string } = {},
+    body: Partial<typeof payload> & {
+        expectedUpdatedAt?: string
+        trialRequestsEnabled?: boolean
+        pdOperatorName?: string | null
+        pdOperatorAddress?: string | null
+    } = {},
     who: { userId: string; roleName: string | null } = {
         userId: 'admin1',
         roleName: 'admin',
@@ -143,6 +158,9 @@ describe('updateClubPublicProfile', () => {
             publicDescription: 'Лучший зал',
             logoKey: null,
             isListed: true,
+            trialRequestsEnabled: false,
+            pdOperatorName: null,
+            pdOperatorAddress: null,
         })
         expect(record.mock.calls[0][0]).toMatchObject({
             action: 'workspace.updatePublicProfile',
@@ -252,5 +270,60 @@ describe('updateClubPublicProfile', () => {
         await run(handler)
         expect(prisma.workspace.updateMany).not.toHaveBeenCalled()
         expect(prisma.workspace.update).toHaveBeenCalledTimes(1)
+    })
+
+    describe('«Заявки на пробное с сайта»', () => {
+        const operator = { pdOperatorName: 'ИП Орлов', pdOperatorAddress: 'г. Москва, ул. Примерная, 1' }
+
+        it('refuses to switch the form on without both operator fields', async () => {
+            const { handler, prisma } = build(CURRENT, '2026-12-01')
+            await expect(
+                run(handler, { trialRequestsEnabled: true, pdOperatorName: 'ИП Орлов', pdOperatorAddress: '' }),
+            ).rejects.toThrow(TRIAL_OPERATOR_REQUIRED)
+            expect(prisma.workspace.update).not.toHaveBeenCalled()
+        })
+
+        it('refuses to switch the form on before the owner accepts the new DPA', async () => {
+            const { handler, prisma } = build(CURRENT, '2026-11-01')
+            await expect(
+                run(handler, { trialRequestsEnabled: true, ...operator }),
+            ).rejects.toThrow(TRIAL_DPA_REQUIRED)
+            expect(prisma.workspace.update).not.toHaveBeenCalled()
+        })
+
+        it('switches the form on with the operator and the new DPA, and records no names', async () => {
+            const { handler, prisma, record } = build(CURRENT, '2026-12-01')
+            const out = await run(handler, { trialRequestsEnabled: true, ...operator })
+            expect(prisma.workspace.update.mock.calls[0][0].data).toMatchObject({
+                trialRequestsEnabled: true,
+                ...operator,
+            })
+            expect(record.mock.calls[0][0].metadata).toEqual({
+                slug: 'akademiya-bzhzh',
+                isListed: true,
+                hasLogo: false,
+                trialRequestsEnabled: true,
+                hasPdOperator: true,
+            })
+            expect(out).toMatchObject({
+                trialRequestsEnabled: true,
+                leadsDpaAccepted: true,
+                trialFormUrl: 'https://app.club.example/c/akademiya-bzhzh/trial',
+            })
+        })
+
+        it('keeps an enabled form on without re-checking the DPA, but not without an operator', async () => {
+            const enabled = { ...CURRENT, trialRequestsEnabled: true, ...operator }
+            const kept = build(enabled, null)
+            await run(kept.handler, { city: 'Москва' })
+            expect(kept.prisma.workspace.update.mock.calls[0][0].data).toMatchObject({
+                trialRequestsEnabled: true,
+                ...operator,
+            })
+            const cleared = build(enabled, null)
+            await expect(run(cleared.handler, { pdOperatorName: null })).rejects.toThrow(
+                TRIAL_OPERATOR_REQUIRED,
+            )
+        })
     })
 })

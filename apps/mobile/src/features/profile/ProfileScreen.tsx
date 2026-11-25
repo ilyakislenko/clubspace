@@ -118,6 +118,8 @@ export function ProfileScreen({ navigation }: Props) {
     offlineDownloads,
     // Inviting people is staff work, never a child profile's.
     !actingAs && canSeeClubInvite(workspace),
+    // Staff whose club shows them their payouts (the server's flag).
+    !actingAs && membership?.canSeeOwnPay === true,
   )
   // A child's name is the guardian's to change, on «Дети» (PATCH /me would
   // edit the guardian's own name).

@@ -104,6 +104,9 @@ export type RootStackParamList = {
   MyClassBookings: undefined
   CheckIn: undefined
   MySubscription: undefined
+  // «Мои выплаты» (staff, when the club shows them): closed months with the
+  // money, this month's counts. `month` (YYYY-MM) opens that month expanded.
+  MyPay: { month?: string } | undefined
   MyRanks: undefined
   Achievements: undefined
   Journal: undefined

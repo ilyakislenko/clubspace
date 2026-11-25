@@ -40,6 +40,7 @@ import { useMyMembership } from "../../../../../shared/lib/use-my-membership"
 import { useWorkspaceRealtime } from "../../../../../shared/realtime/useWorkspaceRealtime"
 import { SectionTabs } from "../../../../../shared/workspace/section-tabs"
 import { InviteSheet } from "../../../../../features/invite/InviteSheet"
+import { useLeadCounts } from "../../../../../features/leads/use-lead-counts"
 import { useRequestCounts } from "../../../../../features/requests/use-request-counts"
 import { memberTabs } from "../sections"
 
@@ -144,6 +145,8 @@ export default function WorkspaceUsersPage() {
   const canAdmin = isClubAdmin(myMembership)
   // «Заявки · N» on the tab: what waits for this viewer's decision.
   const requests = useRequestCounts(workspaceId)
+  // «Пробные · N»: trial requests that need action (sport leads only).
+  const leads = useLeadCounts(workspaceId)
 
   const [error, setError] = useState<string | null>(null)
   const [members, setMembers] = useState<WorkspaceMember[]>([])
@@ -285,7 +288,7 @@ export default function WorkspaceUsersPage() {
       <SectionTabs
         title="Ученики"
         tabs={memberTabs}
-        badges={{ "users-requests": requests?.counts.total }}
+        badges={{ "users-requests": requests?.counts.total, "users-trials": leads?.needsAction }}
       />
 
       {error && (

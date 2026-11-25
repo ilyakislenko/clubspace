@@ -5,6 +5,7 @@ const none: DecisionCounts = {
   renew: null,
   awaiting: null,
   requests: null,
+  leads: null,
   video: null,
 }
 
@@ -23,6 +24,15 @@ describe("«Нужно решение»", () => {
     expect(
       openDecisions({ ...none, awaiting: 1, requests: 4 }).map((r) => r.key),
     ).toEqual(["awaiting", "requests"])
+  })
+
+  it("puts «Заявки на пробное» right after «Заявки», only while something needs action", () => {
+    expect(
+      openDecisions({ ...none, video: 1, leads: 3, requests: 2 }).map((r) => r.key),
+    ).toEqual(["requests", "leads", "video"])
+    // A coach (null: not fetched) and a sport lead with nothing waiting.
+    expect(openDecisions({ ...none, leads: null }).map((r) => r.key)).toEqual([])
+    expect(openDecisions({ ...none, leads: 0 }).map((r) => r.key)).toEqual([])
   })
 
   it("has no rows for a role without those lists or when nothing waits", () => {

@@ -1,6 +1,7 @@
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 
+import { fetchMyMembership } from "../shared/api/memberships"
 import { useAuth } from "../shared/auth-context"
 import { brand } from "../shared/brand"
 import { Pressable } from "../shared/components/Pressable"
@@ -50,6 +51,21 @@ export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
   const styles = useThemedStyles(makeStyles)
   const { workspace, actingAs } = useAuth()
   const offlineDownloads = useOfflineDownloadsAllowed()
+  // «Мои выплаты» needs the club's flag from the membership; only staff ask.
+  const staff = !actingAs && canSeeClubInvite(workspace)
+  const workspaceId = workspace?.workspaceId
+  const [canSeeOwnPay, setCanSeeOwnPay] = useState(false)
+  useEffect(() => {
+    setCanSeeOwnPay(false)
+    if (!staff || !workspaceId) return
+    let live = true
+    fetchMyMembership({ workspaceId })
+      .then((m) => live && setCanSeeOwnPay(m.canSeeOwnPay))
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [staff, workspaceId])
 
   const vocabulary = useVocabulary()
   const tabs = visibleTabs((key) => isFeatureEnabled(workspace, key))
@@ -59,7 +75,8 @@ export function DesktopSidebar({ activeRoute }: { activeRoute?: string }) {
     (key) => isFeatureEnabled(workspace, key),
     offlineDownloads,
     // Inviting people is staff work, never a child profile's.
-    !actingAs && canSeeClubInvite(workspace),
+    staff,
+    canSeeOwnPay,
   )
 
   return (

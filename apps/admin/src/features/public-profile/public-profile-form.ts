@@ -15,6 +15,11 @@ export type PublicProfileDraft = {
   description: string
   logoKey: string | null
   isListed: boolean
+  // «Заявки на пробное с сайта»: the switch and the operator of the
+  // prospects' data named in the consent text.
+  trialRequestsEnabled: boolean
+  pdOperatorName: string
+  pdOperatorAddress: string
 }
 
 // Mirrors the server's isValidPublicSlug: lowercase Latin letters and digits,
@@ -32,6 +37,9 @@ export const profileToDraft = (p: ClubPublicProfile): PublicProfileDraft => ({
   description: p.description ?? "",
   logoKey: p.logoKey,
   isListed: p.isListed,
+  trialRequestsEnabled: p.trialRequestsEnabled,
+  pdOperatorName: p.pdOperatorName ?? "",
+  pdOperatorAddress: p.pdOperatorAddress ?? "",
 })
 
 export const draftToInput = (d: PublicProfileDraft): ClubPublicProfileInput => ({
@@ -40,7 +48,17 @@ export const draftToInput = (d: PublicProfileDraft): ClubPublicProfileInput => (
   description: d.description.trim() || null,
   logoKey: d.logoKey,
   isListed: d.isListed,
+  trialRequestsEnabled: d.trialRequestsEnabled,
+  pdOperatorName: d.pdOperatorName.trim() || null,
+  pdOperatorAddress: d.pdOperatorAddress.trim() || null,
 })
+
+// Did this save touch the trial form (switch or operator)? A refusal then
+// belongs to that block, not to the page as a whole.
+export const trialChanged = (draft: PublicProfileDraft, saved: PublicProfileDraft): boolean =>
+  draft.trialRequestsEnabled !== saved.trialRequestsEnabled ||
+  draft.pdOperatorName.trim() !== saved.pdOperatorName.trim() ||
+  draft.pdOperatorAddress.trim() !== saved.pdOperatorAddress.trim()
 
 export const validatePublicProfileDraft = (
   d: PublicProfileDraft,
@@ -51,6 +69,11 @@ export const validatePublicProfileDraft = (
   }
   if (d.description.trim().length > L.description.max) {
     return `Описание — не длиннее ${L.description.max} символов`
+  }
+  // The server refuses the switch without both (and without the owner's DPA
+  // acceptance, which only it knows for sure); said here before the trip.
+  if (d.trialRequestsEnabled && (!d.pdOperatorName.trim() || !d.pdOperatorAddress.trim())) {
+    return "Укажите оператора персональных данных — название и адрес"
   }
   return null
 }

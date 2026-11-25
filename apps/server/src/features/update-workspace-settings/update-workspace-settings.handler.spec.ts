@@ -180,6 +180,16 @@ describe('updateWorkspaceSettings', () => {
         expect(out.coachesMarkAnyClass).toBe(true)
     })
 
+    it('shows coaches their own pay in the app and returns it', async () => {
+        const { handler, update } = build()
+        update.mockResolvedValue({ ...settingsRow, coachPayVisible: true })
+        const out = await run(handler, { coachPayVisible: true })
+
+        expect(update.mock.calls[0][0].data).toEqual({ coachPayVisible: true })
+        expect(update.mock.calls[0][0].select.coachPayVisible).toBe(true)
+        expect(out.coachPayVisible).toBe(true)
+    })
+
     it('records an audit entry for the change', async () => {
         const { handler, record } = build()
         await run(handler, { leaderboardEnabled: false })

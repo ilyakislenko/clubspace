@@ -38,6 +38,7 @@ export class GetWorkspaceSettingsHandler
                 type: true,
                 coachSeesAllGroups: true,
                 coachesMarkAnyClass: true,
+                coachPayVisible: true,
                 timezone: true,
                 joinAutoApprove: true,
                 birthdayGreetingsEnabled: true,

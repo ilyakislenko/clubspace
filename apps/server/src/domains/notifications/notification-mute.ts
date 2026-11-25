@@ -14,6 +14,10 @@ const EXEMPT_PREFIXES = [
     // Money: an online payment taken (payment.succeeded), money returned
     // (payment.refunded).
     'payment.',
+    // Staff work: a trial request waiting for a call, a trial in the coach's
+    // group (docs/design/2026-11-26-leads.md §3.4). Muting the club's chatter
+    // must not lose a new person.
+    'lead.',
 ]
 const EXEMPT_KINDS: Record<string, true> = {
     'member.approved': true,

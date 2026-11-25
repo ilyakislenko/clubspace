@@ -157,6 +157,12 @@ export const routeForNotification = (
     case "payment.refunded":
       if (str(m.eventRegistrationId)) return gated("Events")
       return str(m.subscriptionId) ? gated("MySubscription") : null
+    // Staff: the club closed a month's payouts. «Мои выплаты» with that month
+    // open; the screen shows the club's answer if it stopped showing them.
+    case "payroll.closed": {
+      const month = str(m.month)
+      return month ? { name: "MyPay", params: { month } } : { name: "MyPay" }
+    }
     // Staff only; the screen checks the role itself, so the route is ungated.
     case "retention.digest":
       return { name: "AtRiskMembers" }
@@ -171,6 +177,13 @@ export const routeForNotification = (
         ? { name: "ClubInvite", params: { workspaceId: str(m.workspaceId) } }
         : { name: "ClubInvite" }
     case "member.joined":
+      return null
+    // «Пробные» (a new trial request, requests waiting for a call, a trial
+    // booked into the coach's group): staff work leads in the admin, the app
+    // has no lead screen, so the inbox row is the notice (leads design §6).
+    case "lead.created":
+    case "lead.stale":
+    case "lead.trialBooked":
       return null
     // Applicant: the club declined the request. The inbox row (with the
     // club's comment) is the notice; the no-club screen already reads

@@ -23,6 +23,7 @@ import { Roles, CLUB_ADMINS } from '../../shared/decorators/roles.decorator'
 import { AuthGuard } from '../../shared/guards/auth.guard'
 import { RoleGuard } from '../../shared/guards/role.guard'
 import { WorkspaceMemberGuard } from '../../shared/guards/workspace-member.guard'
+import { MonthSchema } from '../coach-payroll/schemas'
 import { PaymentJournalFilterSchema } from '../payment-journal/schemas'
 import { ExportService } from './export.service'
 import type { DayRange } from '../../shared/utils/local-day-range'
@@ -36,6 +37,7 @@ const ExportRangeQuerySchema = z.object({
 })
 class ExportRangeQuery extends createZodDto(ExportRangeQuerySchema) {}
 class ExportPaymentsQuery extends createZodDto(PaymentJournalFilterSchema) {}
+class ExportPayrollQuery extends createZodDto(z.object({ month: MonthSchema })) {}
 
 const attach = (res: Response, name: string, range: DayRange) => {
     // Name the file after the range when one is set, else today's date.
@@ -177,6 +179,49 @@ export class ExportController {
             { from: file.from, to: file.to },
             file.csv,
             filters,
+        )
+    }
+
+    // «Выплаты» of one month (docs/design/2026-11-26-coach-payroll.md §7).
+    @Get('payroll.csv')
+    @Roles(CLUB_ADMINS)
+    @Header('Content-Type', 'text/csv; charset=utf-8')
+    async payroll(
+        @Param('workspaceId') workspaceId: string,
+        @Query() query: ExportPayrollQuery,
+        @CurrentUser() user: CurrentUserPayload,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<string> {
+        res.setHeader('Content-Disposition', `attachment; filename="payroll-${query.month}.csv"`)
+        return await this.audited(
+            'export.payroll',
+            workspaceId,
+            user,
+            {},
+            await this.exportService.payrollCsv(workspaceId, query.month),
+            { month: query.month },
+        )
+    }
+
+    // «Пробные» received in the range (docs/design/2026-11-26-leads.md §7):
+    // strangers' contacts, so club admins only, like every export.
+    @Get('leads.csv')
+    @Roles(CLUB_ADMINS)
+    @Header('Content-Type', 'text/csv; charset=utf-8')
+    async leads(
+        @Param('workspaceId') workspaceId: string,
+        @Query() query: ExportRangeQuery,
+        @CurrentUser() user: CurrentUserPayload,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<string> {
+        const range: DayRange = query
+        attach(res, 'leads', range)
+        return await this.audited(
+            'export.leads',
+            workspaceId,
+            user,
+            range,
+            await this.exportService.leadsCsv(workspaceId, range),
         )
     }
 }

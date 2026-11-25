@@ -14,8 +14,9 @@ import {
 import { useWorkspaceSettings } from "../../../../../../features/settings/use-workspace-settings"
 import { useVocabulary } from "../../../../../../shared/lib/vocabulary"
 
-// «Настройки → Права тренеров и запись»: what coaches see and may mark, and
-// the club-wide booking rules.
+// «Настройки → Права тренеров и запись»: what coaches see and may mark,
+// whether they see their own payouts in the app, and the club-wide booking
+// rules.
 export default function SettingsAccessPage() {
   const vocabulary = useVocabulary()
   const params = useParams<{ workspaceId: string }>()
@@ -57,6 +58,23 @@ export default function SettingsAccessPage() {
                   disabled={saving}
                   label={`${cap(vocabulary.coach.nomPl)} могут отмечать в чужих группах без замены`}
                   onChange={(next) => void save({ coachesMarkAnyClass: next })}
+                />
+              </SettingRow>
+            </ul>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="font-medium">Выплаты в приложении</div>
+            <ul className="mt-4 divide-y divide-border">
+              <SettingRow
+                title={`${cap(vocabulary.coach.nomPl)} видят свои выплаты`}
+                description={`Каждый видит только себя и только закрытые месяцы: начисления, ставку и корректировки с комментариями. За текущий месяц — число ${vocabulary.session.genPl} и отметок, без денег.`}
+              >
+                <SettingSwitch
+                  checked={settings.coachPayVisible}
+                  disabled={saving}
+                  label={`${cap(vocabulary.coach.nomPl)} видят свои выплаты в приложении`}
+                  onChange={(next) => void save({ coachPayVisible: next })}
                 />
               </SettingRow>
             </ul>
