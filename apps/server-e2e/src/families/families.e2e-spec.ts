@@ -282,6 +282,27 @@ describe('families: guardians acting for their children', () => {
             where: { id: parent.userId },
         })
         expect(parentRow.status).toBe('ACTIVE')
+        // Leaving the child's club stays a parent-profile action, even though
+        // the club's mute next to it is allowed in the child's profile
+        // (docs/design/2026-11-26-parent-pays-for-child.md §3.5).
+        await ctx
+            .http()
+            .delete(`/me/memberships/${workspace.id}`)
+            .set(...parent.auth)
+            .set(...actAs(child.id))
+            .expect(403)
+        await ctx
+            .http()
+            .patch(`/me/memberships/${workspace.id}/notifications`)
+            .set(...stranger.auth)
+            .set(...actAs(child.id))
+            .send({ muted: true })
+            .expect(403)
+        expect(
+            await ctx.prisma.workspaceMember.findFirstOrThrow({
+                where: { workspaceId: workspace.id, userId: child.id },
+            }),
+        ).toMatchObject({ status: 'ACTIVE', notificationsMuted: false })
     })
 
     it('a club adds a child; the named parent confirms in the app before acting for it', async () => {

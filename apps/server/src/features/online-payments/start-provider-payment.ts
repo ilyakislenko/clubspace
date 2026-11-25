@@ -48,7 +48,10 @@ export const startProviderPayment = async (
     p: {
         settings: StoredPaymentSettings & { autopayEnabled: boolean }
         workspaceId: string
+        // The holder: who gets the abonement / the ticket.
         userId: string
+        // The guardian paying for a child (payerOf); null = the holder paid.
+        payerUserId: string | null
         // Exactly one of the two: a tariff, or an event ticket.
         planId: string | null
         eventRegistrationId: string | null
@@ -85,6 +88,7 @@ export const startProviderPayment = async (
         data: {
             workspaceId: p.workspaceId,
             userId: p.userId,
+            payerUserId: p.payerUserId,
             planId: p.planId,
             eventRegistrationId: p.eventRegistrationId,
             planName: p.planName.slice(0, 255),

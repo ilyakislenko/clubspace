@@ -508,6 +508,12 @@ import { AttendanceController } from '../features/attendance/attendance.controll
 import { SelfCheckInController } from '../features/self-check-in/self-check-in.controller'
 import { SelfCheckInHandler } from '../features/self-check-in/self-check-in.handler'
 import { SelfCheckInPreviewHandler } from '../features/self-check-in/self-check-in-preview.handler'
+import { CheckInCardController } from '../features/check-in-card/check-in-card.controller'
+import { GetMyCheckInCardHandler } from '../features/check-in-card/get-my-check-in-card.handler'
+import { GetMemberCheckInCardHandler } from '../features/check-in-card/get-member-check-in-card.handler'
+import { LookupCheckInCardHandler } from '../features/check-in-card/lookup-check-in-card.handler'
+import { ListBirthdaysTodayController } from '../features/birthdays/list-birthdays-today.controller'
+import { ListBirthdaysTodayHandler } from '../features/birthdays/list-birthdays-today.handler'
 import { CreateAttendanceSessionHandler } from '../features/attendance/create-session.handler'
 import { MarkRecordsHandler } from '../features/attendance/mark-records.handler'
 import { UnmarkRecordHandler } from '../features/attendance/unmark-record.handler'
@@ -854,6 +860,8 @@ const controllers: ModuleMetadata['controllers'] = [
     ReportClientErrorController,
     AttendanceController,
     SelfCheckInController,
+    CheckInCardController,
+    ListBirthdaysTodayController,
     DropInsController,
     ClassBookingsController,
     EventRegistrationsController,
@@ -1104,6 +1112,10 @@ const handlers: ModuleMetadata['providers'] = [
     MarkRecordsHandler,
     SelfCheckInHandler,
     SelfCheckInPreviewHandler,
+    GetMyCheckInCardHandler,
+    GetMemberCheckInCardHandler,
+    LookupCheckInCardHandler,
+    ListBirthdaysTodayHandler,
     ChangeRecordAbonementHandler,
     CreateDropInHandler,
     CancelDropInHandler,

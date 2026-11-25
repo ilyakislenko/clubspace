@@ -6,7 +6,14 @@ import { DailyClubService } from './daily-club.service'
 // 10:05 in Moscow (UTC+3) — the club's morning pass is due.
 const NOW = new Date('2026-05-08T07:05:00Z')
 const DAY = 24 * 60 * 60_000
-const CLUB = { id: 'ws-1', name: 'BJJ Academy', timezone: 'Europe/Moscow', ownerId: 'own' }
+const CLUB: {
+    id: string
+    name: string
+    timezone: string
+    ownerId: string
+    type?: string
+    birthdayGreetingsEnabled?: boolean
+} = { id: 'ws-1', name: 'BJJ Academy', timezone: 'Europe/Moscow', ownerId: 'own' }
 
 const p2002 = () => Object.assign(new Error('dup'), { code: 'P2002' })
 
@@ -16,6 +23,7 @@ const make = (
         clubs: (typeof CLUB)[]
         stale: unknown[]
         expiring: unknown[]
+        birthdays: unknown[]
         optedOut: string[]
         logged: string[]
         runClaimed: boolean
@@ -33,7 +41,11 @@ const make = (
         },
         workspaceMember: {
             findMany: jest.fn(async (args: { where: Record<string, unknown> }) =>
-                'lastAttendedAt' in args.where ? (o.stale ?? []) : (o.expiring ?? []),
+                'role' in args.where
+                    ? (o.birthdays ?? [])
+                    : 'lastAttendedAt' in args.where
+                      ? (o.stale ?? [])
+                      : (o.expiring ?? []),
             ),
         },
         notificationPreferences: {
@@ -88,6 +100,7 @@ describe('DailyClubService', () => {
             failed: 0,
             inactivityNotified: 0,
             accessExpiryNotified: 0,
+            birthdaysGreeted: 0,
         })
         expect(prisma.workspace.findMany).toHaveBeenCalledTimes(1)
         expect(prisma.workspaceMember.findMany).not.toHaveBeenCalled()
@@ -169,6 +182,8 @@ describe('DailyClubService', () => {
                     message:
                         'BJJ Academy: вы не отмечались на тренировках уже больше 14 дней. Ждём вас на тренировке!',
                     link: null,
+                    // A guardian getting it for a child is gated on theirs.
+                    category: 'inactivityEnabled',
                     metadata: {
                         kind: 'member.inactive',
                         workspaceId: 'ws-1',
@@ -219,6 +234,7 @@ describe('DailyClubService', () => {
             expect(rows[0]).toMatchObject({
                 userId: 'u-1',
                 topic: 'Доступ скоро истекает',
+                category: 'accessExpiringEnabled',
                 metadata: { kind: 'access.expiring', workspaceId: 'ws-1', memberId: 'm-1' },
             })
             expect(rows[0].message).toContain('BJJ Academy: доступ истекает 10 мая')
@@ -270,6 +286,90 @@ describe('DailyClubService', () => {
         expect(s).toMatchObject({ clubs: 2, failed: 1 })
         expect(prisma.notificationDispatchLog.deleteMany).toHaveBeenCalledWith({
             where: { kind: 'club.daily.run', refId: 'ws-1:2026-05-08' },
+        })
+    })
+
+    describe('birthday greetings', () => {
+        const GREETING_CLUB = { ...CLUB, type: 'GRAPPLING', birthdayGreetingsEnabled: true }
+        // 2026-05-08 in Moscow.
+        const bday = (userId: string, dob: string | null = '2010-05-08') => ({
+            user: {
+                id: userId,
+                firstname: userId,
+                lastname: null,
+                email: null,
+                profilePhotoUrl: null,
+                dateOfBirth: dob ? new Date(`${dob}T00:00:00.000Z`) : null,
+            },
+        })
+
+        it('greets today\'s active students once, keyed per club, person and year', async () => {
+            const { svc, rows, prisma } = make({
+                clubs: [GREETING_CLUB],
+                birthdays: [bday('kid-1'), bday('adult-2', '1990-05-08'), bday('other', '1990-05-09')],
+            })
+            expect((await svc.run(NOW)).birthdaysGreeted).toBe(2)
+            const where = prisma.workspaceMember.findMany.mock.calls
+                .map((c) => c[0].where)
+                .find((w) => 'role' in w)
+            // Only ACTIVE students with an active account and a date.
+            expect(where).toEqual({
+                workspaceId: 'ws-1',
+                status: 'ACTIVE',
+                role: { name: 'user' },
+                user: { status: 'ACTIVE', dateOfBirth: { not: null } },
+            })
+            expect(prisma.notificationDispatchLog.createManyAndReturn).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    data: [
+                        { kind: 'member.birthday', refId: 'ws-1:kid-1:2026' },
+                        { kind: 'member.birthday', refId: 'ws-1:adult-2:2026' },
+                    ],
+                }),
+            )
+            // A child's row is addressed to the child: writeMany routes it to
+            // the guardians (covered by the producer specs).
+            expect(rows).toEqual([
+                {
+                    userId: 'kid-1',
+                    topic: 'С днём рождения!',
+                    message:
+                        'Клуб «BJJ Academy» поздравляет с днём рождения! Здоровья, сил и радости от тренировок.',
+                    link: null,
+                    metadata: { kind: 'member.birthday', workspaceId: 'ws-1' },
+                },
+                expect.objectContaining({ userId: 'adult-2' }),
+            ])
+        })
+
+        it('greets nobody a second time the same year', async () => {
+            const { svc, rows } = make({
+                clubs: [GREETING_CLUB],
+                birthdays: [bday('kid-1')],
+                logged: ['ws-1:kid-1:2026'],
+            })
+            expect((await svc.run(NOW)).birthdaysGreeted).toBe(0)
+            expect(rows).toHaveLength(0)
+        })
+
+        it('skips a club that switched greetings off, without reading members', async () => {
+            const { svc, prisma } = make({
+                clubs: [{ ...GREETING_CLUB, birthdayGreetingsEnabled: false }],
+                birthdays: [bday('kid-1')],
+            })
+            expect((await svc.run(NOW)).birthdaysGreeted).toBe(0)
+            expect(
+                prisma.workspaceMember.findMany.mock.calls.some((c) => 'role' in c[0].where),
+            ).toBe(false)
+        })
+
+        it('skips users without a date', async () => {
+            const { svc, rows } = make({
+                clubs: [GREETING_CLUB],
+                birthdays: [bday('no-date', null)],
+            })
+            expect((await svc.run(NOW)).birthdaysGreeted).toBe(0)
+            expect(rows).toHaveLength(0)
         })
     })
 })

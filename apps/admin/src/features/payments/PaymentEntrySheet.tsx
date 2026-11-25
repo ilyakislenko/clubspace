@@ -317,6 +317,9 @@ function EntryDetails({
             entry.member.name
           )}
         </Fact>
+        {/* A guardian paid online for a child (X-Act-As):
+            docs/design/2026-11-26-parent-pays-for-child.md §4. */}
+        {entry.payer && <Fact label="Оплатил(а)">{entry.payer.name} · родитель</Fact>}
         {entry.kind === "refund" && <Fact label="За что">{entry.itemName}</Fact>}
         <Fact label="Когда">{formatEntryAt(entry.at, timezone)}</Fact>
         <Fact label="Способ">{entryMethodLabel(entry)}</Fact>

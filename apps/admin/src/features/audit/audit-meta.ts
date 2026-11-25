@@ -131,7 +131,7 @@ export const actionMetaFor = (
     tone: "indigo",
   },
   "member.updateOwnProfile": {
-    label: "Участник изменил своё имя",
+    label: "Участник изменил свой профиль",
     icon: Pencil,
     tone: "indigo",
   },
@@ -881,6 +881,8 @@ export const META_KEY_LABEL: Record<string, string> = {
   targetUserId: "Участник",
   fromUserId: "Участник",
   toUserId: "Участник",
+  // payment.succeeded: the guardian who paid online for a child.
+  payerUserId: "Плательщик",
   gymId: "Зал",
   groupId: "Группа",
   eventId: "Событие",
@@ -933,6 +935,7 @@ const FIELD_LABEL: Record<string, string> = {
   firstname: "имя",
   lastname: "фамилия",
   email: "эл. почта",
+  dateOfBirth: "дата рождения",
   coachSeesAllGroups: "доступ ко всем группам",
   announcementsEnabled: "раздел «Объявления»",
   ranksEnabled: "раздел «Пояса»",
@@ -958,6 +961,8 @@ const FIELD_LABEL: Record<string, string> = {
   // A tariff and the payment settings (member autopay).
   autopayAvailable: "продление автоплатежом",
   autopayEnabled: "автоплатежи для учеников",
+  // «Настройки → Уведомления → Ученикам».
+  birthdayGreetingsEnabled: "поздравления с днём рождения",
 }
 
 // Course edits naming a video or a chapter. The server resolves most of them
@@ -1083,7 +1088,8 @@ const changeList = (changes: Record<string, unknown>, v: ClubVocabulary): string
     if (typeof value === "boolean") return [`${label}: ${value ? "вкл." : "выкл."}`]
     if (value === null || value === "") return [`${label}: убрано`]
     if (isId(value) || typeof value !== "string") return [`${label}: изменено`]
-    return [`${label}: ${value}`]
+    // A calendar day (a date of birth) reads «04.05.2016».
+    return [`${label}: ${DATE_RE.test(value) ? value.split("-").reverse().join(".") : value}`]
   })
   return parts.length > 0 ? parts.join("; ") : null
 }

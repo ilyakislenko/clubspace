@@ -164,6 +164,8 @@ export const updateMemberProfile = async (params: {
   lastname?: string | null
   email?: string
   phone?: string | null
+  /** YYYY-MM-DD, or null to clear it. */
+  dateOfBirth?: string | null
 }) => {
   const { workspaceId, userId, ...patch } = params
   return await getApiClient().request<

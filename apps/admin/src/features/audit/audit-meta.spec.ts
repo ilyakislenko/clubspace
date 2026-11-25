@@ -147,6 +147,14 @@ describe("parseMetadata", () => {
     ])
   })
 
+  it("names the guardian who paid for a child as «Плательщик», never by id", () => {
+    const id = "d3071fb0-1111-4222-8333-444455556666"
+    expect(parseMetadata({ payerUserId: "Елена Петрова (elena@x.ru)" }, GRAPPLING)).toEqual([
+      { key: "payerUserId", label: "Плательщик", value: "Елена Петрова (elena@x.ru)" },
+    ])
+    expect(parseMetadata({ payerUserId: id }, GRAPPLING)).toEqual([])
+  })
+
   it("names the coach in the club's words and translates resolved roles once", () => {
     expect(parseMetadata({ coachId: "Анна Ли" }, GRAPPLING)[0].label).toBe("Тренер")
     expect(parseMetadata({ coachId: "Анна Ли" }, DANCE)[0].label).toBe("Педагог")
@@ -187,6 +195,18 @@ describe("parseMetadata", () => {
       },
     ])
     expect(parseMetadata({ changes: {} }, GRAPPLING)).toEqual([])
+  })
+
+  it("spells a date of birth set, cleared, and the greetings switch", () => {
+    expect(parseMetadata({ changes: { dateOfBirth: "2016-05-04" } }, GRAPPLING)[0].value).toBe(
+      "дата рождения: 04.05.2016",
+    )
+    expect(parseMetadata({ changes: { dateOfBirth: null } }, GRAPPLING)[0].value).toBe(
+      "дата рождения: убрано",
+    )
+    expect(
+      parseMetadata({ changes: { birthdayGreetingsEnabled: false } }, GRAPPLING)[0].value,
+    ).toBe("поздравления с днём рождения: выкл.")
   })
 
   it("translates enum values and hides unknown keys and values", () => {

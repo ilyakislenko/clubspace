@@ -38,6 +38,7 @@ const row = (over: Partial<PaymentJournalEntry> = {}): PaymentJournalEntry => ({
   eventRegistrationId: null,
   eventId: null,
   markedBy: { userId: "c1", name: "Анна Ли" },
+  payer: null,
   refundedAmount: 0,
   refundable: 4000,
   online: null,
@@ -163,6 +164,30 @@ describe("PaymentEntrySheet", () => {
     await screen.findByText("Абонемент «БЖЖ 12»")
     expect(screen.queryByRole("link", { name: "Иван Петров" })).toBeNull()
     expect(screen.getByText("Иван Петров")).toBeTruthy()
+  })
+
+  it("names the guardian who paid online for a child, only when there is one", async () => {
+    getEntry.mockResolvedValue(
+      detail({
+        method: "ONLINE",
+        markedBy: null,
+        online: ONLINE,
+        member: { userId: "kid", name: "Миша Петров", isMember: true },
+        payer: { userId: "mom", name: "Елена Петрова" },
+      }),
+    )
+    renderSheet({ entryId: "sub:s1" })
+    await screen.findByText("Абонемент «БЖЖ 12»")
+    expect(screen.getByText("Оплатил(а)").nextElementSibling?.textContent).toBe(
+      "Елена Петрова · родитель",
+    )
+  })
+
+  it("shows no «Оплатил(а)» when the holder paid", async () => {
+    getEntry.mockResolvedValue(detail({ method: "ONLINE", markedBy: null, online: ONLINE }))
+    renderSheet({ entryId: "sub:s1" })
+    await screen.findByText("Абонемент «БЖЖ 12»")
+    expect(screen.queryByText("Оплатил(а)")).toBeNull()
   })
 
   it("offers no refund once all the money went back", async () => {

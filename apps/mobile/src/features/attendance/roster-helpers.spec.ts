@@ -3,6 +3,7 @@ import {
   abonementDetail,
   abonementLabel,
   abonementOverrides,
+  canScanCards,
   canChooseAbonement,
   checkInAbonementLine,
   checkInNeedsChoice,
@@ -233,5 +234,21 @@ describe("checkInAbonementLine", () => {
         ab("t", { planName: "Безлимит", classesTotal: null, classesRemaining: null }),
       ),
     ).toBe("Посещение по абонементу «Безлимит»")
+  })
+})
+
+describe("canScanCards", () => {
+  const start = "2026-11-26T18:00:00.000Z"
+  const at = (iso: string) => new Date(iso)
+
+  it("opens an hour before the start", () => {
+    expect(canScanCards(start, at("2026-11-26T16:59:59.000Z"))).toBe(false)
+    expect(canScanCards(start, at("2026-11-26T17:00:00.000Z"))).toBe(true)
+  })
+
+  it("stays open through the class and closes four hours after the start", () => {
+    expect(canScanCards(start, at("2026-11-26T19:30:00.000Z"))).toBe(true)
+    expect(canScanCards(start, at("2026-11-26T22:00:00.000Z"))).toBe(true)
+    expect(canScanCards(start, at("2026-11-26T22:00:01.000Z"))).toBe(false)
   })
 })

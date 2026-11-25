@@ -273,16 +273,55 @@ describe('ExportService.paymentsCsv', () => {
         const { csv } = await exportWith(p).paymentsCsv(ADMIN, { from: '2026-11-01', to: '2026-11-30' })
         const lines = csv.split(/\r?\n/)
         expect(lines[0]).toContain(
-            'Дата;Вид;Участник;Email;Тариф / событие;Сумма;Цена по тарифу;Скидка;Название скидки;Дал скидку;Валюта;Способ оплаты;Отметил / вернул;Причина возврата;Источник;Занятий в пакете',
+            'Дата;Вид;Участник;Email;Тариф / событие;Сумма;Цена по тарифу;Скидка;Название скидки;Дал скидку;Валюта;Способ оплаты;Отметил / вернул;Причина возврата;Источник;Занятий в пакете;Плательщик',
         )
         expect(lines.filter((l) => l.startsWith('2026-'))).toEqual([
             // A refund is negative, with who refunded and why; no discount of its own.
-            '2026-11-04;Возврат;Иван Петров;ivan@x;8 занятий;-1000;;;;;RUB;Наличные;Ольга Админ;Пропустил две недели;Абонемент;',
-            '2026-11-03;Оплата;Иван Петров;ivan@x;Разовое;5000;6000;1000;Разовая;Ольга Админ;RUB;;;;Абонемент;',
+            '2026-11-04;Возврат;Иван Петров;ivan@x;8 занятий;-1000;;;;;RUB;Наличные;Ольга Админ;Пропустил две недели;Абонемент;;',
+            '2026-11-03;Оплата;Иван Петров;ivan@x;Разовое;5000;6000;1000;Разовая;Ольга Админ;RUB;;;;Абонемент;;',
             // A ticket without its own currency is in the event's; recorded before discounts.
-            '2026-11-02;Оплата;Анна;;Мастер-класс;1500;;;;;RUB;Перевод;;;Событие;',
-            '2026-11-01;Оплата;Иван Петров;ivan@x;8 занятий;5000;6000;1000;Семейная + разовая;Ольга Админ;RUB;Наличные;Ольга Админ;;Абонемент;8',
+            '2026-11-02;Оплата;Анна;;Мастер-класс;1500;;;;;RUB;Перевод;;;Событие;;',
+            '2026-11-01;Оплата;Иван Петров;ivan@x;8 занятий;5000;6000;1000;Семейная + разовая;Ольга Админ;RUB;Наличные;Ольга Админ;;Абонемент;8;',
         ])
+    })
+
+    it('names the guardian who paid online for a child in the last column «Плательщик»', async () => {
+        const online = (payerUserId: string | null) => ({
+            id: 'pay-1',
+            provider: 'YOOKASSA',
+            providerPaymentId: 'yk-1',
+            status: 'SUCCEEDED',
+            amount: 5000,
+            refundedAmount: 0,
+            autopayId: null,
+            autopayConsentVersion: null,
+            payerUserId,
+        })
+        const p = prisma({
+            subs: [
+                sub('s2', '2026-11-03T10:00:00Z', {
+                    userId: 'kid',
+                    user: { firstname: 'Миша', lastname: 'Петров', email: null },
+                    paymentMethod: 'ONLINE',
+                    markedPaidById: null,
+                    payment: online('parent-1'),
+                }),
+                // The holder paid: the column stays empty.
+                sub('s1', '2026-11-01T10:00:00Z', {
+                    paymentMethod: 'ONLINE',
+                    markedPaidById: null,
+                    payment: online(null),
+                }),
+            ],
+        })
+        p.user.findMany.mockResolvedValue([
+            { id: 'parent-1', firstname: 'Елена', lastname: 'Петрова', email: 'elena@x' },
+        ])
+        const { csv } = await exportWith(p).paymentsCsv(ADMIN, { from: '2026-11-01', to: '2026-11-30' })
+        const rows = csv.split(/\r?\n/).filter((l) => l.startsWith('2026-'))
+        expect(rows[0].split(';').at(-1)).toBe('Елена Петрова')
+        expect(rows[1].split(';').at(-1)).toBe('')
+        expect(p.user.findMany.mock.calls[0][0].where.id.in).toContain('parent-1')
     })
 
     it('reads the sources with the journal’s filters, the period in club-local days', async () => {

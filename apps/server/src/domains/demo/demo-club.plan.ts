@@ -15,6 +15,7 @@ import type { Prisma } from '../../infrastructure/prisma'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
 import { pseudonymFor } from '../ai-assistant/pseudonym'
+import { birthdateTurningOn, isBirthdayOn } from '../birthdays/birthdays'
 import { priceSale } from '../discounts/discount-rules'
 import { FIRST_VISIT_AUTO_START_DAYS } from '../subscriptions/first-visit-start'
 import { addDaysYmd, diffDaysYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
@@ -752,7 +753,9 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         female: true,
         firstname: anyaName.firstname,
         lastname: anyaName.lastname,
-        dob: ago(7 * 365 + 200),
+        // Turns seven on the day of every reset: the 10:00 greeting goes to
+        // the parent account, «Сегодня» lists her under «Дни рождения сегодня».
+        dob: birthdateTurningOn(today, 7),
         groups: ['dvKidsJunior'],
     })
     anya.id = demoUuid('child:anya')
@@ -876,6 +879,24 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     crossFrom('yuBjj', 'rysMma', 3, ['regular'])
     crossFrom('shBjjEvening', 'svMuay', 3, ['regular', 'casual'])
     crossFrom('rysMma', 'yuBjj', 2, ['regular'])
+
+    // «Дни рождения сегодня»: Аня, an adult of the MMA group in «Белая рысь»
+    // (outside the БЖЖ direction manager's groups) and a kid of «Юпитер» —
+    // three rows for the owner, two for the БЖЖ direction manager. Nobody
+    // else in the club has a birthday today, so the list is the same on
+    // every reset.
+    const birthdayAdult = generatedOlder.find(
+        (p) => p.archetype === 'regular' && p.groups.length === 1 && p.groups[0].key === 'rysMma',
+    )
+    const birthdayKid = generatedKids.find((p) => p.archetype === 'regular' && p.groups[0].key === 'yuKidsJunior')
+    for (const p of persons) {
+        if (p === anya || !p.dob) continue
+        if (p === birthdayAdult || p === birthdayKid) {
+            p.dob = birthdateTurningOn(today, Number(today.slice(0, 4)) - Number(p.dob.slice(0, 4)))
+        } else if (isBirthdayOn(ymdToDbDate(p.dob), today)) {
+            p.dob = addDaysYmd(p.dob, -7)
+        }
+    }
 
     // Two people who applied through the QR and wait for approval.
     const applicants = [0, 1].map(() => {

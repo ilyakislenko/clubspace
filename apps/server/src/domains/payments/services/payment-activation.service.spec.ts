@@ -23,6 +23,7 @@ const paymentRow = (over: Record<string, unknown> = {}) => ({
     idempotenceKey: 'idem-1',
     receiptEmail: 'member@example.com',
     createdAt: new Date('2026-11-01T08:55:00Z'),
+    payerUserId: null,
     ...over,
 })
 
@@ -163,11 +164,45 @@ describe('PaymentActivationService.applyProviderStatus', () => {
             actorId: 'u-1',
             metadata: { subscriptionId: 'sub-1', amount: 4500 },
         })
+        // The holder paid: no payer in the audit.
+        expect(s.audit.record.mock.calls[0][0].metadata).not.toHaveProperty('payerUserId')
         expect(s.notifications.notifyUser.mock.calls[0][0]).toMatchObject({
             userId: 'u-1',
             kind: 'payment.succeeded',
             refId: 'pay-1',
             topic: 'Оплата прошла',
+        })
+    })
+
+    it('a guardian paid for a child: the audit actor is the guardian, the push goes to the child', async () => {
+        const s = setup({ payment: paymentRow({ userId: 'kid', payerUserId: 'parent-1' }) })
+        expect(await s.service.applyProviderStatus({ workspaceId: 'ws-1', gateway: gateway(), now })).toBe(
+            'activated',
+        )
+        expect(s.audit.record.mock.calls[0][0]).toMatchObject({
+            action: 'payment.succeeded',
+            targetId: 'kid',
+            actorId: 'parent-1',
+            metadata: { payerUserId: 'parent-1', subscriptionId: 'sub-1' },
+        })
+        // Addressed to the holder: guardian routing delivers it with the child's name.
+        expect(s.notifications.notifyUser.mock.calls[0][0]).toMatchObject({
+            userId: 'kid',
+            kind: 'payment.succeeded',
+        })
+    })
+
+    it('a guardian’s payment that could not be granted is audited on the guardian too', async () => {
+        const s = setup({
+            payment: paymentRow({ userId: 'kid', payerUserId: 'parent-1' }),
+            grantError: new BadRequestError({ message: 'У участника уже есть действующий абонемент' }),
+        })
+        expect(await s.service.applyProviderStatus({ workspaceId: 'ws-1', gateway: gateway(), now })).toBe(
+            'paid-not-activated',
+        )
+        expect(s.audit.record.mock.calls[0][0]).toMatchObject({
+            actorId: 'parent-1',
+            metadata: { payerUserId: 'parent-1' },
         })
     })
 

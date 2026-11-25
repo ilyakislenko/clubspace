@@ -62,6 +62,8 @@ import { GuardianContacts } from "../../../../../../features/users/GuardianConta
 import { MemberAccessDialog } from "../../../../../../features/users/MemberAccessDialog"
 import { abonementEnd, accessDiffers } from "../../../../../../features/users/member-access"
 import { ProfileEditForm } from "../../../../../../features/users/ProfileEditForm"
+import { CheckInCardSheet } from "../../../../../../features/users/CheckInCardSheet"
+import { formatBirthDate, todayYmd } from "../../../../../../features/users/birth-date"
 import { MemberNotesPanel } from "../../../../../../features/users/MemberNotesPanel"
 import { MemberAttendancePanel } from "../../../../../../features/users/MemberAttendancePanel"
 import { confirmDialog } from "../../../../../../shared/ui/confirm-dialog"
@@ -121,6 +123,7 @@ export default function MemberProgressPage() {
   const [editingProfile, setEditingProfile] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
   const [accessOpen, setAccessOpen] = useState(false)
+  const [cardOpen, setCardOpen] = useState(false)
   const [removing, setRemoving] = useState(false)
   // Who is looking: only needed below the sport-lead tier, where the
   // abonements of one's own row are out of scope.
@@ -194,6 +197,7 @@ export default function MemberProgressPage() {
     lastname: string | null
     email?: string
     phone?: string | null
+    dateOfBirth?: string | null
   }) => {
     if (!workspaceId || !userId) return
     setSavingProfile(true)
@@ -206,6 +210,7 @@ export default function MemberProgressPage() {
         lastname: patch.lastname,
         email: patch.email,
         phone: patch.phone,
+        dateOfBirth: patch.dateOfBirth,
       })
       setData((prev) =>
         prev
@@ -217,6 +222,7 @@ export default function MemberProgressPage() {
                 lastname: result.lastname,
                 email: result.email,
                 phone: result.phone,
+                dateOfBirth: result.dateOfBirth,
               },
             }
           : prev,
@@ -382,6 +388,9 @@ export default function MemberProgressPage() {
                 <DropdownMenuItem onSelect={() => setAccessOpen(true)}>
                   Изменить доступ к приложению
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setCardOpen(true)}>
+                  Карта для входа
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="text-destructive"
                   onSelect={() => void handleRemove()}
@@ -463,6 +472,15 @@ export default function MemberProgressPage() {
         />
       )}
 
+      {canEditMember && workspaceId && userId && (
+        <CheckInCardSheet
+          open={cardOpen}
+          onOpenChange={setCardOpen}
+          workspaceId={workspaceId}
+          userId={userId}
+        />
+      )}
+
       {!member.isOwner &&
         workspaceId &&
         userId &&
@@ -521,6 +539,7 @@ export default function MemberProgressPage() {
                 lastname: member.lastname ?? "",
                 ...(member.email !== null ? { email: member.email } : {}),
                 phone: member.phone ?? "",
+                dateOfBirth: member.dateOfBirth ?? "",
               }}
               submitting={savingProfile}
               onCancel={() => setEditingProfile(false)}
@@ -557,6 +576,16 @@ export default function MemberProgressPage() {
                 {(member.phone && formatPhone(member.phone)) || (
                   <span className="italic text-muted-foreground">
                     не задан
+                  </span>
+                )}
+              </dd>
+              <dt className="text-muted-foreground">Дата рождения</dt>
+              <dd>
+                {member.dateOfBirth ? (
+                  formatBirthDate(member.dateOfBirth, todayYmd(new Date()))
+                ) : (
+                  <span className="italic text-muted-foreground">
+                    не указана
                   </span>
                 )}
               </dd>

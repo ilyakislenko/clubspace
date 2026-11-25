@@ -2,6 +2,7 @@ import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
 
 import type { ScheduleEvent } from "../../shared/api/groups"
 import {
+  birthdayNames,
   canMarkClassNow,
   checkInOpenNow,
   coachNextAfterToday,
@@ -1012,5 +1013,17 @@ describe("formatBellCount", () => {
     expect(formatBellCount(3)).toBe("3")
     expect(formatBellCount(9)).toBe("9")
     expect(formatBellCount(50)).toBe("9+")
+  })
+})
+
+describe("birthdayNames", () => {
+  it("keeps the first name and the last name's initial", () => {
+    expect(
+      birthdayNames([{ name: "Аня Смирнова" }, { name: " Пётр  Козлов " }]),
+    ).toBe("Аня С., Пётр К.")
+  })
+
+  it("leaves a single name as it is", () => {
+    expect(birthdayNames([{ name: "Мадонна" }, { name: "  " }])).toBe("Мадонна")
   })
 })

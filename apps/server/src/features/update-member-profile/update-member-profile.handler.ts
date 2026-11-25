@@ -13,6 +13,7 @@ import {
 } from '../../shared/errors/shared.errors'
 import { RbacService } from '../../shared/services/rbac.service'
 import { normalizePhone } from '../../shared/utils/phone'
+import { dateOfBirthToDate } from '../dependents/dependents-utils'
 import {
     UpdateMemberProfileFeature,
     UpdateMemberProfileFeatureResponse,
@@ -178,6 +179,14 @@ export class UpdateMemberProfileHandler
                         ? { email: payload.email }
                         : {}),
                     ...(phone !== undefined ? { phone } : {}),
+                    ...(payload.dateOfBirth !== undefined
+                        ? {
+                              dateOfBirth:
+                                  payload.dateOfBirth === null
+                                      ? null
+                                      : dateOfBirthToDate(payload.dateOfBirth),
+                          }
+                        : {}),
                     // A new login identity must not keep old sessions alive:
                     // this ends every access token, the deleteMany below every
                     // refresh token.
@@ -191,6 +200,7 @@ export class UpdateMemberProfileHandler
                     firstname: true,
                     lastname: true,
                     phone: true,
+                    dateOfBirth: true,
                 },
             })
             if (emailChanges) {
@@ -229,6 +239,9 @@ export class UpdateMemberProfileHandler
             firstname: updated.firstname,
             lastname: updated.lastname,
             phone: updated.phone,
+            dateOfBirth: updated.dateOfBirth
+                ? updated.dateOfBirth.toISOString().slice(0, 10)
+                : null,
         }
     }
 }

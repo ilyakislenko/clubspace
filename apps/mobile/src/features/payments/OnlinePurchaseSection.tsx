@@ -11,6 +11,7 @@ import {
   type OnlinePlan,
   type OnlinePurchaseOptions,
 } from "../../shared/api/payments"
+import { useAuth } from "../../shared/auth-context"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { Pressable } from "../../shared/components/Pressable"
 import { Switch } from "../../shared/components/Switch"
@@ -82,6 +83,7 @@ export function OnlinePurchaseSection({
   onPaid,
 }: Props) {
   const theme = useTheme()
+  const { actingAs } = useAuth()
   const styles = useThemedStyles(makeStyles)
   const { showToast } = useToast()
 
@@ -493,6 +495,9 @@ export function OnlinePurchaseSection({
           <Text style={styles.hint}>
             Оплата проходит на защищённой странице платёжного сервиса, деньги
             поступают клубу.
+            {/* A guardian pays a child's abonement: the 54-ФЗ receipt goes to
+                the guardian (the child has no e-mail). */}
+            {actingAs ? " Чек придёт на ваш e-mail." : ""}
           </Text>
         </>
       )}

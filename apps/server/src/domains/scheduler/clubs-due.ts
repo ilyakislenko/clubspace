@@ -7,6 +7,8 @@ export type DueClub = {
     timezone: string
     type: string
     ownerId: string
+    // «Поздравлять с днём рождения» (daily-club.service greetBirthdays).
+    birthdayGreetingsEnabled: boolean
 }
 
 /** Club-local hour (0-23) of `now` in `tz`. */
@@ -32,6 +34,13 @@ export const findClubsDue = async (
     if (due.length === 0) return []
     return prisma.workspace.findMany({
         where: { isActive: true, timezone: { in: due } },
-        select: { id: true, name: true, timezone: true, ownerId: true, type: true },
+        select: {
+            id: true,
+            name: true,
+            timezone: true,
+            ownerId: true,
+            type: true,
+            birthdayGreetingsEnabled: true,
+        },
     })
 }

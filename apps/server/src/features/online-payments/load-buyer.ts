@@ -90,3 +90,30 @@ export const clubTakesOnlinePayments = async (
 // the provider's page expires on its own after that.
 export const PENDING_VISIBLE_MS = 24 * 60 * 60 * 1000
 export const PENDING_REUSE_MS = 30 * 60 * 1000
+
+// Who paid, stored on Payment.payerUserId: the guardian acting for a child
+// (X-Act-As), else null — the holder paid
+// (docs/design/2026-11-26-parent-pays-for-child.md §1).
+export const payerOf = (holderId: string, actorId: string): string | null =>
+    holderId === actorId ? null : actorId
+
+// Where the 54-ФЗ receipt goes: the holder's e-mail, else the payer's (a
+// child profile has none). null = nobody has one; the checkout refuses.
+export const loadReceiptEmail = async (
+    prisma: Pick<PrismaService, 'user'>,
+    p: { holderId: string; actorId: string },
+): Promise<string | null> => {
+    const holder = await prisma.user.findUniqueOrThrow({
+        where: { id: p.holderId },
+        select: { email: true },
+    })
+    if (holder.email || p.actorId === p.holderId) return holder.email
+    const actor = await prisma.user.findUnique({
+        where: { id: p.actorId },
+        select: { email: true },
+    })
+    return actor?.email ?? null
+}
+
+export const NO_RECEIPT_EMAIL =
+    'Для онлайн-оплаты нужен e-mail в профиле — на него придёт чек'

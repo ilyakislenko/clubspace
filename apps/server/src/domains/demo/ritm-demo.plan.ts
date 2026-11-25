@@ -17,6 +17,7 @@ import {
 import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
 import { pseudonymFor } from '../ai-assistant/pseudonym'
 import { priceSale } from '../discounts/discount-rules'
+import { birthdateTurningOn, isBirthdayOn } from '../birthdays/birthdays'
 import { FIRST_VISIT_AUTO_START_DAYS } from '../subscriptions/first-visit-start'
 import { addDaysYmd, diffDaysYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
 import { isSubscriptionUsable } from '../subscriptions/subscription-status'
@@ -718,6 +719,19 @@ export const buildRitmDemoPlan = (input: DemoPlanInput): DemoClubPlan => {
             left: true,
             target: int(1, 3),
         })
+    }
+    // «Дни рождения сегодня»: one adult who trains now; nobody else, so the
+    // list is the same on every reset.
+    const birthdayAdult = persons.find(
+        (p) => !fixedPeople.has(p) && !p.left && p.kind === 'adult' && p.archetype === 'regular',
+    )
+    for (const p of persons) {
+        if (!p.dob) continue
+        if (p === birthdayAdult) {
+            p.dob = birthdateTurningOn(today, Number(today.slice(0, 4)) - Number(p.dob.slice(0, 4)))
+        } else if (isBirthdayOn(ymdToDbDate(p.dob), today)) {
+            p.dob = addDaysYmd(p.dob, -7)
+        }
     }
     // Every two months of the window a regular may take a break.
     for (const p of persons) {

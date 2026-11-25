@@ -107,4 +107,45 @@ describe("ProfileEditForm", () => {
       expect.objectContaining({ phone: null }),
     )
   })
+
+  it("hides the birth date where the caller passes none (own profile)", () => {
+    setup()
+    expect(screen.queryByLabelText("Дата рождения")).toBeNull()
+  })
+
+  it("sets the birth date, capped at today", () => {
+    const { onSubmit, saveBtn } = setup({
+      initial: { ...initial, dateOfBirth: "" },
+    })
+    const input = screen.getByLabelText("Дата рождения") as HTMLInputElement
+    expect(input.type).toBe("date")
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, "0")
+    expect(input.max).toBe(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`)
+    expect(saveBtn().disabled).toBe(true)
+    fireEvent.change(input, { target: { value: "2016-05-04" } })
+    fireEvent.click(saveBtn())
+    expect(onSubmit).toHaveBeenLastCalledWith({
+      firstname: "Иван",
+      lastname: "Петров",
+      email: "ivan@mail.ru",
+      dateOfBirth: "2016-05-04",
+    })
+  })
+
+  it("sends null when a date is cleared and nothing when it is untouched", () => {
+    const { onSubmit, saveBtn } = setup({
+      initial: { ...initial, dateOfBirth: "2016-05-04" },
+    })
+    fireEvent.change(screen.getByLabelText("Имя"), { target: { value: "Иван Б" } })
+    fireEvent.click(saveBtn())
+    expect(onSubmit).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ dateOfBirth: expect.anything() }),
+    )
+    fireEvent.change(screen.getByLabelText("Дата рождения"), { target: { value: "" } })
+    fireEvent.click(saveBtn())
+    expect(onSubmit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dateOfBirth: null }),
+    )
+  })
 })

@@ -205,6 +205,8 @@ const onlineSelect = {
     // (without): docs/design/2026-11-15-member-autopay.md §2.2.
     autopayId: true,
     autopayConsentVersion: true,
+    // The guardian who paid for a child (docs/design/2026-11-26-parent-pays-for-child.md §3.3).
+    payerUserId: true,
 } as const
 // The sale's price facts (docs/design/2026-11-15-discounts.md §1).
 const salePriceSelect = {
@@ -287,6 +289,8 @@ export type JournalOnline = {
     refundedAmount: number
     autopayId: string | null
     autopayConsentVersion: string | null
+    // The guardian who paid for a child; null = the holder paid.
+    payerUserId: string | null
 }
 
 // A renewal charged by the member's autopay agreement («Онлайн · автоплатёж»).
@@ -586,7 +590,7 @@ export const loadJournalRows = async (
 // ---- People on the rows ----
 
 export type JournalPeople = {
-    // Names of the staff who marked the rows.
+    // Names of the staff who marked the rows and of the guardians who paid.
     names: Map<string, string>
     // Holders who are members of the club now (their card opens).
     members: Set<string>
@@ -600,12 +604,16 @@ export const loadJournalPeople = async (
     rows: JournalRow[],
     otherHolderIds: string[] = [],
 ): Promise<JournalPeople> => {
-    // The staff named on the rows: who marked / refunded, and who set a
-    // discounted sale's price.
+    // The people named on the rows: who marked / refunded, who set a
+    // discounted sale's price, and the guardian who paid online for a child.
     const markerIds = [
         ...new Set(
             rows.flatMap((r) =>
-                [r.markedById, r.discount.total > 0 ? r.pricedById : null].filter((id): id is string => !!id),
+                [
+                    r.markedById,
+                    r.discount.total > 0 ? r.pricedById : null,
+                    r.online?.payerUserId ?? null,
+                ].filter((id): id is string => !!id),
             ),
         ),
     ]

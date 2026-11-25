@@ -15,6 +15,8 @@ export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     coachesMarkAnyClass: z.boolean(),
     timezone: z.string(),
     joinAutoApprove: z.boolean(),
+    // «Поздравлять с днём рождения» (the daily pass at club-local 10:00).
+    birthdayGreetingsEnabled: z.boolean(),
     // leaderboardEnabled + the app-section flags all live here now.
     ...FeatureFlagColumnsSchema.shape,
     // «Запись на занятие»: window, free-cancel deadline, burn switches.

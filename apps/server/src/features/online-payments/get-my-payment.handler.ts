@@ -9,7 +9,8 @@ import {
 import { serializeMyPayment } from './schemas'
 
 // The return screen polls this until the webhook settles the payment. Only the
-// buyer's own payments in this club.
+// buyer's own payments in this club — the holder's, or the guardian's who paid
+// for a child, in either profile (back from the provider's page in «Я»).
 @Feature(GetMyPaymentFeature)
 export class GetMyPaymentHandler
     implements IFeatureHandler<GetMyPaymentFeature, GetMyPaymentFeatureResponse>
@@ -21,7 +22,7 @@ export class GetMyPaymentHandler
             where: {
                 id: f.paymentId,
                 workspaceId: f.workspaceId,
-                userId: f.userId,
+                OR: [{ userId: f.userId }, { payerUserId: f.userId }],
             },
         })
         if (!payment) throw new NotFoundError({ message: 'Платёж не найден' })

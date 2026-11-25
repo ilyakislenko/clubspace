@@ -160,3 +160,17 @@ export const checkInAbonementLine = (a: VisitAbonement): string =>
   a.classesRemaining === null
     ? `Посещение по абонементу «${a.planName}»`
     : `Списано с «${a.planName}» · осталось ${a.classesRemaining}`
+
+// «Сканировать» on the roster: from an hour before the start to four hours
+// after. UI only — the server has no lateness window, the coach taps names
+// outside it (docs/design/2026-11-26-door-checkin-and-birthdays.md §1).
+const SCAN_OPENS_MIN_BEFORE = 60
+const SCAN_CLOSES_MIN_AFTER = 4 * 60
+
+export const canScanCards = (startAt: string, now: Date): boolean => {
+  const minutesFromStart = (now.getTime() - new Date(startAt).getTime()) / 60_000
+  return (
+    minutesFromStart >= -SCAN_OPENS_MIN_BEFORE &&
+    minutesFromStart <= SCAN_CLOSES_MIN_AFTER
+  )
+}

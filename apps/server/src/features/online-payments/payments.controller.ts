@@ -26,7 +26,8 @@ export class PaymentsController {
     constructor(private bus: FeaturesBus) {}
 
     // Any member buys for themselves — including one whose access ran out:
-    // paying is how they get it back.
+    // paying is how they get it back. A guardian buys for a child under
+    // X-Act-As: the child holds the abonement, the guardian pays.
     @Post()
     @AllowExpiredAccess()
     @ZodResponse({ type: CreatePaymentOutput })
@@ -36,7 +37,12 @@ export class PaymentsController {
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return this.bus.execute<CreatePaymentFeature, CreatePaymentFeatureResponse>(
-            new CreatePaymentFeature(body, workspaceId, user.userId),
+            new CreatePaymentFeature(
+                body,
+                workspaceId,
+                user.userId,
+                user.guardianId ?? user.userId,
+            ),
         )
     }
 }

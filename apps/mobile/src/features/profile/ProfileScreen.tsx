@@ -220,6 +220,33 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
         )}
 
+        {/* On a phone Home offers «Отметиться» only around the member's own
+            classes, but the card is shown at the door at any time. Wider
+            screens list the screen in the sidebar. */}
+        {sizeClass === "compact" &&
+          me &&
+          (actingAs || membership?.role === "user") &&
+          isFeatureEnabled(workspace, "attendance") && (
+            <View style={styles.actionsBlock}>
+              <Pressable
+                onPress={() => navigation.navigate("CheckIn")}
+                accessibilityRole="button"
+                accessibilityLabel="Моя карта для входа"
+                style={[styles.actionRow, styles.actionRowLast]}
+              >
+                <View style={[styles.addClubLabel, styles.fill]}>
+                  <Icon
+                    name="qr-code-outline"
+                    size={20}
+                    color={theme.colors.accent}
+                  />
+                  <Text style={styles.actionLabel}>Моя карта</Text>
+                </View>
+                <Chevron style={styles.actionChev} />
+              </Pressable>
+            </View>
+          )}
+
         {workspaces.length > 0 && (
           <View style={styles.group}>
             <Text style={styles.groupTitle}>Клубы</Text>
@@ -310,6 +337,7 @@ export function ProfileScreen({ navigation }: Props) {
       {editingName && me && (
         <EditNameModal
           me={me}
+          withBirthDate
           onClose={() => setEditingName(false)}
           onSaved={(updated) => {
             meRes.mutate(updated)

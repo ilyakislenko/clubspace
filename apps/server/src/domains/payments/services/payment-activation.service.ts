@@ -70,6 +70,8 @@ type PaymentRow = {
     createdAt: Date
     autopayRenewalAmount: number | null
     autopayShopId: string | null
+    // The guardian who paid for a child (X-Act-As); null = the holder paid.
+    payerUserId: string | null
 }
 
 // The sale's price facts as the activation copies them and audits them.
@@ -79,6 +81,12 @@ const priceFacts = (payment: PaymentRow) => ({
     discountName: payment.discountName,
     discountAmount: payment.discountAmount,
 })
+
+// `payment.succeeded` is the payer's act: the guardian who paid for a child,
+// else the holder (docs/design/2026-11-26-parent-pays-for-child.md §3.2).
+const auditActorId = (payment: PaymentRow) => payment.payerUserId ?? payment.userId
+const payerFact = (payment: PaymentRow) =>
+    payment.payerUserId ? { payerUserId: payment.payerUserId } : {}
 
 // Applies the provider's (verified) view of a payment to our Payment row. The
 // webhooks of both providers end here, so a success is handled identically:
@@ -214,9 +222,10 @@ export class PaymentActivationService {
             targetType: 'member',
             targetId: payment.userId,
             workspaceId: payment.workspaceId,
-            actorId: payment.userId,
+            actorId: auditActorId(payment),
             metadata: {
                 paymentId: payment.id,
+                ...payerFact(payment),
                 provider: payment.provider,
                 planName: payment.planName,
                 amount: payment.amount,
@@ -371,9 +380,10 @@ export class PaymentActivationService {
             targetType: 'member',
             targetId: payment.userId,
             workspaceId: payment.workspaceId,
-            actorId: payment.userId,
+            actorId: auditActorId(payment),
             metadata: {
                 paymentId: payment.id,
+                ...payerFact(payment),
                 provider: payment.provider,
                 planName: granted.planName,
                 amount: payment.amount,
@@ -471,9 +481,10 @@ export class PaymentActivationService {
             targetType: 'member',
             targetId: payment.userId,
             workspaceId: payment.workspaceId,
-            actorId: payment.userId,
+            actorId: auditActorId(payment),
             metadata: {
                 paymentId: payment.id,
+                ...payerFact(payment),
                 provider: payment.provider,
                 planName: payment.planName,
                 amount: payment.amount,

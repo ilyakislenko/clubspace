@@ -208,6 +208,9 @@ export class ExportService {
                 'Причина возврата',
                 'Источник',
                 'Занятий в пакете',
+                // Last, so the clubs' spreadsheets keep their column positions
+                // (docs/design/2026-11-26-parent-pays-for-child.md §3.3).
+                'Плательщик',
             ],
             rows.map((r) => [
                 day(r.at, tz),
@@ -235,6 +238,10 @@ export class ExportService {
                 r.reason ?? '',
                 r.source === 'abonement' ? 'Абонемент' : 'Событие',
                 r.classesTotal ?? '',
+                // The guardian who paid online for a child; empty = the holder.
+                r.online?.payerUserId && r.online.payerUserId !== r.userId
+                    ? (people.names.get(r.online.payerUserId) ?? '')
+                    : '',
             ]),
         )
         return { csv, from, to }

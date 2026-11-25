@@ -8126,6 +8126,140 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/me/check-in-card": {
+      "get": {
+        "operationId": "getMyCheckInCard",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCheckInCardOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/members/{userId}/check-in-card": {
+      "get": {
+        "operationId": "getMemberCheckInCard",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberCheckInCardOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/attendance/sessions/{sessionId}/card-lookup": {
+      "post": {
+        "operationId": "lookupCheckInCard",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LookupCheckInCardInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LookupCheckInCardOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/birthdays/today": {
+      "get": {
+        "operationId": "listBirthdaysToday",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBirthdaysTodayOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/drop-ins/mine": {
       "get": {
         "operationId": "getMyDropIns",
@@ -27465,6 +27599,12 @@
                 "type": "string",
                 "nullable": true
               },
+              "dateOfBirth": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                "nullable": true
+              },
               "status": {
                 "type": "string"
               },
@@ -27502,6 +27642,7 @@
               "phone",
               "isDependent",
               "guardians",
+              "dateOfBirth",
               "status",
               "roleId",
               "roleName",
@@ -29641,6 +29782,12 @@
             "type": "string",
             "maxLength": 32,
             "nullable": true
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "nullable": true
           }
         }
       },
@@ -29667,6 +29814,12 @@
           "phone": {
             "type": "string",
             "nullable": true
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "nullable": true
           }
         },
         "required": [
@@ -29674,7 +29827,8 @@
           "email",
           "firstname",
           "lastname",
-          "phone"
+          "phone",
+          "dateOfBirth"
         ],
         "additionalProperties": false
       },
@@ -29709,6 +29863,9 @@
             "type": "string"
           },
           "joinAutoApprove": {
+            "type": "boolean"
+          },
+          "birthdayGreetingsEnabled": {
             "type": "boolean"
           },
           "announcementsEnabled": {
@@ -29820,6 +29977,7 @@
           "coachesMarkAnyClass",
           "timezone",
           "joinAutoApprove",
+          "birthdayGreetingsEnabled",
           "announcementsEnabled",
           "ranksEnabled",
           "leaderboardEnabled",
@@ -29857,6 +30015,9 @@
             "maxLength": 64
           },
           "joinAutoApprove": {
+            "type": "boolean"
+          },
+          "birthdayGreetingsEnabled": {
             "type": "boolean"
           },
           "announcementsEnabled": {
@@ -29940,6 +30101,9 @@
             "type": "string"
           },
           "joinAutoApprove": {
+            "type": "boolean"
+          },
+          "birthdayGreetingsEnabled": {
             "type": "boolean"
           },
           "announcementsEnabled": {
@@ -30047,6 +30211,7 @@
           "coachesMarkAnyClass",
           "timezone",
           "joinAutoApprove",
+          "birthdayGreetingsEnabled",
           "announcementsEnabled",
           "ranksEnabled",
           "leaderboardEnabled",
@@ -37680,6 +37845,169 @@
           "alreadyCheckedIn",
           "abonement",
           "abonementOptions"
+        ],
+        "additionalProperties": false
+      },
+      "MyCheckInCardOutput_Output": {
+        "type": "object",
+        "properties": {
+          "card": {
+            "type": "string"
+          },
+          "qrPngDataUrl": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "card",
+          "qrPngDataUrl",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "MemberCheckInCardOutput_Output": {
+        "type": "object",
+        "properties": {
+          "card": {
+            "type": "string"
+          },
+          "qrPngDataUrl": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "card",
+          "qrPngDataUrl",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "LookupCheckInCardInput": {
+        "type": "object",
+        "properties": {
+          "card": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "card"
+        ]
+      },
+      "LookupCheckInCardOutput_Output": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "photoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "isDependent": {
+            "type": "boolean"
+          },
+          "inGroup": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "alreadyMarked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "userId",
+          "name",
+          "photoUrl",
+          "isDependent",
+          "inGroup",
+          "alreadyMarked"
+        ],
+        "additionalProperties": false
+      },
+      "ListBirthdaysTodayOutput_Output": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "userId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "photoUrl": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "isDependent": {
+                  "type": "boolean"
+                },
+                "turns": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "groups": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "userId",
+                "name",
+                "photoUrl",
+                "isDependent",
+                "turns",
+                "groups"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "date",
+          "members"
         ],
         "additionalProperties": false
       },
@@ -50814,6 +51142,12 @@
             "type": "string",
             "nullable": true
           },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "nullable": true
+          },
           "language": {
             "type": "string"
           },
@@ -50847,6 +51181,12 @@
             "type": "string",
             "maxLength": 100,
             "nullable": true
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "nullable": true
           }
         }
       },
@@ -50872,6 +51212,12 @@
           },
           "profilePhotoUrl": {
             "type": "string",
+            "nullable": true
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
             "nullable": true
           },
           "language": {
@@ -57399,6 +57745,25 @@
                   "additionalProperties": false,
                   "nullable": true
                 },
+                "payer": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                },
                 "refundedAmount": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -57540,6 +57905,7 @@
                 "eventRegistrationId",
                 "eventId",
                 "markedBy",
+                "payer",
                 "refundedAmount",
                 "refundable",
                 "online",
@@ -57883,6 +58249,25 @@
             "additionalProperties": false,
             "nullable": true
           },
+          "payer": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "userId",
+              "name"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
           "refundedAmount": {
             "type": "integer",
             "minimum": -9007199254740991,
@@ -58118,6 +58503,25 @@
                   "additionalProperties": false,
                   "nullable": true
                 },
+                "payer": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                },
                 "refundedAmount": {
                   "type": "integer",
                   "minimum": -9007199254740991,
@@ -58259,6 +58663,7 @@
                 "eventRegistrationId",
                 "eventId",
                 "markedBy",
+                "payer",
                 "refundedAmount",
                 "refundable",
                 "online",
@@ -58298,6 +58703,7 @@
           "eventRegistrationId",
           "eventId",
           "markedBy",
+          "payer",
           "refundedAmount",
           "refundable",
           "online",
@@ -58840,6 +59246,25 @@
                 "additionalProperties": false,
                 "nullable": true
               },
+              "payer": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "userId",
+                  "name"
+                ],
+                "additionalProperties": false,
+                "nullable": true
+              },
               "refundedAmount": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -58981,6 +59406,7 @@
               "eventRegistrationId",
               "eventId",
               "markedBy",
+              "payer",
               "refundedAmount",
               "refundable",
               "online",
@@ -59083,6 +59509,25 @@
                 "nullable": true
               },
               "markedBy": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "userId",
+                  "name"
+                ],
+                "additionalProperties": false,
+                "nullable": true
+              },
+              "payer": {
                 "type": "object",
                 "properties": {
                   "userId": {
@@ -59336,6 +59781,25 @@
                       "additionalProperties": false,
                       "nullable": true
                     },
+                    "payer": {
+                      "type": "object",
+                      "properties": {
+                        "userId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "userId",
+                        "name"
+                      ],
+                      "additionalProperties": false,
+                      "nullable": true
+                    },
                     "refundedAmount": {
                       "type": "integer",
                       "minimum": -9007199254740991,
@@ -59477,6 +59941,7 @@
                     "eventRegistrationId",
                     "eventId",
                     "markedBy",
+                    "payer",
                     "refundedAmount",
                     "refundable",
                     "online",
@@ -59516,6 +59981,7 @@
               "eventRegistrationId",
               "eventId",
               "markedBy",
+              "payer",
               "refundedAmount",
               "refundable",
               "online",

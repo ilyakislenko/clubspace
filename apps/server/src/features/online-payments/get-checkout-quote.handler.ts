@@ -16,6 +16,7 @@ import {
 import {
     loadBuyer,
     onlinePaymentsUnavailableError,
+    payerOf,
     PENDING_REUSE_MS,
     purchasablePlanWhere,
     sectionDisabledError,
@@ -39,12 +40,13 @@ export class GetCheckoutQuoteHandler
             ? await this.tariff(f, f.payload.planId)
             : await this.ticket(f, f.payload.registrationId as string)
         const { item, timezone, pending } = ctx
-        // The member's own open checkout of this item is the one a tap would
+        // The payer's own open checkout of this item is the one a tap would
         // reuse: its promo use doesn't count against them.
         const recent = await this.prisma.payment.findFirst({
             where: {
                 workspaceId: f.workspaceId,
                 userId: f.userId,
+                payerUserId: payerOf(f.userId, f.actorUserId),
                 ...pending,
                 status: 'PENDING',
                 confirmationUrl: { not: null },
@@ -120,7 +122,9 @@ export class GetCheckoutQuoteHandler
         if (!plan) throw new NotFoundError({ message: 'Этот тариф нельзя купить онлайн' })
         const item: SaleItem = { planId: plan.id, eventId: null, listPrice: plan.price, currency: plan.currency }
         // An ACTIVE agreement on this tariff: the switch isn't offered again.
+        // Never in a child's profile (docs/design/2026-11-26-parent-pays-for-child.md §10).
         const offered =
+            f.actorUserId === f.userId &&
             autopayOffered(settings, plan) &&
             !(await this.prisma.memberAutopay.findFirst({
                 where: { workspaceId: f.workspaceId, userId: f.userId, planId: plan.id, status: 'ACTIVE' },

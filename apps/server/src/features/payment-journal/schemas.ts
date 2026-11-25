@@ -69,6 +69,9 @@ export const PaymentJournalEntrySchema = z.object({
     eventId: z.string().uuid().nullable(),
     // Payment: who marked it paid (null: online, imported, unattributed).
     markedBy: PersonRefSchema.nullable(),
+    // Paid online by someone other than the holder: the guardian who bought
+    // for a child under X-Act-As (docs/design/2026-11-26-parent-pays-for-child.md §3.3).
+    payer: PersonRefSchema.nullable(),
     // Payment rows: refunded so far and what may still be refunded.
     refundedAmount: z.number().int(),
     refundable: z.number().int(),
@@ -166,6 +169,13 @@ export const serializePaymentJournalEntry = (
     markedBy: row.markedById
         ? { userId: row.markedById, name: people.names.get(row.markedById) ?? 'Сотрудник' }
         : null,
+    payer:
+        row.online?.payerUserId && row.online.payerUserId !== row.userId
+            ? {
+                  userId: row.online.payerUserId,
+                  name: people.names.get(row.online.payerUserId) ?? 'Участник',
+              }
+            : null,
     refundedAmount: row.refundedAmount,
     refundable: row.kind === 'payment' ? Math.max(0, row.amount - row.refundedAmount) : 0,
     online: row.online

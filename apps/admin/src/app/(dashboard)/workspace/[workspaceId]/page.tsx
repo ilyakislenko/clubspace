@@ -24,6 +24,7 @@ import { cap } from "@clubspace/ui-kit/brand"
 import { formatAmount } from "../../../../features/subscriptions/subscription-display"
 import { OnboardingChecklist } from "../../../../features/billing/OnboardingChecklist"
 import { DecisionList } from "../../../../features/dashboard/DecisionList"
+import { BirthdaysToday } from "../../../../features/dashboard/BirthdaysToday"
 import { AttendanceBlock, MoneyBlock } from "../../../../features/dashboard/Figures"
 import { TodayClasses } from "../../../../features/dashboard/TodayClasses"
 import { useTodayClasses } from "../../../../features/dashboard/use-today-classes"
@@ -189,6 +190,9 @@ export default function WorkspaceOverviewPage() {
           Сегодня нет {vocabulary.session.genPl}, и ничего не ждёт решения.
         </p>
       )}
+
+      {/* Only on a day with birthdays; not a decision row. */}
+      {workspaceId && <BirthdaysToday workspaceId={workspaceId} />}
 
       {workspaceId && (money || attendance) && (
         <div className={`grid items-start gap-6 ${money && attendance ? "lg:grid-cols-2" : ""}`}>

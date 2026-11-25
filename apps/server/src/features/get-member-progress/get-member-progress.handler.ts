@@ -63,6 +63,7 @@ export class GetMemberProgressHandler
                             dependentOf: memberGuardiansSelect,
                             firstname: true,
                             lastname: true,
+                            dateOfBirth: true,
                         },
                     },
                     role: { select: { name: true } },
@@ -265,6 +266,9 @@ export class GetMemberProgressHandler
                 guardians: serializeMemberGuardians(member.user.dependentOf),
                 firstname: member.user.firstname,
                 lastname: member.user.lastname,
+                dateOfBirth: member.user.dateOfBirth
+                    ? member.user.dateOfBirth.toISOString().slice(0, 10)
+                    : null,
                 status: member.status,
                 roleId: member.roleId,
                 roleName: member.role.name,

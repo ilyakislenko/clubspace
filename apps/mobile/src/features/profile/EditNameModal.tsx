@@ -9,21 +9,31 @@ import {
   type TextInputInstance,
 } from "react-native"
 
-import { updateMe, type Me } from "../../shared/api/me"
+import { updateMe, type Me, type UpdateMeInput } from "../../shared/api/me"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { errorMessage } from "../../shared/error-message"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import {
+  formatBirthDate,
+  maskBirthDate,
+  parseBirthDate,
+  todayYmd,
+} from "../children/children-helpers"
 
 // Students sign up with an email only; this is where they become a name in
-// the coach's lists and the club leaderboard instead of an address.
+// the coach's lists and the club leaderboard instead of an address. From
+// «Профиль» (`withBirthDate`) it also takes the optional birth date, which
+// only the club's staff see; the name prompts elsewhere stay name-only.
 export function EditNameModal({
   me,
+  withBirthDate = false,
   onClose,
   onSaved,
 }: {
   me: Me
+  withBirthDate?: boolean
   onClose: () => void
   onSaved: (me: Me) => void
 }) {
@@ -31,10 +41,12 @@ export function EditNameModal({
   const styles = useThemedStyles(makeStyles)
   const [firstname, setFirstname] = useState(me.firstname ?? "")
   const [lastname, setLastname] = useState(me.lastname ?? "")
+  const [birth, setBirth] = useState(formatBirthDate(me.dateOfBirth ?? null))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const firstnameRef = useRef<TextInputInstance>(null)
   const lastnameRef = useRef<TextInputInstance>(null)
+  const birthRef = useRef<TextInputInstance>(null)
 
   // `autoFocus` inside a Modal places the caret but doesn't open the Android
   // keyboard — the window isn't focused yet — so the first field needed a
@@ -46,12 +58,26 @@ export function EditNameModal({
 
   const save = async () => {
     if (saving) return
+    const data: UpdateMeInput = { firstname, lastname }
+    if (withBirthDate) {
+      // Optional: a cleared field removes the date.
+      const typed = birth.trim()
+      const dateOfBirth = typed ? parseBirthDate(typed, todayYmd(new Date())) : null
+      if (typed && !dateOfBirth) {
+        setError("Укажите дату рождения в формате ДД.ММ.ГГГГ.")
+        return
+      }
+      // Only a change: the date is audited in every club of the person.
+      if (dateOfBirth !== (me.dateOfBirth ?? null)) data.dateOfBirth = dateOfBirth
+    }
     setSaving(true)
     setError(null)
     try {
-      onSaved(await updateMe({ firstname, lastname }))
+      onSaved(await updateMe(data))
     } catch (e) {
-      setError(errorMessage(e, "Не удалось сохранить имя."))
+      setError(
+        errorMessage(e, withBirthDate ? "Не удалось сохранить профиль." : "Не удалось сохранить имя."),
+      )
       setSaving(false)
     }
   }
@@ -80,7 +106,7 @@ export function EditNameModal({
               /* swallow, so a tap inside the sheet doesn't dismiss it */
             }}
           >
-            <Text style={styles.title}>Как вас зовут?</Text>
+            <Text style={styles.title}>{withBirthDate ? "Профиль" : "Как вас зовут?"}</Text>
             <Text style={styles.hint}>
               Имя одно на все ваши клубы: его видят в каждом из них — в
               группах и рейтинге.
@@ -117,10 +143,35 @@ export function EditNameModal({
                 autoComplete="family-name"
                 textContentType="familyName"
                 maxLength={100}
-                returnKeyType="done"
-                onSubmitEditing={() => void save()}
+                returnKeyType={withBirthDate ? "next" : "done"}
+                onSubmitEditing={() =>
+                  withBirthDate ? birthRef.current?.focus() : void save()
+                }
+                submitBehavior={withBirthDate ? "submit" : undefined}
               />
             </View>
+            {withBirthDate && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Дата рождения</Text>
+                <TextInput
+                  ref={birthRef}
+                  style={styles.input}
+                  value={birth}
+                  onChangeText={(text) => setBirth(maskBirthDate(text))}
+                  placeholder="ДД.ММ.ГГГГ"
+                  placeholderTextColor={theme.colors.muted}
+                  keyboardType="number-pad"
+                  maxLength={10}
+                  accessibilityHint="Необязательно. Например, 07.03.1990"
+                  returnKeyType="done"
+                  onSubmitEditing={() => void save()}
+                />
+                <Text style={styles.hint}>
+                  Видят только сотрудники клуба. Клуб сможет поздравить вас с
+                  днём рождения.
+                </Text>
+              </View>
+            )}
 
             {error && <Text style={styles.error}>{error}</Text>}
 

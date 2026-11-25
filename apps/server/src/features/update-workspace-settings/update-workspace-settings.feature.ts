@@ -14,6 +14,8 @@ export const UpdateWorkspaceSettingsFeatureInputSchema = z.object({
     timezone: z.string().min(1).max(64).optional(),
     // «Принимать без подтверждения»: a code join becomes ACTIVE straight away.
     joinAutoApprove: z.boolean().optional(),
+    // «Поздравлять с днём рождения» (the daily pass at club-local 10:00).
+    birthdayGreetingsEnabled: z.boolean().optional(),
     // leaderboardEnabled + the app-section flags — each optional so the admin
     // can PATCH a single toggle.
     ...FeatureFlagColumnsSchema.partial().shape,
@@ -29,6 +31,7 @@ export const UpdateWorkspaceSettingsFeatureOutputSchema = z.object({
     coachesMarkAnyClass: z.boolean(),
     timezone: z.string(),
     joinAutoApprove: z.boolean(),
+    birthdayGreetingsEnabled: z.boolean(),
     ...FeatureFlagColumnsSchema.shape,
     ...WorkspaceBookingSettingsFields,
     // Switches the platform pinned: the club cannot change these.
