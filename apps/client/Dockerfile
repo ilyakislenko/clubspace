@@ -11,7 +11,7 @@
 
 # ─── deps ─────────────────────────────────────────────────────────────────────
 # Node 22 LTS, pinned — same tag in every app image, bump them together.
-FROM node:22.23.4-alpine3.24 AS deps
+FROM node:22.23.5-alpine3.24 AS deps
 WORKDIR /workspace
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
@@ -20,7 +20,7 @@ COPY apps/client/package.json apps/client/
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 # ─── builder ──────────────────────────────────────────────────────────────────
-FROM node:22.23.4-alpine3.24 AS builder
+FROM node:22.23.5-alpine3.24 AS builder
 WORKDIR /workspace
 # NX_NO_CLOUD: no Nx Cloud from a server build (see apps/admin/Dockerfile).
 ENV NX_DAEMON=false NX_NO_CLOUD=true NEXT_TELEMETRY_DISABLED=1
@@ -48,7 +48,7 @@ COPY . .
 RUN npx nx build @clubspace/client --skip-sync
 
 # ─── runtime ──────────────────────────────────────────────────────────────────
-FROM node:22.23.4-alpine3.24 AS runtime
+FROM node:22.23.5-alpine3.24 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN apk add --no-cache tini wget

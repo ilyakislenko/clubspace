@@ -15,7 +15,7 @@
 
 # ─── deps ─────────────────────────────────────────────────────────────────────
 # Node 22 LTS, pinned — same tag in every app image, bump them together.
-FROM node:22.23.4-alpine3.24 AS deps
+FROM node:22.23.5-alpine3.24 AS deps
 WORKDIR /workspace
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
@@ -27,7 +27,7 @@ COPY patches ./patches
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 # ─── builder ──────────────────────────────────────────────────────────────────
-FROM node:22.23.4-alpine3.24 AS builder
+FROM node:22.23.5-alpine3.24 AS builder
 WORKDIR /workspace
 ENV NX_DAEMON=false NX_NO_CLOUD=true EXPO_NO_TELEMETRY=1 CI=1
 # The neutral ClubSpace app: no club baked in, members join by code or link.
