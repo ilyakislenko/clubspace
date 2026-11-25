@@ -72,4 +72,17 @@ describe('AuditService.list labels', () => {
             slotId: GONE,
         })
     })
+
+    it('names the guardian who paid for a child on payment.succeeded', async () => {
+        const service = make([
+            event({
+                action: 'payment.succeeded',
+                targetType: 'member',
+                actorId: USER,
+                metadata: { paymentId: GONE, payerUserId: USER, amount: 4000 },
+            }),
+        ])
+        const { data } = await service.list({ workspaceId: 'w1' })
+        expect(data[0].metadata).toMatchObject({ payerUserId: 'Иван Петров (ivan@x.ru)', amount: 4000 })
+    })
 })

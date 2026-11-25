@@ -271,9 +271,18 @@ export function SettingsScreen(_props: Props) {
           />
         </Section>
 
-        {/* Notification settings are the signed-in guardian's (a child's
-            notifications reach them too), so a child profile doesn't show
-            them. */}
+        {/* Notification settings are the signed-in guardian's: a child's
+            notifications reach them and obey their settings
+            (docs/design/2026-11-26-parent-pays-for-child.md §5), so a child
+            profile says so instead of showing the switches. */}
+        {actingAs && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Уведомления</Text>
+            <Text style={styles.sectionNote}>
+              {`Уведомления профиля «${actingAs.firstname}» приходят вам и подчиняются вашим настройкам. Чтобы изменить их, переключитесь на «Я».`}
+            </Text>
+          </View>
+        )}
         {!actingAs && (
         <Section title="Уведомления">
           {(webPush.state === "available" || webPush.state === "enabled") && (
@@ -529,7 +538,7 @@ export function SettingsScreen(_props: Props) {
         </Section>
         <Text style={styles.deleteHint}>
           {actingAs
-            ? "Открыт профиль ребёнка. Уведомления и удаление аккаунта — в вашем собственном профиле; удалить профиль ребёнка можно в разделе «Дети»."
+            ? "Открыт профиль ребёнка. Удаление аккаунта — в вашем собственном профиле; удалить профиль ребёнка можно в разделе «Дети»."
             : "Удаление аккаунта необратимо: профиль, доступы, заметки и закладки будут стёрты, вместе с профилями детей, у которых нет другого родителя. Обезличенная история посещений останется в клубе. Удаление аккаунта — это и отзыв согласия на обработку персональных данных."}
         </Text>
       </ScrollView>
@@ -728,6 +737,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   deleteHint: {
     ...theme.typography.caption,
     marginTop: theme.spacing(2),
+    paddingHorizontal: theme.spacing(1),
+  },
+  sectionNote: {
+    ...theme.typography.caption,
     paddingHorizontal: theme.spacing(1),
   },
 })

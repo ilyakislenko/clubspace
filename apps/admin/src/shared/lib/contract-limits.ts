@@ -40,6 +40,8 @@ import {
   UpdateLadderInputSchema,
   UpdateLevelInputSchema,
   UpdateMemberNotesBodySchema,
+  UpdateMeInputSchema,
+  UpdateMemberProfileBodySchema,
   UpdatePlanInputSchema,
   UpdateRankGradingInputSchema,
   UpdateSlotInputSchema,
@@ -144,6 +146,9 @@ const ABOUT_LINK = [UpdateClubAboutInputSchema.properties.links.items] as const
 // The direct freeze and approving a member's request share FreezeForm.
 const FREEZE = [FreezeSubscriptionInputSchema, ApproveSubscriptionFreezeRequestInputSchema] as const
 const DISCOUNT = [CreateDiscountInputSchema, UpdateDiscountInputSchema] as const
+// ProfileEditForm: a member's profile (staff) and the own-profile dialog.
+const MEMBER_PROFILE = [UpdateMemberProfileBodySchema] as const
+const NAMES = [UpdateMemberProfileBodySchema, UpdateMeInputSchema] as const
 
 export const FORM_LIMITS = {
   plan: {
@@ -277,6 +282,12 @@ export const FORM_LIMITS = {
   },
   videoComment: {
     text: text([AddVideoReviewCommentInputSchema] as const, "text"),
+  },
+  profile: {
+    firstname: text(NAMES, "firstname"),
+    lastname: text(NAMES, "lastname"),
+    email: text(MEMBER_PROFILE, "email"),
+    phone: text(MEMBER_PROFILE, "phone"),
   },
   memberNotes: {
     notes: text([UpdateMemberNotesBodySchema] as const, "notes"),

@@ -13,7 +13,12 @@ import {
     NotFoundError,
 } from '../../shared/errors/shared.errors'
 import { localDateInTz } from '../attendance/attendance-utils'
-import { PENDING_REUSE_MS } from '../online-payments/load-buyer'
+import {
+    loadReceiptEmail,
+    NO_RECEIPT_EMAIL,
+    payerOf,
+    PENDING_REUSE_MS,
+} from '../online-payments/load-buyer'
 import { priceOnlineItem } from '../online-payments/price-online-item'
 import { serializeMyPayment } from '../online-payments/schemas'
 import { startProviderPayment } from '../online-payments/start-provider-payment'
@@ -110,12 +115,15 @@ export class PayEventRegistrationOnlineHandler
 
         // A repeated tap (or a member back from the provider's page without
         // paying) gets the same payment instead of a second one — at the same
-        // price; a code added since makes a new one.
+        // price; a code added since makes a new one. Only the same payer's:
+        // the other parent gets their own page and receipt.
         const now = new Date()
+        const payerUserId = payerOf(f.invokerUserId, f.actorUserId)
         const recent = await this.prisma.payment.findFirst({
             where: {
                 workspaceId: f.workspaceId,
                 eventRegistrationId: registration.id,
+                payerUserId,
                 provider: settings.provider,
                 status: 'PENDING',
                 confirmationUrl: { not: null },
@@ -146,20 +154,11 @@ export class PayEventRegistrationOnlineHandler
 
         // The receipt goes to the member — or to the guardian paying for a
         // child (a child profile has no e-mail).
-        const people = await this.prisma.user.findMany({
-            where: { id: { in: [f.invokerUserId, f.actorUserId] } },
-            select: { id: true, email: true },
+        const email = await loadReceiptEmail(this.prisma, {
+            holderId: f.invokerUserId,
+            actorId: f.actorUserId,
         })
-        const email =
-            people.find((u) => u.id === f.invokerUserId)?.email ??
-            people.find((u) => u.id === f.actorUserId)?.email ??
-            null
-        if (email === null) {
-            throw new BadRequestError({
-                message:
-                    'Для онлайн-оплаты нужен e-mail в профиле — на него придёт чек',
-            })
-        }
+        if (email === null) throw new BadRequestError({ message: NO_RECEIPT_EMAIL })
 
         return startProviderPayment(
             { prisma: this.prisma, gateway: this.gateway, logger: this.logger },
@@ -167,6 +166,7 @@ export class PayEventRegistrationOnlineHandler
                 settings,
                 workspaceId: f.workspaceId,
                 userId: f.invokerUserId,
+                payerUserId,
                 planId: null,
                 eventRegistrationId: registration.id,
                 planName: event.title,

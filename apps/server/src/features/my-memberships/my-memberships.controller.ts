@@ -10,6 +10,7 @@ import {
 import { FeaturesBus } from '@shelfjs/features'
 import { createZodDto, ZodResponse } from 'nestjs-zod'
 
+import { ActAsAllowed } from '../../shared/decorators/act-as.decorator'
 import {
     CurrentUser,
     type CurrentUserPayload,
@@ -57,7 +58,12 @@ export class MyMembershipsController {
         >(new LeaveWorkspaceFeature(workspaceId, user.userId))
     }
 
+    // A guardian mutes a child's club from the child's profile (X-Act-As):
+    // one switch per child membership, shared by both guardians
+    // (docs/design/2026-11-26-parent-pays-for-child.md §3.5). Leaving the
+    // club above stays a parent-profile action.
     @Patch(':clubId/notifications')
+    @ActAsAllowed()
     @ZodResponse({ type: UpdateMembershipNotificationsOutput })
     async updateMembershipNotifications(
         @Param('clubId', ParseUUIDPipe) workspaceId: string,

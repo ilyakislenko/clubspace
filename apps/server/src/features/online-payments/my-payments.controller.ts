@@ -59,7 +59,13 @@ export class MyPaymentsController {
         return this.bus.execute<
             GetOnlinePurchaseOptionsFeature,
             GetOnlinePurchaseOptionsFeatureResponse
-        >(new GetOnlinePurchaseOptionsFeature(workspaceId, user.userId))
+        >(
+            new GetOnlinePurchaseOptionsFeature(
+                workspaceId,
+                user.userId,
+                user.guardianId ?? user.userId,
+            ),
+        )
     }
 
     // The price before paying (a promo code optional), act-as like the
@@ -75,7 +81,12 @@ export class MyPaymentsController {
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return this.bus.execute<GetCheckoutQuoteFeature, GetCheckoutQuoteFeatureResponse>(
-            new GetCheckoutQuoteFeature(query, workspaceId, user.userId),
+            new GetCheckoutQuoteFeature(
+                query,
+                workspaceId,
+                user.userId,
+                user.guardianId ?? user.userId,
+            ),
         )
     }
 

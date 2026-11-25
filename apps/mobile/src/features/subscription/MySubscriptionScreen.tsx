@@ -190,7 +190,9 @@ export function MySubscriptionScreen() {
           </View>
         ))}
 
-        {/* Paying for a child's abonement isn't offered yet, nor autopay. */}
+        {/* Autopay isn't offered for a child (the card would be the
+            guardian's): its abonement renews by purchase, which the guardian
+            pays here (docs/design/2026-11-26-parent-pays-for-child.md). */}
         {!actingAs && (
           <AutopayCard
             key={`autopay:${workspace.workspaceId}`}
@@ -201,15 +203,13 @@ export function MySubscriptionScreen() {
             onChanged={reloadPayments}
           />
         )}
-        {!actingAs && (
-          <OnlinePurchaseSection
-            key={workspace.workspaceId}
-            workspaceId={workspace.workspaceId}
-            active={focused}
-            reloadKey={paymentsReload}
-            onPaid={handleRefresh}
-          />
-        )}
+        <OnlinePurchaseSection
+          key={`${workspace.workspaceId}:${actingAs?.id ?? "me"}`}
+          workspaceId={workspace.workspaceId}
+          active={focused}
+          reloadKey={paymentsReload}
+          onPaid={handleRefresh}
+        />
 
         {data?.coach ? (
           <Text style={styles.meta}>

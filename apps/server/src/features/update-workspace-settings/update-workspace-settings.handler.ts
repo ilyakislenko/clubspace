@@ -133,6 +133,7 @@ export class UpdateWorkspaceSettingsHandler
                     coachesMarkAnyClass: true,
                     timezone: true,
                     joinAutoApprove: true,
+                    birthdayGreetingsEnabled: true,
                     updatedAt: true,
                     ...featureFlagSelect,
                     ...workspaceBookingSettingsSelect,

@@ -12,6 +12,7 @@ import {
     parseStoredMessages,
     parseStoredRefs,
 } from '../../features/ai-chat/ai-chat-utils'
+import { isBirthdayOn } from '../birthdays/birthdays'
 
 const NOW = new Date('2026-11-04T09:30:00.000Z') // Wednesday, 12:30 in Moscow
 const TZ = 'Europe/Moscow'
@@ -29,6 +30,16 @@ const students = (plan: DemoClubPlan) =>
     plan.members.filter((m) => m.role === 'user' && m.data.status === 'ACTIVE')
 const subsOf = (plan: DemoClubPlan, memberId: string) =>
     plan.subscriptions.filter((s) => s.workspaceMemberId === memberId)
+// Active students whose birthday is `ymd` (the «Дни рождения сегодня» rule).
+const birthdaysToday = (plan: DemoClubPlan, ymd: string) => {
+    const dob = new Map(plan.users.map((u) => [u.id, (u.dateOfBirth as Date | null) ?? null]))
+    return students(plan)
+        .map((m) => m.data.userId as string)
+        .filter((id) => {
+            const d = dob.get(id)
+            return !!d && isBirthdayOn(d, ymd)
+        })
+}
 
 describe('buildDemoClubPlan', () => {
     const plan = build()
@@ -549,6 +560,31 @@ describe('buildDemoClubPlan', () => {
         const mine = plan.classBookings.filter((b) => b.userId === plan.accountUserIds.parent)
         expect(mine.some((b) => b.status === 'BOOKED' || b.status === 'WAITLISTED')).toBe(true)
         expect(mine.some((b) => b.status === 'ATTENDED')).toBe(true)
+    })
+
+    it('has three birthdays today on every reset: Аня, an adult and a kid of other groups', () => {
+        const leapDay = new Date('2028-02-29T09:30:00.000Z')
+        for (const [day, now] of [[plan, NOW], [build(leapDay), leapDay]] as const) {
+            const ids = birthdaysToday(day, localDateInTz(now, TZ))
+            expect(ids).toHaveLength(3)
+            expect(ids).toContain(demoUuid('child:anya'))
+            const groupsOf = (userId: string) =>
+                day.groupMembers.filter((g) => g.userId === userId).map((g) => g.groupId)
+            const others = ids.filter((id) => id !== demoUuid('child:anya'))
+            // One adult (an e-mail) and one child (none).
+            expect(others.map((id) => day.users.find((u) => u.id === id)?.email === null).sort()).toEqual([
+                false,
+                true,
+            ])
+            // Outside Аня's group: each coach sees their own.
+            const anyaGroups = groupsOf(demoUuid('child:anya'))
+            for (const id of others) {
+                expect(groupsOf(id).length).toBeGreaterThan(0)
+                expect(groupsOf(id).some((g) => anyaGroups.includes(g))).toBe(false)
+            }
+        }
+        const anya = plan.users.find((u) => u.id === demoUuid('child:anya'))
+        expect((anya?.dateOfBirth as Date).toISOString().slice(0, 10)).toBe('2019-11-04')
     })
 
     it('moves every date with today', () => {

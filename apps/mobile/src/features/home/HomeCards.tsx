@@ -28,6 +28,7 @@ import {
 import type { RecentEntry } from "../profile/preferences-store"
 import {
   COACH_TODAY_ROWS,
+  birthdayNames,
   canMarkClassNow,
   coachNextLine,
   coachTodayView,
@@ -390,6 +391,29 @@ export function FreezeRequestsCard({
       {count > FREEZE_REQUEST_ROWS && (
         <Text style={styles.muted}>и ещё {count - FREEZE_REQUEST_ROWS}</Text>
       )}
+    </HomeCard>
+  )
+}
+
+/**
+ * Staff: «Дни рождения сегодня: Аня С., Пётр К.» — the club's (a coach's own
+ * groups') birthdays, so they can congratulate in class. Only when someone
+ * has one; read-only, the app has no member card to open.
+ */
+export function BirthdaysCard({
+  members,
+  grow,
+}: {
+  members: readonly { name: string }[]
+  grow?: boolean
+}) {
+  const styles = useThemedStyles(makeStyles)
+  return (
+    <HomeCard grow={grow}>
+      <Text style={styles.line}>
+        <Text style={styles.strong}>Дни рождения сегодня: </Text>
+        {birthdayNames(members)}
+      </Text>
     </HomeCard>
   )
 }

@@ -794,6 +794,12 @@ export const UpdateMeInputSchema = {
             type: 'string',
             maxLength: 100,
             nullable: true
+        },
+        dateOfBirth: {
+            type: 'string',
+            format: 'date',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$',
+            nullable: true
         }
     }
 } as const;
@@ -1822,6 +1828,20 @@ export const CreateDropInInputSchema = {
     required: [
         'slotId',
         'sessionDate'
+    ]
+} as const;
+
+export const LookupCheckInCardInputSchema = {
+    type: 'object',
+    properties: {
+        card: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 120
+        }
+    },
+    required: [
+        'card'
     ]
 } as const;
 
@@ -3160,6 +3180,9 @@ export const UpdateWorkspaceSettingsBodySchema = {
         joinAutoApprove: {
             type: 'boolean'
         },
+        birthdayGreetingsEnabled: {
+            type: 'boolean'
+        },
         announcementsEnabled: {
             type: 'boolean'
         },
@@ -3243,6 +3266,12 @@ export const UpdateMemberProfileBodySchema = {
         phone: {
             type: 'string',
             maxLength: 32,
+            nullable: true
+        },
+        dateOfBirth: {
+            type: 'string',
+            format: 'date',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$',
             nullable: true
         }
     }

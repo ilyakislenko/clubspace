@@ -2519,6 +2519,7 @@ export type GetMemberProgressOutputOutput = {
         }>;
         firstname?: string | null;
         lastname?: string | null;
+        dateOfBirth: string | null;
         status: string;
         roleId: string;
         roleName: string;
@@ -2947,6 +2948,7 @@ export type UpdateMemberProfileBody = {
     lastname?: string | null;
     email?: string;
     phone?: string | null;
+    dateOfBirth?: string | null;
 };
 
 export type UpdateMemberProfileOutputOutput = {
@@ -2955,6 +2957,7 @@ export type UpdateMemberProfileOutputOutput = {
     firstname: string | null;
     lastname: string | null;
     phone: string | null;
+    dateOfBirth: string | null;
 };
 
 export type GetWorkspaceSettingsOutputOutput = {
@@ -2965,6 +2968,7 @@ export type GetWorkspaceSettingsOutputOutput = {
     coachesMarkAnyClass: boolean;
     timezone: string;
     joinAutoApprove: boolean;
+    birthdayGreetingsEnabled: boolean;
     announcementsEnabled: boolean;
     ranksEnabled: boolean;
     leaderboardEnabled: boolean;
@@ -2995,6 +2999,7 @@ export type UpdateWorkspaceSettingsBody = {
     coachesMarkAnyClass?: boolean;
     timezone?: string;
     joinAutoApprove?: boolean;
+    birthdayGreetingsEnabled?: boolean;
     announcementsEnabled?: boolean;
     ranksEnabled?: boolean;
     leaderboardEnabled?: boolean;
@@ -3024,6 +3029,7 @@ export type UpdateWorkspaceSettingsOutputOutput = {
     coachesMarkAnyClass: boolean;
     timezone: string;
     joinAutoApprove: boolean;
+    birthdayGreetingsEnabled: boolean;
     announcementsEnabled: boolean;
     ranksEnabled: boolean;
     leaderboardEnabled: boolean;
@@ -4620,6 +4626,46 @@ export type SelfCheckInPreviewOutputDtoOutput = {
             name: string;
             color: string | null;
             icon: string | null;
+        }>;
+    }>;
+};
+
+export type MyCheckInCardOutputOutput = {
+    card: string;
+    qrPngDataUrl: string;
+    name: string;
+};
+
+export type MemberCheckInCardOutputOutput = {
+    card: string;
+    qrPngDataUrl: string;
+    name: string;
+};
+
+export type LookupCheckInCardInput = {
+    card: string;
+};
+
+export type LookupCheckInCardOutputOutput = {
+    userId: string;
+    name: string;
+    photoUrl: string | null;
+    isDependent: boolean;
+    inGroup: boolean | null;
+    alreadyMarked: boolean;
+};
+
+export type ListBirthdaysTodayOutputOutput = {
+    date: string;
+    members: Array<{
+        userId: string;
+        name: string;
+        photoUrl: string | null;
+        isDependent: boolean;
+        turns: number | null;
+        groups: Array<{
+            id: string;
+            name: string;
         }>;
     }>;
 };
@@ -7164,6 +7210,7 @@ export type GetMeOutputOutput = {
     firstname?: string | null;
     lastname?: string | null;
     profilePhotoUrl?: string | null;
+    dateOfBirth?: string | null;
     language: string;
     isSuperAdmin: boolean;
     createdAt: string;
@@ -7172,6 +7219,7 @@ export type GetMeOutputOutput = {
 export type UpdateMeInput = {
     firstname?: string | null;
     lastname?: string | null;
+    dateOfBirth?: string | null;
 };
 
 export type UpdateMeOutputOutput = {
@@ -7180,6 +7228,7 @@ export type UpdateMeOutputOutput = {
     firstname?: string | null;
     lastname?: string | null;
     profilePhotoUrl?: string | null;
+    dateOfBirth?: string | null;
     language: string;
     isSuperAdmin: boolean;
     createdAt: string;
@@ -8415,6 +8464,10 @@ export type ListPaymentJournalOutputOutput = {
             userId: string;
             name: string;
         } | null;
+        payer: {
+            userId: string;
+            name: string;
+        } | null;
         refundedAmount: number;
         refundable: number;
         online: {
@@ -8501,6 +8554,10 @@ export type PaymentJournalEntryDetailOutputOutput = {
         userId: string;
         name: string;
     } | null;
+    payer: {
+        userId: string;
+        name: string;
+    } | null;
     refundedAmount: number;
     refundable: number;
     online: {
@@ -8543,6 +8600,10 @@ export type PaymentJournalEntryDetailOutputOutput = {
         eventRegistrationId: string | null;
         eventId: string | null;
         markedBy: {
+            userId: string;
+            name: string;
+        } | null;
+        payer: {
             userId: string;
             name: string;
         } | null;
@@ -8674,6 +8735,10 @@ export type CreateRefundOutputOutput = {
             userId: string;
             name: string;
         } | null;
+        payer: {
+            userId: string;
+            name: string;
+        } | null;
         refundedAmount: number;
         refundable: number;
         online: {
@@ -8720,6 +8785,10 @@ export type CreateRefundOutputOutput = {
             userId: string;
             name: string;
         } | null;
+        payer: {
+            userId: string;
+            name: string;
+        } | null;
         refundedAmount: number;
         refundable: number;
         online: {
@@ -8762,6 +8831,10 @@ export type CreateRefundOutputOutput = {
             eventRegistrationId: string | null;
             eventId: string | null;
             markedBy: {
+                userId: string;
+                name: string;
+            } | null;
+            payer: {
                 userId: string;
                 name: string;
             } | null;
@@ -12572,6 +12645,68 @@ export type PreviewSelfCheckInResponses = {
 };
 
 export type PreviewSelfCheckInResponse = PreviewSelfCheckInResponses[keyof PreviewSelfCheckInResponses];
+
+export type GetMyCheckInCardData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/check-in-card';
+};
+
+export type GetMyCheckInCardResponses = {
+    default: MyCheckInCardOutputOutput;
+};
+
+export type GetMyCheckInCardResponse = GetMyCheckInCardResponses[keyof GetMyCheckInCardResponses];
+
+export type GetMemberCheckInCardData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/members/{userId}/check-in-card';
+};
+
+export type GetMemberCheckInCardResponses = {
+    default: MemberCheckInCardOutputOutput;
+};
+
+export type GetMemberCheckInCardResponse = GetMemberCheckInCardResponses[keyof GetMemberCheckInCardResponses];
+
+export type LookupCheckInCardData = {
+    body: LookupCheckInCardInput;
+    path: {
+        workspaceId: string;
+        sessionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/attendance/sessions/{sessionId}/card-lookup';
+};
+
+export type LookupCheckInCardResponses = {
+    default: LookupCheckInCardOutputOutput;
+};
+
+export type LookupCheckInCardResponse = LookupCheckInCardResponses[keyof LookupCheckInCardResponses];
+
+export type ListBirthdaysTodayData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/birthdays/today';
+};
+
+export type ListBirthdaysTodayResponses = {
+    default: ListBirthdaysTodayOutputOutput;
+};
+
+export type ListBirthdaysTodayResponse = ListBirthdaysTodayResponses[keyof ListBirthdaysTodayResponses];
 
 export type GetMyDropInsData = {
     body?: never;

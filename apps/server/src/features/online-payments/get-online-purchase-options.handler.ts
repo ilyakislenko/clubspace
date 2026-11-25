@@ -19,6 +19,7 @@ import {
 } from './get-online-purchase-options.feature'
 import {
     loadBuyer,
+    payerOf,
     PENDING_VISIBLE_MS,
     purchasablePlanWhere,
 } from './load-buyer'
@@ -96,6 +97,7 @@ export class GetOnlinePurchaseOptionsHandler
                 where: {
                     workspaceId: f.workspaceId,
                     userId: f.userId,
+                    payerUserId: payerOf(f.userId, f.actorUserId),
                     status: 'PENDING',
                     // An event ticket is followed on the events screen.
                     eventRegistrationId: null,
@@ -162,18 +164,26 @@ export class GetOnlinePurchaseOptionsHandler
             ),
         )
         // «Продлевать автоматически»: where the club and the tariff allow it
-        // and the member has no ACTIVE agreement on it. The renewal price is
-        // the price without a code (automatic discounts only) — `prices`.
+        // and the member has no ACTIVE agreement on it — never in a child's
+        // profile (the card would be the guardian's; docs/design/
+        // 2026-11-26-parent-pays-for-child.md §10). The renewal price is the
+        // price without a code (automatic discounts only) — `prices`.
+        const forChild = f.actorUserId !== f.userId
         const activeAutopay = new Set(
-            (
-                await this.prisma.memberAutopay.findMany({
-                    where: { workspaceId: f.workspaceId, userId: f.userId, status: 'ACTIVE' },
-                    select: { planId: true },
-                })
-            ).map((a) => a.planId),
+            forChild
+                ? []
+                : (
+                      await this.prisma.memberAutopay.findMany({
+                          where: { workspaceId: f.workspaceId, userId: f.userId, status: 'ACTIVE' },
+                          select: { planId: true },
+                      })
+                  ).map((a) => a.planId),
         )
         const offers = plans.map((p, i) =>
-            autopayOffered(settings, p) && !activeAutopay.has(p.id) && !prices[i].refusal
+            !forChild &&
+            autopayOffered(settings, p) &&
+            !activeAutopay.has(p.id) &&
+            !prices[i].refusal
                 ? autopayOfferView({
                       clubName: workspace.name,
                       plan: p,

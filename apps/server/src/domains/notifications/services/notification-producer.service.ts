@@ -16,6 +16,7 @@ import { NotificationCategoryKey } from './preferences.service'
 import { PushQueueService } from './push-queue.service'
 import { filterMuted, isMuteExempt, isMutedFor } from '../notification-mute'
 import { loadGuardianRoutes, routeToGuardians } from '../guardian-routing'
+import { filterRoutedRows } from '../recipient-gates'
 
 const isP2002 = (e: unknown): boolean =>
     typeof e === 'object' &&
@@ -29,6 +30,9 @@ export type PushNotificationRow = {
     message: string
     link?: string | null
     metadata: { kind: string; workspaceId?: string } & Record<string, unknown>
+    // The opt-out category, checked against a guardian who gets the row for a
+    // child (filterRoutedRows); not persisted. Callers pre-filter adults.
+    category?: NotificationCategoryKey
 }
 
 // Writes PUSH notification rows and hands them to the push queue. Event-driven
@@ -44,9 +48,12 @@ export class NotificationProducerService {
     ) {}
 
     // One INSERT for the whole batch, then one enqueue. Returns rows written.
-    // Rows for members who muted that club are dropped (non-critical kinds) —
-    // a child's mute is its own membership's, set by the guardian acting for
-    // it — then rows addressed to a dependent go to its guardians.
+    // Two mutes, either silences a child's row (non-critical kinds): the
+    // child's own membership mute (set by a guardian from the child's
+    // profile) is checked first, on the addressed user; rows addressed to a
+    // dependent then go to its guardians, and each guardian copy is checked
+    // against that guardian — their category opt-out and their own mute of
+    // the club (filterRoutedRows).
     async writeMany(input: PushNotificationRow[]): Promise<number> {
         const unmuted = await filterMuted(this.prisma, input)
         if (unmuted.length === 0) return 0
@@ -54,7 +61,10 @@ export class NotificationProducerService {
             this.prisma,
             unmuted.map((r) => r.userId),
         )
-        const rows = routeToGuardians(unmuted, routes)
+        const rows = await filterRoutedRows(
+            this.prisma,
+            routeToGuardians(unmuted, routes),
+        )
         if (rows.length === 0) return 0
         const created = await this.prisma.notification.createManyAndReturn({
             data: rows.map((r) => ({
@@ -70,13 +80,15 @@ export class NotificationProducerService {
             select: { id: true },
         })
         await this.push.enqueue(created.map((c) => c.id))
-        if (routes.size > 0) {
+        const guardianIds = [
+            ...new Set(
+                rows.filter((r) => typeof r.metadata.dependentId === 'string').map((r) => r.userId),
+            ),
+        ]
+        if (guardianIds.length > 0) {
             // Callers refresh the inboxes of the users they addressed; the
             // guardians who got a dependent's rows need it too.
-            this.realtime.invalidateUsers(
-                [...new Set([...routes.values()].flatMap((r) => r.guardianIds))],
-                ['notifications'],
-            )
+            this.realtime.invalidateUsers(guardianIds, ['notifications'])
         }
         return created.length
     }
@@ -103,6 +115,8 @@ export class NotificationProducerService {
     }
 
     // The opt-out check runs before claim() so it never burns the dedup token.
+    // A guardian's copy of a child's notice is gated after routing (their
+    // category and own club mute); a gated copy is not retried later.
     async notifyUser(p: {
         userId: string
         kind: string
@@ -128,20 +142,24 @@ export class NotificationProducerService {
         }
         if (!(await this.claim(p.kind, p.refId))) return false
         const routes = await loadGuardianRoutes(this.prisma, [p.userId])
-        const rows = routeToGuardians(
-            [
-                {
-                    userId: p.userId,
-                    topic: p.topic,
-                    message: p.message,
-                    metadata: {
-                        ...(p.workspaceId ? { workspaceId: p.workspaceId } : {}),
-                        ...(p.metadata ?? {}),
-                        kind: p.kind,
-                    } as Record<string, unknown>,
-                },
-            ],
-            routes,
+        const rows = await filterRoutedRows(
+            this.prisma,
+            routeToGuardians(
+                [
+                    {
+                        userId: p.userId,
+                        topic: p.topic,
+                        message: p.message,
+                        category: p.category,
+                        metadata: {
+                            ...(p.workspaceId ? { workspaceId: p.workspaceId } : {}),
+                            ...(p.metadata ?? {}),
+                            kind: p.kind,
+                        },
+                    },
+                ],
+                routes,
+            ),
         )
         for (const row of rows) {
             const created = await this.prisma.notification.create({
@@ -220,6 +238,7 @@ export class NotificationProducerService {
                 userId,
                 topic: p.topic,
                 message: p.message,
+                category: p.category,
                 metadata: {
                     workspaceId: p.workspaceId,
                     ...(p.metadata ?? {}),

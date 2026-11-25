@@ -523,3 +523,113 @@ describe('per-club mute', () => {
         ).not.toHaveProperty('notificationsMuted')
     })
 })
+
+// A child's notice reaches each guardian only under that guardian's own
+// settings (docs/design/2026-11-26-parent-pays-for-child.md §3.4).
+describe('guardian copies of a child’s notice', () => {
+    const parents = (): GuardianLink[] => [
+        { dependentId: 'kid', guardianId: 'mom', dependent: { firstname: 'Миша' } },
+        { dependentId: 'kid', guardianId: 'dad', dependent: { firstname: 'Миша' } },
+    ]
+    // Prefs rows by user; filterOptedIn asks with `[category]: false`.
+    const prefsOf = (rows: Array<Record<string, unknown> & { userId: string }>) =>
+        jest.fn(async ({ where }: { where: { userId: { in: string[] } } & Record<string, unknown> }) =>
+            rows.filter((r) => where.userId.in.includes(r.userId)),
+        )
+    const recipients = (prisma: ReturnType<typeof makePrisma>, call = 0) =>
+        prisma.notification.createManyAndReturn.mock.calls[call][0].data.map(
+            (r: { userId: string }) => r.userId,
+        )
+
+    it('writeMany drops the copy of a guardian who opted out of the category, keeps the other’s, persists no category', async () => {
+        const prisma = makePrisma(parents())
+        prisma.notificationPreferences.findMany = prefsOf([{ userId: 'mom', announcementsEnabled: false }])
+        const realtime = makeRealtime()
+        const n = await svc(prisma, makePush(), realtime).writeMany([
+            {
+                userId: 'kid',
+                topic: 'Объявление',
+                message: 'm',
+                category: 'announcementsEnabled',
+                metadata: { kind: 'announcement.published', workspaceId: 'w1' },
+            },
+        ])
+        expect(n).toBe(1)
+        expect(recipients(prisma)).toEqual(['dad'])
+        expect(prisma.notification.createManyAndReturn.mock.calls[0][0].data[0]).not.toHaveProperty('category')
+        expect(realtime.invalidateUsers).toHaveBeenCalledWith(['dad'], ['notifications'])
+    })
+
+    it('writeMany drops a non-exempt kind for a guardian who muted the club, keeps payment kinds', async () => {
+        const prisma = makePrisma(parents())
+        // The child's own membership is not muted; mom muted w1 for herself.
+        prisma.workspaceMember.findMany.mockImplementation(
+            async ({ where }: { where: { userId: { in: string[] } } }) =>
+                where.userId.in.includes('mom') ? [{ userId: 'mom', workspaceId: 'w1' }] : [],
+        )
+        const row = (kind: string) => ({ userId: 'kid', topic: 't', message: kind, metadata: { kind, workspaceId: 'w1' } })
+        expect(await svc(prisma).writeMany([row('announcement.published')])).toBe(1)
+        expect(recipients(prisma, 0)).toEqual(['dad'])
+        // Only ACTIVE memberships of the guardians in the rows' clubs count.
+        expect(prisma.workspaceMember.findMany.mock.calls[1][0].where).toEqual({
+            userId: { in: ['mom', 'dad'] },
+            workspaceId: { in: ['w1'] },
+            status: 'ACTIVE',
+            notificationsMuted: true,
+        })
+        expect(await svc(prisma).writeMany([row('payment.succeeded')])).toBe(2)
+        expect(recipients(prisma, 1)).toEqual(['mom', 'dad'])
+    })
+
+    it('notifyUser delivers the other guardian’s copy when one opted out, claiming once', async () => {
+        const prisma = makePrisma(parents())
+        prisma.notificationPreferences.findMany = prefsOf([{ userId: 'mom', promotionsEnabled: false }])
+        const realtime = makeRealtime()
+        const sent = await svc(prisma, makePush(), realtime).notifyUser({
+            userId: 'kid',
+            kind: 'rank.promoted',
+            refId: 'r1',
+            topic: 'Новый пояс',
+            message: 'm',
+            workspaceId: 'w1',
+            category: 'promotionsEnabled',
+        })
+        expect(sent).toBe(true)
+        expect(prisma.notificationDispatchLog.create).toHaveBeenCalledTimes(1)
+        expect(prisma.notification.create).toHaveBeenCalledTimes(1)
+        expect(prisma.notification.create.mock.calls[0][0].data.userId).toBe('dad')
+        expect(realtime.emitListDeltaUsers.mock.calls.map((c) => c[0])).toEqual([['dad']])
+    })
+
+    it('notifyUser answers false when every guardian copy is gated', async () => {
+        const prisma = makePrisma([parents()[0]])
+        prisma.notificationPreferences.findMany = prefsOf([{ userId: 'mom', promotionsEnabled: false }])
+        const sent = await svc(prisma).notifyUser({
+            userId: 'kid',
+            kind: 'rank.promoted',
+            refId: 'r1',
+            topic: 'Новый пояс',
+            message: 'm',
+            workspaceId: 'w1',
+            category: 'promotionsEnabled',
+        })
+        expect(sent).toBe(false)
+        expect(prisma.notification.create).not.toHaveBeenCalled()
+    })
+
+    it('notifyWorkspace checks the guardians of a child member, not the child', async () => {
+        const prisma = makePrisma(parents())
+        prisma.workspaceMember.findMany.mockResolvedValue([{ userId: 'kid' }, { userId: 'adult' }])
+        prisma.notificationPreferences.findMany = prefsOf([{ userId: 'mom', announcementsEnabled: false }])
+        const n = await svc(prisma).notifyWorkspace({
+            workspaceId: 'w1',
+            kind: 'announcement.published',
+            refId: 'a1',
+            topic: 'T',
+            message: 'B',
+            category: 'announcementsEnabled',
+        })
+        expect(n).toBe(2)
+        expect(recipients(prisma)).toEqual(['dad', 'adult'])
+    })
+})

@@ -45,7 +45,10 @@ export class CreatePaymentFeature {
     constructor(
         readonly payload: z.infer<typeof CreatePaymentInputSchema>,
         readonly workspaceId: string,
+        // The holder: who gets the abonement (the child under X-Act-As).
         readonly userId: string,
+        // Who pressed «Оплатить» (the guardian under X-Act-As): the payer.
+        readonly actorUserId: string,
     ) {}
 }
 export type CreatePaymentFeatureResponse = z.infer<

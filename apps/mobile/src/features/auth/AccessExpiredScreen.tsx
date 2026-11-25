@@ -148,8 +148,10 @@ export function AccessExpiredScreen() {
           {coach.dat} или администратору клуба.
         </Text>
 
-        {/* Paying for a child's abonement isn't offered yet, nor autopay.
-            A lapsed member can still refuse autopay here (376-ФЗ). */}
+        {/* Autopay isn't offered for a child (docs/design/
+            2026-11-26-parent-pays-for-child.md); the guardian pays its
+            abonement here. A lapsed member can still refuse autopay here
+            (376-ФЗ). */}
         {workspace && !actingAs && (
           <AutopayCard
             key={`autopay:${workspace.workspaceId}`}
@@ -157,9 +159,9 @@ export function AccessExpiredScreen() {
             onChanged={handleAutopayChanged}
           />
         )}
-        {workspace && !actingAs && (
+        {workspace && (
           <OnlinePurchaseSection
-            key={workspace.workspaceId}
+            key={`${workspace.workspaceId}:${actingAs?.id ?? "me"}`}
             workspaceId={workspace.workspaceId}
             active
             reloadKey={paymentsReload}

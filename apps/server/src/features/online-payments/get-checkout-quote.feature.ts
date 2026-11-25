@@ -52,7 +52,10 @@ export class GetCheckoutQuoteFeature {
     constructor(
         readonly payload: z.infer<typeof GetCheckoutQuoteQuerySchema>,
         readonly workspaceId: string,
+        // The holder: the price is theirs (the child under X-Act-As).
         readonly userId: string,
+        // Who is looking (the guardian under X-Act-As): no autopay for a child.
+        readonly actorUserId: string,
     ) {}
 }
 

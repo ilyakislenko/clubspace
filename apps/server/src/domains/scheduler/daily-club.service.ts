@@ -10,6 +10,7 @@ import {
 } from '../notifications/services/notification-producer.service'
 import { currentSubscriptionWhere } from '../subscriptions/current-subscriptions'
 import { isAwaitingFirstVisit } from '../subscriptions/subscription-status'
+import { birthdayGreeting, loadBirthdayMembers } from '../birthdays/birthdays'
 import { type DueClub, findClubsDue, localHourInTz } from './clubs-due'
 import { vocabularyForWorkspaceType } from '../../shared/utils/club-vocabulary'
 import {
@@ -32,10 +33,10 @@ const BACKFILL_KIND = 'backfill.last-attended'
 const BACKFILL_REF = 'v1'
 
 /**
- * Once a day per club, at club-local morning: inactivity nudges and access
- * expiry warnings. Every pass is scoped to one club and reads indexed
- * columns (WorkspaceMember.lastAttendedAt / accessUntil), instead of the old
- * every-minute aggregate over all attendance on the platform.
+ * Once a day per club, at club-local morning: inactivity nudges, access
+ * expiry warnings and birthday greetings. Every pass is scoped to one club and
+ * reads indexed columns (WorkspaceMember.lastAttendedAt / accessUntil), instead
+ * of the old every-minute aggregate over all attendance on the platform.
  */
 @Injectable()
 export class DailyClubService {
@@ -51,6 +52,7 @@ export class DailyClubService {
         failed: number
         inactivityNotified: number
         accessExpiryNotified: number
+        birthdaysGreeted: number
     }> {
         await this.backfillOnce()
 
@@ -62,6 +64,7 @@ export class DailyClubService {
             failed: 0,
             inactivityNotified: 0,
             accessExpiryNotified: 0,
+            birthdaysGreeted: 0,
         }
         for (const club of clubs) {
             const refId = `${club.id}:${localDateInTz(now, club.timezone)}`
@@ -73,6 +76,7 @@ export class DailyClubService {
                     club,
                     now,
                 )
+                summary.birthdaysGreeted += await this.greetBirthdays(club, now)
             } catch (err) {
                 // Release so the next run retries; the per-member keys keep
                 // anyone already notified from a second push. One club's
@@ -101,6 +105,37 @@ export class DailyClubService {
             await releaseDispatch(this.prisma, BACKFILL_KIND, BACKFILL_REF)
             throw err
         }
+    }
+
+    // «С днём рождения!» at club-local 10:00 (11:00 retry), once per person
+    // per club and year. A child's goes to its guardians through writeMany.
+    // Club chatter: no category, not mute-exempt — a member who doesn't want
+    // it mutes the club or clears the date.
+    private async greetBirthdays(club: DueClub, now: Date): Promise<number> {
+        if (!club.birthdayGreetingsEnabled) return 0
+        const ymd = localDateInTz(now, club.timezone)
+        const people = await loadBirthdayMembers(this.prisma, {
+            workspaceId: club.id,
+            ymd,
+        })
+        const candidates = people.map((p) => ({
+            userId: p.userId,
+            refId: `${club.id}:${p.userId}:${ymd.slice(0, 4)}`,
+        }))
+        const claimed = await this.claimUnsent('member.birthday', candidates)
+        const greeting = birthdayGreeting(club)
+        return this.notifications.writeMany(
+            candidates
+                .filter((c) => claimed.has(c.refId))
+                .map(
+                    (c): PushNotificationRow => ({
+                        userId: c.userId,
+                        ...greeting,
+                        link: null,
+                        metadata: { kind: 'member.birthday', workspaceId: club.id },
+                    }),
+                ),
+        )
     }
 
     // Members who have never attended are left alone — that's onboarding,
@@ -140,6 +175,8 @@ export class DailyClubService {
                         topic: 'Давно вас не было',
                         message: `${club.name}: вы не отмечались на ${vocabularyForWorkspaceType(club.type).session.prepPl} уже больше ${INACTIVITY_DAYS} дней. Ждём вас на ${vocabularyForWorkspaceType(club.type).session.prep}!`,
                         link: null,
+                        // A guardian getting it for a child is checked on theirs.
+                        category: 'inactivityEnabled',
                         metadata: {
                             kind: 'member.inactive',
                             workspaceId: club.id,
@@ -217,6 +254,7 @@ export class DailyClubService {
                             daysLeft > 0 ? ` (через ${daysLeft} дн.)` : ' (сегодня)'
                         }. Продлите, чтобы не потерять доступ к приложению клуба.`,
                         link: null,
+                        category: 'accessExpiringEnabled',
                         metadata: {
                             kind: 'access.expiring',
                             workspaceId: club.id,

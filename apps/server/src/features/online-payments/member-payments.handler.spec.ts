@@ -80,6 +80,7 @@ const paymentRow = (over: Record<string, unknown> = {}) => ({
     refundedAt: null,
     autopayId: null,
     autopayConsentVersion: null,
+    payerUserId: null,
     ...over,
 })
 
@@ -126,7 +127,12 @@ const prismaFor = (opts: {
     autopays?: Array<{ planId: string; status: string }>
     // A renewal charge of the tariff still PENDING.
     charging?: Record<string, unknown> | null
-} = {}) => ({
+    // E-mails by user id (anyone else: member@example.com).
+    emails?: Record<string, string | null>
+} = {}) => {
+    const emailOf = (id: string) =>
+        opts.emails && id in opts.emails ? opts.emails[id] : 'member@example.com'
+    return {
     workspace: {
         findUnique: jest
             .fn()
@@ -160,13 +166,26 @@ const prismaFor = (opts: {
     },
     groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
     user: {
-        findUniqueOrThrow: jest.fn().mockResolvedValue({ email: 'member@example.com' }),
+        findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) => ({
+            email: emailOf(where.id),
+        })),
+        findUnique: jest.fn(async ({ where }: { where: { id: string } }) => ({
+            email: emailOf(where.id),
+        })),
     },
     payment: {
         // The autopay in-flight check asks for a renewal key; anything else
-        // is the checkout's reuse lookup.
-        findFirst: jest.fn(async (args: { where: { idempotenceKey?: { startsWith?: string } } }) =>
-            args.where.idempotenceKey?.startsWith ? (opts.charging ?? null) : (opts.recent ?? null),
+        // is the checkout's reuse lookup, which matches the payer.
+        findFirst: jest.fn(
+            async (args: {
+                where: { idempotenceKey?: { startsWith?: string }; payerUserId?: string | null }
+            }) =>
+                args.where.idempotenceKey?.startsWith
+                    ? (opts.charging ?? null)
+                    : opts.recent &&
+                        (opts.recent.payerUserId ?? null) === (args.where.payerUserId ?? null)
+                      ? opts.recent
+                      : null,
         ),
         create: jest.fn(async ({ data }) => paymentRow(data)),
         update: jest.fn(async ({ data }) => paymentRow(data)),
@@ -202,7 +221,8 @@ const prismaFor = (opts: {
                 ) ?? null,
         ),
     },
-})
+    }
+}
 
 const liveClassPack = {
     id: 'm-1',
@@ -233,9 +253,10 @@ describe('createPayment', () => {
         gateway = gatewayOk(),
         userId = 'u-1',
         promoCode?: string,
+        actorUserId = userId,
     ) =>
         new CreatePaymentHandler(prisma as never, gateway as never, {} as never).execute(
-            new CreatePaymentFeature({ planId: 'plan-1', promoCode }, 'ws-1', userId),
+            new CreatePaymentFeature({ planId: 'plan-1', promoCode }, 'ws-1', userId, actorUserId),
         )
 
     it('charges the promo price and stores the price facts on the payment', async () => {
@@ -352,11 +373,13 @@ describe('createPayment', () => {
         expect(created).toMatchObject({
             workspaceId: 'ws-1',
             userId: 'u-1',
+            payerUserId: null,
             planId: 'plan-1',
             planName: 'Безлимит',
             provider: 'YOOKASSA',
             amount: 4500,
             currency: 'RUB',
+            receiptEmail: 'member@example.com',
         })
         expect(created.idempotenceKey).toMatch(/^[0-9a-f-]{36}$/)
         const [creds, input] = gateway.createPayment.mock.calls[0]
@@ -379,15 +402,68 @@ describe('createPayment', () => {
         expect(out.payment.status).toBe('PENDING')
     })
 
-    it('refuses a child profile (no e-mail for the receipt) before any payment row', async () => {
-        const prisma = prismaFor()
-        prisma.user.findUniqueOrThrow.mockResolvedValue({ email: null })
+    it('a guardian buys for a child: the child holds it, the guardian pays and gets the receipt', async () => {
+        const prisma = prismaFor({ emails: { kid: null, 'parent-1': 'parent@example.com' } })
         const gateway = gatewayOk()
-        await expect(run(prisma, gateway, 'kid')).rejects.toMatchObject({
+        await run(prisma, gateway, 'kid', undefined, 'parent-1')
+        expect(prisma.payment.create.mock.calls[0][0].data).toMatchObject({
+            userId: 'kid',
+            payerUserId: 'parent-1',
+            receiptEmail: 'parent@example.com',
+        })
+        expect(gateway.createPayment.mock.calls[0][1]).toMatchObject({
+            customerEmail: 'parent@example.com',
+            // No child's name goes to the provider.
+            description: 'Абонемент «Безлимит» — Клуб',
+            itemName: 'Абонемент «Безлимит»',
+        })
+        // The child's price (family discount, promo limits) — the holder's.
+        const reuse = prisma.payment.findFirst.mock.calls.find(([a]) => !a.where.idempotenceKey)
+        expect(reuse?.[0].where).toMatchObject({ userId: 'kid', payerUserId: 'parent-1' })
+    })
+
+    it('reuses the same parent’s pending payment and ignores the other parent’s', async () => {
+        const pending = (payerUserId: string) =>
+            paymentRow({
+                userId: 'kid',
+                payerUserId,
+                providerPaymentId: 'yk-0',
+                confirmationUrl: 'https://yoomoney.ru/checkout/yk-0',
+            })
+        const emails = { kid: null, 'parent-1': 'mom@example.com', 'parent-2': 'dad@example.com' }
+        const same = prismaFor({ recent: pending('parent-1'), emails })
+        const sameGateway = gatewayOk()
+        const reused = await run(same, sameGateway, 'kid', undefined, 'parent-1')
+        expect(reused.confirmationUrl).toBe('https://yoomoney.ru/checkout/yk-0')
+        expect(sameGateway.createPayment).not.toHaveBeenCalled()
+
+        const other = prismaFor({ recent: pending('parent-1'), emails })
+        const otherGateway = gatewayOk()
+        const own = await run(other, otherGateway, 'kid', undefined, 'parent-2')
+        expect(own.confirmationUrl).toBe('https://yoomoney.ru/checkout/yk-1')
+        expect(other.payment.create.mock.calls[0][0].data).toMatchObject({
+            payerUserId: 'parent-2',
+            receiptEmail: 'dad@example.com',
+        })
+        expect(otherGateway.createPayment.mock.calls[0][1].customerEmail).toBe('dad@example.com')
+    })
+
+    it('refuses when neither the child nor the guardian has an e-mail, before any payment row', async () => {
+        const prisma = prismaFor({ emails: { kid: null, 'parent-1': null } })
+        const gateway = gatewayOk()
+        await expect(run(prisma, gateway, 'kid', undefined, 'parent-1')).rejects.toMatchObject({
             statusCode: 400,
+            message: 'Для онлайн-оплаты нужен e-mail в профиле — на него придёт чек',
         })
         expect(prisma.payment.create).not.toHaveBeenCalled()
         expect(gateway.createPayment).not.toHaveBeenCalled()
+    })
+
+    it('refuses an adult without an e-mail', async () => {
+        const prisma = prismaFor({ emails: { 'u-1': null } })
+        await expect(run(prisma)).rejects.toMatchObject({ statusCode: 400 })
+        expect(prisma.user.findUnique).not.toHaveBeenCalled()
+        expect(prisma.payment.create).not.toHaveBeenCalled()
     })
 
     it('only offers purchasable plans of this club', async () => {
@@ -513,12 +589,14 @@ describe('createPayment', () => {
                 autopayRenewalAmount: 4500,
             },
             n = notices(),
+            holder = { userId: 'u-1', actorUserId: 'u-1' },
         ) =>
             new CreatePaymentHandler(prisma as never, gateway as never, n as never).execute(
                 new CreatePaymentFeature(
                     { planId: 'plan-1', autopay: false, ...payload },
                     'ws-1',
-                    'u-1',
+                    holder.userId,
+                    holder.actorUserId,
                 ),
             )
         afterEach(() => {
@@ -534,6 +612,24 @@ describe('createPayment', () => {
             })
             expect(gateway.createPayment.mock.calls[0][1]).toMatchObject({ savePaymentMethod: true })
             expect(out.payment.autopay).toBeNull()
+        })
+
+        it('refuses autopay for a child (a guardian acting) before any check or gateway call', async () => {
+            const prisma = prismaFor({
+                settings: autopayClub,
+                plan: renewable,
+                emails: { kid: null, 'parent-1': 'parent@example.com' },
+            })
+            const gateway = gatewayOk()
+            await expect(
+                buy(prisma, gateway, undefined, undefined, { userId: 'kid', actorUserId: 'parent-1' }),
+            ).rejects.toMatchObject({
+                statusCode: 400,
+                message: 'Автоплатёж для абонемента ребёнка не подключается — продлевайте его покупкой',
+            })
+            expect(prisma.memberAutopay.findFirst).not.toHaveBeenCalled()
+            expect(prisma.payment.create).not.toHaveBeenCalled()
+            expect(gateway.createPayment).not.toHaveBeenCalled()
         })
 
         it('refuses where autopay is not offered, on stale terms and over an ACTIVE agreement', async () => {
@@ -683,9 +779,9 @@ describe('createPayment', () => {
 })
 
 describe('getOnlinePurchaseOptions', () => {
-    const run = (prisma: ReturnType<typeof prismaFor>, userId = 'u-1') =>
+    const run = (prisma: ReturnType<typeof prismaFor>, userId = 'u-1', actorUserId = userId) =>
         new GetOnlinePurchaseOptionsHandler(prisma as never).execute(
-            new GetOnlinePurchaseOptionsFeature('ws-1', userId),
+            new GetOnlinePurchaseOptionsFeature('ws-1', userId, actorUserId),
         )
 
     it('lists purchasable plans with the provider', async () => {
@@ -814,6 +910,19 @@ describe('getOnlinePurchaseOptions', () => {
             expect(out.autopayTermsUrl).toBe('https://app.example.com/legal/autopay')
         })
 
+        it('is null in a child’s profile, and the pending payment is the guardian’s own', async () => {
+            const prisma = prismaFor({ settings: autopayClub, plans: [renewable] })
+            const out = await run(prisma, 'kid', 'parent-1')
+            expect(out.available).toBe(true)
+            expect(out.plans[0].autopay).toBeNull()
+            expect(out.autopayTermsUrl).toBeNull()
+            expect(prisma.memberAutopay.findMany).not.toHaveBeenCalled()
+            expect(prisma.payment.findFirst.mock.calls[0][0].where).toMatchObject({
+                userId: 'kid',
+                payerUserId: 'parent-1',
+            })
+        })
+
         it('words a pack’s timing by classes or term', async () => {
             const out = await run(
                 prismaFor({ settings: autopayClub, plans: [{ ...renewable, classCount: 12 }] }),
@@ -860,9 +969,10 @@ describe('getCheckoutQuote', () => {
         prisma: ReturnType<typeof prismaFor> & { eventRegistration?: Record<string, jest.Mock> },
         payload: { planId?: string; registrationId?: string; promoCode?: string },
         userId = 'u-1',
+        actorUserId = userId,
     ) =>
         new GetCheckoutQuoteHandler(prisma as never).execute(
-            new GetCheckoutQuoteFeature(payload, 'ws-1', userId),
+            new GetCheckoutQuoteFeature(payload, 'ws-1', userId, actorUserId),
         )
 
     it('quotes a tariff with a code, and answers every refusal as a note', async () => {
@@ -965,10 +1075,28 @@ describe('getCheckoutQuote', () => {
         )
         expect(active.autopay).toBeNull()
     })
+
+    it('offers no autopay in a child’s profile; the price is still the child’s', async () => {
+        const prisma = prismaFor({
+            settings: { ...settings, autopayEnabled: true },
+            plan: { ...plan, autopayAvailable: true },
+            family: family(10),
+            familyEligible: true,
+        })
+        prisma.guardianship.findMany.mockResolvedValue([{ guardianId: 'parent-1', dependentId: 'kid' }])
+        const out = await quote(prisma, { planId: 'plan-1' }, 'kid', 'parent-1')
+        expect(out.autopay).toBeNull()
+        expect(out.amount).toBe(4050)
+        expect(prisma.memberAutopay.findFirst).not.toHaveBeenCalled()
+        expect(prisma.payment.findFirst.mock.calls[0][0].where).toMatchObject({
+            userId: 'kid',
+            payerUserId: 'parent-1',
+        })
+    })
 })
 
 describe('getMyPayment', () => {
-    it('reads only the caller’s own payment in this club', async () => {
+    it('reads the holder’s or the payer’s payment in this club', async () => {
         const prisma = { payment: { findFirst: jest.fn().mockResolvedValue(paymentRow()) } }
         const out = await new GetMyPaymentHandler(prisma as never).execute(
             new GetMyPaymentFeature('ws-1', 'pay-1', 'u-1'),
@@ -976,9 +1104,30 @@ describe('getMyPayment', () => {
         expect(prisma.payment.findFirst.mock.calls[0][0].where).toEqual({
             id: 'pay-1',
             workspaceId: 'ws-1',
-            userId: 'u-1',
+            OR: [{ userId: 'u-1' }, { payerUserId: 'u-1' }],
         })
         expect(out).toMatchObject({ id: 'pay-1', status: 'PENDING', paidAt: null })
+    })
+
+    it('lets the guardian who paid follow the child’s payment from their own profile', async () => {
+        const row = paymentRow({ userId: 'kid', payerUserId: 'parent-1' })
+        const prisma = {
+            payment: {
+                findFirst: jest.fn(
+                    async ({ where }: { where: { OR: Array<Record<string, string>> } }) =>
+                        where.OR.some((c) => c.userId === row.userId || c.payerUserId === row.payerUserId)
+                            ? row
+                            : null,
+                ),
+            },
+        }
+        const handler = new GetMyPaymentHandler(prisma as never)
+        await expect(
+            handler.execute(new GetMyPaymentFeature('ws-1', 'pay-1', 'parent-1')),
+        ).resolves.toMatchObject({ id: 'pay-1' })
+        await expect(
+            handler.execute(new GetMyPaymentFeature('ws-1', 'pay-1', 'stranger')),
+        ).rejects.toMatchObject({ statusCode: 404 })
     })
 
     it('404s on someone else’s payment', async () => {

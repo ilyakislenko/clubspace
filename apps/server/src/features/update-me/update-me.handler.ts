@@ -4,15 +4,17 @@ import { AuditService } from '../../domains/audit/services/audit.service'
 import { RealtimeEmitter } from '../../domains/realtime/realtime-emitter.service'
 import { PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
+import { dateOfBirthToDate } from '../dependents/dependents-utils'
 import { ME_SELECT, serializeMe } from '../get-me/schemas'
 import { UpdateMeFeature, UpdateMeFeatureResponse } from './update-me.feature'
 
-// A member edits their own name. Students sign up with an email only, so
-// without this they stayed anonymous emails in every list a coach sees until
-// an admin typed their name in. Scoped to the caller by construction: the
-// user id comes from the verified token, never from the request.
+// A member edits their own name and date of birth. Students sign up with an
+// email only, so without this they stayed anonymous emails in every list a
+// coach sees until an admin typed their name in. Scoped to the caller by
+// construction: the user id comes from the verified token, never from the
+// request.
 //
-// The name lives on the account, not the membership, so it changes in every
+// Both live on the account, not the membership, so they change in every
 // club the user belongs to — each of those gets the audit entry and the live
 // refresh the admin rename path (update-member-profile) produces.
 @Feature(UpdateMeFeature)
@@ -26,10 +28,28 @@ export class UpdateMeHandler
     ) {}
 
     async execute({ payload, userId }: UpdateMeFeature) {
-        // Only the fields that were sent: omitting one leaves it as is.
-        const data: { firstname?: string | null; lastname?: string | null } = {}
-        if (payload.firstname !== undefined) data.firstname = payload.firstname
-        if (payload.lastname !== undefined) data.lastname = payload.lastname
+        // Only the fields that were sent: omitting one leaves it as is. The
+        // audit keeps the date as sent (YYYY-MM-DD).
+        const changes: {
+            firstname?: string | null
+            lastname?: string | null
+            dateOfBirth?: string | null
+        } = {}
+        if (payload.firstname !== undefined) changes.firstname = payload.firstname
+        if (payload.lastname !== undefined) changes.lastname = payload.lastname
+        if (payload.dateOfBirth !== undefined) {
+            changes.dateOfBirth = payload.dateOfBirth
+        }
+        const { dateOfBirth, ...names } = changes
+        const data = {
+            ...names,
+            ...(dateOfBirth !== undefined
+                ? {
+                      dateOfBirth:
+                          dateOfBirth === null ? null : dateOfBirthToDate(dateOfBirth),
+                  }
+                : {}),
+        }
 
         let user
         try {
@@ -45,7 +65,7 @@ export class UpdateMeHandler
             throw err
         }
 
-        if (Object.keys(data).length > 0) {
+        if (Object.keys(changes).length > 0) {
             const [memberships, owned] = await Promise.all([
                 this.prisma.workspaceMember.findMany({
                     where: { userId },
@@ -68,7 +88,7 @@ export class UpdateMeHandler
                     targetId: userId,
                     workspaceId,
                     actorId: userId,
-                    metadata: { changes: data },
+                    metadata: { changes },
                 })
                 this.realtime.invalidate(workspaceId, ['members', 'leaderboard'])
             }

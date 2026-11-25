@@ -18,6 +18,9 @@ const USER_LEVEL_RULES: readonly Rule[] = [
   { method: "get", path: /^\/me\/agenda$/ },
   // The child's data export.
   { method: "get", path: /^\/me\/export$/ },
+  // The child's club mute («Уведомления клуба: Миша»); leaving stays the
+  // guardian's (docs/design/2026-11-26-parent-pays-for-child.md §5).
+  { method: "patch", path: new RegExp(`^/me/memberships/${SEGMENT}/notifications$`) },
   { method: "get", path: new RegExp(`^/videos/${SEGMENT}/playback$`) },
   // The web build's player.
   { method: "get", path: new RegExp(`^/videos/${SEGMENT}/web-playback$`) },

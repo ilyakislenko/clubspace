@@ -144,6 +144,11 @@ model Workspace {
   // for any e-mail there — auto-approving would let strangers fill the roster).
   joinAutoApprove Boolean @default(false)
 
+  // «Поздравлять учеников с днём рождения»: the daily club pass greets members
+  // (children via their guardians) at club-local 10:00
+  // (docs/design/2026-11-26-door-checkin-and-birthdays.md).
+  birthdayGreetingsEnabled Boolean @default(true)
+
   // «О клубе»: contacts/links/rules the club shows its students in the app.
   // contacts = [{label, phone}] (phone normalised to +7…), links = [{label, url}]
   // (http/https only). Parsed defensively on read (club-about/schemas.ts).
@@ -3465,6 +3470,11 @@ model Payment {
   chargeRequest         Json?
   // Why the provider refused (YooKassa cancellation_details.reason).
   failureReason         String?        @db.VarChar(500)
+  // Who paid when it isn't the holder: the guardian acting for a child
+  // (X-Act-As). Display and audit only, no FK (like MemberAutopay.cancelledById):
+  // account deletion de-identifies the User row and never touches payments.
+  // null = the holder paid (every payment before this change).
+  payerUserId           String?        @db.Uuid
 
   @@index([workspaceId, createdAt])
   @@index([workspaceId, status, createdAt])

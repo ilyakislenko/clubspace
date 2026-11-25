@@ -3,7 +3,10 @@ import {
     ForbiddenError,
     NotFoundError,
 } from '../../shared/errors/shared.errors'
-import { UpdateMemberProfileFeature } from './update-member-profile.feature'
+import {
+    UpdateMemberProfileFeature,
+    UpdateMemberProfileFeatureInputSchema,
+} from './update-member-profile.feature'
 import { UpdateMemberProfileHandler } from './update-member-profile.handler'
 
 const makePrisma = (over: {
@@ -320,5 +323,61 @@ describe('UpdateMemberProfileHandler', () => {
         })
         await run(prisma, { phone: '8 900 000 00 00' })
         expect(prisma.tx.user.update).toHaveBeenCalledTimes(1)
+    })
+
+    describe('date of birth', () => {
+        const echoUpdate = (prisma: ReturnType<typeof makePrisma>) =>
+            prisma.tx.user.update.mockImplementation(async ({ data }) => ({
+                id: 'u1',
+                email: 'old@x.io',
+                firstname: 'Иван',
+                lastname: 'Иванов',
+                phone: null,
+                dateOfBirth: null,
+                ...data,
+            }))
+
+        it('stores a date as UTC midnight and answers it as YYYY-MM-DD', async () => {
+            const prisma = makePrisma()
+            echoUpdate(prisma)
+            const result = await run(prisma, { dateOfBirth: '2016-05-04' })
+            expect(prisma.tx.user.update.mock.calls[0][0].data).toEqual({
+                dateOfBirth: new Date('2016-05-04T00:00:00.000Z'),
+            })
+            expect(result.dateOfBirth).toBe('2016-05-04')
+        })
+
+        it('clears it on null', async () => {
+            const prisma = makePrisma()
+            echoUpdate(prisma)
+            const result = await run(prisma, { dateOfBirth: null })
+            expect(prisma.tx.user.update.mock.calls[0][0].data).toEqual({
+                dateOfBirth: null,
+            })
+            expect(result.dateOfBirth).toBeNull()
+        })
+
+        it('leaves it alone when not sent', async () => {
+            const prisma = makePrisma()
+            await run(prisma, { firstname: 'Иван' })
+            expect(prisma.tx.user.update.mock.calls[0][0].data).not.toHaveProperty(
+                'dateOfBirth',
+            )
+        })
+
+        it('refuses a future date at the schema (400)', () => {
+            const parsed = UpdateMemberProfileFeatureInputSchema.safeParse({
+                dateOfBirth: '2999-01-01',
+            })
+            expect(parsed.success).toBe(false)
+        })
+
+        it('refuses a head coach setting a coach date of birth', async () => {
+            const prisma = makePrisma({ membership: { id: 'm1', role: { name: 'coach' } } })
+            await expect(
+                run(prisma, { dateOfBirth: '1990-01-01' }, makeRbac(), 'hc1', 'head_coach'),
+            ).rejects.toBeInstanceOf(ForbiddenError)
+            expect(prisma.tx.user.update).not.toHaveBeenCalled()
+        })
     })
 })

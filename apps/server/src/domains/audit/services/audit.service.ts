@@ -294,6 +294,8 @@ export class AuditService {
             'memberId',
             'fromUserId',
             'toUserId',
+            // payment.succeeded: the guardian who paid for a child.
+            'payerUserId',
         ])
         const videoKeyHints = new Set([
             'videoId',

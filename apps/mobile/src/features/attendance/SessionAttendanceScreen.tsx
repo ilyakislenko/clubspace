@@ -1,4 +1,6 @@
+import { useFocusEffect } from "@react-navigation/native"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
+import { useNetworkState } from "expo-network"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
@@ -32,6 +34,7 @@ import {
   type RosterEntry,
   type SessionRoster,
 } from "../../shared/api/attendance"
+import { lookupCheckInCard } from "../../shared/api/check-in-card"
 import { showAlert } from "../../shared/alert"
 import { useAuth } from "../../shared/auth-context"
 import { useVocabulary } from "../../shared/use-vocabulary"
@@ -41,22 +44,35 @@ import { useToast } from "../../shared/components/Toast"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { errorMessage } from "../../shared/error-message"
 import { isOnline } from "../offline/network-policy"
-import { enqueue } from "../../shared/outbox/outbox"
+import { enqueue, isPermanentError } from "../../shared/outbox/outbox"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
 import { formatSessionStart } from "../schedule/schedule-helpers"
 import { useDirections } from "../directions/useDirections"
+import { useQrScanAvailable } from "../join/useQrScanAvailable"
 import { AbonementPickerSheet } from "./AbonementPicker"
+import { ScanCardSheet, ScanQueueNotice, type ScanOutcome } from "./ScanCardSheet"
 import {
   abonementLabel,
   abonementOverrides,
   canChooseAbonement,
+  canScanCards,
   shownAbonement,
   splitRoster,
   withoutChoices,
   type ExpectedGuest,
 } from "./roster-helpers"
+import {
+  dedupe,
+  drain,
+  enqueue as enqueueScan,
+  loadScanQueue,
+  markedLine,
+  pendingScans,
+  saveScanQueue,
+  type QueuedScan,
+} from "./scan-queue"
 
 // One screen for every way in: a group class (slot + date, resolved or
 // created), an event (resolved or created) and a personal session (by id).
@@ -102,6 +118,17 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
   const { showToast } = useToast()
   // «Весь клуб» on a picker row only means something next to directions.
   const clubHasDirections = useDirections(workspace?.workspaceId).length > 0
+  // «Сканировать»: the member cards' camera sheet, and the cards scanned with
+  // no connection (per session, on the device) until they can be sent.
+  const scanAvailable = useQrScanAvailable()
+  const [scanning, setScanning] = useState(false)
+  const [scanQueue, setScanQueue] = useState<QueuedScan[]>([])
+  const [scanQueueFor, setScanQueueFor] = useState<string | null>(null)
+  const [sendingScans, setSendingScans] = useState(false)
+  const scanQueueRef = useRef<QueuedScan[]>([])
+  const drainingRef = useRef(false)
+  const network = useNetworkState()
+  const online = Boolean(network.isConnected && network.isInternetReachable)
 
   // Every entry (a marked guest is in both lists), for lookups by userId.
   const entries: (RosterEntry | ExpectedGuest)[] = roster
@@ -375,6 +402,127 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
     }
   }
 
+  // One scanned card: who it is in this club, then the regular mark — the
+  // same deduction, bookings and undo as a tap on the name. Throws when
+  // either call fails.
+  const lookupAndMark = async (
+    workspaceId: string,
+    sid: string,
+    card: string,
+  ): Promise<ScanOutcome> => {
+    const person = await lookupCheckInCard({ workspaceId, sessionId: sid, card })
+    if (person.alreadyMarked) return { kind: "already", person }
+    const updated = await markAttendance({
+      workspaceId,
+      sessionId: sid,
+      userIds: [person.userId],
+      abonements: abonementOverrides([person.userId], entries, choices),
+    })
+    setRoster(updated)
+    setChoices((c) => withoutChoices(c, [person.userId]))
+    const entry = [...updated.roster, ...(updated.expected ?? [])].find(
+      (e) => e.userId === person.userId,
+    )
+    return { kind: "marked", person, line: markedLine(entry?.abonement) }
+  }
+
+  const scanRefusal = (err: unknown): string | null =>
+    isPermanentError(err) ? errorMessage(err, "Не удалось отметить по карте") : null
+
+  // A refusal is shown; a network failure queues the card for later.
+  const scanCard = async (card: string): Promise<ScanOutcome> => {
+    if (!workspace || !sessionId) {
+      return { kind: "refused", message: `Не удалось открыть ${vocabulary.session.acc}` }
+    }
+    try {
+      return await lookupAndMark(workspace.workspaceId, sessionId, card)
+    } catch (err) {
+      const message = scanRefusal(err)
+      if (message !== null) return { kind: "refused", message }
+      setScanQueue((q) => enqueueScan(q, card))
+      return { kind: "queued" }
+    }
+  }
+
+  // «Отменить» on the scanner's strip: the regular unmark (refunds the pack).
+  const undoScan = async (userId: string): Promise<boolean> => {
+    if (!workspace || !sessionId) return false
+    try {
+      setRoster(
+        await unmarkAttendance({
+          workspaceId: workspace.workspaceId,
+          sessionId,
+          userId,
+        }),
+      )
+      return true
+    } catch (err) {
+      showToast(errorMessage(err, "Не удалось отменить отметку"), "error")
+      return false
+    }
+  }
+
+  // Sends the cards scanned offline. Cards scanned meanwhile stay queued.
+  const sendScans = async () => {
+    if (!workspace || !sessionId || drainingRef.current) return
+    const sent = scanQueueRef.current
+    if (pendingScans(sent).length === 0) return
+    drainingRef.current = true
+    setSendingScans(true)
+    try {
+      const out = await drain(
+        sent,
+        async (card) => {
+          await lookupAndMark(workspace.workspaceId, sessionId, card)
+        },
+        scanRefusal,
+      )
+      setScanQueue((latest) =>
+        dedupe([
+          ...out.queue,
+          ...latest.filter((s) => !sent.some((c) => c.card === s.card)),
+        ]),
+      )
+      if (out.sent > 0) showToast(`Отмечено по картам: ${out.sent}`, "success")
+    } finally {
+      drainingRef.current = false
+      setSendingScans(false)
+    }
+  }
+  const sendScansRef = useRef(sendScans)
+  sendScansRef.current = sendScans
+
+  useEffect(() => {
+    if (!sessionId) return
+    let alive = true
+    void loadScanQueue(sessionId).then((q) => {
+      if (!alive) return
+      setScanQueue(q)
+      setScanQueueFor(sessionId)
+    })
+    return () => {
+      alive = false
+    }
+  }, [sessionId])
+
+  useEffect(() => {
+    scanQueueRef.current = scanQueue
+    if (sessionId && scanQueueFor === sessionId) {
+      void saveScanQueue(sessionId, scanQueue)
+    }
+  }, [scanQueue, scanQueueFor, sessionId])
+
+  // Drained on focus, once the stored queue is read, and when the
+  // connection returns.
+  useFocusEffect(
+    useCallback(() => {
+      void sendScansRef.current()
+    }, []),
+  )
+  useEffect(() => {
+    if (online && scanQueueFor) void sendScansRef.current()
+  }, [online, scanQueueFor])
+
   if (!workspace) return null
 
   const split = roster ? splitRoster(roster) : null
@@ -383,6 +531,14 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
   // A master class: those listed registered for it — not guests of a group,
   // and a ticket, not an abonement, pays for it.
   const isEvent = roster?.kind === "event"
+  // A class or an event on now (one member of a personal session is a tap);
+  // a browser without a camera hides it. Per render: the window moves.
+  const showScan =
+    scanAvailable &&
+    !!session &&
+    !!roster &&
+    !isPersonal &&
+    canScanCards(session.startAt, new Date())
   const notesDirty = notes !== savedNotes
   const pickerEntry = pickerFor
     ? (entries.find((e) => e.userId === pickerFor) ?? null)
@@ -453,6 +609,18 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
           </View>
         )}
 
+        {showScan && (
+          <Pressable
+            style={({ pressed }) => [styles.scanButton, pressed && styles.pressed]}
+            onPress={() => setScanning(true)}
+            accessibilityRole="button"
+            accessibilityHint="Отметить учеников по карте в их приложении"
+          >
+            <Icon name="qr-code-outline" size={20} color={theme.colors.accent} />
+            <Text style={styles.scanButtonText}>Сканировать</Text>
+          </Pressable>
+        )}
+
         {roster?.booking && (
           <View style={styles.bookingCard}>
             <Text style={styles.bookingCount}>
@@ -512,6 +680,17 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
               Нет сети — отметки сохранены и отправятся автоматически, когда
               появится подключение.
             </Text>
+          </View>
+        )}
+
+        {!scanning && scanQueue.length > 0 && (
+          <View style={styles.offlineBanner}>
+            <ScanQueueNotice
+              queue={scanQueue}
+              sending={sendingScans}
+              onSend={() => void sendScans()}
+              onDismissRefused={() => setScanQueue(pendingScans)}
+            />
           </View>
         )}
 
@@ -684,6 +863,20 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
           onClose={() => setPickerFor(null)}
         />
       )}
+      {scanning && (
+        <ScanCardSheet
+          queue={scanQueue}
+          sending={sendingScans}
+          onScan={scanCard}
+          onUndo={undoScan}
+          onSendQueue={() => void sendScans()}
+          onDismissRefused={() => setScanQueue(pendingScans)}
+          onClose={() => {
+            setScanning(false)
+            void refreshRoster()
+          }}
+        />
+      )}
       </KeyboardAvoidingContainer>
       </CenteredColumn>
     </SafeAreaView>
@@ -727,6 +920,19 @@ const makeStyles = (theme: Theme) =>
       letterSpacing: 6,
       color: theme.colors.accent,
     },
+    // Secondary: «Отметить всех» below stays the one filled button.
+    scanButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing(2),
+      minHeight: 48,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: theme.colors.accent,
+      backgroundColor: theme.colors.surfaceElevated,
+    },
+    scanButtonText: { color: theme.colors.accent, fontSize: 15, fontWeight: "700" },
     notesCard: {
       padding: theme.spacing(4),
       borderRadius: theme.radius.lg,

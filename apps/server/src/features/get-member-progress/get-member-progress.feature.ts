@@ -14,6 +14,8 @@ const MemberSchema = z.object({
     guardians: z.array(MemberGuardianSchema),
     firstname: z.string().nullable().optional(),
     lastname: z.string().nullable().optional(),
+    // YYYY-MM-DD; staff-only read (this endpoint is STAFF_ROLES).
+    dateOfBirth: z.iso.date().nullable(),
     status: z.string(),
     roleId: z.string().uuid(),
     roleName: z.string(),

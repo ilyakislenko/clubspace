@@ -14,6 +14,8 @@ describe("shouldSendActAs", () => {
     ["get", "/me/agenda"],
     ["get", "/me/agenda?from=2026-11-01&to=2026-11-07"],
     ["get", "/me/export"],
+    // The child's club mute, set from the child's profile.
+    ["patch", "/me/memberships/ws-1/notifications"],
     ["get", "/videos/v-1/playback"],
     ["get", "/videos/v-1/web-playback"],
     ["post", "/videos/v-1/progress"],
@@ -45,8 +47,10 @@ describe("shouldSendActAs", () => {
     ["post", "/me/invitations/i-1/decline"],
     ["get", "/me/consent"],
     ["post", "/me/consent"],
+    // Leaving the child's club stays a parent-profile action.
     ["delete", "/me/memberships/ws-1"],
     ["put", "/me/memberships/ws-1/notifications"],
+    ["patch", "/me/memberships/ws-1/notifications/extra"],
     // Offline downloads are never offered in a child's profile.
     ["get", "/videos/v-1/offline-manifest"],
     // Managing children is the guardian's job.

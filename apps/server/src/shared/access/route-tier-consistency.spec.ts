@@ -84,6 +84,7 @@ const EXPECTED_ACT_AS_ALLOWED = [
     'manage-my-video-note/my-video-note.controller.ts getMyVideoNote',
     'manage-my-video-note/my-video-note.controller.ts putMyVideoNote',
     'my-agenda/my-agenda.controller.ts getMyAgenda',
+    'my-memberships/my-memberships.controller.ts updateMembershipNotifications',
     'save-video-progress/save-video-progress.controller.ts save',
     'set-video-favorite/set-video-favorite.controller.ts setFavorite',
 ]

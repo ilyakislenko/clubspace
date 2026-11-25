@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import type { TabScreenProps } from "../../app/navigation"
 import { getAnnouncementFeed } from "../../shared/api/announcements"
+import { listBirthdaysToday } from "../../shared/api/birthdays"
 import { getMyClassBookings } from "../../shared/api/class-bookings"
 import { listClassSubstitutions } from "../../shared/api/class-substitutions"
 import { getMyDropIns } from "../../shared/api/drop-ins"
@@ -46,6 +47,7 @@ import { accessStatus } from "../subscription/subscription-state"
 import {
   AccessBanner,
   AnnouncementCard,
+  BirthdaysCard,
   CoachTodayCard,
   ContinueRow,
   FreezeRequestsCard,
@@ -249,6 +251,17 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       [workspaceId, todayFrom],
     ),
   )
+  // Staff: today's birthdays (club-local; a coach's own groups). The date is
+  // part of the key, Home stays mounted past midnight.
+  const birthdays = useCachedResource(
+    workspaceId && isStaffWorkspace(workspace)
+      ? `birthdays:${workspaceId}:${todayFrom}`
+      : null,
+    useCallback(
+      async () => await listBirthdaysToday({ workspaceId: workspaceId! }),
+      [workspaceId],
+    ),
+  )
   // Same key as the «Повторение» screen, so each paints the other's data.
   const reviews = useMyReviews(videosOn && workspaceId ? workspaceId : null)
 
@@ -266,6 +279,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     freezeRequests,
     agenda,
     substitutions,
+    birthdays,
     reviews.resource,
   ]
   const refreshing = resources.some((r) => r.refreshing)
@@ -282,6 +296,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
       r !== agenda &&
       r !== events &&
       r !== substitutions &&
+      r !== birthdays &&
       r !== reviews.resource &&
       r.error &&
       !r.data,
@@ -443,6 +458,12 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     />
   )
 
+  // Under «Сегодня вы ведёте», only when someone has a birthday today.
+  const birthdayMembers = birthdays.data?.members ?? []
+  const birthdaysCard = birthdayMembers.length > 0 && (
+    <BirthdaysCard members={birthdayMembers} grow={cardsGrow} />
+  )
+
   const subscriptionCard = subscriptionOn && subscription.data &&
     showSubscriptionCard(isStaffWorkspace(workspace), subscription.data) && (
     <SubscriptionCard
@@ -527,6 +548,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
     <>
       {agendaCard}
       {coachToday}
+      {birthdaysCard}
       {nextClass}
       {continueLeads && continueRow}
       {checkIn}
@@ -615,6 +637,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             <>
               {agendaCard}
               {coachToday}
+              {birthdaysCard}
               {nextClass}
               {continueLeads && continueRow}
               {checkIn}
@@ -631,6 +654,7 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
             <>
               {agendaCard}
               {coachToday}
+              {birthdaysCard}
               {continueLeads && continueRow}
               <ResponsiveGrid fill>
                 {coachRequests}

@@ -60,7 +60,17 @@ const paymentRow = (data: Record<string, unknown>) => ({
     ...data,
 })
 
-const setup = (o: { registration?: Record<string, unknown> | null; promos?: Array<Record<string, unknown>>; recent?: Record<string, unknown> | null } = {}) => ({
+const setup = (
+    o: {
+        registration?: Record<string, unknown> | null
+        promos?: Array<Record<string, unknown>>
+        recent?: Record<string, unknown> | null
+        // E-mails by user id (anyone else: member@example.com).
+        emails?: Record<string, string | null>
+    } = {},
+) => {
+    const emailOf = (id: string) => (o.emails && id in o.emails ? o.emails[id] : 'member@example.com')
+    return {
     workspace: {
         findUnique: jest.fn().mockResolvedValue({ name: 'Клуб', timezone: 'Europe/Moscow', billing: null, moduleEntitlements: [] }),
     },
@@ -70,12 +80,18 @@ const setup = (o: { registration?: Record<string, unknown> | null; promos?: Arra
         count: jest.fn().mockResolvedValue(0),
     },
     payment: {
-        findFirst: jest.fn().mockResolvedValue(o.recent ?? null),
+        // The reuse lookup matches the payer.
+        findFirst: jest.fn(async ({ where }: { where: { payerUserId?: string | null } }) =>
+            o.recent && (o.recent.payerUserId ?? null) === (where.payerUserId ?? null) ? o.recent : null,
+        ),
         create: jest.fn(async ({ data }) => paymentRow(data)),
         update: jest.fn(async ({ data }) => paymentRow(data)),
         count: jest.fn().mockResolvedValue(0),
     },
-    user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-1', email: 'member@example.com' }]) },
+    user: {
+        findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) => ({ email: emailOf(where.id) })),
+        findUnique: jest.fn(async ({ where }: { where: { id: string } }) => ({ email: emailOf(where.id) })),
+    },
     discount: {
         findFirst: jest.fn(async ({ where }: { where: { isFamily?: boolean; code?: string } }) =>
             where.isFamily ? null : ((o.promos ?? []).find((d) => d.code === where.code) ?? null),
@@ -83,7 +99,8 @@ const setup = (o: { registration?: Record<string, unknown> | null; promos?: Arra
     },
     guardianship: { findMany: jest.fn().mockResolvedValue([]) },
     subscription: { findFirst: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(0) },
-})
+    }
+}
 
 const gateway = () => ({
     createPayment: jest.fn().mockResolvedValue({
@@ -95,9 +112,14 @@ const gateway = () => ({
     }),
 })
 
-const run = (prisma: ReturnType<typeof setup>, promoCode?: string, gw = gateway()) =>
+const run = (
+    prisma: ReturnType<typeof setup>,
+    promoCode?: string,
+    gw = gateway(),
+    who = { holder: 'u-1', actor: 'u-1' },
+) =>
     new PayEventRegistrationOnlineHandler(prisma as never, gw as never).execute(
-        new PayEventRegistrationOnlineFeature({ promoCode }, 'ws-1', 'reg-1', 'u-1', 'u-1'),
+        new PayEventRegistrationOnlineFeature({ promoCode }, 'ws-1', 'reg-1', who.holder, who.actor),
     )
 
 describe('payEventRegistrationOnline', () => {
@@ -106,6 +128,9 @@ describe('payEventRegistrationOnline', () => {
         await run(prisma)
         expect(prisma.payment.create.mock.calls[0][0].data).toMatchObject({
             eventRegistrationId: 'reg-1',
+            userId: 'u-1',
+            payerUserId: null,
+            receiptEmail: 'member@example.com',
             amount: 1500,
             listPrice: 1500,
             discountId: null,
@@ -150,6 +175,53 @@ describe('payEventRegistrationOnline', () => {
         expect(same.payment.create).not.toHaveBeenCalled()
         const withCode = setup({ recent, promos: [promo()] })
         expect((await run(withCode, 'ВЕСНА')).confirmationUrl).toBe('https://yoomoney.ru/checkout/yk-1')
+    })
+
+    it('a guardian pays a child’s ticket: payer stored, receipt to the guardian', async () => {
+        const prisma = setup({ emails: { kid: null, 'parent-1': 'parent@example.com' } })
+        const gw = gateway()
+        await run(prisma, undefined, gw, { holder: 'kid', actor: 'parent-1' })
+        expect(prisma.payment.create.mock.calls[0][0].data).toMatchObject({
+            userId: 'kid',
+            payerUserId: 'parent-1',
+            receiptEmail: 'parent@example.com',
+        })
+        expect(gw.createPayment.mock.calls[0][1].customerEmail).toBe('parent@example.com')
+        expect(prisma.payment.findFirst.mock.calls[0][0].where).toMatchObject({
+            eventRegistrationId: 'reg-1',
+            payerUserId: 'parent-1',
+        })
+    })
+
+    it('reuses only the same guardian’s pending payment; the other parent gets their own', async () => {
+        const recent = paymentRow({
+            id: 'pay-0',
+            payerUserId: 'parent-1',
+            confirmationUrl: 'https://yoomoney.ru/checkout/yk-0',
+            amount: 1500,
+            discountId: null,
+        })
+        const emails = { kid: null, 'parent-1': 'mom@example.com', 'parent-2': 'dad@example.com' }
+        const same = setup({ recent, emails })
+        expect(
+            (await run(same, undefined, gateway(), { holder: 'kid', actor: 'parent-1' })).confirmationUrl,
+        ).toBe('https://yoomoney.ru/checkout/yk-0')
+        expect(same.payment.create).not.toHaveBeenCalled()
+        const other = setup({ recent, emails })
+        const gw = gateway()
+        expect(
+            (await run(other, undefined, gw, { holder: 'kid', actor: 'parent-2' })).confirmationUrl,
+        ).toBe('https://yoomoney.ru/checkout/yk-1')
+        expect(other.payment.create.mock.calls[0][0].data).toMatchObject({ payerUserId: 'parent-2' })
+        expect(gw.createPayment.mock.calls[0][1].customerEmail).toBe('dad@example.com')
+    })
+
+    it('refuses when neither the child nor the guardian has an e-mail', async () => {
+        const prisma = setup({ emails: { kid: null, 'parent-1': null } })
+        await expect(
+            run(prisma, undefined, gateway(), { holder: 'kid', actor: 'parent-1' }),
+        ).rejects.toMatchObject({ statusCode: 400 })
+        expect(prisma.payment.create).not.toHaveBeenCalled()
     })
 
     it('refuses a missing registration, a free event and a paid ticket', async () => {

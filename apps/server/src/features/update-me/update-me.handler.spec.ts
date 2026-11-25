@@ -81,6 +81,7 @@ describe('updateMe', () => {
             firstname: 'Яна',
             lastname: 'Петрова',
             profilePhotoUrl: null,
+            dateOfBirth: null,
             language: 'RU',
             isSuperAdmin: false,
             createdAt: '2026-06-30T00:00:00.000Z',
@@ -124,5 +125,29 @@ describe('updateMe', () => {
         const { run, audit } = setup({ update })
         await expect(run({ firstname: 'Яна' })).rejects.toThrow('Пользователь не найден')
         expect(audit.record).not.toHaveBeenCalled()
+    })
+
+    it('stores a date of birth as UTC midnight, audits it as sent and answers it', async () => {
+        const { run, update, audit } = setup()
+        const out = await run({ dateOfBirth: '1994-03-15' })
+        expect(update.mock.calls[0][0].data).toEqual({
+            dateOfBirth: new Date('1994-03-15T00:00:00.000Z'),
+        })
+        expect(audit.record.mock.calls[0][0].metadata).toEqual({
+            changes: { dateOfBirth: '1994-03-15' },
+        })
+        expect(out.dateOfBirth).toBe('1994-03-15')
+    })
+
+    it('clears the date of birth on null', async () => {
+        const { run, update } = setup()
+        const out = await run({ dateOfBirth: null })
+        expect(update.mock.calls[0][0].data).toEqual({ dateOfBirth: null })
+        expect(out.dateOfBirth).toBeNull()
+    })
+
+    it('rejects a future or malformed date of birth', () => {
+        expect(() => UpdateMeInputSchema.parse({ dateOfBirth: '2999-01-01' })).toThrow()
+        expect(() => UpdateMeInputSchema.parse({ dateOfBirth: '15.03.1994' })).toThrow()
     })
 })

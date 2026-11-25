@@ -571,3 +571,16 @@ export const showAnnouncementOnHome = (
  */
 export const formatBellCount = (count: number): string | null =>
   count <= 0 ? null : count > 9 ? "9+" : String(count)
+
+/**
+ * «Дни рождения сегодня» on a staff Home: «Аня С., Пётр К.» — first name and
+ * the initial of the last, so a short line holds several people.
+ */
+export const birthdayNames = (members: readonly { name: string }[]): string =>
+  members
+    .map(({ name }) => {
+      const [first, last] = name.trim().split(/\s+/)
+      return last ? `${first} ${last.charAt(0)}.` : (first ?? "")
+    })
+    .filter(Boolean)
+    .join(", ")

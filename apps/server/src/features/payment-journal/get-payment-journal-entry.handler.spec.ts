@@ -94,12 +94,40 @@ describe('getPaymentJournalEntry', () => {
             method: 'ONLINE',
             member: { userId: 'u1', name: 'Иван Петров', isMember: false },
             markedBy: null,
+            // The holder paid themselves.
+            payer: null,
             online: { paymentId: 'p1', provider: 'YOOKASSA', providerRef: 'ab12cd', status: 'SUCCEEDED', refundable: 5600 },
             refunds: [],
             memberHasCard: false,
             fullRefundCancelsRegistration: false,
         })
         expect(prisma.subscription.findFirst.mock.calls[0][0].where).toEqual({ id: SUB_ID, workspaceId: 'w1', isPaid: true })
+    })
+
+    it('a child’s abonement a guardian paid online names the payer; the holder paying names none', async () => {
+        const prisma = setup()
+        prisma.subscription.findFirst.mockResolvedValue({
+            ...subRow,
+            userId: 'kid',
+            user: { firstname: 'Миша', lastname: 'Петров', email: null },
+            payment: { ...subRow.payment, payerUserId: 'parent-1' },
+        })
+        prisma.user.findMany.mockResolvedValue([
+            { id: 'parent-1', firstname: 'Елена', lastname: 'Петрова', email: 'elena@x.ru' },
+        ])
+        const { out } = run(ADMIN, `sub:${SUB_ID}`, prisma)
+        expect(await out).toMatchObject({
+            member: { userId: 'kid', name: 'Миша Петров' },
+            payer: { userId: 'parent-1', name: 'Елена Петрова' },
+        })
+        expect(prisma.user.findMany.mock.calls[0][0].where.id.in).toEqual(['parent-1'])
+
+        const self = setup()
+        self.subscription.findFirst.mockResolvedValue({
+            ...subRow,
+            payment: { ...subRow.payment, payerUserId: 'u1' },
+        })
+        expect(await run(ADMIN, `sub:${SUB_ID}`, self).out).toMatchObject({ payer: null })
     })
 
     it('a cash ticket of a member: who marked it, the card opens', async () => {

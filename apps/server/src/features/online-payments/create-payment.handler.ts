@@ -25,7 +25,10 @@ import {
 } from './create-payment.feature'
 import {
     loadBuyer,
+    loadReceiptEmail,
+    NO_RECEIPT_EMAIL,
     onlinePaymentsUnavailableError,
+    payerOf,
     PENDING_REUSE_MS,
     purchasablePlanWhere,
     sectionDisabledError,
@@ -88,7 +91,17 @@ export class CreatePaymentHandler
             })
         }
         const autopay = f.payload.autopay
+        // The card would be the guardian's and a child may have two of them:
+        // a child's abonement renews by purchase
+        // (docs/design/2026-11-26-parent-pays-for-child.md §10).
+        if (autopay && f.actorUserId !== f.userId) {
+            throw new BadRequestError({
+                message:
+                    'Автоплатёж для абонемента ребёнка не подключается — продлевайте его покупкой',
+            })
+        }
         if (autopay) await this.assertAutopayAllowed(f, settings, plan)
+        const payerUserId = payerOf(f.userId, f.actorUserId)
 
         const now = new Date()
         const start = onlineGrantStart(
@@ -126,11 +139,13 @@ export class CreatePaymentHandler
         // without paying) gets the same payment instead of a second one — at
         // the same price and with the same autopay choice: a member who adds a
         // code or flips the switch gets a new payment, and the old one lapses.
-        // Its own use of a promo is not counted against it.
+        // Its own use of a promo is not counted against it. Only the same
+        // payer's: the child's other parent gets their own page and receipt.
         const recent = await this.prisma.payment.findFirst({
             where: {
                 workspaceId: f.workspaceId,
                 userId: f.userId,
+                payerUserId,
                 planId: plan.id,
                 provider: settings.provider,
                 status: 'PENDING',
@@ -163,17 +178,14 @@ export class CreatePaymentHandler
             }
         }
 
-        const user = await this.prisma.user.findUniqueOrThrow({
-            where: { id: f.userId },
-            select: { email: true },
+        // The receipt goes to the holder — or to the guardian paying for a
+        // child (a child profile has no e-mail).
+        const customerEmail = await loadReceiptEmail(this.prisma, {
+            holderId: f.userId,
+            actorId: f.actorUserId,
         })
-        // A child profile (a guardian acting for it) has no e-mail for the
-        // receipt; paying for a child online is not offered yet.
-        if (user.email === null) {
-            throw new BadRequestError({
-                message:
-                    'Оплатить абонемент ребёнка онлайн пока нельзя — оплатите его в клубе',
-            })
+        if (customerEmail === null) {
+            throw new BadRequestError({ message: NO_RECEIPT_EMAIL })
         }
         return startProviderPayment(
             {
@@ -186,6 +198,7 @@ export class CreatePaymentHandler
                 settings,
                 workspaceId: f.workspaceId,
                 userId: f.userId,
+                payerUserId,
                 planId: plan.id,
                 eventRegistrationId: null,
                 planName: plan.name,
@@ -197,7 +210,7 @@ export class CreatePaymentHandler
                 currency: plan.currency,
                 description: `Абонемент «${plan.name}» — ${workspace.name}`,
                 itemName: `Абонемент «${plan.name}»`,
-                customerEmail: user.email,
+                customerEmail,
                 autopayConsentVersion: autopay ? AUTOPAY_CONSENT_VERSION : null,
                 autopayRenewalAmount: renewalAmount,
                 autopayShopId: autopay ? settings.shopId : null,

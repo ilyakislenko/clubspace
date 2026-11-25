@@ -1,10 +1,18 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useState } from "react"
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native"
+import React, { useCallback, useState } from "react"
+import {
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native"
 import {
   CenteredColumn,
   READABLE_WIDTH,
 } from "../../shared/components/CenteredColumn"
+import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
@@ -16,7 +24,15 @@ import {
   type SelfCheckInPreview,
   type SelfCheckInResult,
 } from "../../shared/api/attendance"
+import { getMyCheckInCard } from "../../shared/api/check-in-card"
+import { fetchMe } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
+import {
+  cardForViewer,
+  checkInCardKey,
+  checkInCardView,
+} from "../../shared/check-in-card-store"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import { errorMessage } from "../../shared/error-message"
 import { haptics } from "../../shared/haptics"
@@ -52,6 +68,29 @@ export function CheckInScreen({ navigation }: Props) {
   // the one the visit went to. With one, the result reads as it always did.
   const [manyAbonements, setManyAbonements] = useState(false)
   const clubHasDirections = useDirections(workspace?.workspaceId).length > 0
+  const workspaceId = workspace?.workspaceId
+
+  // «Моя карта»: painted from the phone at once (no connection needed at the
+  // door), refreshed in the background. Same `me` key as Home, so the
+  // person is known offline; the card is per person, the child's in a
+  // child's profile.
+  const me = useCachedResource(
+    workspaceId ? `me:${workspaceId}` : null,
+    useCallback(async () => await fetchMe(), []),
+  )
+  const meId = me.data?.id ?? null
+  const cardRes = useCachedResource(
+    workspaceId && meId ? checkInCardKey(meId) : null,
+    useCallback(
+      async () => await getMyCheckInCard({ workspaceId: workspaceId! }),
+      [workspaceId],
+    ),
+  )
+  const card = cardForViewer(cardRes.data, meId)
+  const cardView = checkInCardView({
+    card,
+    loading: me.loading || (meId !== null && cardRes.loading),
+  })
 
   const checkIn = async (trimmed: string, subscriptionId?: string) => {
     if (!workspace) return
@@ -121,12 +160,6 @@ export function CheckInScreen({ navigation }: Props) {
       {/* Missed by the desktop pass that wrapped the other member screens: the
           code field and its button stretched to 1156px next to the sidebar. */}
       <CenteredColumn maxWidth={READABLE_WIDTH}>
-      <View style={styles.header}>
-        <Text style={styles.subtitle}>
-          Введите код, который показал {vocabulary.coach.nom}.
-        </Text>
-      </View>
-
       {result ? (
         <View style={styles.resultCard}>
           <Text style={styles.resultOk}>
@@ -199,37 +232,72 @@ export function CheckInScreen({ navigation }: Props) {
           </Pressable>
         </ScrollView>
       ) : (
-        <View style={styles.form}>
-          <TextInput
-            value={code}
-            onChangeText={(t) => setCode(t.toUpperCase())}
-            placeholder="Код (напр. ABC234)"
-            placeholderTextColor={theme.colors.muted}
-            style={styles.input}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={() => void submit()}
-            maxLength={12}
-          />
-          {error && <Text style={styles.error}>{error}</Text>}
-          <Pressable
-            onPress={() => void submit()}
-            disabled={busy || code.trim().length === 0}
-            style={({ pressed }) => [
-              styles.button,
-              (busy || code.trim().length === 0) && styles.buttonDisabled,
-              pressed && styles.pressed,
-            ]}
+        // Padding on Android too: edge-to-edge doesn't resize for the keyboard.
+        <KeyboardAvoidingContainer style={styles.flex}>
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
           >
-            {busy ? (
-              <ActivityIndicator color={theme.colors.accentText} />
-            ) : (
-              <Text style={styles.buttonText}>Отметиться</Text>
-            )}
-          </Pressable>
-        </View>
+            <View style={styles.cardBlock}>
+              <Text style={styles.sectionTitle}>Моя карта</Text>
+              {cardView === "card" && card ? (
+                <>
+                  <View style={styles.qrPlate}>
+                    <Image
+                      source={{ uri: card.qrPngDataUrl }}
+                      style={styles.qr}
+                      accessibilityLabel={`QR-код карты: ${card.name}`}
+                    />
+                  </View>
+                  <Text style={styles.cardName}>{card.name}</Text>
+                  <Text style={styles.cardHint}>
+                    Покажите {vocabulary.coach.dat} у входа
+                  </Text>
+                </>
+              ) : cardView === "loading" ? (
+                <View style={styles.qrPlaceholder}>
+                  <ActivityIndicator color={theme.colors.accent} />
+                </View>
+              ) : (
+                <Text style={styles.cardHint}>
+                  Карта появится, когда будет интернет
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.form}>
+              <Text style={styles.sectionTitle}>Или введите код занятия</Text>
+              <TextInput
+                value={code}
+                onChangeText={(t) => setCode(t.toUpperCase())}
+                placeholder="Код (напр. ABC234)"
+                placeholderTextColor={theme.colors.muted}
+                style={styles.input}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={() => void submit()}
+                maxLength={12}
+              />
+              {error && <Text style={styles.error}>{error}</Text>}
+              <Pressable
+                onPress={() => void submit()}
+                disabled={busy || code.trim().length === 0}
+                style={({ pressed }) => [
+                  styles.button,
+                  (busy || code.trim().length === 0) && styles.buttonDisabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                {busy ? (
+                  <ActivityIndicator color={theme.colors.accentText} />
+                ) : (
+                  <Text style={styles.buttonText}>Отметиться</Text>
+                )}
+              </Pressable>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingContainer>
       )}
       </CenteredColumn>
     </SafeAreaView>
@@ -239,11 +307,37 @@ export function CheckInScreen({ navigation }: Props) {
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
-    header: {
+    flex: { flex: 1 },
+    scroll: { paddingBottom: theme.spacing(5) },
+    // The card leads: what the member shows at the door, with no typing.
+    cardBlock: {
       paddingHorizontal: theme.spacing(5),
-      paddingTop: theme.spacing(4),
+      paddingTop: theme.spacing(5),
+      alignItems: "center",
+      gap: theme.spacing(2),
     },
-    subtitle: { ...theme.typography.body, color: theme.colors.muted },
+    sectionTitle: {
+      ...theme.typography.label,
+      color: theme.colors.muted,
+      alignSelf: "flex-start",
+    },
+    // A QR reads best dark on white, in the dark theme too.
+    qrPlate: {
+      padding: theme.spacing(3),
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.onOverlay,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    qr: { width: 240, height: 240 },
+    qrPlaceholder: {
+      width: 240 + theme.spacing(6),
+      height: 240 + theme.spacing(6),
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cardName: { ...theme.typography.title, color: theme.colors.text, textAlign: "center" },
+    cardHint: { ...theme.typography.body, color: theme.colors.muted, textAlign: "center" },
     // A 6-character code and its button don't want the full reading column.
     form: {
       padding: theme.spacing(5),

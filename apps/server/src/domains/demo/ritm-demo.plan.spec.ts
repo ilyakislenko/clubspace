@@ -8,6 +8,7 @@ import { evaluateMemberRisk, RISK_RULES } from '../retention/risk-signals'
 import { isSubscriptionUsable } from '../subscriptions/subscription-status'
 import { buildDemoClubPlan, type DemoClubPlan } from './demo-club.plan'
 import { buildRitmDemoPlan } from './ritm-demo.plan'
+import { isBirthdayOn } from '../birthdays/birthdays'
 import { RITM_ACCOUNTS, RITM_CLUB_KEY, RITM_PARENT_CHILDREN } from './ritm-demo.accounts'
 
 const NOW = new Date('2026-11-04T09:30:00.000Z')
@@ -443,6 +444,23 @@ describe('buildRitmDemoPlan', () => {
         expect(texts).not.toMatch(/тренир|тренер|пояс|ранг|аттестац|татами|ковёр/i)
         expect(texts).toMatch(/занятие/)
         expect(texts).toMatch(/[Пп]едагог/)
+    })
+
+    it('has one adult with a birthday today, on every reset', () => {
+        const leapDay = new Date('2028-02-29T09:30:00.000Z')
+        for (const [day, now] of [[plan, NOW], [build(leapDay), leapDay]] as const) {
+            const ymd = localDateInTz(now, TZ)
+            const dob = new Map(day.users.map((u) => [u.id, (u.dateOfBirth as Date | null) ?? null]))
+            const ids = day.members
+                .filter((m) => m.role === 'user' && m.data.status === 'ACTIVE')
+                .map((m) => m.data.userId as string)
+                .filter((id) => {
+                    const d = dob.get(id)
+                    return !!d && isBirthdayOn(d, ymd)
+                })
+            expect(ids).toHaveLength(1)
+            expect(day.users.find((u) => u.id === ids[0])?.email).toEqual(expect.any(String))
+        }
     })
 
     it('moves with today: the same people, dates shifted', () => {

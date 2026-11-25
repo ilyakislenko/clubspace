@@ -26,7 +26,8 @@ export const OnlinePlanOutputSchema = z.object({
     // «Продлевать автоматически» may be offered: the club and the tariff allow
     // autopay (YooKassa) and the member has no ACTIVE agreement on it. The
     // consent's «сейчас» is `amount`; with a promo code the checkout quote
-    // carries the offer at the quoted price.
+    // carries the offer at the quoted price. Always null in a child's profile
+    // (docs/design/2026-11-26-parent-pays-for-child.md §10).
     autopay: AutopayOfferOutputSchema.nullable(),
 })
 
@@ -41,7 +42,8 @@ export const GetOnlinePurchaseOptionsOutputSchema = z.object({
     // Club-local day a purchase starts on when it renews a live abonement of
     // the same directions (set when every buyable tariff renews from that day).
     renewalFrom: z.iso.date().nullable(),
-    // The member's latest payment still waiting for the provider.
+    // The member's latest payment still waiting for the provider (under
+    // X-Act-As: the one this guardian started).
     pendingPayment: MyPaymentOutputSchema.nullable(),
     // The public «Условия автоплатежа» page, set when a tariff offers autopay.
     autopayTermsUrl: z.string().nullable(),
@@ -50,7 +52,11 @@ export const GetOnlinePurchaseOptionsOutputSchema = z.object({
 export class GetOnlinePurchaseOptionsFeature {
     constructor(
         readonly workspaceId: string,
+        // The holder (the child under X-Act-As).
         readonly userId: string,
+        // Who is looking (the guardian under X-Act-As): autopay is hidden
+        // for a child and the pending payment is this payer's.
+        readonly actorUserId: string,
     ) {}
 }
 export type GetOnlinePurchaseOptionsFeatureResponse = z.infer<
