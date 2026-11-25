@@ -28,6 +28,11 @@ updates:
       - /apps/mobile
     schedule:
       interval: monthly
+    # Node majors move with the toolchain (CI `node-version`, `.nvmrc`, local
+    # dev) in one reviewed change, not as a base-image bump.
+    ignore:
+      - dependency-name: node
+        update-types: [version-update:semver-major]
     groups:
       docker-base-images:
         patterns: ['*']
