@@ -136,8 +136,7 @@
         "cache": true,
         "inputs": [
           "{projectRoot}/src/**/*",
-          "{workspaceRoot}/.env",
-          "{workspaceRoot}/patches/**/*"
+          "{workspaceRoot}/.env"
         ],
         "outputs": [
           "{workspaceRoot}/open-api.json"
@@ -186,13 +185,13 @@
     }
   },
   "dependencies": {
-    "@date-fns/tz": "^1.4.1",
+    "@date-fns/tz": "^1.5.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
-    "reflect-metadata": "^0.1.13",
+    "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.0",
-    "tslib": "^2.3.0"
+    "tslib": "^2.9.1"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.0.0"

@@ -5,6 +5,15 @@
 
 ## Unreleased
 
+### Зависимости
+- Минорные и патч-обновления npm (Dependabot #507): Expo SDK 58 (патчи),
+  Radix, React Navigation, AWS SDK, `@nestjs/throttler`, Scalar, date-fns,
+  axios, Playwright 1.65.1 (Chromium 1255: `npx playwright install chromium`)
+  и инструменты сборки.
+- `nestjs-zod` 5.6.0 сам переводит `type: [..., "null"]` в OpenAPI 3.0:
+  патч `patches/nestjs-zod+5.5.0.patch`, точная версия и `patch-package`
+  удалены, контракт не изменился.
+
 ### Готовность к показу тренерам
 - Демо-клубы показывают каждую функцию: занятия «Ритма» каждый будний день,
   все четыре вида заявок в обоих клубах, платный семинар и мастер-класс,

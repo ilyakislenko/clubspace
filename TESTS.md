@@ -130,7 +130,7 @@ VERIFY_ADMIN_E2E=1 npm run verify            # как шаг verify
 (`.next/standalone/.../server.js`, как в Docker-образе; `next start` такие
 сборки не запускает) из своей копии в `dist/admin-e2e/<порт>`; если отвечает
 не админка — останавливается. Браузер: `npx playwright install chromium`
-(версия `@playwright/test` закреплена — 1.62.1, Chromium 1234). Отчёт и
+(версия `@playwright/test` закреплена — 1.65.1, Chromium 1255). Отчёт и
 trace упавших тестов — `test-output/admin-e2e/`. Исключения (ожидаемые ошибки
 консоли, известные дефекты с 4xx) — только списком в `src/checks.ts`, у
 каждого причина; запись известного дефекта удаляется вместе с исправлением.
