@@ -125,7 +125,7 @@
     "@next/eslint-plugin-next": "^16.4.6",
     "@nx/esbuild": "22.3.3",
     "@nx/eslint": "22.3.3",
-    "@nx/eslint-plugin": "22.3.3",
+    "@nx/eslint-plugin": "24.0.6",
     "@nx/expo": "22.3.3",
     "@nx/jest": "22.3.3",
     "@nx/js": "22.3.3",
