@@ -23,7 +23,6 @@ COPY package.json package-lock.json ./
 # app depends on (expo-audio & co.), and the export fails to resolve them.
 COPY apps/mobile/package.json apps/mobile/
 COPY libs/api-client/package.json libs/api-client/
-COPY patches ./patches
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 # ─── builder ──────────────────────────────────────────────────────────────────
