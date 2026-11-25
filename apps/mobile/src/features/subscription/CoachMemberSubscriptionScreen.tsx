@@ -1,6 +1,12 @@
 import { fromFirstSession, type ClubVocabulary } from "@clubspace/ui-kit/brand"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 import {
   ActivityIndicator,
   ScrollView,
@@ -39,6 +45,7 @@ import {
   DASHBOARD_WIDTH,
 } from "../../shared/components/CenteredColumn"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
+import { Icon } from "../../shared/components/Icon"
 import { KeyboardAvoidingContainer } from "../../shared/components/KeyboardAvoidingContainer"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
@@ -128,7 +135,7 @@ const planLine = (p: Plan, vocabulary: ClubVocabulary): string =>
  * to the server and are never queued offline: a payment that "succeeded" on a
  * phone with no network and then vanished would be worse than an error.
  */
-export function CoachMemberSubscriptionScreen({ route }: Props) {
+export function CoachMemberSubscriptionScreen({ navigation, route }: Props) {
   const { userId } = route.params
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
@@ -213,6 +220,37 @@ export function CoachMemberSubscriptionScreen({ route }: Props) {
       void load()
     })
   }, [workspaceId, load])
+
+  // «Написать»: the students the caller may manage here are the ones they may
+  // write to (own groups for a coach; the server checks again).
+  const messageName = data?.permissions.canManage ? data.memberName : null
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: messageName
+        ? () => (
+            <Pressable
+              onPress={() =>
+                navigation.navigate("ComposeClubMessage", {
+                  segment: "MEMBERS",
+                  memberIds: [userId],
+                  audienceLabel: messageName,
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Написать сообщение"
+              hitSlop={8}
+              style={styles.headerButton}
+            >
+              <Icon
+                name="chatbubble-outline"
+                size={22}
+                color={theme.colors.text}
+              />
+            </Pressable>
+          )
+        : undefined,
+    })
+  }, [navigation, messageName, userId, styles, theme])
 
   if (!workspace) return null
 
@@ -990,6 +1028,12 @@ const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
     flex: { flex: 1 },
+    headerButton: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     center: {
       flex: 1,
       alignItems: "center",

@@ -17,6 +17,8 @@ export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     joinAutoApprove: z.boolean(),
     // «Поздравлять с днём рождения» (the daily pass at club-local 10:00).
     birthdayGreetingsEnabled: z.boolean(),
+    // «Сообщения ученикам на e-mail»: club messages may carry an e-mail copy.
+    messagesEmailEnabled: z.boolean(),
     // leaderboardEnabled + the app-section flags all live here now.
     ...FeatureFlagColumnsSchema.shape,
     // «Запись на занятие»: window, free-cancel deadline, burn switches.

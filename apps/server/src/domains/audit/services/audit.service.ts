@@ -118,6 +118,12 @@ export type AuditAction =
     | 'discount.archive'
     | 'discount.restore'
     | 'discount.delete'
+    // «Сообщения» (docs/design/2026-11-26-broadcast-and-direct-messages.md
+    // §4.2): a message sent or scheduled, a scheduled one cancelled. Metadata
+    // `{ segment, recipients, isDirect, isService, urgent, withEmail, sendAt }`,
+    // never the text.
+    | 'message.send'
+    | 'message.cancel'
     // These carry the affected club's workspaceId, so they land in that club's
     // journal too — an owner can see who created and handed over their club.
     | 'workspace.create'
@@ -196,6 +202,7 @@ export type AuditTargetType =
     | 'aiToken'
     | 'aiChat'
     | 'discount'
+    | 'clubMessage'
 
 @Injectable()
 export class AuditService {

@@ -187,6 +187,7 @@ export const clubOverviewTool = defineTool({
         'сколько учеников в зоне риска оттока, ближайшие события и аттестации. ' +
         'Для токена администратора — ещё выручка за 30 дней и текущий месяц и сумма неоплаченных абонементов. ' +
         'Ещё — сколько заявок ждёт решения (вступление, заморозка, персональные, разборы видео): те, что владелец токена может решить сам, как во вкладке «Заявки». ' +
+        'И сообщения клуба ученикам за 30 дней: сколько отправлено, сколько получателей и какая доля открыла (только чтение — отправлять ассистент не может). ' +
         'Хорошая отправная точка для вопросов «как дела в клубе».',
     input: z.object({}),
     run: async (ctx) => {
@@ -299,6 +300,29 @@ export const clubOverviewTool = defineTool({
         }
 
         const { join, freeze, personal, video } = await countClubRequests(ctx)
+        // «Сообщения» over 30 days (read only — there is no send tool: sending
+        // to people needs a person reading the preview). The list's rule:
+        // a sport lead's token the whole club, others what the creator wrote.
+        const sent = await prisma.clubMessage.aggregate({
+            where: {
+                workspaceId: scope.workspaceId,
+                status: 'SENT',
+                sentAt: { gte: since30 },
+                ...(scope.isAdmin ? {} : { authorId: access.userId }),
+            },
+            _count: { _all: true },
+            _sum: { recipientCount: true, readCount: true },
+        })
+        const recipients30d = sent._sum.recipientCount ?? 0
+        const messages = {
+            sent30d: sent._count._all,
+            recipients30d,
+            // Share of recipients who opened the message in the app (0–1).
+            readShare:
+                recipients30d > 0
+                    ? Math.round(((sent._sum.readCount ?? 0) / recipients30d) * 100) / 100
+                    : null,
+        }
 
         return {
             rows: 1,
@@ -319,6 +343,7 @@ export const clubOverviewTool = defineTool({
                 atRisk: summarizeRisk(risk),
                 upcoming: { events7d, gradings },
                 requests: { join, freeze, personal, video },
+                messages,
                 money,
             },
         }

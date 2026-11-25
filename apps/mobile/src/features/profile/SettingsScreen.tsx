@@ -21,7 +21,7 @@ import { CONTROL_MAX_WIDTH } from "../../shared/useResponsive"
 
 import { THEME_KEYS, THEMES } from "@clubspace/ui-kit/util"
 
-import { exportMyData } from "../../shared/api/me"
+import { exportMyData, fetchSignedInUser } from "../../shared/api/me"
 import { useAuth } from "../../shared/auth-context"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import { isFeatureEnabled } from "../../shared/feature-flags"
@@ -86,6 +86,8 @@ export function SettingsScreen(_props: Props) {
     useState<Notifications.NotificationPermissionsStatus | null>(null)
   const [exporting, setExporting] = useState(false)
   const [deletingAccount, setDeletingAccount] = useState(false)
+  // «Сообщения клуба на e-mail» only means something for an account with one.
+  const [hasEmail, setHasEmail] = useState(false)
   const webPush = useWebPush()
 
   useEffect(() => {
@@ -100,6 +102,9 @@ export function SettingsScreen(_props: Props) {
     // so they live behind the API rather than in the local prefs file.
     void getNotificationPreferences()
       .then(setNotif)
+      .catch(() => undefined)
+    void fetchSignedInUser()
+      .then((me) => setHasEmail(!!me.email))
       .catch(() => undefined)
   }, [])
 
@@ -382,6 +387,36 @@ export function SettingsScreen(_props: Props) {
                   disabled={!notif}
                   value={notif?.announcementsEnabled ?? true}
                   onValueChange={(v) => updateNotif({ announcementsEnabled: v })}
+                />
+              }
+            />
+          )}
+          {/* Not behind an app section: a message reaches the member with
+              every section off. Only broadcasts obey it; the message stays in
+              «Сообщения клуба» either way. */}
+          <Row
+            label="Сообщения клуба"
+            description="Личные и служебные сообщения приходят всегда"
+            right={
+              <Switch
+                accessibilityLabel="Уведомления о сообщениях клуба"
+                disabled={!notif}
+                value={notif?.clubMessagesEnabled ?? true}
+                onValueChange={(v) => updateNotif({ clubMessagesEnabled: v })}
+              />
+            }
+          />
+          {hasEmail && (
+            <Row
+              label="Сообщения клуба на e-mail"
+              right={
+                <Switch
+                  accessibilityLabel="Копии сообщений клуба на e-mail"
+                  disabled={!notif}
+                  value={notif?.clubMessagesEmailEnabled ?? true}
+                  onValueChange={(v) =>
+                    updateNotif({ clubMessagesEmailEnabled: v })
+                  }
                 />
               }
             />

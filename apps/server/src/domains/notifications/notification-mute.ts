@@ -24,6 +24,10 @@ const EXEMPT_KINDS: Record<string, true> = {
     'schedule.moved': true,
     'grading.moved': true,
     'grading.cancelled': true,
+    // Club messages: a personal one and one the club marked «служебное»
+    // reach a member who muted the club; a broadcast (message.broadcast) doesn't.
+    'message.direct': true,
+    'message.service': true,
 }
 
 export const isMuteExempt = (kind: string): boolean =>

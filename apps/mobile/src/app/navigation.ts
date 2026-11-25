@@ -108,6 +108,21 @@ export type RootStackParamList = {
   Achievements: undefined
   Journal: undefined
   Announcements: undefined
+  // «Сообщения клуба»: what the club sent this member (or the child acted
+  // for), and one message — opening it stamps «открыли».
+  ClubMessages: undefined
+  ClubMessage: { messageId: string }
+  // Staff: write to one student or a group from where they were found.
+  // `audienceLabel` is the read-only «Кому» line («Иван Петров», «Группа:
+  // Дети 7–9»); `logContact` = written from «Кому позвонить», counts as
+  // «Связались».
+  ComposeClubMessage: {
+    segment: "MEMBERS" | "GROUPS"
+    memberIds?: string[]
+    groupIds?: string[]
+    audienceLabel: string
+    logContact?: boolean
+  }
   Leaderboard: undefined
   AtRiskMembers: undefined
   // The coach's view of one student's abonement (sell, mark paid, freeze).

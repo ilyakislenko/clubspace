@@ -129,4 +129,13 @@ export class TrialLimitsService {
         })
         return taken.count === 1
     }
+
+    // E-mails left in a trial club's allowance; null = not capped (outside the
+    // trial or billing off). The club-message compose preview shows it.
+    async trialEmailsLeft(workspaceId: string, now = new Date()): Promise<number | null> {
+        if (!this.billing.enabled) return null
+        const row = await this.billing.getBilling(workspaceId)
+        if (!trialCapsApply(row, now, true)) return null
+        return Math.max(0, this.limits.emails - (row.trialEmailsSent ?? 0))
+    }
 }

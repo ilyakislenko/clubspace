@@ -1,14 +1,15 @@
 import { z } from 'zod'
 
 import { ExpectedUpdatedAtField } from '../../shared/utils/optimistic-concurrency'
-import { AnnouncementAudienceSchema, AnnouncementOutputSchema } from './schemas'
+import { AnnouncementAudienceInputSchema, AnnouncementOutputSchema } from './schemas'
 
 export const UpdateAnnouncementInputSchema = z
     .object({
         title: z.string().trim().min(1).max(255).optional(),
         body: z.string().trim().min(1).max(20000).optional(),
         pinned: z.boolean().optional(),
-        audience: AnnouncementAudienceSchema.optional(),
+        // 'ALL' only (EXPIRING moved to «Сообщения → Продлить»).
+        audience: AnnouncementAudienceInputSchema.optional(),
         // A direction id narrows it to that direction; null = the whole club.
         directionId: z.string().uuid().nullish(),
         // Replaces the target groups ([] = not addressed to groups); never

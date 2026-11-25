@@ -4,6 +4,7 @@ import { useParams } from "next/navigation"
 
 import { AnalyticsDigestToggle } from "../../../../../../features/notifications/AnalyticsDigestToggle"
 import { BirthdayGreetingsToggle } from "../../../../../../features/notifications/BirthdayGreetingsToggle"
+import { MessagesEmailToggle } from "../../../../../../features/notifications/MessagesEmailToggle"
 import { SettingsLoadState } from "../../../../../../features/settings/SettingsLoadState"
 import { SettingsSectionHeader } from "../../../../../../features/settings/SettingsNav"
 import { useWorkspaceSettings } from "../../../../../../features/settings/use-workspace-settings"
@@ -31,11 +32,18 @@ export default function SettingsNotificationsPage() {
           onRetry={reload}
         />
         {settings && (
-          <BirthdayGreetingsToggle
-            settings={settings}
-            saving={saving}
-            onSave={(patch) => void save(patch)}
-          />
+          <>
+            <BirthdayGreetingsToggle
+              settings={settings}
+              saving={saving}
+              onSave={(patch) => void save(patch)}
+            />
+            <MessagesEmailToggle
+              settings={settings}
+              saving={saving}
+              onSave={(patch) => void save(patch)}
+            />
+          </>
         )}
       </div>
     </>

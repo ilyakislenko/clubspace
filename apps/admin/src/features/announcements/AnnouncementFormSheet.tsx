@@ -6,11 +6,6 @@ import {
   Button,
   Input,
   Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -48,8 +43,6 @@ import {
   targetPayload,
   type AnnouncementTarget,
 } from "./announcement-target"
-
-type Audience = "ALL" | "EXPIRING"
 
 type FormProps = {
   workspaceId: string
@@ -138,7 +131,6 @@ function CreateForm({
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
   const [pinned, setPinned] = useState(false)
-  const [audience, setAudience] = useState<Audience>("ALL")
   const [scheduleAt, setScheduleAt] = useState("")
   const [target, setTarget] = useState<AnnouncementTarget>(() =>
     initialTarget(scope.defaultDirectionId),
@@ -150,8 +142,8 @@ function CreateForm({
   // membership, possibly after the panel opened.
   useDirtyGuard(
     !sameData(
-      { title, body, pinned, audience, scheduleAt },
-      { title: "", body: "", pinned: false, audience: "ALL", scheduleAt: "" },
+      { title, body, pinned, scheduleAt },
+      { title: "", body: "", pinned: false, scheduleAt: "" },
     ),
   )
 
@@ -168,7 +160,8 @@ function CreateForm({
           title: title.trim(),
           body: body.trim(),
           pinned,
-          audience,
+          // Every new post goes to its whole audience: a nudge to the
+          // students due for renewal is «Ученики → Сообщения → Продлить».
           ...targetPayload(target),
           ...(opts.publish ? { publish: true } : {}),
           ...(opts.publishAt ? { publishAt: opts.publishAt } : {}),
@@ -191,7 +184,7 @@ function CreateForm({
     }
     const ok = await confirmDialog({
       title: `Опубликовать «${title.trim()}»?`,
-      description: publishPushText(audience, {
+      description: publishPushText("ALL", {
         directionName:
           target.kind === "direction"
             ? (directions.find((d) => d.id === target.directionId)?.name ?? null)
@@ -243,21 +236,6 @@ function CreateForm({
           groups={groups}
           scope={scope}
         />
-        <div className="space-y-2">
-          <Label htmlFor="announcement-audience">Кому</Label>
-          <Select
-            value={audience}
-            onValueChange={(v) => setAudience(v as Audience)}
-          >
-            <SelectTrigger id="announcement-audience">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Всем</SelectItem>
-              <SelectItem value="EXPIRING">Только на продление</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"

@@ -9,6 +9,13 @@ import { fullNameWithoutEmail } from '../../shared/utils/person-name'
 
 export const AnnouncementAudienceSchema = z.enum(['ALL', 'EXPIRING'])
 
+// What create/update accept: only the whole audience. «Только на продление»
+// (EXPIRING) moved to «Сообщения → Продлить» — a private nudge is a message,
+// not a feed post (docs/design/2026-11-26-broadcast-and-direct-messages.md
+// §4.4); stored EXPIRING rows keep their filter until deleted.
+export const EXPIRING_MOVED_MESSAGE = 'Используйте «Сообщения → Продлить»'
+export const AnnouncementAudienceInputSchema = z.literal('ALL', { error: EXPIRING_MOVED_MESSAGE })
+
 // A target group in the DTO; the hall tells same-named groups apart.
 export const AnnouncementGroupRefSchema = z.object({
     id: z.string().uuid(),

@@ -31,9 +31,17 @@ const workspace = (over: { subscriptionEnabled?: boolean; videosEnabled?: boolea
     moduleEntitlements: [],
 })
 
+type MessagesAggregate = {
+    _count: { _all: number }
+    _sum: { recipientCount: number | null; readCount: number | null }
+}
+
 // Every read the overview makes answers empty, except the four request
-// counts (by model) and the club's sections.
-const build = (ws = workspace()) => {
+// counts (by model), the club's sections and the club messages aggregate.
+const build = (
+    ws = workspace(),
+    messages: MessagesAggregate = { _count: { _all: 0 }, _sum: { recipientCount: null, readCount: null } },
+) => {
     const counts = {
         // Student metrics count members too: only the pending applicants are 1.
         workspaceMember: jest.fn(async (a: { where: { status?: unknown } }) =>
@@ -55,7 +63,11 @@ const build = (ws = workspace()) => {
         findFirst: jest.fn().mockResolvedValue(null),
         findUniqueOrThrow: jest.fn().mockResolvedValue(ws),
     })
-    const models = new Map<string, unknown>([['groupMember', groupMember]])
+    const clubMessage = { aggregate: jest.fn().mockResolvedValue(messages) }
+    const models = new Map<string, unknown>([
+        ['groupMember', groupMember],
+        ['clubMessage', clubMessage],
+    ])
     const prisma = new Proxy(
         {},
         {
@@ -68,11 +80,11 @@ const build = (ws = workspace()) => {
             },
         },
     )
-    return { prisma, counts, groupMember }
+    return { prisma, counts, groupMember, clubMessage }
 }
 
-const run = async (a: AiAccess, ws = workspace()) => {
-    const { prisma, counts, groupMember } = build(ws)
+const run = async (a: AiAccess, ws = workspace(), messages?: MessagesAggregate) => {
+    const { prisma, counts, groupMember, clubMessage } = build(ws, messages)
     const ctx = {
         prisma,
         access: a,
@@ -81,7 +93,7 @@ const run = async (a: AiAccess, ws = workspace()) => {
         now: NOW,
     } as unknown as McpToolContext
     const out = await clubOverviewTool.run(ctx, {})
-    return { requests: out.data.requests, counts, groupMember }
+    return { requests: out.data.requests, messages: out.data.messages, counts, groupMember, clubMessage }
 }
 
 const whereOf = (fn: jest.Mock) => fn.mock.calls[0][0].where
@@ -133,5 +145,32 @@ describe('club_overview requests', () => {
         expect(requests).toEqual({ join: 1, freeze: 0, personal: 3, video: 0 })
         expect(counts.subscriptionFreezeRequest).not.toHaveBeenCalled()
         expect(counts.videoReviewRequest).not.toHaveBeenCalled()
+    })
+})
+
+describe('club_overview messages', () => {
+    const since30 = new Date(NOW.getTime() - 30 * 86_400_000)
+
+    it('a sport lead: the whole club’s sent messages over 30 days with the open share', async () => {
+        const { messages, clubMessage } = await run(HEAD_COACH, workspace(), {
+            _count: { _all: 4 },
+            _sum: { recipientCount: 120, readCount: 45 },
+        })
+        expect(messages).toEqual({ sent30d: 4, recipients30d: 120, readShare: 0.38 })
+        expect(clubMessage.aggregate.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            status: 'SENT',
+            sentAt: { gte: since30 },
+        })
+    })
+
+    it('a direction manager: only what the token’s creator wrote', async () => {
+        const { clubMessage } = await run(DIRECTION_MANAGER)
+        expect(clubMessage.aggregate.mock.calls[0][0].where.authorId).toBe('u1')
+    })
+
+    it('nothing sent: zero counts and no share', async () => {
+        const { messages } = await run(OWNER)
+        expect(messages).toEqual({ sent30d: 0, recipients30d: 0, readShare: null })
     })
 })

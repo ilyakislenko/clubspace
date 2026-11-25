@@ -401,3 +401,38 @@ describe("autopay audit", () => {
     )
   })
 })
+
+describe("club message audit", () => {
+  const rows = (meta: unknown) =>
+    parseMetadata(meta, GRAPPLING).map((r) => `${r.label}: ${r.value.replace(/\s/g, " ")}`)
+
+  it("labels the message actions, their family and target", () => {
+    const meta = actionMetaFor(GRAPPLING)
+    expect(meta["message.send"].label).toBe("Сообщение ученикам")
+    expect(meta["message.cancel"].label).toBe("Отправка сообщения отменена")
+    expect(ACTION_CATEGORY_LABELS.message).toBe("Сообщения")
+    expect(ACTION_CATEGORIES).toContain("message")
+    expect(targetTypeLabel("clubMessage")).toBe("Сообщение")
+  })
+
+  it("spells out the segment and the flags, never the text", () => {
+    expect(
+      rows({
+        segment: "UNPAID",
+        isDirect: false,
+        isService: true,
+        urgent: false,
+        withEmail: true,
+      }),
+    ).toEqual([
+      "Кому: не оплатили",
+      "Личное: нет",
+      "Служебное: да",
+      "Срочно: нет",
+      "Копия на e-mail: да",
+    ])
+    expect(rows({ changes: { messagesEmailEnabled: true } })).toEqual([
+      "Изменения: сообщения ученикам на e-mail: вкл.",
+    ])
+  })
+})

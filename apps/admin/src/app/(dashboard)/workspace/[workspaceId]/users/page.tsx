@@ -266,6 +266,20 @@ export default function WorkspaceUsersPage() {
   // Shown while there is a roster to search, or a search/segment narrowing it.
   const showControls = total > 0 || filtering || searchQuery !== ""
 
+  // «Написать этим ученикам»: the segment shown, unnarrowed by a search (the
+  // message goes to the segment, resolved again when it is sent). Renewals
+  // and debts are the sport leads' to write to.
+  const writeSegment =
+    total === 0 || debouncedQuery !== ""
+      ? null
+      : accessFilter === "inactive"
+        ? "INACTIVE"
+        : canManageMembers && accessFilter === "renew"
+          ? "RENEW"
+          : canManageMembers && accessFilter === "unpaid"
+            ? "UNPAID"
+            : null
+
   return (
     <div className="max-w-5xl space-y-4">
       <SectionTabs
@@ -319,7 +333,7 @@ export default function WorkspaceUsersPage() {
               <Button type="button" onClick={() => setInviteOpen(true)}>
                 Пригласить
               </Button>
-              {canAdmin && (
+              {(canAdmin || writeSegment) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" aria-label="Ещё">
@@ -327,11 +341,22 @@ export default function WorkspaceUsersPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link href={`/workspace/${workspaceId}/club-import`}>
-                        Импорт из Excel (CSV)
-                      </Link>
-                    </DropdownMenuItem>
+                    {writeSegment && (
+                      <DropdownMenuItem asChild>
+                        <Link
+                          href={`/workspace/${workspaceId}/users/messages?compose=1&segment=${writeSegment}`}
+                        >
+                          Написать этим ученикам ({total})
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                    {canAdmin && (
+                      <DropdownMenuItem asChild>
+                        <Link href={`/workspace/${workspaceId}/club-import`}>
+                          Импорт из Excel (CSV)
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}

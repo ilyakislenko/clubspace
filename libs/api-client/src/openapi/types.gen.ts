@@ -2969,6 +2969,7 @@ export type GetWorkspaceSettingsOutputOutput = {
     timezone: string;
     joinAutoApprove: boolean;
     birthdayGreetingsEnabled: boolean;
+    messagesEmailEnabled: boolean;
     announcementsEnabled: boolean;
     ranksEnabled: boolean;
     leaderboardEnabled: boolean;
@@ -3000,6 +3001,7 @@ export type UpdateWorkspaceSettingsBody = {
     timezone?: string;
     joinAutoApprove?: boolean;
     birthdayGreetingsEnabled?: boolean;
+    messagesEmailEnabled?: boolean;
     announcementsEnabled?: boolean;
     ranksEnabled?: boolean;
     leaderboardEnabled?: boolean;
@@ -3030,6 +3032,7 @@ export type UpdateWorkspaceSettingsOutputOutput = {
     timezone: string;
     joinAutoApprove: boolean;
     birthdayGreetingsEnabled: boolean;
+    messagesEmailEnabled: boolean;
     announcementsEnabled: boolean;
     ranksEnabled: boolean;
     leaderboardEnabled: boolean;
@@ -3161,6 +3164,8 @@ export type GetNotificationPreferencesOutputOutput = {
     inactivityEnabled: boolean;
     analyticsDigestEnabled: boolean;
     reviewRemindersEnabled: boolean;
+    clubMessagesEnabled: boolean;
+    clubMessagesEmailEnabled: boolean;
 };
 
 export type UpdateNotificationPreferencesInput = {
@@ -3171,6 +3176,8 @@ export type UpdateNotificationPreferencesInput = {
     inactivityEnabled?: boolean;
     analyticsDigestEnabled?: boolean;
     reviewRemindersEnabled?: boolean;
+    clubMessagesEnabled?: boolean;
+    clubMessagesEmailEnabled?: boolean;
 };
 
 export type UpdateNotificationPreferencesOutputOutput = {
@@ -3181,6 +3188,8 @@ export type UpdateNotificationPreferencesOutputOutput = {
     inactivityEnabled: boolean;
     analyticsDigestEnabled: boolean;
     reviewRemindersEnabled: boolean;
+    clubMessagesEnabled: boolean;
+    clubMessagesEmailEnabled: boolean;
 };
 
 export type DeleteAccountInput = {
@@ -6913,6 +6922,207 @@ export type LogAtRiskContactOutputOutput = {
     signals: Array<'lapsed' | 'newcomer' | 'absent' | 'declining'>;
 };
 
+export type PreviewClubMessageInput = {
+    segment: 'ALL' | 'GROUPS' | 'DIRECTION' | 'RENEW' | 'UNPAID' | 'INACTIVE' | 'CALL_LIST' | 'MEMBERS';
+    directionId?: string;
+    groupIds?: Array<string>;
+    memberIds?: Array<string>;
+    isService?: boolean;
+    urgent?: boolean;
+    withEmail?: boolean;
+    sendAt?: string;
+};
+
+export type PreviewClubMessageOutputOutput = {
+    recipients: number;
+    children: number;
+    withPush: number;
+    optedOut: number;
+    muted: number;
+    noDevice: number;
+    capped: number;
+    withEmail: number;
+    emailEnabled: boolean;
+    emailAllowance: number | null;
+    sendAt: string;
+    deferredByQuietHours: boolean;
+    timezone: string;
+    limits: {
+        clubLeft: number;
+        senderLeft: number | null;
+        directLeft: number;
+        urgentLeft: number;
+    };
+};
+
+export type SendClubMessageInput = {
+    segment: 'ALL' | 'GROUPS' | 'DIRECTION' | 'RENEW' | 'UNPAID' | 'INACTIVE' | 'CALL_LIST' | 'MEMBERS';
+    directionId?: string;
+    groupIds?: Array<string>;
+    memberIds?: Array<string>;
+    isService?: boolean;
+    urgent?: boolean;
+    withEmail?: boolean;
+    sendAt?: string;
+    title: string;
+    body: string;
+    logContact?: boolean;
+};
+
+export type ClubMessageOutputOutput = {
+    id: string;
+    title: string;
+    body: string;
+    authorName: string;
+    segment: 'ALL' | 'GROUPS' | 'DIRECTION' | 'RENEW' | 'UNPAID' | 'INACTIVE' | 'CALL_LIST' | 'MEMBERS';
+    audienceLabel: string;
+    isDirect: boolean;
+    isService: boolean;
+    urgent: boolean;
+    withEmail: boolean;
+    status: 'SCHEDULED' | 'SENT' | 'CANCELLED';
+    sendAt: string;
+    sentAt: string | null;
+    recipientCount: number;
+    pushCount: number;
+    emailCount: number;
+    readCount: number;
+    createdAt: string;
+    recipientReadAt: string | null;
+};
+
+export type ListClubMessagesOutputOutput = {
+    data: Array<{
+        id: string;
+        title: string;
+        body: string;
+        authorName: string;
+        segment: 'ALL' | 'GROUPS' | 'DIRECTION' | 'RENEW' | 'UNPAID' | 'INACTIVE' | 'CALL_LIST' | 'MEMBERS';
+        audienceLabel: string;
+        isDirect: boolean;
+        isService: boolean;
+        urgent: boolean;
+        withEmail: boolean;
+        status: 'SCHEDULED' | 'SENT' | 'CANCELLED';
+        sendAt: string;
+        sentAt: string | null;
+        recipientCount: number;
+        pushCount: number;
+        emailCount: number;
+        readCount: number;
+        createdAt: string;
+        recipientReadAt: string | null;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+    timezone: string;
+};
+
+export type GetClubMessageOutputOutput = {
+    id: string;
+    title: string;
+    body: string;
+    authorName: string;
+    segment: 'ALL' | 'GROUPS' | 'DIRECTION' | 'RENEW' | 'UNPAID' | 'INACTIVE' | 'CALL_LIST' | 'MEMBERS';
+    audienceLabel: string;
+    isDirect: boolean;
+    isService: boolean;
+    urgent: boolean;
+    withEmail: boolean;
+    status: 'SCHEDULED' | 'SENT' | 'CANCELLED';
+    sendAt: string;
+    sentAt: string | null;
+    recipientCount: number;
+    pushCount: number;
+    emailCount: number;
+    readCount: number;
+    createdAt: string;
+    recipientReadAt: string | null;
+};
+
+export type ListClubMessageRecipientsOutputOutput = {
+    data: Array<{
+        userId: string;
+        name: string;
+        isDependent: boolean;
+        guardianNames: Array<string>;
+        pushSkip: 'muted' | 'opted_out' | 'no_device' | 'cap' | null;
+        emailedAt: string | null;
+        readAt: string | null;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+};
+
+export type CancelClubMessageOutputOutput = {
+    id: string;
+    title: string;
+    body: string;
+    authorName: string;
+    segment: 'ALL' | 'GROUPS' | 'DIRECTION' | 'RENEW' | 'UNPAID' | 'INACTIVE' | 'CALL_LIST' | 'MEMBERS';
+    audienceLabel: string;
+    isDirect: boolean;
+    isService: boolean;
+    urgent: boolean;
+    withEmail: boolean;
+    status: 'SCHEDULED' | 'SENT' | 'CANCELLED';
+    sendAt: string;
+    sentAt: string | null;
+    recipientCount: number;
+    pushCount: number;
+    emailCount: number;
+    readCount: number;
+    createdAt: string;
+    recipientReadAt: string | null;
+};
+
+export type ListMyClubMessagesOutputOutput = {
+    data: Array<{
+        id: string;
+        title: string;
+        body: string;
+        authorName: string;
+        sentAt: string;
+        readAt: string | null;
+        club: {
+            name: string;
+            logoUrl: string | null;
+        };
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+    unreadCount: number;
+};
+
+export type MyClubMessageOutputOutput = {
+    id: string;
+    title: string;
+    body: string;
+    authorName: string;
+    sentAt: string;
+    readAt: string | null;
+    club: {
+        name: string;
+        logoUrl: string | null;
+    };
+};
+
+export type MarkClubMessageReadOutputOutput = {
+    id: string;
+    title: string;
+    body: string;
+    authorName: string;
+    sentAt: string;
+    readAt: string | null;
+    club: {
+        name: string;
+        logoUrl: string | null;
+    };
+};
+
 export type GetCohortRetentionOutputOutput = {
     computedAt: string | null;
     cohorts: Array<{
@@ -7068,7 +7278,7 @@ export type CreateAnnouncementInput = {
     title: string;
     body: string;
     pinned?: boolean;
-    audience?: 'ALL' | 'EXPIRING';
+    audience?: 'ALL';
     directionId?: string | null;
     groupIds?: Array<string>;
     publish?: boolean;
@@ -7164,7 +7374,7 @@ export type UpdateAnnouncementInput = {
     title?: string;
     body?: string;
     pinned?: boolean;
-    audience?: 'ALL' | 'EXPIRING';
+    audience?: 'ALL';
     directionId?: string | null;
     groupIds?: Array<string>;
     publish?: boolean;
@@ -14150,6 +14360,188 @@ export type LogAtRiskContactResponses = {
 };
 
 export type LogAtRiskContactResponse = LogAtRiskContactResponses[keyof LogAtRiskContactResponses];
+
+export type PreviewClubMessageData = {
+    body: PreviewClubMessageInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/messages/preview';
+};
+
+export type PreviewClubMessageResponses = {
+    default: PreviewClubMessageOutputOutput;
+};
+
+export type PreviewClubMessageResponse = PreviewClubMessageResponses[keyof PreviewClubMessageResponses];
+
+export type ListClubMessagesData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        userId?: string;
+        status?: 'SCHEDULED' | 'SENT' | 'CANCELLED';
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/messages';
+};
+
+export type ListClubMessagesResponses = {
+    default: ListClubMessagesOutputOutput;
+};
+
+export type ListClubMessagesResponse = ListClubMessagesResponses[keyof ListClubMessagesResponses];
+
+export type SendClubMessageData = {
+    body: SendClubMessageInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/messages';
+};
+
+export type SendClubMessageResponses = {
+    default: ClubMessageOutputOutput;
+};
+
+export type SendClubMessageResponse = SendClubMessageResponses[keyof SendClubMessageResponses];
+
+export type GetClubMessageData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        messageId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/messages/{messageId}';
+};
+
+export type GetClubMessageResponses = {
+    default: GetClubMessageOutputOutput;
+};
+
+export type GetClubMessageResponse = GetClubMessageResponses[keyof GetClubMessageResponses];
+
+export type ListClubMessageRecipientsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        messageId: string;
+    };
+    query?: {
+        read?: boolean;
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/messages/{messageId}/recipients';
+};
+
+export type ListClubMessageRecipientsResponses = {
+    default: ListClubMessageRecipientsOutputOutput;
+};
+
+export type ListClubMessageRecipientsResponse = ListClubMessageRecipientsResponses[keyof ListClubMessageRecipientsResponses];
+
+export type CancelClubMessageData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        messageId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/messages/{messageId}/cancel';
+};
+
+export type CancelClubMessageResponses = {
+    default: CancelClubMessageOutputOutput;
+};
+
+export type CancelClubMessageResponse = CancelClubMessageResponses[keyof CancelClubMessageResponses];
+
+export type ListMyClubMessagesData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: {
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/workspaces/{workspaceId}/me/messages';
+};
+
+export type ListMyClubMessagesResponses = {
+    default: ListMyClubMessagesOutputOutput;
+};
+
+export type ListMyClubMessagesResponse = ListMyClubMessagesResponses[keyof ListMyClubMessagesResponses];
+
+export type GetMyClubMessageData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        messageId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/messages/{messageId}';
+};
+
+export type GetMyClubMessageResponses = {
+    default: MyClubMessageOutputOutput;
+};
+
+export type GetMyClubMessageResponse = GetMyClubMessageResponses[keyof GetMyClubMessageResponses];
+
+export type MarkClubMessageReadData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        messageId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/messages/{messageId}/read';
+};
+
+export type MarkClubMessageReadResponses = {
+    default: MarkClubMessageReadOutputOutput;
+};
+
+export type MarkClubMessageReadResponse = MarkClubMessageReadResponses[keyof MarkClubMessageReadResponses];
+
+export type UnsubscribeClubMessagesPageData = {
+    body?: never;
+    path?: never;
+    query: {
+        token: string;
+    };
+    url: '/public/unsubscribe/club-messages';
+};
+
+export type UnsubscribeClubMessagesPageResponses = {
+    200: string;
+};
+
+export type UnsubscribeClubMessagesPageResponse = UnsubscribeClubMessagesPageResponses[keyof UnsubscribeClubMessagesPageResponses];
+
+export type UnsubscribeClubMessagesData = {
+    body?: never;
+    path?: never;
+    query: {
+        token: string;
+    };
+    url: '/public/unsubscribe/club-messages';
+};
+
+export type UnsubscribeClubMessagesResponses = {
+    200: string;
+};
+
+export type UnsubscribeClubMessagesResponse = UnsubscribeClubMessagesResponses[keyof UnsubscribeClubMessagesResponses];
 
 export type GetCohortRetentionData = {
     body?: never;

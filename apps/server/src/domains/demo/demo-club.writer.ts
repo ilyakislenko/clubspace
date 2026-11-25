@@ -160,6 +160,10 @@ export const writeDemoClubPlan = async (
     await tx.aiDataTransferAcceptance.createMany({ data: plan.aiChatAcceptances })
     await tx.aiChatConversation.createMany({ data: plan.aiChatConversations })
     await tx.aiChatUsage.createMany({ data: plan.aiChatUsages })
+    // «Сообщения»: after the users (recipients and inbox rows point at them).
+    await tx.clubMessage.createMany({ data: plan.clubMessages })
+    await inChunks(plan.clubMessageRecipients, (data) => tx.clubMessageRecipient.createMany({ data }))
+    await tx.notification.createMany({ data: plan.notifications })
 
     for (const f of plan.liveFreezes) {
         await deps.freezes.createInTx(tx, {

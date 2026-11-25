@@ -113,6 +113,22 @@ describe("routeForNotification", () => {
     ).toBeNull()
   })
 
+  it.each(["message.broadcast", "message.service", "message.direct"])(
+    "%s opens that club message, ungated by any app section",
+    (kind) => {
+      expect(routeForNotification({ kind, messageId: "m-1" }, off)).toEqual({
+        name: "ClubMessage",
+        params: { messageId: "m-1" },
+      })
+    },
+  )
+
+  it("a club message without its id opens «Сообщения клуба»", () => {
+    expect(routeForNotification({ kind: "message.broadcast" }, off)).toEqual({
+      name: "ClubMessages",
+    })
+  })
+
   it("member.invitation opens the Invitations screen", () => {
     expect(
       routeForNotification(
@@ -461,6 +477,25 @@ describe("notifications for a child (metadata.dependentId)", () => {
     expect(resolveNotification(meta, ctx)).toBeNull()
     expect(openNotification(nav, meta, ctx)).toBe(false)
     expect(calls).toEqual([])
+  })
+
+  it("opens a child's club message in the child's profile, on that message", () => {
+    const meta = {
+      kind: "message.direct",
+      messageId: "m-1",
+      dependentId: "kid-1",
+      workspaceId: "k",
+    }
+    const asGuardian = setup(null, ["kid-1"])
+    expect(openNotification(asGuardian.nav, meta, asGuardian.ctx)).toBe(true)
+    expect(asGuardian.calls).toEqual(["profile:kid-1:message.direct"])
+
+    const asChild = setup("kid-1", ["kid-1"])
+    expect(resolveNotification(meta, asChild.ctx)).toEqual({
+      kind: "open",
+      route: { name: "ClubMessage", params: { messageId: "m-1" } },
+      target: null,
+    })
   })
 
   it("switches back to the guardian for the guardian's own notification", () => {

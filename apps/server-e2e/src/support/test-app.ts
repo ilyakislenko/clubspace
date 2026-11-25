@@ -32,6 +32,8 @@ export type SentMail = {
     to: string
     subject: string
     html: string
+    // Extra headers (List-Unsubscribe on a club message e-mail).
+    headers?: Record<string, string>
 }
 
 /**
@@ -173,11 +175,13 @@ export const createTestApp = async (
                 to: string
                 subject: string
                 html: string
+                headers?: Record<string, string>
             }) => {
                 mail.sent.push({
                     to: opts.to,
                     subject: opts.subject,
                     html: opts.html ?? '',
+                    headers: opts.headers,
                 })
                 return { messageId: `e2e-${mail.sent.length}` }
             },

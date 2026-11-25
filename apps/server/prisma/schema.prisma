@@ -149,6 +149,10 @@ model Workspace {
   // (docs/design/2026-11-26-door-checkin-and-birthdays.md).
   birthdayGreetingsEnabled Boolean @default(true)
 
+  // «Сообщения ученикам на e-mail»: the club allows the e-mail copy of its
+  // messages (each message still opts in). Off by default; trial allowance applies.
+  messagesEmailEnabled Boolean @default(false)
+
   // «О клубе»: contacts/links/rules the club shows its students in the app.
   // contacts = [{label, phone}] (phone normalised to +7…), links = [{label, url}]
   // (http/https only). Parsed defensively on read (club-about/schemas.ts).
@@ -224,6 +228,7 @@ model Workspace {
   rankPromotions RankPromotion[]
 
   announcements Announcement[]
+  clubMessages  ClubMessage[]
 
   journalEntries TrainingJournalEntry[]
 
@@ -374,6 +379,8 @@ model User {
   rankPromotionsAwarded RankPromotion[] @relation("RankPromotionAwardedBy")
 
   announcements Announcement[] @relation("AnnouncementAuthor")
+  clubMessagesAuthored ClubMessage[]          @relation("ClubMessageAuthor")
+  clubMessagesReceived ClubMessageRecipient[] @relation("ClubMessageRecipientUser")
 
   journalEntries TrainingJournalEntry[]
 
@@ -466,6 +473,11 @@ model NotificationPreferences {
   analyticsDigestEnabled Boolean @default(true)
   // «Пора повторить»: the evening push when bookmark cards are due for review.
   reviewRemindersEnabled Boolean @default(true)
+  // «Сообщения клуба»: push and inbox for non-service club broadcasts (the
+  // message stays in the app's list either way), and their e-mail copies
+  // (the one-click unsubscribe link sets it false).
+  clubMessagesEnabled      Boolean @default(true)
+  clubMessagesEmailEnabled Boolean @default(true)
 
   email           String? @db.VarChar(255)
   // Unused; drop with owner consent (data loss on db push).
@@ -2661,6 +2673,9 @@ model Announcement {
   @@index([directionId])
 }
 
+// EXPIRING («Только на продление») stays for stored rows only: new posts are
+// refused (its job moved to «Сообщения → Продлить»); dropping the value needs
+// owner consent.
 enum AnnouncementAudience {
   ALL
   EXPIRING
@@ -2681,6 +2696,92 @@ model AnnouncementGroup {
 
   @@index([announcementId])
   @@index([groupId])
+}
+
+// «Сообщения» (docs/design/2026-11-26-broadcast-and-direct-messages.md): a
+// message from the club to a segment of its students, or to one student. Not a
+// feed post (Announcement): only the recipients resolved at send time see it.
+enum ClubMessageSegment {
+  ALL
+  GROUPS
+  DIRECTION
+  RENEW
+  UNPAID
+  INACTIVE
+  CALL_LIST
+  MEMBERS
+}
+
+// SCHEDULED = waiting for sendAt or the end of the club's quiet hours.
+enum ClubMessageStatus {
+  SCHEDULED
+  SENT
+  CANCELLED
+}
+
+model ClubMessage {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  authorId    String?   @db.Uuid
+  author      User?     @relation("ClubMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  // Denormalized: renders after the author is gone.
+  authorName  String    @db.VarChar(255)
+  title       String    @db.VarChar(120)
+  // ≤ 2000 (zod).
+  body        String    @db.Text
+  segment     ClubMessageSegment
+  // DIRECTION / GROUPS / MEMBERS: plain ids (the snapshot outlives them).
+  directionId String?   @db.Uuid
+  groupIds    String[]  @db.Uuid
+  memberIds   String[]  @db.Uuid
+  isDirect    Boolean   @default(false)
+  // «Служебное»: ignores the member's opt-out and the club mute.
+  isService   Boolean   @default(false)
+  // «Срочно»: ignores quiet hours.
+  urgent      Boolean   @default(false)
+  withEmail   Boolean   @default(false)
+  // The «Связались» a direct message written from «Кому позвонить» logged
+  // (MemberRetentionContact id; plain id). Cancelling the message removes it.
+  contactId   String?   @db.Uuid
+  status      ClubMessageStatus @default(SCHEDULED)
+  sendAt      DateTime  @default(now())
+  sentAt      DateTime?
+  // Written at send (readCount on each first read): the list needs no aggregate.
+  recipientCount Int @default(0)
+  pushCount      Int @default(0)
+  emailCount     Int @default(0)
+  readCount      Int @default(0)
+  recipients  ClubMessageRecipient[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId, createdAt])
+  // The minute dispatcher.
+  @@index([status, sendAt])
+  @@index([authorId])
+}
+
+// One student a message was delivered to (a child, not its guardian: the
+// guardians get the push and e-mail). The app's «Сообщения клуба» reads these.
+model ClubMessageRecipient {
+  id          String      @id @default(uuid()) @db.Uuid
+  messageId   String      @db.Uuid
+  message     ClubMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  // Denormalized: the member's list is workspace-scoped.
+  workspaceId String      @db.Uuid
+  userId      String      @db.Uuid
+  user        User        @relation("ClubMessageRecipientUser", fields: [userId], references: [id], onDelete: Cascade)
+  // null = push row written; 'muted' | 'opted_out' | 'no_device' | 'cap'.
+  pushSkip    String?     @db.VarChar(16)
+  emailedAt   DateTime?
+  // «Открыли»: the message was opened in the app.
+  readAt      DateTime?
+  createdAt   DateTime    @default(now())
+
+  @@unique([messageId, userId])
+  @@index([workspaceId, userId, createdAt])
+  @@index([messageId, readAt])
 }
 
 // A member's private training journal — their own notes after a session

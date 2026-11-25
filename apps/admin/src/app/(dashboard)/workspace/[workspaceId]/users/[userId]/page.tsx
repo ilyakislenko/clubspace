@@ -66,6 +66,8 @@ import { CheckInCardSheet } from "../../../../../../features/users/CheckInCardSh
 import { formatBirthDate, todayYmd } from "../../../../../../features/users/birth-date"
 import { MemberNotesPanel } from "../../../../../../features/users/MemberNotesPanel"
 import { MemberAttendancePanel } from "../../../../../../features/users/MemberAttendancePanel"
+import { ComposeMessageSheet } from "../../../../../../features/messages/ComposeMessageSheet"
+import { MemberMessagesBlock } from "../../../../../../features/messages/MemberMessagesBlock"
 import { confirmDialog } from "../../../../../../shared/ui/confirm-dialog"
 
 const formatName = (m: MemberProgress["member"]): string => {
@@ -125,6 +127,9 @@ export default function MemberProgressPage() {
   const [accessOpen, setAccessOpen] = useState(false)
   const [cardOpen, setCardOpen] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [composeOpen, setComposeOpen] = useState(false)
+  // Bumped after a message is sent from the card: its «Сообщения» re-reads.
+  const [messagesSent, setMessagesSent] = useState(0)
   // Who is looking: only needed below the sport-lead tier, where the
   // abonements of one's own row are out of scope.
   const [viewerUserId, setViewerUserId] = useState<string | null>(null)
@@ -348,6 +353,10 @@ export default function MemberProgressPage() {
     !member.isOwner &&
     canManageProfile &&
     canActOnRole(myMembership, member.roleName)
+  // A message goes to a student; every coach may write to one in scope (the
+  // server refuses a student outside the coach's groups).
+  const canWriteMessage =
+    !member.isOwner && member.roleName === "user" && isStaff(myMembership)
 
   // The panel (own fetch, adds achievements) supersedes the compact progress
   // list below, so only one «Посещаемость» block is ever on screen.
@@ -370,7 +379,7 @@ export default function MemberProgressPage() {
               Ребёнок
             </span>
           )}
-          {canEditMember && (
+          {(canEditMember || canWriteMessage) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -385,18 +394,27 @@ export default function MemberProgressPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setAccessOpen(true)}>
-                  Изменить доступ к приложению
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setCardOpen(true)}>
-                  Карта для входа
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onSelect={() => void handleRemove()}
-                >
-                  Удалить из клуба
-                </DropdownMenuItem>
+                {canWriteMessage && (
+                  <DropdownMenuItem onSelect={() => setComposeOpen(true)}>
+                    Написать сообщение
+                  </DropdownMenuItem>
+                )}
+                {canEditMember && (
+                  <>
+                    <DropdownMenuItem onSelect={() => setAccessOpen(true)}>
+                      Изменить доступ к приложению
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setCardOpen(true)}>
+                      Карта для входа
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onSelect={() => void handleRemove()}
+                    >
+                      Удалить из клуба
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -481,6 +499,16 @@ export default function MemberProgressPage() {
         />
       )}
 
+      {canWriteMessage && workspaceId && userId && (
+        <ComposeMessageSheet
+          workspaceId={workspaceId}
+          open={composeOpen}
+          prefill={{ segment: "MEMBERS", memberIds: [userId], label: formatName(member) }}
+          onClose={() => setComposeOpen(false)}
+          onSent={() => setMessagesSent((n) => n + 1)}
+        />
+      )}
+
       {!member.isOwner &&
         workspaceId &&
         userId &&
@@ -507,6 +535,14 @@ export default function MemberProgressPage() {
           workspaceId={workspaceId}
           userId={userId}
           initialNotes={member.notes}
+        />
+      )}
+
+      {member.roleName === "user" && workspaceId && userId && (
+        <MemberMessagesBlock
+          workspaceId={workspaceId}
+          userId={userId}
+          reloadKey={messagesSent}
         />
       )}
 

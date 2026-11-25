@@ -10,6 +10,8 @@ export const UpdateNotificationPreferencesFeatureInputSchema = z.object({
     inactivityEnabled: z.boolean().optional(),
     analyticsDigestEnabled: z.boolean().optional(),
     reviewRemindersEnabled: z.boolean().optional(),
+    clubMessagesEnabled: z.boolean().optional(),
+    clubMessagesEmailEnabled: z.boolean().optional(),
 })
 
 export const UpdateNotificationPreferencesFeatureOutputSchema =

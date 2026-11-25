@@ -41,6 +41,7 @@ export class GetWorkspaceSettingsHandler
                 timezone: true,
                 joinAutoApprove: true,
                 birthdayGreetingsEnabled: true,
+                messagesEmailEnabled: true,
                 updatedAt: true,
                 ...featureFlagSelect,
                 ...workspaceBookingSettingsSelect,

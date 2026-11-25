@@ -195,6 +195,15 @@ export const routeForNotification = (
     // «Пора повторить»: due bookmark cards, opens «Повторение».
     case "review.due":
       return isFeatureOn("videos") ? { name: "Reviews" } : null
+    // «Сообщения клуба»: opening the message itself stamps it read (the
+    // inbox's `seen` is not «открыли»). A child's message carries the child's
+    // `dependentId`, so it opens in the child's profile, on the child's row.
+    case "message.broadcast":
+    case "message.service":
+    case "message.direct":
+      return str(m.messageId)
+        ? { name: "ClubMessage", params: { messageId: str(m.messageId) } }
+        : { name: "ClubMessages" }
   }
 
   // Older rows and unknown kinds: a video id alone is still enough to open it.

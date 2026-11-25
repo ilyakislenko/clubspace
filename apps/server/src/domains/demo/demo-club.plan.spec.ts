@@ -385,8 +385,8 @@ describe('buildDemoClubPlan', () => {
             expect(audit?.metadata).toMatchObject({ listPrice: coachCash.listPrice, oneOff: 1000 })
             expect(p.auditEvents.filter((e) => e.action === 'discount.create')).toHaveLength(3)
             // The «абонемент заканчивается» promise is the promo code the product honours.
-            expect(p.announcements.some((a) => (a.body as string).includes('ПРОДЛИ5'))).toBe(true)
-            expect(p.announcements.some((a) => (a.body as string).includes('в день окончания'))).toBe(false)
+            expect(p.clubMessages.some((m) => (m.body as string).includes('ПРОДЛИ5'))).toBe(true)
+            expect(p.clubMessages.some((m) => (m.body as string).includes('в день окончания'))).toBe(false)
         }
         check(plan)
         for (const days of [9, 17, 26]) check(build(new Date(NOW.getTime() + days * 86_400_000)))
@@ -438,6 +438,63 @@ describe('buildDemoClubPlan', () => {
         const misha = groupsOf(demoUuid('child:misha'))
         expect(misha.length).toBeGreaterThan(0)
         expect(misha.some((g) => targets.has(g))).toBe(false)
+    })
+
+    it('has the eight demo messages: a scheduled one, a direct to student@, one to Миша for Елена', () => {
+        expect(plan.clubMessages).toHaveLength(8)
+        expect(plan.workspace.messagesEmailEnabled).toBe(true)
+        expect(plan.clubMessages.map((m) => m.segment)).toEqual([
+            'ALL',
+            'DIRECTION',
+            'RENEW',
+            'UNPAID',
+            'INACTIVE',
+            'MEMBERS',
+            'MEMBERS',
+            'ALL',
+        ])
+        const scheduled = plan.clubMessages.filter((m) => m.status === 'SCHEDULED')
+        expect(scheduled.map((m) => m.title)).toEqual(['Расписание на праздники'])
+        expect((scheduled[0].sendAt as Date) > NOW).toBe(true)
+        // Counters match the recipient rows they summarise.
+        for (const m of plan.clubMessages.filter((x) => x.status === 'SENT')) {
+            const rows = plan.clubMessageRecipients.filter((r) => r.messageId === m.id)
+            expect(m.recipientCount).toBe(rows.length)
+            expect(m.readCount).toBe(rows.filter((r) => r.readAt).length)
+            expect(m.pushCount).toBe(rows.filter((r) => r.pushSkip === null).length)
+            expect(rows.length).toBeGreaterThan(0)
+        }
+        // The renewal message carries the promo code the product honours.
+        expect(plan.clubMessages.some((m) => m.segment === 'RENEW' && (m.body as string).includes('ПРОДЛИ5'))).toBe(true)
+        expect(plan.announcements.some((a) => a.audience === 'EXPIRING')).toBe(false)
+
+        const student = plan.accountUserIds.student
+        const kimono = plan.clubMessages.find((m) => m.title === 'Максим, возьмите кимоно на аттестацию')!
+        expect(kimono).toMatchObject({ isDirect: true, memberIds: [student] })
+        expect(plan.clubMessageRecipients.find((r) => r.messageId === kimono.id)).toMatchObject({
+            userId: student,
+            readAt: null,
+            pushSkip: null,
+        })
+        expect(plan.notifications.find((n) => (n.metadata as { messageId: string }).messageId === kimono.id)).toMatchObject({
+            userId: student,
+            seen: false,
+            metadata: { kind: 'message.direct', messageId: kimono.id },
+        })
+
+        const parent = plan.accountUserIds.parent
+        const uniform = plan.clubMessages.find((m) => m.title === 'Форма на соревнования')!
+        const mishaId = (uniform.memberIds as string[])[0]
+        expect(plan.guardianships.some((g) => g.guardianId === parent && g.dependentId === mishaId)).toBe(true)
+        expect(plan.notifications.find((n) => (n.metadata as { messageId: string }).messageId === uniform.id)).toMatchObject({
+            userId: parent,
+            topic: 'Миша: Форма на соревнования',
+            metadata: { kind: 'message.direct', dependentId: mishaId },
+        })
+        // Only the fixed accounts have inbox rows.
+        expect(new Set(plan.notifications.map((n) => n.userId))).toEqual(
+            new Set([student, parent].filter((id) => plan.notifications.some((n) => n.userId === id))),
+        )
     })
 
     it('fills events, announcements, courses, personal trainings and drop-ins', () => {
@@ -593,5 +650,30 @@ describe('buildDemoClubPlan', () => {
         expect(max(later) - max(plan)).toBeGreaterThan(5 * 86_400_000)
         expect(later.workspaceId).toBe(plan.workspaceId)
         expect(later.groups).toHaveLength(GROUPS.length + 1)
+    })
+
+    it('mutes only a few students (a message preview must not read «выключили — 31»)', () => {
+        const muted = students(plan).filter((m) => m.data.notificationsMuted)
+        expect(muted.length).toBeGreaterThanOrEqual(2)
+        expect(muted.length).toBeLessThanOrEqual(3)
+        const accounts = new Set(Object.values(plan.accountUserIds))
+        expect(muted.some((m) => accounts.has(m.data.userId as string))).toBe(false)
+    })
+
+    it("message rows say «muted» exactly for the members who muted the club; the rest have no device", () => {
+        const mutedIds = new Set(
+            plan.members.filter((m) => m.data.notificationsMuted).map((m) => m.data.userId as string),
+        )
+        const broadcastIds = new Set(
+            plan.clubMessages.filter((m) => !m.isDirect && !m.isService).map((m) => m.id as string),
+        )
+        const rows = plan.clubMessageRecipients.filter((r) => broadcastIds.has(r.messageId))
+        expect(rows.length).toBeGreaterThan(0)
+        for (const r of rows) {
+            if (mutedIds.has(r.userId)) expect(r.pushSkip).toBe('muted')
+            else expect(r.pushSkip).not.toBe('muted')
+            if (r.pushSkip === 'muted') expect(r.emailedAt).toBeNull()
+        }
+        expect(rows.filter((r) => r.pushSkip === 'muted').length).toBeLessThan(rows.length / 10)
     })
 })

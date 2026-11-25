@@ -1,5 +1,6 @@
 "use client"
 
+import { MessageSquare } from "lucide-react"
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 
@@ -37,6 +38,10 @@ import {
   renewalAutopayLine,
 } from "../../../../../features/subscriptions/autopay-text"
 import { GuardianContacts } from "../../../../../features/users/GuardianContacts"
+import {
+  ComposeMessageSheet,
+  type ComposePrefill,
+} from "../../../../../features/messages/ComposeMessageSheet"
 import { AnalyticsFilters } from "../analytics/analytics-toolbar"
 
 const PER_PAGE = 50
@@ -105,6 +110,8 @@ export function RenewList({ workspaceId }: { workspaceId: string }) {
   const [error, setError] = useState<string | null>(null)
   // Rows on screen, so a refresh doesn't fold «Показать ещё» back.
   const shown = useRef({ rows: 0, awaiting: 0 })
+  // «Написать»: one student from a row, or everyone in a section.
+  const [compose, setCompose] = useState<ComposePrefill | null>(null)
 
   const load = useCallback(async () => {
     const scope = analyticsScope(filter)
@@ -185,6 +192,18 @@ export function RenewList({ workspaceId }: { workspaceId: string }) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
+        {total > 0 && (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCompose({ segment: "RENEW", label: "Пора продлить" })}
+            >
+              Написать всем
+            </Button>
+          </div>
+        )}
         <p className="text-sm text-muted-foreground">
           У этих учеников заканчиваются {vocabulary.session.nomPl} или срок абонемента. Новый
           абонемент назначается и оплата отмечается в карточке ученика.
@@ -242,13 +261,24 @@ export function RenewList({ workspaceId }: { workspaceId: string }) {
 
       {!loading && awaiting && awaiting.total > 0 && (
         <section className="space-y-2">
-          <h2 className="text-sm font-medium">
-            Ожидают оплаты{" "}
-            <span className="text-muted-foreground">
-              · {awaiting.members}{" "}
-              {pluralRu(awaiting.members, "ученик", "ученика", "учеников")}
-            </span>
-          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-medium">
+              Ожидают оплаты{" "}
+              <span className="text-muted-foreground">
+                · {awaiting.members}{" "}
+                {pluralRu(awaiting.members, "ученик", "ученика", "учеников")}
+              </span>
+            </h2>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              onClick={() => setCompose({ segment: "UNPAID", label: "Не оплатили" })}
+            >
+              Написать всем
+            </Button>
+          </div>
           <ul className="divide-y divide-border rounded-lg border border-border">
             {awaitingRows.map((a) => (
               <li key={a.subscriptionId}>
@@ -310,6 +340,9 @@ export function RenewList({ workspaceId }: { workspaceId: string }) {
                 <th className="p-3">Причина</th>
                 <th className="p-3">Абонемент</th>
                 <th className="p-3">Телефон</th>
+                <th className="p-3">
+                  <span className="sr-only">Написать</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -366,6 +399,25 @@ export function RenewList({ workspaceId }: { workspaceId: string }) {
                         className="mt-1 whitespace-normal text-xs text-muted-foreground"
                       />
                     </td>
+                    <td className="p-2 text-right">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8"
+                        aria-label="Написать"
+                        title="Написать"
+                        onClick={() =>
+                          setCompose({
+                            segment: "MEMBERS",
+                            memberIds: [c.userId],
+                            label: personName(c),
+                          })
+                        }
+                      >
+                        <MessageSquare className="size-4" />
+                      </Button>
+                    </td>
                   </tr>
                 )
               })}
@@ -387,6 +439,13 @@ export function RenewList({ workspaceId }: { workspaceId: string }) {
           </Button>
         </div>
       )}
+      <ComposeMessageSheet
+        workspaceId={workspaceId}
+        open={compose !== null}
+        prefill={compose}
+        onClose={() => setCompose(null)}
+        onSent={() => undefined}
+      />
     </div>
   )
 }

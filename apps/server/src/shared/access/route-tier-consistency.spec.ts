@@ -288,6 +288,37 @@ describe('route tier consistency', () => {
         expect(routeOf('GetCheckoutQuoteFeature')?.tier).toBeNull()
     })
 
+    // «Сообщения» (docs/design/2026-11-26-broadcast-and-direct-messages.md
+    // §4.3): every coach writes to own students, so the staff routes are
+    // COACHING_ROLES; «Продлить», «Не оплатили» and «служебное» are sport-lead
+    // branches inside (features/club-messages/compose.ts, outside the handler
+    // source Rule A reads — pinned here instead). The member's own routes have
+    // no @Roles (X-Act-As accepted).
+    it('club message routes keep their tiers and the sport-lead branches', () => {
+        const tierOf = (feature: string) => routes.find((r) => r.feature === feature)?.tier
+        for (const feature of [
+            'PreviewClubMessageFeature',
+            'SendClubMessageFeature',
+            'ListClubMessagesFeature',
+            'GetClubMessageFeature',
+            'ListClubMessageRecipientsFeature',
+            'CancelClubMessageFeature',
+        ]) {
+            expect(tierOf(feature)).toBe('COACHING_ROLES')
+        }
+        for (const feature of [
+            'ListMyClubMessagesFeature',
+            'GetMyClubMessageFeature',
+            'MarkClubMessageReadFeature',
+        ]) {
+            expect(routes.some((r) => r.feature === feature)).toBe(true)
+            expect(tierOf(feature)).toBeNull()
+        }
+        const compose = readFileSync(join(FEATURES_DIR, 'club-messages', 'compose.ts'), 'utf8')
+        expect(compose.match(/assertSportLead\(/g)).toHaveLength(2)
+        expect(compose).toContain('resolveCoachScope(')
+    })
+
     // Member autopay (docs/design/2026-11-15-member-autopay.md §3.5): the
     // member's own routes carry no @Roles; staff read and cancel (at the
     // member's request) are the sport side.

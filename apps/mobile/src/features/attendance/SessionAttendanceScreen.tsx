@@ -1,7 +1,13 @@
 import { useFocusEffect } from "@react-navigation/native"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import { useNetworkState } from "expo-network"
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 import {
   ActivityIndicator,
   ScrollView,
@@ -230,6 +236,38 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
       setRefreshing(false)
     }
   }
+
+  // «Написать группе»: a group's class only (an event or a personal session
+  // has no group). The server keeps a coach to their own groups.
+  const messageGroupId = session?.groupId ?? null
+  const messageGroupName = groupName ?? session?.title ?? ""
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: messageGroupId
+        ? () => (
+            <Pressable
+              onPress={() =>
+                navigation.navigate("ComposeClubMessage", {
+                  segment: "GROUPS",
+                  groupIds: [messageGroupId],
+                  audienceLabel: `Группа: ${messageGroupName}`,
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Написать группе"
+              hitSlop={8}
+              style={styles.headerButton}
+            >
+              <Icon
+                name="chatbubble-outline"
+                size={22}
+                color={theme.colors.text}
+              />
+            </Pressable>
+          )
+        : undefined,
+    })
+  }, [navigation, messageGroupId, messageGroupName, styles, theme])
 
   const toggle = async (userId: string, present: boolean) => {
     if (!workspace || !sessionId || busy) return
@@ -887,6 +925,12 @@ const makeStyles = (theme: Theme) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
     flex: { flex: 1 },
+    headerButton: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     center: { paddingVertical: theme.spacing(6), alignItems: "center" },
     offlineBanner: {
       padding: theme.spacing(3),

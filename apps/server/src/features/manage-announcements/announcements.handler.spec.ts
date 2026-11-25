@@ -1,4 +1,7 @@
-import { CreateAnnouncementFeature } from './create-announcement.feature';
+import {
+  CreateAnnouncementFeature,
+  CreateAnnouncementInputSchema,
+} from './create-announcement.feature';
 import { CreateAnnouncementHandler } from './create-announcement.handler';
 import { DeleteAnnouncementFeature } from './delete-announcement.feature';
 import { DeleteAnnouncementHandler } from './delete-announcement.handler';
@@ -9,7 +12,10 @@ import { ListAnnouncementsHandler } from './list-announcements.handler';
 import { announcementMemberWhere, announceToWorkspace } from './notify';
 import { ownedByDirectionsWhere, visibleToMemberWhere } from './target';
 import { studentWhere } from '../../domains/metrics/students';
-import { UpdateAnnouncementFeature } from './update-announcement.feature';
+import {
+  UpdateAnnouncementFeature,
+  UpdateAnnouncementInputSchema,
+} from './update-announcement.feature';
 import { UpdateAnnouncementHandler } from './update-announcement.handler';
 import { serializeAnnouncement } from './schemas';
 import {
@@ -1053,5 +1059,32 @@ describe('serializeAnnouncement', () => {
       groups: [{ id: 'g1', name: 'Взрослые', gymName: 'Манеж' }],
       groupsRemoved: false,
     });
+  });
+});
+
+// «Только на продление» moved to «Сообщения → Продлить»
+// (docs/design/2026-11-26-broadcast-and-direct-messages.md §4.4): an old client
+// sending EXPIRING gets a 400 naming the new place; stored rows keep theirs.
+describe('announcement audience cutover', () => {
+  const base = { title: 'Сбор', body: 'Текст' };
+
+  it.each([
+    ['create', CreateAnnouncementInputSchema],
+    ['update', UpdateAnnouncementInputSchema],
+  ] as const)('%s refuses EXPIRING with «Используйте «Сообщения → Продлить»»', (_, schema) => {
+    const res = schema.safeParse({ ...base, audience: 'EXPIRING' });
+    expect(res.success).toBe(false);
+    expect(res.error?.issues[0]).toMatchObject({
+      path: ['audience'],
+      message: 'Используйте «Сообщения → Продлить»',
+    });
+  });
+
+  it.each([
+    ['create', CreateAnnouncementInputSchema],
+    ['update', UpdateAnnouncementInputSchema],
+  ] as const)('%s accepts ALL or no audience', (_, schema) => {
+    expect(schema.safeParse({ ...base, audience: 'ALL' }).success).toBe(true);
+    expect(schema.safeParse(base).success).toBe(true);
   });
 });
