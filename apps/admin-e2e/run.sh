@@ -49,9 +49,6 @@ NEXT_ENV="apps/admin/next-env.d.ts"
 NEXT_ENV_BACKUP=""
 cleanup() {
     if [ -n "$ADMIN_PID" ]; then
-        # $ADMIN_PID is the subshell; the Next server under it would outlive
-        # it and be reused, stale, by the next run on this port.
-        pkill -TERM -P "$ADMIN_PID" 2>/dev/null || true
         kill "$ADMIN_PID" 2>/dev/null || true
         wait "$ADMIN_PID" 2>/dev/null || true
     fi

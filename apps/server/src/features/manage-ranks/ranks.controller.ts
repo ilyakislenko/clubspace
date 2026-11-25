@@ -27,6 +27,12 @@ import {
     type CreateLadderFeatureResponse,
 } from './create-ladder.feature'
 import {
+    CreateRankLadderFromTemplateFeature,
+    CreateRankLadderFromTemplateInputSchema,
+    CreateRankLadderFromTemplateOutputSchema,
+    type CreateRankLadderFromTemplateFeatureResponse,
+} from './create-ladder-from-template.feature'
+import {
     CreateLevelFeature,
     CreateLevelInputSchema,
     CreateLevelOutputSchema,
@@ -71,6 +77,12 @@ class CreateLevelInput extends createZodDto(CreateLevelInputSchema) {}
 class RankLevelOutputDto extends createZodDto(CreateLevelOutputSchema) {}
 class UpdateLevelInput extends createZodDto(UpdateLevelInputSchema) {}
 class UpdateLevelOutput extends createZodDto(UpdateLevelOutputSchema) {}
+class CreateRankLadderFromTemplateInput extends createZodDto(
+    CreateRankLadderFromTemplateInputSchema,
+) {}
+class CreateRankLadderFromTemplateOutput extends createZodDto(
+    CreateRankLadderFromTemplateOutputSchema,
+) {}
 
 @Controller('workspaces/:workspaceId/rank-ladders')
 @UseGuards(AuthGuard, WorkspaceMemberGuard, RoleGuard)
@@ -87,6 +99,30 @@ export class RanksController {
     ) {
         return this.bus.execute<CreateLadderFeature, CreateLadderFeatureResponse>(
             new CreateLadderFeature(
+                body,
+                workspaceId,
+                user.userId,
+                user.role?.name ?? null,
+                user.isSuperAdmin,
+            ),
+        )
+    }
+
+    // «Взять за основу» a federation standard (404 while the federation hub
+    // is off, checked in the handler).
+    @Post('from-template')
+    @Roles(COACHING_ROLES)
+    @ZodResponse({ type: CreateRankLadderFromTemplateOutput })
+    async createRankLadderFromTemplate(
+        @Param('workspaceId') workspaceId: string,
+        @Body() body: CreateRankLadderFromTemplateInput,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return this.bus.execute<
+            CreateRankLadderFromTemplateFeature,
+            CreateRankLadderFromTemplateFeatureResponse
+        >(
+            new CreateRankLadderFromTemplateFeature(
                 body,
                 workspaceId,
                 user.userId,

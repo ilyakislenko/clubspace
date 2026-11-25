@@ -98,6 +98,17 @@ import {
     PreviewPlatformWorkspacePromoFeatureResponse,
     PreviewPlatformWorkspacePromoOutputSchema,
 } from './platform-promo-presets.feature'
+import {
+    CreatePlatformOrganizationFeature,
+    CreatePlatformOrganizationFeatureResponse,
+    CreatePlatformOrganizationInputSchema,
+    CreatePlatformOrganizationOutputSchema,
+} from './create-organization.feature'
+import {
+    ListPlatformOrganizationsFeature,
+    ListPlatformOrganizationsFeatureResponse,
+    ListPlatformOrganizationsOutputSchema,
+} from './list-organizations.feature'
 
 class ListPlatformWorkspacesQueryDto extends createZodDto(
     ListPlatformWorkspacesInputSchema,
@@ -163,6 +174,15 @@ class PlatformWorkspacePromoInputDto extends createZodDto(
 class PreviewPlatformWorkspacePromoOutput extends createZodDto(
     PreviewPlatformWorkspacePromoOutputSchema,
 ) {}
+class CreatePlatformOrganizationInputDto extends createZodDto(
+    CreatePlatformOrganizationInputSchema,
+) {}
+class CreatePlatformOrganizationOutputDto extends createZodDto(
+    CreatePlatformOrganizationOutputSchema,
+) {}
+class ListPlatformOrganizationsOutputDto extends createZodDto(
+    ListPlatformOrganizationsOutputSchema,
+) {}
 
 // The platform console: one tier above the per-workspace admin. Routes are not
 // workspace-scoped, so the usual WorkspaceMemberGuard/RoleGuard pair does not
@@ -215,6 +235,30 @@ export class PlatformController {
                 user.isSuperAdmin,
             ),
         )
+    }
+
+    // Federation hub (docs/design/2026-11-26-federation-hub-mvp.md §3.2):
+    // organizations are created by the platform in the MVP. 404 while
+    // ORGANIZATIONS_ENABLED is off (checked in the handlers).
+    @Get('organizations')
+    @ZodResponse({ type: ListPlatformOrganizationsOutputDto })
+    async listPlatformOrganizations(@CurrentUser() user: CurrentUserPayload) {
+        return await this.bus.execute<
+            ListPlatformOrganizationsFeature,
+            ListPlatformOrganizationsFeatureResponse
+        >(new ListPlatformOrganizationsFeature(user.userId, user.isSuperAdmin))
+    }
+
+    @Post('organizations')
+    @ZodResponse({ type: CreatePlatformOrganizationOutputDto })
+    async createPlatformOrganization(
+        @Body() body: CreatePlatformOrganizationInputDto,
+        @CurrentUser() user: CurrentUserPayload,
+    ) {
+        return await this.bus.execute<
+            CreatePlatformOrganizationFeature,
+            CreatePlatformOrganizationFeatureResponse
+        >(new CreatePlatformOrganizationFeature(body, user.userId, user.isSuperAdmin))
     }
 
     @Get('audit')

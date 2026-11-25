@@ -11,7 +11,7 @@ import {
   type HttpContext,
 } from './checks'
 import { env } from './env'
-import { LEGACY_REDIRECTS, ROLE_MATRIX } from './role-matrix'
+import { LEGACY_REDIRECTS, ORG_MATRIX, ORG_OUTSIDER, ROLE_MATRIX } from './role-matrix'
 
 // Detail pages, opened with the first id of the list behind them. The list is
 // read with the role's own token, so the id is one the role can actually see;
@@ -151,7 +151,7 @@ const inspectText = async (page: Page, watch: Watch): Promise<string> => {
   return text
 }
 
-const signInThroughUi = async (page: Page, email: string): Promise<string> => {
+const signInThroughUi = async (page: Page, email: string, area: 'workspace' | 'org' = 'workspace'): Promise<string> => {
   await page.goto('/sign-in')
   await page.waitForLoadState('networkidle')
   // Retried as a unit: a fill that lands before hydration is wiped by React.
@@ -162,9 +162,10 @@ const signInThroughUi = async (page: Page, email: string): Promise<string> => {
   }).toPass({ timeout: 30_000 })
   await page.locator('#code').fill(env.demoLoginCode)
   await page.getByRole('button', { name: 'Войти' }).click()
-  await page.waitForURL(/\/workspace\/[0-9a-f-]{36}(\/|$)/, { timeout: 30_000 })
-  const match = /\/workspace\/([0-9a-f-]{36})/.exec(page.url())
-  if (!match) throw new Error(`no club in the post-sign-in URL ${page.url()}`)
+  const landing = new RegExp(`/${area}/([0-9a-f-]{36})(/|$)`)
+  await page.waitForURL(landing, { timeout: 30_000 })
+  const match = landing.exec(page.url())
+  if (!match) throw new Error(`no ${area} in the post-sign-in URL ${page.url()}`)
   return match[1]
 }
 
@@ -329,5 +330,42 @@ for (const roleCase of ROLE_MATRIX) {
       watch.problems.map((p) => `${p.route} — ${p.kind}: ${p.detail}`),
       `${roleCase.role}: ${routes.length} routes visited, ${roleCase.blocked.length} blocked checks`,
     ).toEqual([])
+  })
+}
+
+// The federation console: a federation-only account lands on /org/<id> and
+// its sidebar offers exactly the matrix routes, each rendering clean; a club
+// owner gets the notice there and finds «Федерация» in the club's settings.
+for (const orgCase of ORG_MATRIX) {
+  test(`federation (${orgCase.email}): lands on the console, every section renders clean`, async ({ page, browser }) => {
+    expect(env.demoLoginCode, 'DEMO_LOGIN_CODE (env or the repo .env)').toMatch(/^\d{6}$/)
+    const watch = watchPage(page)
+    const orgId = await signInThroughUi(page, orgCase.email, 'org')
+    const base = `/org/${orgId}`
+    watch.at('(landing)')
+    for (const loader of await settle(page, watch)) watch.report('stuck loader', loader)
+    const visible = await linkRoutes(page, base, SIDEBAR_LINKS)
+    expect.soft([...visible].sort(), 'federation sidebar').toEqual([...orgCase.routes].sort())
+    for (const route of orgCase.routes) {
+      await test.step(`visit /org/…/${route}`, () => visit(page, watch, base, route))
+    }
+    await test.step('settings ?tab=history', () => visit(page, watch, base, 'settings?tab=history'))
+    expect(watch.problems.map((p) => `${p.route} — ${p.kind}: ${p.detail}`)).toEqual([])
+
+    // The club owner of a member club (own session): not on the federation's team.
+    const context = await browser.newContext({ baseURL: env.baseUrl, viewport: { width: 1440, height: 900 } })
+    const ownerPage = await context.newPage()
+    const outsider = watchPage(ownerPage)
+    const workspaceId = await signInThroughUi(ownerPage, ORG_OUTSIDER.email)
+    // Quiet first: requests the landing page still has in flight when the next
+    // goto cancels them never report back, so the in-flight count would stick.
+    outsider.at('(landing)')
+    for (const loader of await settle(ownerPage, outsider)) outsider.report('stuck loader', loader)
+    await test.step('club owner on /org/<id>', () => expectBlocked(ownerPage, outsider, '/org', orgId))
+    await test.step('club owner on «Настройки → Федерация»', () =>
+      visit(ownerPage, outsider, `/workspace/${workspaceId}`, ORG_OUTSIDER.federationSettings),
+    )
+    await context.close()
+    expect(outsider.problems.map((p) => `${p.route} — ${p.kind}: ${p.detail}`)).toEqual([])
   })
 }

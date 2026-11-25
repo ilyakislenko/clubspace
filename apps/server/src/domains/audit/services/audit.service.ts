@@ -143,6 +143,32 @@ export type AuditAction =
     | 'lead.setStatus'
     | 'lead.link'
     | 'lead.erase'
+    // Federation hub (docs/design/2026-11-26-federation-hub-mvp.md §3.4).
+    // Org side: organizationId set, workspaceId null (metadata names the club
+    // where one is involved). Club side: both ids, so the decision is in the
+    // club's history too. Person consent evidence is ConsentRecord, not here.
+    | 'org.create'
+    | 'org.update'
+    | 'org.inviteClub'
+    | 'org.removeClub'
+    | 'org.memberAdd'
+    | 'org.memberRemove'
+    | 'org.announcementCreate'
+    | 'org.announcementUpdate'
+    | 'org.announcementDelete'
+    | 'org.eventCreate'
+    | 'org.eventUpdate'
+    | 'org.eventDelete'
+    | 'org.templateCreate'
+    | 'org.templateUpdate'
+    | 'org.templateDelete'
+    | 'org.acceptInvite'
+    | 'org.declineInvite'
+    | 'org.updateSharing'
+    | 'org.leave'
+    // A club copied an org ladder template (design §3.3 `rankLadder.fromTemplate`;
+    // the naming rule wants a lowercase entity).
+    | 'ladder.fromTemplate'
     // These carry the affected club's workspaceId, so they land in that club's
     // journal too — an owner can see who created and handed over their club.
     | 'workspace.create'
@@ -228,6 +254,13 @@ export type AuditTargetType =
     | 'clubMessage'
     | 'payroll'
     | 'lead'
+    | 'organization'
+    | 'organizationClub'
+    | 'organizationMember'
+    | 'organizationAnnouncement'
+    | 'organizationEvent'
+    | 'organizationTemplate'
+    | 'rankLadder'
 
 @Injectable()
 export class AuditService {
@@ -240,6 +273,7 @@ export class AuditService {
         targetType: AuditTargetType
         targetId?: string | null
         workspaceId?: string | null
+        organizationId?: string | null
         actorId?: string | null
         actorEmail?: string | null
         metadata?: Record<string, unknown>
@@ -251,6 +285,7 @@ export class AuditService {
                     targetType: payload.targetType,
                     targetId: payload.targetId ?? null,
                     workspaceId: payload.workspaceId ?? null,
+                    organizationId: payload.organizationId ?? null,
                     actorId: payload.actorId ?? null,
                     actorEmail: payload.actorEmail ?? null,
                     metadata: (payload.metadata ?? null) as never,
@@ -269,6 +304,9 @@ export class AuditService {
         // Required key, nullable value: `null` means "every workspace". Required
         // rather than optional so forgetting it can't leak the whole platform.
         workspaceId: string | null
+        // The federation journal: every entry about this organization (its own
+        // actions and the clubs' decisions about it). Used with workspaceId null.
+        organizationId?: string
         curPage?: number
         perPage?: number
         actionPrefix?: string
@@ -283,6 +321,9 @@ export class AuditService {
         const where: Record<string, unknown> = {}
         if (payload.workspaceId !== null) {
             where.workspaceId = payload.workspaceId
+        }
+        if (payload.organizationId !== undefined) {
+            where.organizationId = payload.organizationId
         }
         if (payload.actions) {
             where.action = { in: payload.actions }

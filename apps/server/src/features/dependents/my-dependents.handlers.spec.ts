@@ -377,12 +377,13 @@ describe('UnlinkMyDependentHandler', () => {
             status: 'unlinked',
         })
         expect(prisma.guardianship.delete).toHaveBeenCalled()
-        // Stepping back withdraws this guardian's consent for the child.
+        // Stepping back withdraws this guardian's consents for the child,
+        // the federation ones included.
         expect(prisma.consentRecord.updateMany).toHaveBeenCalledWith({
             where: {
                 userId: 'g1',
                 dependentId: 'kid',
-                kind: 'DEPENDENT_DATA',
+                kind: { in: ['DEPENDENT_DATA', 'ORGANIZATION_SHARING'] },
                 withdrawnAt: null,
             },
             data: { withdrawnAt: expect.any(Date), ip: null, userAgent: null },

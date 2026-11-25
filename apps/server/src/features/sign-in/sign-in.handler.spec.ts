@@ -85,6 +85,8 @@ const build = (
     access: {
         owned?: unknown
         roles?: string[]
+        // Federation team memberships (OrganizationMember rows).
+        orgStaff?: number
         // The account's authenticator app: none unless given.
         tfa?: { enabled: boolean; validCode?: string }
     } = {},
@@ -115,6 +117,9 @@ const build = (
         },
         workspace: {
             findFirst: jest.fn().mockResolvedValue(access.owned ?? null),
+        },
+        organizationMember: {
+            count: jest.fn().mockResolvedValue(access.orgStaff ?? 0),
         },
         workspaceMember: {
             findMany: jest
@@ -731,6 +736,16 @@ describe('SignInHandler — store review account', () => {
 
     it('refuses a super admin', async () => {
         const { handler, tokens } = build(reviewUser({ isSuperAdmin: true }))
+        await expect(runReview(handler)).rejects.toBeInstanceOf(
+            InvalidCredentialsError,
+        )
+        expect(tokens.generateToken).not.toHaveBeenCalled()
+    })
+
+    // Federation hub: the org console shows registry names, so org staff
+    // are privileged too.
+    it('refuses a member of a federation team', async () => {
+        const { handler, tokens } = build(reviewUser(), { orgStaff: 1 })
         await expect(runReview(handler)).rejects.toBeInstanceOf(
             InvalidCredentialsError,
         )

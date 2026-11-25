@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { directionRefSelect } from '../../domains/directions/direction-ref'
+import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { RbacService } from '../../shared/services/rbac.service'
 import {
@@ -38,6 +39,29 @@ export class ListLaddersHandler
             },
             orderBy: [{ order: 'asc' }, { name: 'asc' }],
         })
-        return { data: ladders.map(serializeLadder) }
+        const templateIds = [
+            ...new Set(ladders.flatMap((l) => (l.templateId ? [l.templateId] : []))),
+        ]
+        const templates =
+            templateIds.length > 0 && environment.organizations.enabled
+                ? await this.prisma.organizationLadderTemplate.findMany({
+                      where: { id: { in: templateIds } },
+                      select: {
+                          id: true,
+                          name: true,
+                          version: true,
+                          organization: { select: { name: true } },
+                      },
+                  })
+                : []
+        return {
+            data: ladders.map(serializeLadder),
+            templates: templates.map((t) => ({
+                id: t.id,
+                name: t.name,
+                organizationName: t.organization.name,
+                version: t.version,
+            })),
+        }
     }
 }

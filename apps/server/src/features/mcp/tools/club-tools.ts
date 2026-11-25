@@ -25,6 +25,7 @@ import {
 import { countOpenRequests, type RequestCounts } from '../../../domains/requests/open-requests'
 import { appFeatureSelect, toAppFeatureFlags } from '../../../domains/workspace/feature-flags'
 import { ownGroupsWhere } from '../../../shared/services/rbac.service'
+import { environment } from '../../../environments/environment'
 import { defineTool, type McpToolContext } from '../mcp-tool'
 import { groupRef, planRef, scopedStudentIds } from './tool-helpers'
 
@@ -165,6 +166,47 @@ const countLeads = async (
     }
 }
 
+// Federation hub (docs/design/2026-11-26-federation-hub-mvp.md §6): the
+// club's federations — name, status and which figures the club shares with
+// each. The club's own setting, no people; pending invitations and active
+// memberships only (a declined or departed link is history).
+const listClubFederations = async (ctx: McpToolContext) =>
+    (
+        await ctx.prisma.organizationClub.findMany({
+            where: {
+                workspaceId: ctx.scope.workspaceId,
+                status: { in: ['INVITED', 'ACTIVE'] },
+                organization: { isActive: true },
+            },
+            orderBy: { invitedAt: 'asc' },
+            select: {
+                status: true,
+                shareRegistry: true,
+                shareMrr: true,
+                shareRevenue30d: true,
+                allowMemberAnnouncements: true,
+                allowMemberEvents: true,
+                organization: { select: { name: true } },
+            },
+        })
+    ).map((l) => ({
+        name: l.organization.name,
+        status: l.status === 'ACTIVE' ? 'в федерации' : 'приглашение ждёт решения владельца',
+        // Headline counts are part of membership; the rest are the club's
+        // toggles. Nothing is shared while the invitation waits.
+        shares:
+            l.status === 'ACTIVE'
+                ? {
+                      headlineNumbers: true,
+                      beltRegistry: l.shareRegistry,
+                      mrr: l.shareMrr,
+                      revenue30d: l.shareRevenue30d,
+                      announcementsInMembersFeed: l.allowMemberAnnouncements,
+                      eventsForMembers: l.allowMemberEvents,
+                  }
+                : null,
+    }))
+
 // «Заявки» waiting on the token's creator: the inbox's rule (domains/requests)
 // with the viewer built from AiAccess — admin scope sees the club, a
 // direction manager their groups' members and their own personal requests.
@@ -214,6 +256,7 @@ export const clubOverviewTool = defineTool({
         'Ещё — сколько заявок ждёт решения (вступление, заморозка, персональные, разборы видео): те, что владелец токена может решить сам, как во вкладке «Заявки». ' +
         'И сообщения клуба ученикам за 30 дней: сколько отправлено, сколько получателей и какая доля открыла (только чтение — отправлять ассистент не может). ' +
         'Для всего клуба — ещё счётчики «Пробных» (заявок на пробное ждут действия, получено и купили абонемент за 30 дней), без имён и телефонов. ' +
+        'Для всего клуба — ещё федерации, в которых состоит клуб или куда его пригласили: название, статус и какие цифры клуб им открыл (без людей). ' +
         'Хорошая отправная точка для вопросов «как дела в клубе».',
     input: z.object({}),
     run: async (ctx) => {
@@ -353,6 +396,12 @@ export const clubOverviewTool = defineTool({
         // lead list or contact reaches an AI tool: strangers' data under a
         // consent that names no AI processor (docs/design/2026-11-26-leads.md §7).
         const leads = scope.isAdmin ? await countLeads(ctx) : null
+        // Federations: the club's own sharing settings, whole-club scope only,
+        // and only while the hub is switched on.
+        const organizations =
+            scope.isAdmin && environment.organizations.enabled
+                ? await listClubFederations(ctx)
+                : null
 
         return {
             rows: 1,
@@ -375,6 +424,7 @@ export const clubOverviewTool = defineTool({
                 requests: { join, freeze, personal, video },
                 messages,
                 leads,
+                organizations,
                 money,
             },
         }

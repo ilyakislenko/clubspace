@@ -41,6 +41,9 @@ describe("routeForNotification", () => {
     [{ kind: "classbooking.added" }, "MyClassBookings"],
     [{ kind: "classbooking.club_cancelled" }, "MyClassBookings"],
     [{ kind: "classbooking.noshow" }, "MyClassBookings"],
+    [{ kind: "org.announcement", organizationId: "o-1", workspaceId: "ws-1" }, "Announcements"],
+    [{ kind: "org_event.registered_by_club", workspaceId: "ws-1" }, "Events"],
+    [{ kind: "org_event.reminder", workspaceId: "ws-1" }, "Events"],
   ])("%j -> %s", (metadata, name) => {
     expect(routeForNotification(metadata, on)).toEqual({ name })
   })
@@ -135,6 +138,17 @@ describe("routeForNotification", () => {
     expect(routeForNotification({ kind: "message.broadcast" }, off)).toEqual({
       name: "ClubMessages",
     })
+  })
+
+  it("org.club_invited has no screen to open (the owner decides in the admin)", () => {
+    expect(
+      routeForNotification({ kind: "org.club_invited", workspaceId: "ws-1", organizationId: "o-1" }, on),
+    ).toBeNull()
+  })
+
+  it("federation announcements and registrations open nothing while their section is off", () => {
+    expect(routeForNotification({ kind: "org.announcement" }, off)).toBeNull()
+    expect(routeForNotification({ kind: "org_event.registered_by_club" }, off)).toBeNull()
   })
 
   it("member.invitation opens the Invitations screen", () => {

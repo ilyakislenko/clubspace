@@ -1,4 +1,5 @@
 import { environment } from '../../../server/src/environments/environment'
+import { addOrgStaff, createOrganization } from '../organizations/org-fixtures'
 import { clearResendCooldown, signIn, type Actor } from '../support/actors'
 import { addMember, createGroupWithSlot, createPlan, createUser, createWorkspace } from '../support/fixtures'
 import { createTestApp, resetDatabase, TestApp } from '../support/test-app'
@@ -9,13 +10,18 @@ const DEMO_CODE = '730592'
 const OWNER = 'owner@academy.demo'
 const STUDENT = 'student@academy.demo'
 const PARENT = 'parent@academy.demo'
+// The demo federation's administrator (demo-organization.ts), listed with ACADEMY.
+const FEDERATION = 'federation@academy.demo'
+const FEDERATION_NAME = 'Федерация БЖЖ Томской области'
+const DEMO_ORG_KEY = 'tomsk-bjj-federation-demo'
 // Two full generations per test; the acceptance bound (< 30 s each) is
 // asserted explicitly below.
 jest.setTimeout(180_000)
 
-// The in-person demo kit: «Сбросить демо» rebuilds ONLY the demo club, the
-// demo accounts sign in with the fixed code only while DEMO_MODE is on, and
-// only a platform admin can reset.
+// The in-person demo kit: «Сбросить демо» rebuilds ONLY the chosen demo club
+// (ACADEMY, «Ритм» or «Беркут») and puts the demo federation back, the demo
+// accounts sign in with the fixed code only while DEMO_MODE is on, and only a
+// platform admin can reset.
 describe('demo kit', () => {
     let ctx: TestApp
     const saved = { ...environment.demo }
@@ -34,12 +40,13 @@ describe('demo kit', () => {
         Object.assign(environment.demo, { enabled: true, workspaceKey: DEMO_KEY, code: DEMO_CODE })
     })
 
-    const reset = (actor?: Actor) => {
-        const req = ctx.http().post('/platform/demo-club/reset')
+    const reset = (actor?: Actor, club?: 'academy' | 'ritm' | 'berkut') => {
+        const req = ctx.http().post('/platform/demo-club/reset').query(club ? { club } : {})
         return actor ? req.set(...actor.auth) : req
     }
 
-    const demoCounts = async (workspaceId: string) => {
+    // One club's rows.
+    const clubCounts = async (workspaceId: string) => {
         const where = { workspaceId }
         return {
             members: await ctx.prisma.workspaceMember.count({ where }),
@@ -50,10 +57,13 @@ describe('demo kit', () => {
             freezes: await ctx.prisma.subscriptionFreeze.count({ where }),
             promotions: await ctx.prisma.rankPromotion.count({ where }),
             announcements: await ctx.prisma.announcement.count({ where }),
-            demoUsers: await ctx.prisma.user.count({ where: { isDemo: true } }),
             discounts: await ctx.prisma.discount.count({ where }),
         }
     }
+    const demoCounts = async (workspaceId: string) => ({
+        ...(await clubCounts(workspaceId)),
+        demoUsers: await ctx.prisma.user.count({ where: { isDemo: true } }),
+    })
 
     // A real club with people, a plan and a class: must come out untouched.
     const otherClub = async () => {
@@ -241,8 +251,8 @@ describe('demo kit', () => {
 
     it('gives the staff of both demo clubs something on every «Сегодня» row and classes today', async () => {
         const admin = await signIn(ctx, PLATFORM_OWNER)
-        const academy = (await reset(admin).send({ club: 'academy' }).expect(201)).body.workspaceId as string
-        const ritm = (await reset(admin).send({ club: 'ritm' }).expect(201)).body.workspaceId as string
+        const academy = (await reset(admin, 'academy').expect(201)).body.workspaceId as string
+        const ritm = (await reset(admin, 'ritm').expect(201)).body.workspaceId as string
         // As the platform admin: club-wide, like the owner, without a second
         // fixed-code sign-in right after the first.
         const check = async (workspaceId: string) => {
@@ -278,6 +288,108 @@ describe('demo kit', () => {
         await check(academy)
         await check(ritm)
     })
+
+    // Three demo clubs (docs/demo.md): each resets on its own and leaves the
+    // other two as they are; the demo federation over ACADEMY and «Беркут» is
+    // put back as scripted after every reset.
+    it('resets each of the three demo clubs on its own and keeps the federation over ACADEMY and Беркут', async () => {
+        const admin = await signIn(ctx, PLATFORM_OWNER)
+        const ids: Record<'academy' | 'ritm' | 'berkut', string> = { academy: '', ritm: '', berkut: '' }
+        for (const club of ['academy', 'ritm', 'berkut'] as const) {
+            const started = Date.now()
+            const res = await reset(admin, club).expect(201)
+            expect(Date.now() - started).toBeLessThan(30_000)
+            expect(res.body.club).toBe(club)
+            ids[club] = res.body.workspaceId as string
+        }
+        expect(new Set(Object.values(ids)).size).toBe(3)
+
+        const cards = {
+            ritm: await ctx.http().get('/platform/demo-club').query({ club: 'ritm' }).set(...admin.auth).expect(200),
+            berkut: await ctx.http().get('/platform/demo-club').query({ club: 'berkut' }).set(...admin.auth).expect(200),
+        }
+        expect(cards.ritm.body).toMatchObject({ club: 'ritm', workspace: { id: ids.ritm, joinCode: 'RTMDANCE' } })
+        expect(cards.berkut.body).toMatchObject({
+            club: 'berkut',
+            name: 'Беркут',
+            workspaceKey: 'berkut-demo',
+            workspace: { id: ids.berkut, joinCode: 'BERKUT24' },
+        })
+        expect(cards.berkut.body.accounts.map((a: { email: string | null }) => a.email)).toEqual([
+            'owner@berkut.demo',
+            'coach@berkut.demo',
+        ])
+        const berkut = await clubCounts(ids.berkut)
+        expect(berkut.members).toBeGreaterThan(80)
+        expect(berkut.groups).toBe(4)
+
+        const federation = async () => {
+            const org = await ctx.prisma.organization.findUniqueOrThrow({
+                where: { key: DEMO_ORG_KEY },
+                select: { id: true, isDemo: true, name: true },
+            })
+            const links = await ctx.prisma.organizationClub.findMany({
+                where: { organizationId: org.id },
+                select: { workspaceId: true, status: true, shareMrr: true },
+                orderBy: { workspaceId: 'asc' },
+            })
+            const registrations = await ctx.prisma.organizationEventRegistration.groupBy({
+                by: ['workspaceId'],
+                where: { event: { organizationId: org.id } },
+                _count: { _all: true },
+                orderBy: { workspaceId: 'asc' },
+            })
+            return { org, links, registrations }
+        }
+        const scripted = await federation()
+        expect(scripted.org).toMatchObject({ isDemo: true, name: FEDERATION_NAME })
+        expect(scripted.links).toEqual(
+            expect.arrayContaining([
+                { workspaceId: ids.academy, status: 'ACTIVE', shareMrr: false },
+                { workspaceId: ids.berkut, status: 'ACTIVE', shareMrr: true },
+            ]),
+        )
+        expect(scripted.links).toHaveLength(2)
+        // ACADEMY's adults' and children's BJJ ladders follow the standards
+        // (the registry shows only linked ladders).
+        const linked = await ctx.prisma.rankLadder.findMany({
+            where: { workspaceId: ids.academy, templateId: { not: null } },
+            select: { name: true, templateVersion: true, levels: { select: { templateLevelId: true } } },
+            orderBy: { name: 'asc' },
+        })
+        expect(linked.map((l) => [l.name, l.templateVersion])).toEqual([
+            ['Пояса БЖЖ', 1],
+            ['Пояса БЖЖ — дети', 1],
+        ])
+        expect(linked.every((l) => l.levels.length > 0 && l.levels.every((v) => v.templateLevelId !== null))).toBe(true)
+        expect(scripted.registrations.map((r) => r.workspaceId).sort()).toEqual([ids.academy, ids.berkut].sort())
+
+        // Each reset touches its own club only; the federation reads the same.
+        const before = { academy: await clubCounts(ids.academy), ritm: await clubCounts(ids.ritm) }
+        await reset(admin, 'berkut').expect(201)
+        expect(await clubCounts(ids.berkut)).toEqual(berkut)
+        expect({ academy: await clubCounts(ids.academy), ritm: await clubCounts(ids.ritm) }).toEqual(before)
+        await reset(admin, 'ritm').expect(201)
+        expect(await clubCounts(ids.academy)).toEqual(before.academy)
+        expect(await clubCounts(ids.berkut)).toEqual(berkut)
+        expect(await federation()).toEqual(scripted)
+
+        // The federation account sees both clubs; ACADEMY keeps its money to
+        // itself, Беркут opened its monthly income.
+        const fed = await fixedCodeSignIn(FEDERATION)
+        expect(fed.status).toBe(201)
+        const clubs = await ctx
+            .http()
+            .get(`/orgs/${scripted.org.id}/clubs`)
+            .set('Authorization', `Bearer ${fed.body.accessToken}`)
+            .expect(200)
+        const rowOf = (workspaceId: string) =>
+            (clubs.body.data as { club: { workspaceId: string }; metrics: { mrr: unknown } | null }[]).find(
+                (r) => r.club.workspaceId === workspaceId,
+            )
+        expect(rowOf(ids.academy)?.metrics).toMatchObject({ mrr: null })
+        expect(rowOf(ids.berkut)?.metrics?.mrr).not.toBeNull()
+    }, 300_000)
 
     it('signs demo accounts in with the fixed code only in demo mode', async () => {
         const admin = await signIn(ctx, PLATFORM_OWNER)
@@ -335,6 +447,29 @@ describe('demo kit', () => {
         expect((await fixedCodeSignIn(OWNER)).status).not.toBe(201)
         environment.demo.enabled = true
         expect((await fixedCodeSignIn(OWNER)).status).toBe(201)
+
+        // The demo federation's administrator opens with the code too and
+        // lands on its federation.
+        const fed = await fixedCodeSignIn(FEDERATION)
+        expect(fed.status).toBe(201)
+        expect(ctx.mail.sent.some((m) => JSON.stringify(m).includes(FEDERATION))).toBe(false)
+        const mine = await ctx
+            .http()
+            .get('/orgs/mine')
+            .set('Authorization', `Bearer ${fed.body.accessToken}`)
+            .expect(200)
+        expect(mine.body.data).toEqual([expect.objectContaining({ name: FEDERATION_NAME, role: 'ORG_ADMIN' })])
+        // …but not once it is on the staff of a real federation,
+        const fedUser = await ctx.prisma.user.findUniqueOrThrow({ where: { email: FEDERATION } })
+        const real = await createOrganization(ctx, { name: 'Настоящая федерация' })
+        const staff = await addOrgStaff(ctx, { organizationId: real.id, userId: fedUser.id })
+        expect((await fixedCodeSignIn(FEDERATION)).status).not.toBe(201)
+        await ctx.prisma.organizationMember.delete({ where: { id: staff.id } })
+        expect((await fixedCodeSignIn(FEDERATION)).status).toBe(201)
+        // …nor when its federation is not a demo one.
+        await ctx.prisma.organization.update({ where: { key: DEMO_ORG_KEY }, data: { isDemo: false } })
+        expect((await fixedCodeSignIn(FEDERATION)).status).not.toBe(201)
+        await ctx.prisma.organization.update({ where: { key: DEMO_ORG_KEY }, data: { isDemo: true } })
     })
 
     // One demo account is opened on the presenter's tablet and phone within

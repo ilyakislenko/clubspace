@@ -1,3 +1,4 @@
+import { environment } from '../../../environments/environment'
 import type { AiAccess } from '../../../domains/ai-assistant/ai-access'
 import { McpScope } from '../mcp-scope'
 import type { McpToolContext } from '../mcp-tool'
@@ -37,10 +38,12 @@ type MessagesAggregate = {
 }
 
 // Every read the overview makes answers empty, except the four request
-// counts (by model), the club's sections and the club messages aggregate.
+// counts (by model), the club's sections, the club messages aggregate and
+// the club's federation links.
 const build = (
     ws = workspace(),
     messages: MessagesAggregate = { _count: { _all: 0 }, _sum: { recipientCount: null, readCount: null } },
+    links: unknown[] = [],
 ) => {
     const counts = {
         // Student metrics count members too: only the pending applicants are 1.
@@ -65,9 +68,11 @@ const build = (
         findUniqueOrThrow: jest.fn().mockResolvedValue(ws),
     })
     const clubMessage = { aggregate: jest.fn().mockResolvedValue(messages) }
+    const organizationClub = { findMany: jest.fn().mockResolvedValue(links) }
     const models = new Map<string, unknown>([
         ['groupMember', groupMember],
         ['clubMessage', clubMessage],
+        ['organizationClub', organizationClub],
     ])
     const prisma = new Proxy(
         {},
@@ -81,11 +86,16 @@ const build = (
             },
         },
     )
-    return { prisma, counts, groupMember, clubMessage }
+    return { prisma, counts, groupMember, clubMessage, organizationClub }
 }
 
-const run = async (a: AiAccess, ws = workspace(), messages?: MessagesAggregate) => {
-    const { prisma, counts, groupMember, clubMessage } = build(ws, messages)
+const run = async (
+    a: AiAccess,
+    ws = workspace(),
+    messages?: MessagesAggregate,
+    links: unknown[] = [],
+) => {
+    const { prisma, counts, groupMember, clubMessage, organizationClub } = build(ws, messages, links)
     const ctx = {
         prisma,
         access: a,
@@ -98,9 +108,11 @@ const run = async (a: AiAccess, ws = workspace(), messages?: MessagesAggregate) 
         requests: out.data.requests,
         messages: out.data.messages,
         leads: out.data.leads,
+        organizations: out.data.organizations,
         counts,
         groupMember,
         clubMessage,
+        organizationClub,
     }
 }
 
@@ -196,5 +208,67 @@ describe('club_overview leads', () => {
         const { leads, counts } = await run(DIRECTION_MANAGER)
         expect(leads).toBeNull()
         expect(counts.lead).not.toHaveBeenCalled()
+    })
+})
+
+// Federation hub (docs/design/2026-11-26-federation-hub-mvp.md §6): the
+// club's federations and what it shares with each — whole-club scope only,
+// no people.
+describe('club_overview organizations', () => {
+    const saved = environment.organizations.enabled
+    beforeEach(() => {
+        environment.organizations.enabled = true
+    })
+    afterAll(() => {
+        environment.organizations.enabled = saved
+    })
+    const link = (status: 'ACTIVE' | 'INVITED', name: string) => ({
+        status,
+        shareRegistry: true,
+        shareMrr: true,
+        shareRevenue30d: false,
+        allowMemberAnnouncements: false,
+        allowMemberEvents: true,
+        organization: { name },
+    })
+
+    it('a whole-club token sees each federation, its status and the shared figures', async () => {
+        const { organizations, organizationClub } = await run(HEAD_COACH, workspace(), undefined, [
+            link('ACTIVE', 'Федерация БЖЖ'),
+            link('INVITED', 'Сеть клубов'),
+        ])
+        expect(organizations).toEqual([
+            {
+                name: 'Федерация БЖЖ',
+                status: 'в федерации',
+                shares: {
+                    headlineNumbers: true,
+                    beltRegistry: true,
+                    mrr: true,
+                    revenue30d: false,
+                    announcementsInMembersFeed: false,
+                    eventsForMembers: true,
+                },
+            },
+            { name: 'Сеть клубов', status: 'приглашение ждёт решения владельца', shares: null },
+        ])
+        expect(whereOf(organizationClub.findMany)).toEqual({
+            workspaceId: 'w1',
+            status: { in: ['INVITED', 'ACTIVE'] },
+            organization: { isActive: true },
+        })
+    })
+
+    it('a direction manager gets none', async () => {
+        const { organizations, organizationClub } = await run(DIRECTION_MANAGER)
+        expect(organizations).toBeNull()
+        expect(organizationClub.findMany).not.toHaveBeenCalled()
+    })
+
+    it('nothing while the hub is off', async () => {
+        environment.organizations.enabled = false
+        const { organizations, organizationClub } = await run(OWNER)
+        expect(organizations).toBeNull()
+        expect(organizationClub.findMany).not.toHaveBeenCalled()
     })
 })

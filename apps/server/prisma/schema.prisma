@@ -298,6 +298,12 @@ model Workspace {
   payrollLines              PayrollLine[]
   // «Пробные» (docs/design/2026-11-26-leads.md).
   leads                     Lead[]
+  // Federation hub (docs/design/2026-11-26-federation-hub-mvp.md): the
+  // organizations this club belongs to, the org events it hosts, and its
+  // members' registrations for org events.
+  organizationLinks          OrganizationClub[]
+  hostedOrganizationEvents   OrganizationEvent[]             @relation("OrganizationEventHost")
+  organizationEventRegistrations OrganizationEventRegistration[]
 
   @@index([isListed])
 }
@@ -439,6 +445,12 @@ model User {
   coachRates          CoachRate[]          @relation("CoachRates")
   // «Пробные»: trial requests this user was added to the club from.
   convertedLeads      Lead[]               @relation("ConvertedLeads")
+  // Federation hub: org staff memberships, org announcements and events
+  // written, and this person's registrations for org events.
+  organizationMemberships    OrganizationMember[]
+  organizationAnnouncements  OrganizationAnnouncement[]     @relation("OrganizationAnnouncementAuthor")
+  organizationEventsCreated  OrganizationEvent[]            @relation("OrganizationEventCreatedBy")
+  organizationEventRegistrations OrganizationEventRegistration[]
 
   @@index([isSuperAdmin])
 }
@@ -2276,9 +2288,14 @@ model AuditEvent {
 
   createdAt DateTime @default(now())
 
+  // Org-side actions of the federation hub (workspaceId null); club-side
+  // decisions about an org carry both ids.
+  organizationId String? @db.Uuid
+
   @@index([workspaceId, createdAt])
   @@index([actorId])
   @@index([action])
+  @@index([organizationId, createdAt])
 }
 
 // A concrete class/event occurrence a coach took attendance for. Created
@@ -2503,6 +2520,11 @@ model RankLadder {
   directionId String?    @db.Uuid
   direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
 
+  // Copied from an organization ladder template (plain ids, no FK: the copy
+  // outlives the template; the club edits it freely).
+  templateId      String? @db.Uuid
+  templateVersion Int?
+
   levels     RankLevel[]
   promotions RankPromotion[]
   gradings   RankGrading[]
@@ -2526,6 +2548,8 @@ model RankLevel {
   color        String? @db.VarChar(32)  // hex or css name for the UI
   maxStripes   Int     @default(0)
   requirements String? @db.Text
+  // The organization template level this rung was copied from (plain id).
+  templateLevelId String? @db.Uuid
 
   // «Допуск к аттестации» for being promoted TO this level: at least minVisits
   // attendances and minWeeks full weeks since the member reached their current
@@ -3077,6 +3101,9 @@ model SubscriptionFreezeRequest {
 enum ConsentKind {
   PERSONAL_DATA
   DEPENDENT_DATA
+  // Name, belt, club, promotion dates and org event registrations shown to
+  // one organization (ConsentRecord.organizationId).
+  ORGANIZATION_SHARING
 }
 
 // Every acceptance of a consent text, kept as evidence (who, which version,
@@ -3100,9 +3127,12 @@ model ConsentRecord {
   // plain id: the evidence outlives the link, and the dependent's row is
   // only ever anonymised, never deleted.
   dependentId String? @db.Uuid
+  // ORGANIZATION_SHARING only: the organization the consent was given to.
+  organizationId String? @db.Uuid
 
   @@index([userId, kind, acceptedAt])
   @@index([dependentId])
+  @@index([organizationId, kind])
 }
 
 enum WorkspaceBillingStatus {
@@ -4215,4 +4245,224 @@ model Lead {
   @@index([workspaceId, phone])
   @@index([anonymizedAt, statusChangedAt])
   @@index([convertedUserId])
+}
+
+// ─── Federation hub (docs/design/2026-11-26-federation-hub-mvp.md) ─────────
+// An organization (federation, network) over clubs. It is not a tenant of
+// people: it owns only its staff, club links, announcements, events and
+// ladder templates; everything about a club is computed on read.
+
+enum OrganizationRole {
+  ORG_ADMIN
+  ORG_COACH
+}
+
+enum OrganizationClubStatus {
+  INVITED
+  ACTIVE
+  DECLINED
+  LEFT
+  REMOVED
+}
+
+enum OrganizationEventKind {
+  COMPETITION
+  SEMINAR
+  CAMP
+  GRADING
+  MEETING
+  OTHER
+}
+
+enum OrganizationAudience {
+  STAFF
+  STAFF_AND_MEMBERS
+}
+
+enum OrgEventRegistrationStatus {
+  BOOKED
+  CANCELLED
+}
+
+model Organization {
+  id          String        @id @default(uuid()) @db.Uuid
+  key         String        @unique @db.VarChar(50)
+  name        String        @db.VarChar(255)
+  // Vocabulary only (belts vs. levels); no app sections hang on it.
+  type        WorkspaceType @default(CUSTOM)
+  city        String?       @db.VarChar(120)
+  description String?       @db.Text
+  // Storage key (shared/utils/storage-keys.ts rules).
+  logoKey     String?       @db.Text
+  timezone    String        @default("Europe/Moscow") @db.VarChar(64)
+  isDemo      Boolean       @default(false)
+  isActive    Boolean       @default(true)
+
+  members        OrganizationMember[]
+  clubs          OrganizationClub[]
+  announcements  OrganizationAnnouncement[]
+  ladderTemplates OrganizationLadderTemplate[]
+  events         OrganizationEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Org staff: a global User. Never a WorkspaceMember of the clubs.
+model OrganizationMember {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           OrganizationRole
+  invitedById    String?      @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+// A club's membership in an organization and what it shares.
+// INVITED → ACTIVE (owner accepts) | DECLINED; ACTIVE → LEFT | REMOVED;
+// a re-invite reuses the row.
+model OrganizationClub {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @db.Uuid
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaceId    String                 @db.Uuid
+  workspace      Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  status         OrganizationClubStatus @default(INVITED)
+  invitedById    String?                @db.Uuid
+  invitedAt      DateTime               @default(now())
+  decidedById    String?                @db.Uuid
+  decidedAt      DateTime?
+
+  shareRegistry            Boolean @default(true)
+  shareMrr                 Boolean @default(false)
+  shareRevenue30d          Boolean @default(false)
+  allowMemberAnnouncements Boolean @default(true)
+  allowMemberEvents        Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, workspaceId])
+  @@index([workspaceId, status])
+}
+
+model OrganizationAnnouncement {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @db.Uuid
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  authorId       String?              @db.Uuid
+  author         User?                @relation("OrganizationAnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  authorName     String               @db.VarChar(255)
+  title          String               @db.VarChar(255)
+  body           String               @db.Text
+  audience       OrganizationAudience @default(STAFF)
+  // null = draft, future = scheduled.
+  publishedAt     DateTime?
+  // Set by the dispatcher once every club got its staff push (quiet hours).
+  staffNotifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, publishedAt])
+  @@index([publishedAt, staffNotifiedAt])
+}
+
+model OrganizationLadderTemplate {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String       @db.VarChar(255)
+  // As RankLadder.audience.
+  audience       String?      @db.VarChar(64)
+  // +1 on every level edit; shown to adopters.
+  version        Int          @default(1)
+  isActive       Boolean      @default(true)
+
+  levels OrganizationLadderTemplateLevel[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+// Mirrors RankLevel.
+model OrganizationLadderTemplateLevel {
+  id           String                     @id @default(uuid()) @db.Uuid
+  templateId   String                     @db.Uuid
+  template     OrganizationLadderTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name         String                     @db.VarChar(255)
+  order        Int
+  color        String?                    @db.VarChar(16)
+  maxStripes   Int                        @default(0)
+  requirements String?                    @db.Text
+  minVisits    Int?
+  minWeeks     Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([templateId, order])
+}
+
+model OrganizationEvent {
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @db.Uuid
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  kind           OrganizationEventKind @default(OTHER)
+  title          String                @db.VarChar(255)
+  description    String?               @db.Text
+  startAt        DateTime
+  endAt          DateTime?
+  timezone       String                @db.VarChar(64)
+  place          String?               @db.VarChar(255)
+  address        String?               @db.VarChar(500)
+  // «Принимает клуб X».
+  hostWorkspaceId String?              @db.Uuid
+  hostWorkspace   Workspace?           @relation("OrganizationEventHost", fields: [hostWorkspaceId], references: [id], onDelete: SetNull)
+  audience       OrganizationAudience  @default(STAFF_AND_MEMBERS)
+  capacity       Int?
+  registrationOpen     Boolean   @default(true)
+  registrationClosesAt DateTime?
+  // «Взнос 1 500 ₽ на месте» — text only, no money in the app.
+  feeNote        String?               @db.VarChar(255)
+  publishedAt    DateTime?
+  createdById    String?               @db.Uuid
+  createdBy      User?                 @relation("OrganizationEventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  registrations OrganizationEventRegistration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, startAt])
+}
+
+model OrganizationEventRegistration {
+  id          String                     @id @default(uuid()) @db.Uuid
+  eventId     String                     @db.Uuid
+  event       OrganizationEvent          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  // The athlete: a child, not the guardian.
+  userId      String                     @db.Uuid
+  user        User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The club registered through (ACTIVE in the org).
+  workspaceId String                     @db.Uuid
+  workspace   Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  status      OrgEventRegistrationStatus @default(BOOKED)
+  bookedById  String?                    @db.Uuid
+  cancelledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([workspaceId])
 }

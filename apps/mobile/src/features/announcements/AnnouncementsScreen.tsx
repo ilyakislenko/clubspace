@@ -29,6 +29,7 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { fmtDate } from "../subscription/subscription-state"
+import { federationLabel } from "../org-events/org-helpers"
 
 const PER_PAGE = 30
 
@@ -118,6 +119,11 @@ export function AnnouncementsScreen() {
                 <Text style={styles.pinChipText}>Закреплено</Text>
               </View>
             )}
+            {a.source && (
+              <Text style={styles.source} numberOfLines={1}>
+                {federationLabel(a.source.name)}
+              </Text>
+            )}
             <Text style={styles.cardTitle}>{a.title}</Text>
             <Text style={styles.cardBody}>{a.body}</Text>
             <Text style={styles.cardMeta}>
@@ -176,4 +182,5 @@ const makeStyles = (theme: Theme) =>
       lineHeight: 20,
     },
     cardMeta: { color: theme.colors.muted, fontSize: 12, marginTop: 2 },
+    source: { color: theme.colors.accent, fontSize: 12, fontWeight: "600" },
   })

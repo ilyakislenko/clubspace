@@ -27,6 +27,9 @@ const build = (
         workspace: {
             findFirst: jest.fn().mockResolvedValue(access.owned ?? null),
         },
+        organizationMember: {
+            count: jest.fn().mockResolvedValue(0),
+        },
         workspaceMember: {
             findMany: jest
                 .fn()

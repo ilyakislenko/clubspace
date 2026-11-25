@@ -13,12 +13,22 @@ import {
 } from "@clubspace/ui-kit/ui"
 
 import {
+  createRankLevel,
   deleteRankLevel,
   listRankLadders,
   updateRankLevel,
   type RankLadder,
+  type RankLadderList,
   type RankLevel,
 } from "../../../../../shared/api/ranks"
+import {
+  listAdoptableLadderTemplates,
+  type AdoptableTemplate,
+} from "../../../../../shared/api/organizations"
+import {
+  FederationTemplates,
+  templateUpdateNote,
+} from "../../../../../features/org/FederationTemplates"
 import { DirectionChip } from "../../../../../features/directions/DirectionChip"
 import {
   ALL_DIRECTIONS,
@@ -57,6 +67,10 @@ export default function WorkspaceRanksPage() {
   const [directionFilter, setDirectionFilter] = useState(ALL_DIRECTIONS)
   const [ladderSheetOpen, setLadderSheetOpen] = useState(false)
   const [editingLadder, setEditingLadder] = useState<RankLadder | null>(null)
+  // Standards of the federations the club is in (none for most clubs), and
+  // the current versions of those the listed ladders were copied from.
+  const [templates, setTemplates] = useState<AdoptableTemplate[]>([])
+  const [sources, setSources] = useState<RankLadderList["templates"]>([])
   const visibleLadders = ladders.filter((l) =>
     matchesDirectionFilter(directionFilter, l.direction?.id),
   )
@@ -64,8 +78,13 @@ export default function WorkspaceRanksPage() {
   const load = useCallback(async () => {
     if (!workspaceId) return
     try {
-      const res = await listRankLadders({ workspaceId, includeInactive: true })
+      const [res, standards] = await Promise.all([
+        listRankLadders({ workspaceId, includeInactive: true }),
+        listAdoptableLadderTemplates({ workspaceId }).catch(() => []),
+      ])
       setLadders(res.data)
+      setSources(res.templates)
+      setTemplates(standards)
       setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить лестницы"))
@@ -133,6 +152,7 @@ export default function WorkspaceRanksPage() {
               key={ladder.id}
               workspaceId={workspaceId}
               ladder={ladder}
+              templateNote={templateUpdateNote(ladder, sources)}
               onEdit={() => openLadderSheet(ladder)}
               onReload={load}
               onError={setError}
@@ -141,6 +161,19 @@ export default function WorkspaceRanksPage() {
         </div>
       )}
       </div>
+
+      <FederationTemplates
+        workspaceId={workspaceId}
+        templates={templates}
+        directions={directions}
+        allowedDirectionIds={scope.allowedDirectionIds}
+        defaultDirectionId={scope.defaultDirectionId}
+        onAdopted={(ladder) => {
+          void load()
+          // The copy opens in the editor: rename it, move it, change levels.
+          openLadderSheet(ladder)
+        }}
+      />
 
       <LadderFormSheet
         workspaceId={workspaceId}
@@ -159,12 +192,15 @@ export default function WorkspaceRanksPage() {
 function LadderCard({
   workspaceId,
   ladder,
+  templateNote,
   onEdit,
   onReload,
   onError,
 }: {
   workspaceId: string
   ladder: RankLadder
+  // «Стандарт федерации обновлён до версии N» for an outdated copy.
+  templateNote: string | null
   onEdit: () => void
   onReload: () => Promise<void>
   onError: (m: string) => void
@@ -256,6 +292,14 @@ function LadderCard({
         {!ladder.isActive && (
           <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
             В архиве
+          </span>
+        )}
+        {ladder.templateId && (
+          <span className="text-xs text-muted-foreground">по стандарту федерации</span>
+        )}
+        {templateNote && (
+          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-600 dark:text-amber-500">
+            {templateNote}
           </span>
         )}
       </button>
@@ -354,12 +398,18 @@ function LadderCard({
       </Button>
 
       <LevelFormSheet
-        workspaceId={workspaceId}
-        ladderId={ladder.id}
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         level={editing}
-        nextOrder={nextLevelOrder(ladder.levels)}
+        save={(data, isCreate) =>
+          isCreate || !editing
+            ? createRankLevel({
+                workspaceId,
+                ladderId: ladder.id,
+                data: { ...data, order: nextLevelOrder(ladder.levels) },
+              })
+            : updateRankLevel({ workspaceId, ladderId: ladder.id, levelId: editing.id, data })
+        }
         withRule={editingIndex >= 1}
         onSaved={() => void onReload()}
       />

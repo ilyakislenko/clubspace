@@ -42,6 +42,8 @@ export const KNOWN_DEFECTS: readonly { status: number; url: RegExp; reason: stri
 // a 403 there is the server holding the line, not a defect.
 export const isExpected4xx = (status: number, context: HttpContext, url: string): boolean =>
   (context === 'blocked' && status === 403) ||
+  // The federation console answers outsiders 404 (no existence leak).
+  (context === 'blocked' && status === 404 && /^\/orgs\//.test(new URL(url).pathname)) ||
   KNOWN_DEFECTS.some((defect) => defect.status === status && defect.url.test(new URL(url).pathname))
 
 export const isAllowedConsoleError = (text: string): boolean =>

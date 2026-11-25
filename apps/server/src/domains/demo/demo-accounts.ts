@@ -21,6 +21,7 @@ export type DemoAccountKey =
     | 'coach'
     | 'student'
     | 'parent'
+    | 'federation'
 
 export type DemoAccount = {
     key: DemoAccountKey
@@ -85,6 +86,20 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
         summary: 'Переключатель «Я / ребёнок»: Миша (старшие дети) и Аня (младшие дети)',
     },
 ]
+
+// The demo federation's administrator (demo-organization.ts). Signs in with
+// the same demo code and is listed with ACADEMY's accounts (demo-clubs.ts), but
+// the ACADEMY generator does not write it: the federation seed does, and it is
+// staff of the federation only, never a member of a club.
+export const DEMO_FEDERATION_ACCOUNT: DemoAccount = {
+    key: 'federation',
+    email: `federation@${DEMO_EMAIL_DOMAIN}`,
+    firstname: 'Николай',
+    lastname: 'Белов',
+    roleLabel: 'Президент федерации (демо)',
+    summary:
+        'Админка: кабинет «Федерация БЖЖ Томской области» — клубы и их цифры, реестр поясов, календарь с турниром, объявления, стандарты',
+}
 
 // Children have no e-mail and never sign in: the parent opens them from the
 // «Я / ребёнок» switcher (X-Act-As).

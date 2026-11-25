@@ -292,6 +292,13 @@ export const environment = {
     memberAutopay: {
         enabled: get('MEMBER_AUTOPAY_ENABLED').default('false').asBool(),
     },
+    // Federation hub — organizations over clubs
+    // (docs/design/2026-11-26-federation-hub-mvp.md). Off by default until the
+    // lawyer answers §13: every org route and club-side federation route
+    // answers 404, the feed and the minute job skip org rows.
+    organizations: {
+        enabled: get('ORGANIZATIONS_ENABLED').default('false').asBool(),
+    },
     // SaaS side: what clubs pay ClubSpace. `enabled: false` is a self-hosted
     // install — every module on, no trial expiry, no billing nags in the admin.
     // Collection: card payments and autopay through the platform's own

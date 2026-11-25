@@ -139,6 +139,613 @@ export const CreatePublicTrialRequestInputSchema = {
     ]
 } as const;
 
+export const RegisterForOrgEventInputSchema = {
+    type: 'object',
+    properties: {
+        userId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        }
+    }
+} as const;
+
+export const SetMyOrganizationConsentInputSchema = {
+    type: 'object',
+    properties: {
+        granted: {
+            type: 'boolean'
+        }
+    },
+    required: [
+        'granted'
+    ]
+} as const;
+
+export const UpdateOrgLadderTemplateLevelInputSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255
+        },
+        order: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 1000
+        },
+        color: {
+            type: 'string',
+            maxLength: 16,
+            nullable: true
+        },
+        maxStripes: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 20
+        },
+        requirements: {
+            type: 'string',
+            maxLength: 5000,
+            nullable: true
+        },
+        minVisits: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 5000,
+            nullable: true
+        },
+        minWeeks: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 520,
+            nullable: true
+        }
+    }
+} as const;
+
+export const CreateOrgLadderTemplateLevelInputSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255
+        },
+        order: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 1000
+        },
+        color: {
+            type: 'string',
+            maxLength: 16,
+            nullable: true
+        },
+        maxStripes: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 20
+        },
+        requirements: {
+            type: 'string',
+            maxLength: 5000,
+            nullable: true
+        },
+        minVisits: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 5000,
+            nullable: true
+        },
+        minWeeks: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 520,
+            nullable: true
+        }
+    },
+    required: [
+        'name',
+        'order'
+    ]
+} as const;
+
+export const UpdateOrgLadderTemplateInputSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255
+        },
+        audience: {
+            type: 'string',
+            maxLength: 64,
+            nullable: true
+        },
+        isActive: {
+            type: 'boolean'
+        }
+    }
+} as const;
+
+export const CreateOrgLadderTemplateInputSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255
+        },
+        audience: {
+            type: 'string',
+            maxLength: 64,
+            nullable: true
+        },
+        levels: {
+            maxItems: 100,
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    name: {
+                        type: 'string',
+                        minLength: 1,
+                        maxLength: 255
+                    },
+                    order: {
+                        type: 'integer',
+                        minimum: 0,
+                        maximum: 1000
+                    },
+                    color: {
+                        type: 'string',
+                        maxLength: 16,
+                        nullable: true
+                    },
+                    maxStripes: {
+                        type: 'integer',
+                        minimum: 0,
+                        maximum: 20
+                    },
+                    requirements: {
+                        type: 'string',
+                        maxLength: 5000,
+                        nullable: true
+                    },
+                    minVisits: {
+                        type: 'integer',
+                        minimum: 1,
+                        maximum: 5000,
+                        nullable: true
+                    },
+                    minWeeks: {
+                        type: 'integer',
+                        minimum: 1,
+                        maximum: 520,
+                        nullable: true
+                    }
+                },
+                required: [
+                    'name',
+                    'order'
+                ]
+            }
+        }
+    },
+    required: [
+        'name'
+    ]
+} as const;
+
+export const UpdateOrgEventInputSchema = {
+    type: 'object',
+    properties: {
+        kind: {
+            type: 'string',
+            enum: [
+                'COMPETITION',
+                'SEMINAR',
+                'CAMP',
+                'GRADING',
+                'MEETING',
+                'OTHER'
+            ]
+        },
+        title: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255
+        },
+        description: {
+            type: 'string',
+            maxLength: 5000,
+            nullable: true
+        },
+        startAt: {
+            type: 'string',
+            pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2})?$'
+        },
+        endAt: {
+            type: 'string',
+            pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2})?$',
+            nullable: true
+        },
+        timezone: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 64
+        },
+        place: {
+            type: 'string',
+            maxLength: 255,
+            nullable: true
+        },
+        address: {
+            type: 'string',
+            maxLength: 500,
+            nullable: true
+        },
+        hostClubId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+            nullable: true
+        },
+        audience: {
+            type: 'string',
+            enum: [
+                'STAFF',
+                'STAFF_AND_MEMBERS'
+            ]
+        },
+        capacity: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 100000,
+            nullable: true
+        },
+        registrationOpen: {
+            type: 'boolean'
+        },
+        registrationClosesAt: {
+            type: 'string',
+            pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2})?$',
+            nullable: true
+        },
+        feeNote: {
+            type: 'string',
+            maxLength: 255,
+            nullable: true
+        },
+        publish: {
+            type: 'boolean'
+        },
+        expectedUpdatedAt: {
+            description: 'The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE',
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    }
+} as const;
+
+export const CreateOrgEventInputSchema = {
+    type: 'object',
+    properties: {
+        kind: {
+            type: 'string',
+            enum: [
+                'COMPETITION',
+                'SEMINAR',
+                'CAMP',
+                'GRADING',
+                'MEETING',
+                'OTHER'
+            ]
+        },
+        title: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255
+        },
+        description: {
+            type: 'string',
+            maxLength: 5000,
+            nullable: true
+        },
+        startAt: {
+            type: 'string',
+            pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2})?$'
+        },
+        endAt: {
+            type: 'string',
+            pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2})?$',
+            nullable: true
+        },
+        timezone: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 64
+        },
+        place: {
+            type: 'string',
+            maxLength: 255,
+            nullable: true
+        },
+        address: {
+            type: 'string',
+            maxLength: 500,
+            nullable: true
+        },
+        hostClubId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+            nullable: true
+        },
+        audience: {
+            type: 'string',
+            enum: [
+                'STAFF',
+                'STAFF_AND_MEMBERS'
+            ]
+        },
+        capacity: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 100000,
+            nullable: true
+        },
+        registrationOpen: {
+            type: 'boolean'
+        },
+        registrationClosesAt: {
+            type: 'string',
+            pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2})?$',
+            nullable: true
+        },
+        feeNote: {
+            type: 'string',
+            maxLength: 255,
+            nullable: true
+        },
+        publish: {
+            type: 'boolean'
+        }
+    },
+    required: [
+        'title',
+        'startAt'
+    ]
+} as const;
+
+export const UpdateOrgAnnouncementInputSchema = {
+    type: 'object',
+    properties: {
+        title: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255
+        },
+        body: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 20000
+        },
+        audience: {
+            type: 'string',
+            enum: [
+                'STAFF',
+                'STAFF_AND_MEMBERS'
+            ]
+        },
+        publish: {
+            type: 'boolean'
+        },
+        publishAt: {
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        },
+        expectedUpdatedAt: {
+            description: 'The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE',
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    }
+} as const;
+
+export const CreateOrgAnnouncementInputSchema = {
+    type: 'object',
+    properties: {
+        title: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255
+        },
+        body: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 20000
+        },
+        audience: {
+            type: 'string',
+            enum: [
+                'STAFF',
+                'STAFF_AND_MEMBERS'
+            ]
+        },
+        publish: {
+            type: 'boolean'
+        },
+        publishAt: {
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    },
+    required: [
+        'title',
+        'body'
+    ]
+} as const;
+
+export const UpdateOrganizationSharingInputDtoSchema = {
+    type: 'object',
+    properties: {
+        shareRegistry: {
+            type: 'boolean'
+        },
+        shareMrr: {
+            type: 'boolean'
+        },
+        shareRevenue30d: {
+            type: 'boolean'
+        },
+        allowMemberAnnouncements: {
+            type: 'boolean'
+        },
+        allowMemberEvents: {
+            type: 'boolean'
+        }
+    }
+} as const;
+
+export const AcceptOrganizationInviteInputDtoSchema = {
+    type: 'object',
+    properties: {
+        sharing: {
+            type: 'object',
+            properties: {
+                shareRegistry: {
+                    type: 'boolean'
+                },
+                shareMrr: {
+                    type: 'boolean'
+                },
+                shareRevenue30d: {
+                    type: 'boolean'
+                },
+                allowMemberAnnouncements: {
+                    type: 'boolean'
+                },
+                allowMemberEvents: {
+                    type: 'boolean'
+                }
+            }
+        }
+    }
+} as const;
+
+export const AddOrgMemberInputDtoSchema = {
+    type: 'object',
+    properties: {
+        email: {
+            type: 'string',
+            maxLength: 255,
+            format: 'email',
+            pattern: '^(?:[A-Za-z0-9_\'+\\-]+\\.)*[A-Za-z0-9_\'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$'
+        },
+        role: {
+            type: 'string',
+            enum: [
+                'ORG_ADMIN',
+                'ORG_COACH'
+            ]
+        }
+    },
+    required: [
+        'email',
+        'role'
+    ]
+} as const;
+
+export const InviteClubToOrganizationInputDtoSchema = {
+    type: 'object',
+    properties: {
+        joinCode: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 32
+        }
+    },
+    required: [
+        'joinCode'
+    ]
+} as const;
+
+export const CreateOrganizationLogoUploadInputDtoSchema = {
+    type: 'object',
+    properties: {
+        contentType: {
+            type: 'string',
+            enum: [
+                'image/jpeg',
+                'image/png',
+                'image/webp'
+            ]
+        },
+        contentLength: {
+            type: 'integer',
+            exclusiveMinimum: true,
+            maximum: 2097152,
+            minimum: 0
+        }
+    },
+    required: [
+        'contentType',
+        'contentLength'
+    ]
+} as const;
+
+export const UpdateOrganizationInputDtoSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255
+        },
+        city: {
+            type: 'string',
+            maxLength: 120,
+            nullable: true
+        },
+        description: {
+            type: 'string',
+            maxLength: 4000,
+            nullable: true
+        },
+        logoKey: {
+            type: 'string',
+            maxLength: 255,
+            nullable: true
+        },
+        timezone: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 64
+        },
+        expectedUpdatedAt: {
+            description: 'The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE',
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    },
+    required: [
+        'name',
+        'city',
+        'description',
+        'logoKey',
+        'timezone'
+    ]
+} as const;
+
 export const LinkLeadMemberInputSchema = {
     type: 'object',
     properties: {
@@ -1590,6 +2197,31 @@ export const UpdateLadderInputSchema = {
             nullable: true
         }
     }
+} as const;
+
+export const CreateRankLadderFromTemplateInputSchema = {
+    type: 'object',
+    properties: {
+        templateId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        directionId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+            nullable: true
+        },
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255
+        }
+    },
+    required: [
+        'templateId'
+    ]
 } as const;
 
 export const CreateLadderInputSchema = {
@@ -5396,6 +6028,51 @@ export const UpdatePlatformWorkspaceInputDtoSchema = {
             pattern: '^(?:[A-Za-z0-9_\'+\\-]+\\.)*[A-Za-z0-9_\'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$'
         }
     }
+} as const;
+
+export const CreatePlatformOrganizationInputDtoSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255
+        },
+        key: {
+            type: 'string',
+            maxLength: 50
+        },
+        type: {
+            default: 'CUSTOM',
+            type: 'string',
+            enum: [
+                'GRAPPLING',
+                'FITNESS',
+                'YOGA',
+                'DANCE',
+                'CUSTOM'
+            ]
+        },
+        city: {
+            type: 'string',
+            maxLength: 120
+        },
+        timezone: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 64
+        },
+        adminEmail: {
+            type: 'string',
+            maxLength: 255,
+            format: 'email',
+            pattern: '^(?:[A-Za-z0-9_\'+\\-]+\\.)*[A-Za-z0-9_\'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$'
+        }
+    },
+    required: [
+        'name',
+        'adminEmail'
+    ]
 } as const;
 
 export const CreatePlatformWorkspaceInputDtoSchema = {

@@ -1,7 +1,14 @@
 import {
+    BERKUT_ACCOUNTS,
+    BERKUT_CLUB_KEY,
+    BERKUT_CLUB_NAME,
+    BERKUT_PARENT_CHILDREN,
+} from './berkut-demo.accounts'
+import {
     DEMO_ACCOUNTS,
     DEMO_CLUB_KEY,
     DEMO_CLUB_NAME,
+    DEMO_FEDERATION_ACCOUNT,
     DEMO_PARENT_CHILDREN,
     type DemoAccount,
 } from './demo-accounts'
@@ -12,13 +19,15 @@ import {
     RITM_PARENT_CHILDREN,
 } from './ritm-demo.accounts'
 
-// The in-person demo clubs (docs/demo.md): ACADEMY (единоборства) and «Ритм»
-// (танцевальная студия). Each is created, reset and signed into on its own:
-// the reset touches only the club holding its key AND flagged isDemo, and the
-// fixed demo code opens only its listed accounts, each belonging to nothing but
-// its own demo club. Both turn on with the same DEMO_MODE / DEMO_LOGIN_CODE;
-// DEMO_WORKSPACE_KEY stays academy-demo (resolveDemoMode).
-export const DEMO_CLUB_IDS = ['academy', 'ritm'] as const
+// The in-person demo clubs (docs/demo.md): ACADEMY (единоборства), «Ритм»
+// (танцевальная студия) and «Беркут» (a small club, ACADEMY's partner in the
+// demo federation, demo-organization.ts). Each is created, reset and signed
+// into on its own: the reset touches only the club holding its key AND flagged
+// isDemo, and the fixed demo code opens only its listed accounts, each
+// belonging to nothing but its own demo club. All turn on with the same
+// DEMO_MODE / DEMO_LOGIN_CODE; DEMO_WORKSPACE_KEY stays academy-demo
+// (resolveDemoMode). The federation's administrator is listed with ACADEMY.
+export const DEMO_CLUB_IDS = ['academy', 'ritm', 'berkut'] as const
 export type DemoClubId = (typeof DEMO_CLUB_IDS)[number]
 
 export type DemoClubIdentity = {
@@ -40,7 +49,7 @@ export const DEMO_CLUBS: Readonly<Record<DemoClubId, DemoClubIdentity>> = {
         key: DEMO_CLUB_KEY,
         name: DEMO_CLUB_NAME,
         timezone: 'Asia/Tomsk',
-        accounts: DEMO_ACCOUNTS,
+        accounts: [...DEMO_ACCOUNTS, DEMO_FEDERATION_ACCOUNT],
         children: DEMO_PARENT_CHILDREN,
         childSummary: 'Расписание, посещения, пояс и абонемент ребёнка — у родителя в приложении',
     },
@@ -52,6 +61,15 @@ export const DEMO_CLUBS: Readonly<Record<DemoClubId, DemoClubIdentity>> = {
         accounts: RITM_ACCOUNTS,
         children: RITM_PARENT_CHILDREN,
         childSummary: 'Расписание, посещения, абонемент и видео связок ребёнка — у родителя в приложении',
+    },
+    berkut: {
+        id: 'berkut',
+        key: BERKUT_CLUB_KEY,
+        name: BERKUT_CLUB_NAME,
+        timezone: 'Asia/Tomsk',
+        accounts: BERKUT_ACCOUNTS,
+        children: BERKUT_PARENT_CHILDREN,
+        childSummary: '',
     },
 }
 

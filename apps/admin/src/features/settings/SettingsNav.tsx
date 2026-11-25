@@ -2,15 +2,19 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
 
 import type { ClubVocabulary } from "@clubspace/ui-kit/brand"
 
+import { listClubOrganizations } from "../../shared/api/organizations"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 
 // Sections of «Настройки», in menu order. `path` is relative to
-// `/workspace/<id>/settings` ("" = the default section).
-const settingsSections = (
+// `/workspace/<id>/settings` ("" = the default section). «Федерация» only
+// once a federation invited the club (a club never invited sees no item).
+export const settingsSections = (
   v: ClubVocabulary,
+  { federation }: { federation: boolean },
 ): Array<{ path: string; label: string }> => [
   { path: "", label: "Профиль клуба" },
   { path: "directions", label: "Направления" },
@@ -19,6 +23,7 @@ const settingsSections = (
   { path: "payments", label: "Оплата" },
   { path: "integrations", label: "Интеграции" },
   { path: "notifications", label: "Уведомления" },
+  ...(federation ? [{ path: "federation", label: "Федерация" }] : []),
   { path: "audit", label: "История изменений" },
 ]
 
@@ -26,6 +31,17 @@ export function SettingsNav({ workspaceId }: { workspaceId: string }) {
   const vocabulary = useVocabulary()
   const pathname = usePathname() ?? ""
   const base = `/workspace/${workspaceId}/settings`
+  const [federation, setFederation] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    listClubOrganizations({ workspaceId })
+      .then((links) => alive && setFederation(links.length > 0))
+      .catch(() => alive && setFederation(false))
+    return () => {
+      alive = false
+    }
+  }, [workspaceId])
 
   return (
     <nav
@@ -33,7 +49,7 @@ export function SettingsNav({ workspaceId }: { workspaceId: string }) {
       data-section-tabs=""
       className="-mx-1 flex gap-1 overflow-x-auto pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:pb-0"
     >
-      {settingsSections(vocabulary).map((section) => {
+      {settingsSections(vocabulary, { federation }).map((section) => {
         const href = section.path ? `${base}/${section.path}` : base
         const active = section.path
           ? pathname === href || pathname.startsWith(`${href}/`)

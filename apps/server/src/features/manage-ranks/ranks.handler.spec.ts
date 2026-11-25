@@ -1,3 +1,9 @@
+// list-ladders reads the federation hub flag; the standards part is covered
+// in create-ladder-from-template.handler.spec.ts.
+jest.mock('../../environments/environment', () => ({
+    environment: { organizations: { enabled: false } },
+}))
+
 import { CreateLevelFeature } from './create-level.feature'
 import { CreateLevelHandler } from './create-level.handler'
 import { CreateLadderFeature } from './create-ladder.feature'

@@ -157,6 +157,15 @@ const multiRoles: string[] = []
 const allowExpired: string[] = []
 const allowSuspended: string[] = []
 const actAsAllowed: { where: string; tier: string | null }[] = []
+// Federation hub org console (docs/design/2026-11-26-federation-hub-mvp.md
+// §3.2): @OrgRoles on every route behind OrganizationMemberGuard.
+const orgRoutes: {
+    where: string
+    orgTier: string | null
+    orgTierCount: number
+    handler: string | undefined
+    memberGuarded: boolean
+}[] = []
 for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
     const src = readFileSync(file, 'utf8')
     const classIdx = src.search(/export class /)
@@ -169,6 +178,17 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
         const own = [...chunk.matchAll(/@Roles\((\w+)\)/g)]
         const line = src.slice(0, start).split('\n').length
         const method = chunk.match(/async (\w+)\(/)?.[1] ?? '?'
+        const orgOwn = [...chunk.matchAll(/@OrgRoles\((\w+)\)/g)]
+        const memberGuarded = /@UseGuards\([^)]*OrganizationMemberGuard/.test(src)
+        if (memberGuarded || orgOwn.length > 0) {
+            orgRoutes.push({
+                where: `${relative(FEATURES_DIR, file)}:${line} ${method}`,
+                orgTier: orgOwn[0]?.[1] ?? null,
+                orgTierCount: orgOwn.length,
+                handler: feature ? handlerByFeature.get(feature) : undefined,
+                memberGuarded,
+            })
+        }
         if (chunk.includes('@AllowExpiredAccess(')) {
             allowExpired.push(`${relative(FEATURES_DIR, file)} ${method}`)
         }
@@ -209,6 +229,7 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
 // behind CLUB_ADMINS. Pinned so a route cannot slide back to the head coach
 // (SPORT_LEADS) or open wider without this list changing in review.
 const EXPECTED_CLUB_ADMIN_FEATURES = [
+    'AcceptOrganizationInviteFeature',
     'AcceptWorkspaceLegalFeature',
     'AddPayrollAdjustmentFeature',
     'ApplyClubImportFeature',
@@ -221,6 +242,7 @@ const EXPECTED_CLUB_ADMIN_FEATURES = [
     'CreateDiscountFeature',
     'CreatePlanFeature',
     'CreateRefundFeature',
+    'DeclineOrganizationInviteFeature',
     'DeleteDirectionFeature',
     'DeleteDiscountFeature',
     'DeletePaymentSettingsFeature',
@@ -239,9 +261,11 @@ const EXPECTED_CLUB_ADMIN_FEATURES = [
     'GetWorkspaceBillingPaymentFeature',
     'GetWorkspaceOnboardingFeature',
     'GetWorkspaceOnboardingHelpFeature',
+    'LeaveOrganizationFeature',
     'ListAiTokensFeature',
     'ListAuditEventsFeature',
     'ListClubImportRowsFeature',
+    'ListClubOrganizationsFeature',
     'ListCoachRatesFeature',
     'ListDirectionManagersFeature',
     'ListDiscountsFeature',
@@ -265,6 +289,7 @@ const EXPECTED_CLUB_ADMIN_FEATURES = [
     'UpdateDirectionFeature',
     'UpdateDiscountFeature',
     'UpdateMemberRoleFeature',
+    'UpdateOrganizationSharingFeature',
     'UpdatePaymentSettingsFeature',
     'UpdatePlanFeature',
     'UpdateWorkspaceSettingsFeature',
@@ -382,6 +407,68 @@ describe('route tier consistency', () => {
         }
         expect(tierOf('ListMemberAutopaysFeature')).toBe('SPORT_LEADS')
         expect(tierOf('CancelMemberAutopayFeature')).toBe('SPORT_LEADS')
+    })
+
+    // Federation hub (docs/design/2026-11-26-federation-hub-mvp.md §3.2): an
+    // org console route carries exactly one @OrgRoles tier and its handler
+    // repeats that tier — ORG_ADMINS ↔ assertOrgAdmin, ORG_STAFF ↔
+    // assertOrgStaff (an org coach would otherwise see a button and get 403,
+    // or pass a gate meant for admins).
+    describe('org console tiers', () => {
+        const ORG_TIER_CHECK: Record<string, string> = {
+            ORG_ADMINS: 'assertOrgAdmin(',
+            ORG_STAFF: 'assertOrgStaff(',
+        }
+
+        it('scans the org console', () => {
+            expect(orgRoutes.filter((r) => r.memberGuarded).length).toBeGreaterThanOrEqual(10)
+        })
+
+        it('every route behind OrganizationMemberGuard has exactly one known @OrgRoles', () => {
+            const bad = orgRoutes.filter(
+                (r) =>
+                    r.orgTierCount !== 1 ||
+                    r.orgTier === null ||
+                    !(r.orgTier in ORG_TIER_CHECK) ||
+                    !r.memberGuarded,
+            )
+            expect(bad.map((r) => `${r.where} (${r.orgTier}×${r.orgTierCount})`)).toEqual([])
+        })
+
+        it('the handler asserts the route tier and not the other one', () => {
+            const bad = orgRoutes.filter((r) => {
+                if (!r.orgTier || !r.handler) return true
+                const own = ORG_TIER_CHECK[r.orgTier]
+                const other = Object.values(ORG_TIER_CHECK).find((c) => c !== own) as string
+                return !r.handler.includes(own) || r.handler.includes(other)
+            })
+            expect(bad.map((r) => `${r.where} (${r.orgTier})`)).toEqual([])
+        })
+
+        // ORGANIZATIONS_ENABLED off = 404 before anything else runs.
+        it('every federation controller starts with OrganizationsEnabledGuard', () => {
+            const bad = files
+                .filter((f) => f.endsWith('.controller.ts'))
+                .filter((f) => /^(organizations|club-organizations)\//.test(relative(FEATURES_DIR, f)))
+                .filter((f) => {
+                    const guards = readFileSync(f, 'utf8').match(/@UseGuards\(\s*(\w+)/)
+                    return guards?.[1] !== 'OrganizationsEnabledGuard'
+                })
+            expect(bad.map((f) => relative(FEATURES_DIR, f))).toEqual([])
+        })
+
+        it('club-side federation decisions stay club money-and-system routes', () => {
+            const tierOf = (feature: string) => routes.find((r) => r.feature === feature)?.tier
+            for (const feature of [
+                'ListClubOrganizationsFeature',
+                'AcceptOrganizationInviteFeature',
+                'DeclineOrganizationInviteFeature',
+                'UpdateOrganizationSharingFeature',
+                'LeaveOrganizationFeature',
+            ]) {
+                expect({ feature, tier: tierOf(feature) }).toEqual({ feature, tier: 'CLUB_ADMINS' })
+            }
+        })
     })
 
     it('no route uses a removed tier name', () => {

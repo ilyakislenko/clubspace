@@ -52,7 +52,9 @@ export const recordDependentConsent = async (
     })
 }
 
-// A guardian stepping back from a child withdraws their consent for it; the
+// A guardian stepping back from a child withdraws their consent for it — the
+// processing consent and any federation consent they gave for the child
+// (ORGANIZATION_SHARING, so a later re-link doesn't revive it); the
 // acceptance stays as evidence, minus where it was given from.
 export const withdrawDependentConsent = async (
     prisma: Pick<PrismaService, 'consentRecord'>,
@@ -62,7 +64,7 @@ export const withdrawDependentConsent = async (
         where: {
             userId: p.guardianId,
             dependentId: p.dependentId,
-            kind: 'DEPENDENT_DATA',
+            kind: { in: ['DEPENDENT_DATA', 'ORGANIZATION_SHARING'] },
             withdrawnAt: null,
         },
         data: { withdrawnAt: new Date(), ip: null, userAgent: null },

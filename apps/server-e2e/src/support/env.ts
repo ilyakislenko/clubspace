@@ -69,6 +69,10 @@ const values: Record<string, string> = {
     // the refusal.
     PLATFORM_BILLING_ENABLED: 'true',
     SELF_SERVE_SIGNUP_ENABLED: 'true',
+    // Federation hub (docs/design/2026-11-26-federation-hub-mvp.md) on: its
+    // routes are in open-api.json, so the tenant sweep and the owner's control
+    // need them alive (off = 404). Its own specs live in organizations/.
+    ORGANIZATIONS_ENABLED: 'true',
     // The platform's own YooKassa shop, so card payments and autopay are on.
     // Nothing reaches YooKassa: the autopay spec replaces PaymentGatewayClient.
     PLATFORM_YOOKASSA_SHOP_ID: '500500',
