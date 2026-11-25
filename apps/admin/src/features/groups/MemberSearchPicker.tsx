@@ -13,6 +13,8 @@ type Props = {
   workspaceId: string
   // Already chosen (or not allowed): hidden from the results.
   excludeIds: ReadonlySet<string>
+  // Who may be picked at all (e.g. students only); everyone when omitted.
+  accept?: (member: WorkspaceMember) => boolean
   onPick: (member: WorkspaceMember) => void
   disabled?: boolean
   autoFocus?: boolean
@@ -27,6 +29,7 @@ type Props = {
 export function MemberSearchPicker({
   workspaceId,
   excludeIds,
+  accept,
   onPick,
   disabled,
   autoFocus,
@@ -70,7 +73,7 @@ export function MemberSearchPicker({
     }
   }, [workspaceId, open, debounced])
 
-  const visible = results.filter((m) => !excludeIds.has(m.userId))
+  const visible = results.filter((m) => !excludeIds.has(m.userId) && (!accept || accept(m)))
 
   return (
     <div

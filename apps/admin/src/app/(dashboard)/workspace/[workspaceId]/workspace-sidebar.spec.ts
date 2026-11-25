@@ -36,6 +36,7 @@ describe("workspace sidebar", () => {
         "analytics/occupancy",
         "analytics/coaches",
         "analytics/cohorts",
+        "analytics/trials",
         "ai-assistant",
       ],
     })

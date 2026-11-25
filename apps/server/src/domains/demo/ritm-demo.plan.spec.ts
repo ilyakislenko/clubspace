@@ -463,6 +463,31 @@ describe('buildRitmDemoPlan', () => {
         }
     })
 
+    it('seeds six children\'s trial requests, two of them bought', () => {
+        expect(plan.leads).toHaveLength(6)
+        expect(plan.leads.every((l) => l.forChild)).toBe(true)
+        const sold = plan.subscriptions.filter((s) => s.isPaid && (s.amountPaid as number) > 0)
+        expect(
+            plan.leads.filter((l) =>
+                sold.some((s) => s.userId === l.convertedUserId && (s.createdAt as Date) > (l.createdAt as Date)),
+            ),
+        ).toHaveLength(2)
+        expect(plan.workspace.trialRequestsEnabled).toBe(false)
+    })
+
+    it('shows pedagog@ her pay: 250 per student, last month closed by the owner', () => {
+        expect(plan.workspace.coachPayVisible).toBe(true)
+        expect(plan.coachRates).toEqual([
+            expect.objectContaining({ coachId: plan.accountUserIds.coach, perStudent: 250, currency: 'RUB' }),
+        ])
+        expect(plan.payrollClose).toMatchObject({
+            month: '2026-10',
+            closedById: plan.accountUserIds.owner,
+            closedByName: 'Марина Белова',
+        })
+        expect(plan.payrollClose!.closedAt.getTime()).toBeLessThan(NOW.getTime())
+    })
+
     it('moves with today: the same people, dates shifted', () => {
         const later = build(new Date(NOW.getTime() + 7 * 86_400_000))
         expect(later.members.length).toBe(plan.members.length)

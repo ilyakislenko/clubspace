@@ -1,3 +1,6 @@
+jest.mock('../../domains/payroll/payroll-month', () => ({ computePayrollMonth: jest.fn() }))
+
+import { computePayrollMonth, type PayrollMonthView } from '../../domains/payroll/payroll-month'
 import { ExportService } from './export.service'
 
 // Every export reads the club's time zone; payments go through the journal.
@@ -528,5 +531,132 @@ describe('ExportService.renewalsCsv', () => {
         expect(csv).not.toContain('Renewed')
         expect(csv).toContain('Other;o@x;Доступ истекает')
         expect(csv).toContain('БЖЖ месяц')
+    })
+})
+
+describe('ExportService.payrollCsv', () => {
+    const view = (over: Partial<PayrollMonthView> = {}): PayrollMonthView => ({
+        month: '2026-10',
+        status: 'closed',
+        canClose: false,
+        closedAt: new Date('2026-11-02T10:00:00Z'),
+        closedBy: { id: 'o', name: 'Ольга' },
+        currency: 'RUB',
+        total: 36400,
+        drift: 1200,
+        driftByCoach: [{ coachId: 'c1', name: 'Анна', delta: 1200 }],
+        unattributed: { classes: 0, revenue: 0, otherCurrency: 0 },
+        lines: [
+            {
+                coachId: 'c1',
+                name: 'Анна',
+                rate: null,
+                ignoredRate: null,
+                classes: 14,
+                classesPaid: 12,
+                marks: 96,
+                marksPaid: 90,
+                revenueBase: 84000,
+                amounts: { fixed: 30000, classes: 0, students: 0, revenue: 1400, adjustments: 5000 },
+                total: 36400,
+                adjustments: [],
+            },
+        ],
+        ...over,
+    })
+    const mocked = computePayrollMonth as jest.MockedFunction<typeof computePayrollMonth>
+
+    it('writes the closed snapshot with a total row', async () => {
+        mocked.mockResolvedValue(view())
+        const csv = await svc({}).payrollCsv('w1', '2026-10')
+        expect(mocked.mock.calls[0][1]).toMatchObject({ workspaceId: 'w1', month: '2026-10' })
+        expect(csv).toContain(
+            'Месяц;Статус;Тренер;Занятий;Оплачено занятий;Отметок;Оплаты учеников;Оклад;За занятия;За отметки;Процент;Корректировки;Итого;Валюта',
+        )
+        expect(csv).toContain('2026-10;закрыт;Анна;14;12;96;84000;30000;0;0;1400;5000;36400;RUB')
+        expect(csv).toContain('2026-10;закрыт;Итого;14;12;96;84000;30000;0;0;1400;5000;36400;RUB')
+        expect(csv).not.toContain('Не распределено')
+    })
+
+    it('marks an open month preliminary and adds what was not attributed', async () => {
+        mocked.mockResolvedValue(
+            view({ status: 'open', unattributed: { classes: 3, revenue: 4500, otherCurrency: 0 } }),
+        )
+        const csv = await svc({}).payrollCsv('w1', '2026-10')
+        expect(csv).toContain('2026-10;предварительно;Анна;')
+        expect(csv).toContain('2026-10;предварительно;Не распределено;3;;;4500;;;;;;;RUB')
+    })
+
+    it('writes «Не распределено» when only payments in another currency were left out', async () => {
+        mocked.mockResolvedValue(view({ unattributed: { classes: 0, revenue: 0, otherCurrency: 2 } }))
+        const csv = await svc({}).payrollCsv('w1', '2026-10')
+        expect(csv).toContain('2026-10;закрыт;Не распределено (оплат в другой валюте: 2);0;;;0;;;;;;;RUB')
+    })
+})
+
+// «Пробные» (docs/design/2026-11-26-leads.md §7).
+describe('ExportService.leadsCsv', () => {
+    const lead = (o: Record<string, unknown>) => ({
+        createdAt: new Date('2026-12-01T09:00:00Z'),
+        source: 'PUBLIC_PAGE',
+        status: 'NEW',
+        name: 'Анна',
+        phone: '+79528849420',
+        email: null,
+        forChild: true,
+        childName: 'Маша',
+        childAge: 8,
+        directionName: 'Дети',
+        trialAt: null,
+        trialGroupName: null,
+        lostReason: null,
+        comment: null,
+        convertedUserId: null,
+        convertedUser: null,
+        trialGroup: null,
+        ...o,
+    })
+
+    it('prints the lead columns, «Купил» from the linked member, blanks for an erased lead', async () => {
+        const findMany = jest.fn().mockResolvedValue([
+            lead({
+                status: 'CAME',
+                trialAt: new Date('2026-12-05T15:00:00Z'),
+                trialGroupName: 'Дети 6–9',
+                // Printed in the gym's zone (the club's is UTC here).
+                trialGroup: { gym: { timezone: 'Europe/Moscow' } },
+                convertedUserId: 'u1',
+                convertedUser: { firstname: 'Маша', lastname: 'Смирнова' },
+            }),
+            lead({
+                source: 'QR',
+                status: 'LOST',
+                lostReason: 'PRICE',
+                name: null,
+                phone: null,
+                childName: null,
+            }),
+        ])
+        const subs = jest.fn().mockResolvedValue([{ userId: 'u1' }])
+        const csv = await svc({ lead: { findMany }, subscription: { findMany: subs } }).leadsCsv(
+            'w1',
+            { from: '2026-12-01', to: '2026-12-31' },
+        )
+        const lines = csv.split(/\r?\n/)
+        expect(lines[0]).toContain(
+            'Получена;Источник;Статус;Имя;Телефон;E-mail;Для ребёнка;Имя ребёнка;Возраст;Направление;Пробное;Группа;Причина отказа;Комментарий;Связан с учеником',
+        )
+        expect(lines[1]).toBe(
+            "2026-12-01;Страница клуба;Купил;Анна;'+79528849420;;да;Маша;8;Дети;2026-12-05 18:00;Дети 6–9;;;Маша Смирнова",
+        )
+        expect(lines[2]).toBe('2026-12-01;QR-плакат;Отказ;;;;да;;8;Дети;;;Не подошла цена;;')
+        expect(findMany.mock.calls[0][0].where).toEqual({
+            workspaceId: 'w1',
+            createdAt: {
+                gte: new Date('2026-12-01T00:00:00.000Z'),
+                lte: new Date('2026-12-31T23:59:59.999Z'),
+            },
+        })
+        expect(subs.mock.calls[0][0].where).toMatchObject({ userId: { in: ['u1'] } })
     })
 })

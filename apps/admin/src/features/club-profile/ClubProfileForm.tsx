@@ -1,6 +1,7 @@
 "use client"
 
 import { ExternalLink, ImagePlus, MoreHorizontal, Plus } from "lucide-react"
+import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 
 import {
@@ -27,6 +28,7 @@ import {
 } from "../../shared/api/workspaces"
 import { FORM_LIMITS } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
+import { useVocabulary } from "../../shared/lib/vocabulary"
 import { useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 import { isStaleUpdate, StaleUpdateNotice } from "../../shared/ui/stale-update-notice"
 import { putToPresignedUrl } from "../../shared/upload-to-s3"
@@ -35,11 +37,13 @@ import {
   moveItem,
   type ClubAboutDraft,
 } from "../club-about/club-about-form"
+import { printTrialPoster } from "../leads/trial-poster"
 import {
   draftToInput as pageToInput,
   LOGO_CONTENT_TYPES,
   logoUploadFor,
   profileToDraft,
+  trialChanged,
 } from "../public-profile/public-profile-form"
 import { SettingsSectionHeader } from "../settings/SettingsNav"
 import { TimezoneSelect } from "../settings/TimezoneSelect"
@@ -65,6 +69,7 @@ const PART_LABEL: Record<ClubProfilePart, string> = {
 // «Настройки → Профиль клуба»: the public page, «О клубе» for members and the
 // club's time zone in one form with one «Сохранить».
 export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
+  const vocabulary = useVocabulary()
   const [draft, setDraft] = useState<ClubProfileDraft | null>(null)
   // What the server holds now; the form is dirty while the draft differs.
   const [saved, setSaved] = useState<ClubProfileDraft | null>(null)
@@ -83,6 +88,10 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
   const [justSaved, setJustSaved] = useState(false)
   // A part refused as stale (409): the draft stays, «Обновить» reloads.
   const [stale, setStale] = useState<unknown>(null)
+  // A server refusal of the trial form (no operator, the owner has not
+  // accepted the DPA edition yet): shown in its block.
+  const [trialError, setTrialError] = useState<string | null>(null)
+  const [posterNotice, setPosterNotice] = useState<string | null>(null)
   // What each save sends as `expectedUpdatedAt`: the club row's version
   // (public page and time zone live on it) and «О клубе»'s own. A ref, not
   // state: the parts save one after another inside one handler, each passing
@@ -183,6 +192,7 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
     setError(null)
     setStale(null)
     setJustSaved(false)
+    setTrialError(null)
     let failed = false
     for (const part of parts) {
       try {
@@ -219,7 +229,10 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
         }
       } catch (err) {
         if (isStaleUpdate(err)) setStale(err)
-        else setError(`${PART_LABEL[part]}: ${errorMessage(err, "не удалось сохранить")}`)
+        else if (part === "page" && trialChanged(draft.page, saved.page)) {
+          setTrialError(errorMessage(err, "не удалось сохранить"))
+          setError(`${PART_LABEL.page}: не сохранено`)
+        } else setError(`${PART_LABEL[part]}: ${errorMessage(err, "не удалось сохранить")}`)
         failed = true
         break
       }
@@ -378,6 +391,99 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
                   </span>
                 </span>
               </label>
+            </section>
+
+            <section className="space-y-4 border-t border-border pt-6">
+              <div>
+                <h3 className="font-medium">Заявки на пробное с сайта</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Форма «Записаться на пробное» на странице клуба и по
+                  QR-плакату. Заявки приходят в «Ученики → Пробные».
+                </p>
+              </div>
+
+              {!profile.leadsDpaAccepted && (
+                <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm">
+                  Форму можно включить, когда владелец клуба примет новую
+                  редакцию поручения на обработку персональных данных:{" "}
+                  <Link
+                    href={`/workspace/${workspaceId}/billing#billing-legal`}
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    Подписка ClubSpace
+                  </Link>
+                  .
+                </p>
+              )}
+
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  className="size-4"
+                  checked={page.trialRequestsEnabled}
+                  disabled={!profile.leadsDpaAccepted && !page.trialRequestsEnabled}
+                  onChange={(e) => editPage({ trialRequestsEnabled: e.target.checked })}
+                />
+                Принимать заявки на пробное
+              </label>
+
+              <div className="space-y-2">
+                <Label htmlFor="pd-operator-name">Оператор персональных данных</Label>
+                <Input
+                  id="pd-operator-name"
+                  value={page.pdOperatorName}
+                  maxLength={FORM_LIMITS.clubProfile.pdOperatorName.max}
+                  placeholder="Например, ИП Орлов Артём Сергеевич"
+                  className="h-9"
+                  onChange={(e) => editPage({ pdOperatorName: e.target.value })}
+                />
+                <Input
+                  id="pd-operator-address"
+                  aria-label="Адрес оператора персональных данных"
+                  value={page.pdOperatorAddress}
+                  maxLength={FORM_LIMITS.clubProfile.pdOperatorAddress.max}
+                  placeholder="Адрес: город, улица, дом"
+                  className="h-9"
+                  onChange={(e) => editPage({ pdOperatorAddress: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Обычно ИП или юрлицо клуба. Это имя человек увидит в тексте
+                  согласия.
+                </p>
+              </div>
+
+              {trialError && <p className="text-sm text-destructive">{trialError}</p>}
+
+              {profile.trialRequestsEnabled && profile.trialFormUrl && (
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <a
+                    href={profile.trialFormUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+                  >
+                    <ExternalLink className="size-4" />
+                    Открыть форму
+                  </a>
+                  <button
+                    type="button"
+                    className="text-primary underline-offset-4 hover:underline"
+                    onClick={() =>
+                      void printTrialPoster({
+                        workspaceId,
+                        workspaceName: clubName,
+                        session: vocabulary.session,
+                        canAdmin: true,
+                      }).then(
+                        setPosterNotice,
+                      )
+                    }
+                  >
+                    QR-плакат
+                  </button>
+                </div>
+              )}
+              {posterNotice && <p className="text-xs text-muted-foreground">{posterNotice}</p>}
             </section>
 
             <section className="space-y-4 border-t border-border pt-6">

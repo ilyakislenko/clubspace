@@ -32,7 +32,7 @@ class SearchPublicClubsOutputDto extends createZodDto(
 // this from the web host's single address, so the limits are sized for that,
 // and the web host caches responses for a minute. Join codes are 8 characters
 // out of 31, so even this rate makes guessing one hopeless.
-const PUBLIC_THROTTLE = {
+export const PUBLIC_THROTTLE = {
     default: { ttl: 60_000, limit: 120, getTracker: trackByClientIp },
 }
 

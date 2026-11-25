@@ -14,22 +14,26 @@ export type EditionProps = {
 // editions are never edited: a change is a new entry (docs/legal/README.md).
 export type EditionRegistry = Record<string, ComponentType<EditionProps>>
 
+// The helpers below take any edition map: the club documents print
+// EditionProps, the lead consent (lead-consent/registry.ts) prints the club.
+type Editions<P> = Record<string, ComponentType<P>>
+
 // Newest first. Versions start with an ISO date, so they sort as strings.
-export const editionVersions = (registry: EditionRegistry): string[] =>
+export const editionVersions = <P>(registry: Editions<P>): string[] =>
   Object.keys(registry).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
 
 // The text of a version, own keys only (a URL segment like «constructor»
 // must not resolve to something inherited).
-export const findEdition = (
-  registry: EditionRegistry,
+export const findEdition = <P>(
+  registry: Editions<P>,
   version: string,
-): ComponentType<EditionProps> | null =>
+): ComponentType<P> | null =>
   Object.hasOwn(registry, version) ? registry[version] : null
 
 // The edition in force: the one the server names when the registry has its
 // text, else the newest text we have (also the fallback without the API).
-export const currentEditionVersion = (
-  registry: EditionRegistry,
+export const currentEditionVersion = <P>(
+  registry: Editions<P>,
   serverVersion: string | null,
 ): string =>
   serverVersion && findEdition(registry, serverVersion)

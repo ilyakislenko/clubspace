@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { loadLeadsDpaAccepted } from '../../domains/leads/lead-consent'
 import { signClubLogoUrl } from '../../domains/workspace/club-logo'
 import { ensureJoinCode } from '../../domains/workspace/join-code.store'
 import { ensurePublicSlug } from '../../domains/workspace/public-slug.store'
@@ -63,6 +64,7 @@ export class GetClubPublicProfileHandler
             appUrl: environment.appUrl,
             workspace,
             logoUrl: await signClubLogoUrl(this.files, workspace.logoKey),
+            leadsDpaAccepted: await loadLeadsDpaAccepted(this.prisma, workspaceId),
         })
     }
 }

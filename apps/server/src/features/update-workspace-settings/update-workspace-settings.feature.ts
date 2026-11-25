@@ -9,6 +9,8 @@ export const UpdateWorkspaceSettingsFeatureInputSchema = z.object({
     coachSeesAllGroups: z.boolean().optional(),
     // «Тренеры могут отмечать в чужих группах без замены».
     coachesMarkAnyClass: z.boolean().optional(),
+    // «Тренеры видят свои выплаты» (docs/design/2026-11-26-coach-payroll.md).
+    coachPayVisible: z.boolean().optional(),
     // IANA timezone, validated against Intl.supportedValuesOf in the
     // handler so the schema doesn't have to ship the full list.
     timezone: z.string().min(1).max(64).optional(),
@@ -31,6 +33,7 @@ export const UpdateWorkspaceSettingsFeatureOutputSchema = z.object({
     name: z.string(),
     coachSeesAllGroups: z.boolean(),
     coachesMarkAnyClass: z.boolean(),
+    coachPayVisible: z.boolean(),
     timezone: z.string(),
     joinAutoApprove: z.boolean(),
     birthdayGreetingsEnabled: z.boolean(),

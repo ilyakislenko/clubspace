@@ -94,6 +94,8 @@ const EXPECTED_NON_BUS_ROUTES: Record<string, string | null> = {
     'data-export/export.controller.ts renewals': 'CLUB_ADMINS',
     'data-export/export.controller.ts attendance': 'CLUB_ADMINS',
     'data-export/export.controller.ts payments': 'CLUB_ADMINS',
+    'data-export/export.controller.ts payroll': 'CLUB_ADMINS',
+    'data-export/export.controller.ts leads': 'CLUB_ADMINS',
     'get-video-manifest/get-video-manifest.controller.ts getManifest': null,
     'health/health.controller.ts ?': null,
     'health/health.controller.ts readyz': null,
@@ -208,9 +210,11 @@ for (const file of files.filter((f) => f.endsWith('.controller.ts'))) {
 // (SPORT_LEADS) or open wider without this list changing in review.
 const EXPECTED_CLUB_ADMIN_FEATURES = [
     'AcceptWorkspaceLegalFeature',
+    'AddPayrollAdjustmentFeature',
     'ApplyClubImportFeature',
     'AssignDirectionManagerFeature',
     'CheckPaymentConnectionFeature',
+    'ClosePayrollMonthFeature',
     'CreateAiTokenFeature',
     'CreateClubLogoUploadFeature',
     'CreateDirectionFeature',
@@ -220,6 +224,7 @@ const EXPECTED_CLUB_ADMIN_FEATURES = [
     'DeleteDirectionFeature',
     'DeleteDiscountFeature',
     'DeletePaymentSettingsFeature',
+    'DeletePayrollAdjustmentFeature',
     'DeletePlanFeature',
     'DeleteRefundFeature',
     'GetClubImportFeature',
@@ -227,6 +232,7 @@ const EXPECTED_CLUB_ADMIN_FEATURES = [
     'GetClubPublicProfileFeature',
     'GetPaymentJournalEntryFeature',
     'GetPaymentSettingsFeature',
+    'GetPayrollMonthFeature',
     'GetPlanFeature',
     'GetRevenueForecastFeature',
     'GetWorkspaceBillingFeature',
@@ -236,16 +242,20 @@ const EXPECTED_CLUB_ADMIN_FEATURES = [
     'ListAiTokensFeature',
     'ListAuditEventsFeature',
     'ListClubImportRowsFeature',
+    'ListCoachRatesFeature',
     'ListDirectionManagersFeature',
     'ListDiscountsFeature',
     'ListPaymentJournalFeature',
+    'ListPayrollClassesFeature',
     'ListRolesFeature',
     'ListWorkspaceBillingPaymentsFeature',
     'PreviewClubImportFeature',
     'RemoveDirectionManagerFeature',
     'RemoveWorkspaceBillingCardFeature',
+    'ReopenPayrollMonthFeature',
     'RequestWorkspaceOnboardingHelpFeature',
     'RevokeAiTokenFeature',
+    'SetCoachRateFeature',
     'SetWorkspaceBillingModuleFeature',
     'SetWorkspaceBillingPeriodFeature',
     'StartWorkspaceBillingCardCheckFeature',
@@ -317,6 +327,44 @@ describe('route tier consistency', () => {
         const compose = readFileSync(join(FEATURES_DIR, 'club-messages', 'compose.ts'), 'utf8')
         expect(compose.match(/assertSportLead\(/g)).toHaveLength(2)
         expect(compose).toContain('resolveCoachScope(')
+    })
+
+    // «Выплаты тренерам» (docs/design/2026-11-26-coach-payroll.md §3.3): the
+    // month, rates, adjustments, close and reopen are club money (pinned
+    // above); the coach's own closed months are a coach-scope staff read.
+    it('payroll routes keep their tiers', () => {
+        const routeOf = (feature: string) => routes.find((r) => r.feature === feature)
+        expect(routeOf('GetMyPayrollFeature')?.tier).toBe('STAFF_ROLES')
+        expect(handlerByFeature.get('GetMyPayrollFeature')).toContain('resolveCoachScope(')
+    })
+
+    // «Пробные» (docs/design/2026-11-26-leads.md §3.4): every staff route is
+    // the roster tier with the handler's assertSportLead (strangers' phones);
+    // the public form is unguarded like public/demo-requests.
+    it('leads routes keep their tiers', () => {
+        const leadFeatures = [
+            'ListLeadsFeature',
+            'GetLeadFeature',
+            'CreateLeadFeature',
+            'UpdateLeadFeature',
+            'SetLeadStatusFeature',
+            'LinkLeadMemberFeature',
+            'EraseLeadFeature',
+            'GetLeadConversionReportFeature',
+            'GetTrialLinkFeature',
+        ]
+        for (const feature of leadFeatures) {
+            const route = routes.find((r) => r.feature === feature)
+            expect({ feature, tier: route?.tier, check: route?.check }).toEqual({
+                feature,
+                tier: 'SPORT_LEADS',
+                check: 'SPORT_LEADS',
+            })
+        }
+        const tierOf = (feature: string) => routes.find((r) => r.feature === feature)?.tier
+        expect(routes.some((r) => r.feature === 'CreatePublicTrialRequestFeature')).toBe(true)
+        expect(tierOf('CreatePublicTrialRequestFeature')).toBeNull()
+        expect(tierOf('GetPublicTrialFormFeature')).toBeNull()
     })
 
     // Member autopay (docs/design/2026-11-15-member-autopay.md §3.5): the

@@ -1,6 +1,7 @@
 import {
   ApproveSubscriptionFreezeRequestInputSchema,
   AskAiChatInputSchema,
+  AddPayrollAdjustmentInputSchema,
   AddVideoReviewCommentInputSchema,
   AssignSubscriptionInputSchema,
   CancelMemberAutopayInputSchema,
@@ -10,6 +11,7 @@ import {
   CreateClubLogoUploadInputSchema,
   CreateDirectionInputSchema,
   CreateDiscountInputSchema,
+  CreateLeadInputSchema,
   CreateEventInputSchema,
   CreateGroupBodySchema,
   CreateGymBodySchema,
@@ -27,8 +29,12 @@ import {
   ProposePersonalTrainingTimeInputSchema,
   RejectPendingMemberInputSchema,
   SendClubMessageInputSchema,
+  SetLeadStatusInputSchema,
+  UpdateLeadInputSchema,
+  ReopenPayrollMonthInputSchema,
   MarkSubscriptionPaidInputSchema,
   MarkEventRegistrationPaidInputSchema,
+  SetCoachRateInputSchema,
   SetClassCapacityInputSchema,
   UpdateAchievementInputSchema,
   UpdateAnnouncementInputSchema,
@@ -151,6 +157,8 @@ const DISCOUNT = [CreateDiscountInputSchema, UpdateDiscountInputSchema] as const
 // ProfileEditForm: a member's profile (staff) and the own-profile dialog.
 const MEMBER_PROFILE = [UpdateMemberProfileBodySchema] as const
 const NAMES = [UpdateMemberProfileBodySchema, UpdateMeInputSchema] as const
+// «Добавить заявку» and «Изменить данные» of a trial request.
+const LEAD = [CreateLeadInputSchema, UpdateLeadInputSchema] as const
 
 export const FORM_LIMITS = {
   plan: {
@@ -219,6 +227,9 @@ export const FORM_LIMITS = {
     city: text(PROFILE, "city"),
     description: text(PROFILE, "description"),
     logoBytes: int([CreateClubLogoUploadInputSchema] as const, "contentLength"),
+    // «Заявки на пробное с сайта»: the operator named in the consent text.
+    pdOperatorName: text(PROFILE, "pdOperatorName"),
+    pdOperatorAddress: text(PROFILE, "pdOperatorAddress"),
   },
   clubAbout: {
     contacts: items(ABOUT, "contacts"),
@@ -308,5 +319,40 @@ export const FORM_LIMITS = {
   },
   aiToken: {
     name: text([CreateAiTokenInputSchema] as const, "name"),
+  },
+  // «Отчёты → Выплаты»: the coach panel's rate and adjustment forms, and the
+  // reason a closed month is reopened. A zero adjustment is a refine the
+  // contract can't carry (AddPayrollAdjustmentInput), so the form keeps it.
+  coachRate: {
+    fixedMonthly: int([SetCoachRateInputSchema] as const, "fixedMonthly"),
+    perClass: int([SetCoachRateInputSchema] as const, "perClass"),
+    perClassMinStudents: int([SetCoachRateInputSchema] as const, "perClassMinStudents"),
+    perStudent: int([SetCoachRateInputSchema] as const, "perStudent"),
+    revenueBp: int([SetCoachRateInputSchema] as const, "revenueBp"),
+  },
+  payrollAdjustment: {
+    amount: int([AddPayrollAdjustmentInputSchema] as const, "amount"),
+    comment: text([AddPayrollAdjustmentInputSchema] as const, "comment"),
+  },
+  payrollReopen: {
+    reason: text([ReopenPayrollMonthInputSchema] as const, "reason"),
+  },
+  // «Ученики → Пробные»: the person's details (manual entry and edit), the
+  // person's own words (manual entry only), the staff note and the refusal.
+  // A child's name and age being required together is a refine the contract
+  // can't carry (refineLeadContact), so the form keeps it.
+  lead: {
+    name: text(LEAD, "name"),
+    phone: text(LEAD, "phone"),
+    email: text(LEAD, "email"),
+    childName: text(LEAD, "childName"),
+    childAge: int(LEAD, "childAge"),
+    comment: text([CreateLeadInputSchema] as const, "comment"),
+  },
+  leadNote: {
+    staffNote: text(LEAD, "staffNote"),
+  },
+  leadLost: {
+    comment: text([SetLeadStatusInputSchema] as const, "lostComment"),
   },
 } as const satisfies Record<string, Record<string, ContractLimit>>

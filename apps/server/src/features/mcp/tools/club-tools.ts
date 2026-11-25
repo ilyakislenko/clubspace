@@ -7,6 +7,8 @@ import { countActiveStudents } from '../../../domains/metrics/active-students'
 import { countNewStudents, countStudents, type StudentScope } from '../../../domains/metrics/students'
 import { ymdToDbDate } from '../../../domains/subscriptions/freeze-dates'
 import { localDateInTz } from '../../attendance/attendance-utils'
+import { loadLeadConversion } from '../../../domains/leads/lead-report'
+import { needsActionWhere } from '../../../domains/leads/lead-rules'
 import { awaitingPaymentWhere } from '../../../domains/subscriptions/renewal-rules'
 import {
     computeRevenue,
@@ -140,6 +142,29 @@ export const clubDirectoryTool = defineTool({
     },
 })
 
+// «Пробные» as three numbers (lead-rules / lead-report): waiting for staff,
+// received and bought in the last 30 days (SPAM never counts).
+const countLeads = async (
+    ctx: McpToolContext,
+): Promise<{ needsAction: number; received30d: number; bought30d: number }> => {
+    const { prisma, scope, now } = ctx
+    const [needsAction, report] = await Promise.all([
+        prisma.lead.count({
+            where: { workspaceId: scope.workspaceId, ...needsActionWhere(now) },
+        }),
+        loadLeadConversion(prisma, {
+            workspaceId: scope.workspaceId,
+            from: new Date(now.getTime() - 30 * DAY_MS),
+            to: now,
+        }),
+    ])
+    return {
+        needsAction,
+        received30d: report.total.received,
+        bought30d: report.total.bought,
+    }
+}
+
 // «Заявки» waiting on the token's creator: the inbox's rule (domains/requests)
 // with the viewer built from AiAccess — admin scope sees the club, a
 // direction manager their groups' members and their own personal requests.
@@ -188,6 +213,7 @@ export const clubOverviewTool = defineTool({
         'Для токена администратора — ещё выручка за 30 дней и текущий месяц и сумма неоплаченных абонементов. ' +
         'Ещё — сколько заявок ждёт решения (вступление, заморозка, персональные, разборы видео): те, что владелец токена может решить сам, как во вкладке «Заявки». ' +
         'И сообщения клуба ученикам за 30 дней: сколько отправлено, сколько получателей и какая доля открыла (только чтение — отправлять ассистент не может). ' +
+        'Для всего клуба — ещё счётчики «Пробных» (заявок на пробное ждут действия, получено и купили абонемент за 30 дней), без имён и телефонов. ' +
         'Хорошая отправная точка для вопросов «как дела в клубе».',
     input: z.object({}),
     run: async (ctx) => {
@@ -323,6 +349,10 @@ export const clubOverviewTool = defineTool({
                     ? Math.round(((sent._sum.readCount ?? 0) / recipients30d) * 100) / 100
                     : null,
         }
+        // «Пробные»: counts only, for the sport-lead (whole-club) scope. No
+        // lead list or contact reaches an AI tool: strangers' data under a
+        // consent that names no AI processor (docs/design/2026-11-26-leads.md §7).
+        const leads = scope.isAdmin ? await countLeads(ctx) : null
 
         return {
             rows: 1,
@@ -344,6 +374,7 @@ export const clubOverviewTool = defineTool({
                 upcoming: { events7d, gradings },
                 requests: { join, freeze, personal, video },
                 messages,
+                leads,
                 money,
             },
         }

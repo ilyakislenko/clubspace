@@ -6,9 +6,10 @@ import type { SectionTab } from "../../../../shared/workspace/section-tabs"
 // section title. The sidebar item opens the first tab the role may see, and
 // stays lit on every tab. Each tab's `access` matches its route's gate.
 
-// «Ученики»: the roster, the requests waiting for the viewer's decision and
-// the messages sent to students (the server scopes each to what the role may
-// see, decide and write).
+// «Ученики»: the roster, the requests waiting for the viewer's decision, the
+// messages sent to students (the server scopes each to what the role may see,
+// decide and write) and the trial requests from people not yet in the club —
+// strangers' phones, so sport leads only (docs/design/2026-11-26-leads.md §4.1).
 export const memberTabs: SectionTab[] = [
   {
     key: "users",
@@ -27,6 +28,12 @@ export const memberTabs: SectionTab[] = [
     label: "Сообщения",
     path: "users/messages",
     access: "staff",
+  },
+  {
+    key: "users-trials",
+    label: "Пробные",
+    path: "users/trials",
+    access: "sportLead",
   },
 ]
 
@@ -51,10 +58,25 @@ export const reportTabs = (vocabulary: ClubVocabulary): SectionTab[] => [
     access: "sportLead",
   },
   {
+    // What each coach earned: money, so club admins only (a head coach would
+    // see colleagues' pay).
+    key: "analytics-payroll",
+    label: "Выплаты",
+    path: "analytics/payroll",
+    access: "clubAdmin",
+  },
+  {
     key: "analytics-cohorts",
     label: "Когорты новичков",
     path: "analytics/cohorts",
     access: "lead",
+  },
+  {
+    // Trial requests → bought, by source (the «Пробные» tab's viewers).
+    key: "analytics-trials",
+    label: "Пробные",
+    path: "analytics/trials",
+    access: "sportLead",
   },
   {
     key: "analytics-export",

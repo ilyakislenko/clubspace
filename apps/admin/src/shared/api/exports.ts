@@ -1,7 +1,7 @@
 import { getApiAxios } from "./client"
 import type { PaymentJournalFilters } from "./payment-journal"
 
-export type ExportKind = "members" | "renewals" | "attendance" | "payments"
+export type ExportKind = "members" | "renewals" | "attendance" | "payments" | "payroll" | "leads"
 
 // `attachment; filename="payments-2026-10-16_2026-11-15.csv"` → the name.
 export const attachmentFileName = (disposition: string | undefined): string | null =>
@@ -11,13 +11,14 @@ export const attachmentFileName = (disposition: string | undefined): string | nu
  * Fetch a CSV export (authenticated) and trigger a browser download under the
  * name the server gives it (Content-Disposition: the period's dates, the
  * default 30-day window included). `from`/`to` (YYYY-MM-DD) optionally bound
- * attendance/renewals/payments to a date range; payments also takes the rest
- * of the journal's filters (no dates = the journal's default 30 days).
+ * attendance/renewals/payments/leads to a date range; payments also takes the
+ * rest of the journal's filters (no dates = the journal's default 30 days);
+ * payroll takes the club-local `month` (YYYY-MM).
  */
 export const downloadExport = async (params: {
   workspaceId: string
   kind: ExportKind
-  query?: PaymentJournalFilters
+  query?: PaymentJournalFilters | { month: string }
 }): Promise<void> => {
   const query = Object.fromEntries(
     Object.entries(params.query ?? {}).filter(([, v]) => v !== undefined && v !== ""),

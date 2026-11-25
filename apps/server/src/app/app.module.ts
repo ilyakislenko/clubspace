@@ -45,6 +45,16 @@ import { ListDiscountsHandler } from '../features/discounts/list-discounts.handl
 import { UpdateDiscountHandler } from '../features/discounts/update-discount.handler'
 import { ListSaleDiscountsHandler } from '../features/sale-discounts/list-sale-discounts.handler'
 import { SaleDiscountsController } from '../features/sale-discounts/sale-discounts.controller'
+import { AddPayrollAdjustmentHandler } from '../features/coach-payroll/add-payroll-adjustment.handler'
+import { ClosePayrollMonthHandler } from '../features/coach-payroll/close-payroll-month.handler'
+import { CoachPayrollController } from '../features/coach-payroll/coach-payroll.controller'
+import { DeletePayrollAdjustmentHandler } from '../features/coach-payroll/delete-payroll-adjustment.handler'
+import { GetMyPayrollHandler } from '../features/coach-payroll/get-my-payroll.handler'
+import { GetPayrollMonthHandler } from '../features/coach-payroll/get-payroll-month.handler'
+import { ListCoachRatesHandler } from '../features/coach-payroll/list-coach-rates.handler'
+import { ListPayrollClassesHandler } from '../features/coach-payroll/list-payroll-classes.handler'
+import { ReopenPayrollMonthHandler } from '../features/coach-payroll/reopen-payroll-month.handler'
+import { SetCoachRateHandler } from '../features/coach-payroll/set-coach-rate.handler'
 import { UpdatePaymentSettingsHandler } from '../features/online-payments/update-payment-settings.handler'
 import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod'
 import { z } from 'zod'
@@ -513,6 +523,19 @@ import {
 } from '../features/demo-requests/demo-requests.controller'
 import { CreateDemoRequestHandler } from '../features/demo-requests/create-demo-request.handler'
 import { ListPlatformDemoRequestsHandler } from '../features/demo-requests/list-platform-demo-requests.handler'
+import { CreateLeadHandler } from '../features/leads/create-lead.handler'
+import { EraseLeadHandler } from '../features/leads/erase-lead.handler'
+import { GetLeadConversionReportHandler } from '../features/leads/get-lead-conversion-report.handler'
+import { GetLeadHandler } from '../features/leads/get-lead.handler'
+import { GetTrialLinkHandler } from '../features/leads/get-trial-link.handler'
+import { LeadsController } from '../features/leads/leads.controller'
+import { LinkLeadMemberHandler } from '../features/leads/link-lead-member.handler'
+import { ListLeadsHandler } from '../features/leads/list-leads.handler'
+import { SetLeadStatusHandler } from '../features/leads/set-lead-status.handler'
+import { UpdateLeadHandler } from '../features/leads/update-lead.handler'
+import { CreatePublicTrialRequestHandler } from '../features/public-trial-requests/create-public-trial-request.handler'
+import { GetPublicTrialFormHandler } from '../features/public-trial-requests/get-public-trial-form.handler'
+import { PublicTrialRequestsController } from '../features/public-trial-requests/public-trial-requests.controller'
 import { ReportClientErrorController } from '../features/report-client-error/report-client-error.controller'
 import { ReportClientErrorHandler } from '../features/report-client-error/report-client-error.handler'
 import { WorkspaceEventsController } from '../features/manage-workspace-events/workspace-events.controller'
@@ -934,6 +957,9 @@ const controllers: ModuleMetadata['controllers'] = [
     RefundsController,
     DiscountsController,
     SaleDiscountsController,
+    CoachPayrollController,
+    LeadsController,
+    PublicTrialRequestsController,
     MyPaymentsController,
     PaymentWebhooksController,
     // ИИ-ассистент (docs/mcp.md): tokens in the admin, the MCP endpoint.
@@ -1308,6 +1334,26 @@ const handlers: ModuleMetadata['providers'] = [
     UpdateDiscountHandler,
     DeleteDiscountHandler,
     ListSaleDiscountsHandler,
+    GetPayrollMonthHandler,
+    ListPayrollClassesHandler,
+    ListCoachRatesHandler,
+    SetCoachRateHandler,
+    AddPayrollAdjustmentHandler,
+    DeletePayrollAdjustmentHandler,
+    ClosePayrollMonthHandler,
+    ReopenPayrollMonthHandler,
+    GetMyPayrollHandler,
+    ListLeadsHandler,
+    GetLeadHandler,
+    CreateLeadHandler,
+    UpdateLeadHandler,
+    SetLeadStatusHandler,
+    LinkLeadMemberHandler,
+    EraseLeadHandler,
+    GetLeadConversionReportHandler,
+    GetTrialLinkHandler,
+    GetPublicTrialFormHandler,
+    CreatePublicTrialRequestHandler,
     GetOnlinePurchaseOptionsHandler,
     GetCheckoutQuoteHandler,
     CreatePaymentHandler,

@@ -17,6 +17,9 @@ import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
 import { pseudonymFor } from '../ai-assistant/pseudonym'
 import { birthdateTurningOn, isBirthdayOn } from '../birthdays/birthdays'
 import { priceSale } from '../discounts/discount-rules'
+import { dpaCoversLeads } from '../leads/lead-consent'
+import { shiftMonth } from '../metrics/revenue'
+import { type DemoLeadSpec, demoLeadRow } from './demo-leads'
 import { FIRST_VISIT_AUTO_START_DAYS } from '../subscriptions/first-visit-start'
 import { addDaysYmd, diffDaysYmd, ymdToDbDate } from '../subscriptions/freeze-dates'
 import { isSubscriptionUsable } from '../subscriptions/subscription-status'
@@ -226,6 +229,23 @@ export type DemoClubPlan = {
     clubMessages: Prisma.ClubMessageCreateManyInput[]
     clubMessageRecipients: Prisma.ClubMessageRecipientCreateManyInput[]
     notifications: Prisma.NotificationCreateManyInput[]
+    // «Выплаты тренерам» (docs/design/2026-11-26-coach-payroll.md §8): the
+    // coaches' rates, the closed month's adjustment, and the month the writer
+    // closes — it freezes the inserted data with the payroll rule itself
+    // (computeLivePayroll + writePayrollSnapshot), so the frozen totals equal
+    // a recomputation and «Выплаты» shows no drift.
+    coachRates: Prisma.CoachRateCreateManyInput[]
+    payrollAdjustments: Prisma.PayrollAdjustmentCreateManyInput[]
+    payrollClose: DemoPayrollClose | null
+    // «Пробные» (docs/design/2026-11-26-leads.md §9).
+    leads: Prisma.LeadCreateManyInput[]
+}
+
+export type DemoPayrollClose = {
+    month: string
+    closedById: string
+    closedByName: string
+    closedAt: Date
 }
 
 // A stable uuid per logical entity: a reset recreates the club with the same
@@ -452,6 +472,10 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         clubMessages: [],
         clubMessageRecipients: [],
         notifications: [],
+        coachRates: [],
+        payrollAdjustments: [],
+        payrollClose: null,
+        leads: [],
     }
 
     // ---- ids -----------------------------------------------------------
@@ -483,6 +507,14 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         city: 'Томск',
         leaderboardEnabled: true,
         guestVisitsEnabled: true,
+        // coach@ (the head coach) shows «Профиль → Мои выплаты».
+        coachPayVisible: true,
+        // «Пробные»: the form on /c/<slug>/trial takes requests only while the
+        // DPA edition in force lists lead subjects (PLATFORM_DPA_VERSION ≥
+        // 2026-12-01, docs/demo.md); the operator is a demo placeholder.
+        trialRequestsEnabled: dpaCoversLeads(input.legal.dpaVersion),
+        pdOperatorName: 'ИП Орлов Артём Сергеевич (демо)',
+        pdOperatorAddress: 'г. Москва, ул. Примерная, 1',
         ...defaultFeatureColumnsFor('GRAPPLING'),
         // «Сообщения ученикам на e-mail»: the «Напоминаем об оплате» message
         // went out with its e-mail copy.
@@ -1817,6 +1849,71 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         })
     }
 
+    // ---- «Пробные» (docs/design/2026-11-26-leads.md §9) -------------------------------
+    // 16 leads over 60 days: 3 new (one 30 h old — «ждут больше суток»), 2
+    // contacted, 2 booked (tonight in a kids' group, and yesterday — needs a
+    // mark), 2 came (one linked to a student without an abonement yet), 4 bought
+    // (linked to students whose first paid abonement follows the lead), 3 lost.
+    {
+        const hoursAgo = (h: number) => new Date(now.getTime() - h * 60 * 60_000)
+        const kidsGroup = GROUPS.find((g) => g.key === 'yuKidsJunior') as (typeof GROUPS)[number]
+        const adultGroup = GROUPS.find((g) => g.key === 'yuBjj') as (typeof GROUPS)[number]
+        const trialIn = (g: (typeof GROUPS)[number], ymd: string, hm: string) => ({
+            at: at(ymd, hm),
+            groupId: groupId(g.key),
+            groupName: g.name,
+        })
+        const bjj = { id: dirId('bjj'), name: DIRECTIONS.find((d) => d.key === 'bjj')?.name ?? 'БЖЖ' }
+        const firstPaid = (p: Person) =>
+            p.subs
+                .filter((s) => s.isPaid && s.tariff.price > 0 && !s.tariff.isFreeTrial)
+                .sort((a, b) => +a.soldAt - +b.soldAt)[0]
+        const buyers = persons
+            .filter((p) => p.status === 'ACTIVE' && !p.account)
+            .flatMap((p) => {
+                const s = firstPaid(p)
+                const days = s ? (now.getTime() - s.soldAt.getTime()) / DAY_MS : -1
+                return s && days >= 3 && days <= 55 ? [{ p, s }] : []
+            })
+            .slice(0, 4)
+        // A student who joined after the trial and hasn't paid an abonement yet.
+        const joinedNoAbonement = persons.find(
+            (p) => p.status === 'ACTIVE' && !p.account && p.kind === 'adult' && !firstPaid(p),
+        )
+        const lead = (k: string, s: Omit<DemoLeadSpec, 'id' | 'staffId'>) =>
+            plan.leads.push(
+                demoLeadRow(workspaceId, { id: demoUuid(`lead:${k}`), staffId: adminId, ...s }),
+            )
+        lead('new-1', { name: 'Ольга Ермакова', phoneN: 1, source: 'PUBLIC_PAGE', createdAt: hoursAgo(30), stage: 'NEW', child: { name: 'Маша', age: 7 }, direction: bjj, comment: 'Хотим в детскую группу у ТЦ «Юпитер»' })
+        lead('new-2', { name: 'Игорь Сафонов', phoneN: 2, source: 'QR', createdAt: hoursAgo(5), stage: 'NEW', direction: bjj })
+        lead('new-3', { name: 'Дарья Котова', phoneN: 3, source: 'PUBLIC_PAGE', createdAt: hoursAgo(1), stage: 'NEW', comment: 'Можно вечером после 19?' })
+        lead('contacted-1', { name: 'Пётр Лаптев', phoneN: 4, source: 'MANUAL', createdAt: at(ago(3), '12:00'), stage: 'CONTACTED', contactAfterH: 1 })
+        lead('contacted-2', { name: 'Анна Веселова', phoneN: 5, source: 'QR', createdAt: at(ago(5), '10:00'), stage: 'CONTACTED', contactAfterH: 6 })
+        lead('booked-tonight', { name: 'Елена Михайлова', phoneN: 6, source: 'PUBLIC_PAGE', createdAt: at(ago(2), '09:30'), stage: 'TRIAL_BOOKED', child: { name: 'Тимур', age: 6 }, direction: bjj, trial: trialIn(kidsGroup, today, '18:30') })
+        lead('booked-yesterday', { name: 'Сергей Гусев', phoneN: 7, source: 'MANUAL', createdAt: at(ago(4), '14:00'), stage: 'TRIAL_BOOKED', trial: trialIn(adultGroup, ago(1), '19:30') })
+        lead('came-1', { name: 'Кирилл Носов', phoneN: 8, source: 'PUBLIC_PAGE', createdAt: at(ago(9), '11:00'), stage: 'CAME', trial: trialIn(adultGroup, ago(6), '19:30') })
+        if (joinedNoAbonement) {
+            lead('came-linked', { name: `${joinedNoAbonement.firstname} ${joinedNoAbonement.lastname}`, phoneN: 9, source: 'QR', createdAt: at(ago(12), '16:00'), stage: 'CAME', trial: trialIn(adultGroup, ago(10), '19:30'), convertedUserId: joinedNoAbonement.id })
+        }
+        buyers.forEach(({ p, s }, i) => {
+            const soldYmd = localDateInTz(s.soldAt, tz)
+            lead(`bought-${i}`, {
+                name: p.kind === 'kid' ? `Родитель: ${p.lastname}` : `${p.firstname} ${p.lastname}`,
+                phoneN: 10 + i,
+                source: (['PUBLIC_PAGE', 'QR', 'MANUAL', 'PUBLIC_PAGE'] as const)[i],
+                createdAt: at(addDaysYmd(soldYmd, -3), '10:00'),
+                stage: 'CAME',
+                child: p.kind === 'kid' ? { name: p.firstname, age: 8 } : undefined,
+                trial: trialIn(p.kind === 'kid' ? kidsGroup : adultGroup, addDaysYmd(soldYmd, -1), p.kind === 'kid' ? '18:30' : '19:30'),
+                convertedUserId: p.id,
+                contactAfterH: 2 + i,
+            })
+        })
+        lead('lost-price', { name: 'Наталья Белова', phoneN: 20, source: 'PUBLIC_PAGE', createdAt: at(ago(40), '13:00'), stage: 'LOST', lost: 'PRICE', trial: trialIn(adultGroup, ago(37), '19:30') })
+        lead('lost-schedule', { name: 'Виктор Зуев', phoneN: 21, source: 'QR', createdAt: at(ago(25), '18:00'), stage: 'LOST', lost: 'SCHEDULE', child: { name: 'Лёва', age: 9 }, direction: bjj })
+        lead('lost-noanswer', { name: 'Ирина Карпова', phoneN: 22, source: 'MANUAL', createdAt: at(ago(58), '12:00'), stage: 'LOST', lost: 'NO_ANSWER' })
+    }
+
     // ---- members, users, families ------------------------------------------------
     const notes = [
         'Травма плеча — без бросков до конца месяца',
@@ -2438,6 +2535,101 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     substitute('yuBjj', soonestSlot('yuBjj'), 'savelyev', 'ASSIGN', 'reshetyuk')
     // Власов offers to take Старокоров's next ММА at «Белая рысь»: waits for the go-ahead.
     substitute('rysMma', soonestSlot('rysMma'), 'vlasov', 'OFFER', 'vlasov')
+
+    // ---- «Выплаты тренерам» ---------------------------------------------------------
+    // Rates from half a year back; Решетюк got a raise from this month (two
+    // rows). Last month is closed: it holds a class Савельев ran for Решетюк
+    // («замена»), a class cancelled after its roster was opened («отменено»)
+    // and a bonus for Савельев.
+    {
+        const thisMonth = today.slice(0, 7)
+        const lastMonth = shiftMonth(thisMonth, -1)
+        const since = shiftMonth(thisMonth, -6)
+        const rate = (
+            k: StaffKey,
+            from: string,
+            parts: Partial<Prisma.CoachRateCreateManyInput>,
+        ) => {
+            // This month's raise, reset early on the 1st, was set an hour ago.
+            const setAt = new Date(
+                Math.min(now.getTime() - 60 * 60 * 1000, at(`${from}-01`, '10:00').getTime()),
+            )
+            plan.coachRates.push({
+                id: demoUuid(`rate:${k}:${from}`),
+                workspaceId,
+                coachId: staffId(k),
+                effectiveFrom: ymdToDbDate(`${from}-01`),
+                currency: 'RUB',
+                updatedById: ownerId,
+                createdAt: setAt,
+                updatedAt: setAt,
+                ...parts,
+            })
+        }
+        rate('savelyev', since, { fixedMonthly: 40000, revenueBp: 1000 })
+        rate('vlasov', since, { perClass: 1500, perClassMinStudents: 3, perStudent: 100 })
+        rate('gizatulin', since, { perClass: 1500, perClassMinStudents: 3, perStudent: 100 })
+        rate('reshetyuk', since, { perClass: 2000 })
+        rate('reshetyuk', thisMonth, { perClass: 2500 })
+
+        const inLastMonth = (g: GroupKey) =>
+            plan.sessions.filter(
+                (s) =>
+                    s.groupId === groupId(g) &&
+                    (s.sessionDate as Date).toISOString().startsWith(`${lastMonth}-`),
+            )
+        const covered = inLastMonth('yuBjj')[0]
+        if (covered) {
+            covered.coachId = staffId('savelyev')
+            const decidedAt = new Date((covered.startAt as Date).getTime() - 2 * DAY_MS)
+            plan.classSubstitutions.push({
+                id: demoUuid('substitution:payroll'),
+                workspaceId,
+                groupId: groupId('yuBjj'),
+                slotId: covered.slotId as string,
+                sessionDate: covered.sessionDate as Date,
+                occurrenceKey: covered.occurrenceKey,
+                substituteId: staffId('savelyev'),
+                status: 'APPROVED',
+                kind: 'ASSIGN',
+                requestedById: staffId('reshetyuk'),
+                decidedById: staffId('reshetyuk'),
+                decidedAt,
+                createdAt: decidedAt,
+            })
+        }
+        const cancelled = inLastMonth('yuKidsJunior').at(-1)
+        if (cancelled) {
+            plan.scheduleExceptions.push({
+                groupId: groupId('yuKidsJunior'),
+                slotId: cancelled.slotId as string,
+                fromDate: cancelled.sessionDate as Date,
+                untilDate: cancelled.sessionDate as Date,
+                reason: 'Зал закрыт: авария',
+            })
+        }
+        const adminName = demoAccountName(demoAccount('admin'))
+        plan.payrollAdjustments.push({
+            id: demoUuid('payroll-adjustment:open-lesson'),
+            workspaceId,
+            month: ymdToDbDate(`${lastMonth}-01`),
+            coachId: staffId('savelyev'),
+            amount: 5000,
+            comment: 'Открытый урок',
+            createdById: adminId,
+            createdByName: adminName,
+            createdAt: at(`${lastMonth}-28`, '18:00'),
+        })
+        plan.payrollClose = {
+            month: lastMonth,
+            closedById: adminId,
+            closedByName: adminName,
+            // The 2nd, or an hour ago on the 1st.
+            closedAt: new Date(
+                Math.min(now.getTime() - 60 * 60 * 1000, at(`${thisMonth}-02`, '11:00').getTime()),
+            ),
+        }
+    }
 
     // ---- announcements -----------------------------------------------------------------
     const announce = (

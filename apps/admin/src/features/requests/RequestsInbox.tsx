@@ -36,6 +36,7 @@ import {
   waitingLabel,
   type InboxState,
 } from "./request-view"
+import { useLeadCounts } from "../leads/use-lead-counts"
 import { RequestSheet } from "./RequestSheet"
 
 const PER_PAGE = 50
@@ -59,6 +60,8 @@ const appendNew = (shown: OpenRequest[], next: OpenRequest[]) => {
  */
 export function RequestsInbox({ workspaceId }: { workspaceId: string }) {
   const vocabulary = useVocabulary()
+  // «Пробные · N» on its tab (sport leads only).
+  const leads = useLeadCounts(workspaceId)
   // Read from window (not useSearchParams) to avoid a Suspense boundary.
   const [state, setState] = useState<InboxState | null>(null)
   const [page, setPage] = useState<OpenRequestsPage | null>(null)
@@ -203,7 +206,7 @@ export function RequestsInbox({ workspaceId }: { workspaceId: string }) {
       <SectionTabs
         title="Ученики"
         tabs={memberTabs}
-        badges={{ "users-requests": page?.counts.total }}
+        badges={{ "users-requests": page?.counts.total, "users-trials": leads?.needsAction }}
       />
 
       {page && kinds.length > 1 && (

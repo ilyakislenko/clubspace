@@ -7,6 +7,7 @@ const DECISION_KEYS = [
   "renew", // «Продлить» (renewals_due)
   "awaiting", // «Ожидают оплаты» (awaiting_payment, people)
   "requests", // «Заявки»: join, freeze, personal, video (GET requests, server-scoped)
+  "leads", // «Заявки на пробное»: new + past trials without a mark (sport leads only)
   "video", // videos processing or failed
 ] as const
 

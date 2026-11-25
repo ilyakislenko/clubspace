@@ -28,6 +28,14 @@ const make = (batches: { id: string }[][] = []) => {
         clubImport: {
             deleteMany: jest.fn().mockResolvedValue({ count: 4 }),
         },
+        lead: {
+            findMany: jest.fn().mockResolvedValue([]),
+            updateMany: jest.fn(
+                async ({ where }: { where: { AND: [unknown, { id: { in: string[] } }] } }) => ({
+                    count: where.AND[1].id.in.length,
+                }),
+            ),
+        },
     }
     return { prisma, svc: new DataPurgeService(prisma as never) }
 }
@@ -90,5 +98,54 @@ describe('DataPurgeService', () => {
         expect(prisma.clubImport.deleteMany).toHaveBeenCalledWith({
             where: { createdAt: { lt: new Date(NOW.getTime() - 30 * DAY) } },
         })
+    })
+
+    // «Пробные» retention (docs/design/2026-11-26-leads.md §1).
+    it('closes idle leads as LOST NO_ANSWER and anonymises closed ones past 90 days, keeping report fields', async () => {
+        const { prisma, svc } = make()
+        prisma.lead.findMany
+            .mockResolvedValueOnce(ids(2, 'idle'))
+            .mockResolvedValueOnce(ids(3, 'old'))
+
+        const res = await svc.run(NOW)
+
+        expect(res).toMatchObject({ leadsClosed: 2, leadsAnonymized: 3 })
+        const [idleCall, oldCall] = prisma.lead.updateMany.mock.calls.map((c) => c[0])
+        expect(idleCall.where.AND[0]).toEqual({
+            status: { not: 'LOST' },
+            convertedUserId: null,
+            anonymizedAt: null,
+            statusChangedAt: { lt: new Date(NOW.getTime() - 180 * DAY) },
+        })
+        expect(idleCall.data).toMatchObject({
+            status: 'LOST',
+            lostReason: 'NO_ANSWER',
+            name: null,
+            phone: null,
+            anonymizedAt: NOW,
+        })
+        expect(oldCall.where.AND[0]).toEqual({
+            anonymizedAt: null,
+            OR: [
+                { status: 'LOST', lostAt: { lt: new Date(NOW.getTime() - 90 * DAY) } },
+                { convertedAt: { lt: new Date(NOW.getTime() - 90 * DAY) } },
+            ],
+        })
+        // Only personal fields are touched: source, statuses, dates, reason
+        // and the link stay for the report.
+        expect(Object.keys(oldCall.data).sort()).toEqual(
+            [
+                'anonymizedAt',
+                'childName',
+                'comment',
+                'consentIp',
+                'consentUserAgent',
+                'email',
+                'lostComment',
+                'name',
+                'phone',
+                'staffNote',
+            ].sort(),
+        )
     })
 })

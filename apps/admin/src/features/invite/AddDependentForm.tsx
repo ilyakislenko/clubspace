@@ -52,22 +52,39 @@ const buildNotice = (
   return parts.join(" ")
 }
 
+// What another screen already knows about the child (a trial request): the
+// form opens filled in. The date of birth is never guessed from an age —
+// `ageHint` only shows what the parent said («по заявке: 8 лет»).
+export type DependentPrefill = {
+  firstname?: string
+  lastname?: string
+  guardianEmail?: string
+  groupId?: string | null
+  ageHint?: string
+}
+
 // Club-side child profile: the child joins as a member right away; the named
-// parent gets an invitation and confirms the link in the app.
+// parent gets an invitation and confirms the link in the app. `onAdded` gets
+// the server's answer (the child's id); with `onCancel` the form starts open
+// and «Закрыть» hands back to the caller.
 export function AddDependentForm({
   workspaceId,
+  prefill,
   onAdded,
+  onCancel,
 }: {
   workspaceId: string
-  onAdded: () => void
+  prefill?: DependentPrefill
+  onAdded: (result: AddDependentResult) => void
+  onCancel?: () => void
 }) {
-  const [open, setOpen] = useState(false)
-  const [firstname, setFirstname] = useState("")
-  const [lastname, setLastname] = useState("")
+  const [open, setOpen] = useState(onCancel !== undefined)
+  const [firstname, setFirstname] = useState(prefill?.firstname ?? "")
+  const [lastname, setLastname] = useState(prefill?.lastname ?? "")
   const [dateOfBirth, setDateOfBirth] = useState("")
-  const [guardianEmail, setGuardianEmail] = useState("")
+  const [guardianEmail, setGuardianEmail] = useState(prefill?.guardianEmail ?? "")
   const [relation, setRelation] = useState<GuardianRelation>("PARENT")
-  const [groupId, setGroupId] = useState(NO_GROUP)
+  const [groupId, setGroupId] = useState(prefill?.groupId ?? NO_GROUP)
   const [sendEmail, setSendEmail] = useState(true)
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -116,7 +133,7 @@ export function AddDependentForm({
       setGuardianEmail("")
       setRelation("PARENT")
       setGroupId(NO_GROUP)
-      onAdded()
+      onAdded(result)
     } catch (err) {
       setError(errorMessage(err, "Не удалось добавить ребёнка."))
     } finally {
@@ -184,6 +201,9 @@ export function AddDependentForm({
             required
             disabled={submitting}
           />
+          {prefill?.ageHint && (
+            <p className="text-xs text-muted-foreground">{prefill.ageHint}</p>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="dependent-guardian-email">E-mail родителя*</Label>
@@ -264,8 +284,9 @@ export function AddDependentForm({
           type="button"
           variant="ghost"
           onClick={() => {
-            setOpen(false)
             setError(null)
+            if (onCancel) onCancel()
+            else setOpen(false)
           }}
           disabled={submitting}
         >

@@ -1,4 +1,11 @@
+jest.mock('../payroll/payroll-loader', () => ({
+    computeLivePayroll: jest.fn(async (_tx: unknown, p: { month: string }) => ({ month: p.month, live: true })),
+}))
+jest.mock('../payroll/payroll-month', () => ({ writePayrollSnapshot: jest.fn() }))
+
 import { BadRequestError } from '../../shared/errors/shared.errors'
+import { computeLivePayroll } from '../payroll/payroll-loader'
+import { writePayrollSnapshot } from '../payroll/payroll-month'
 import { buildDemoClubPlan } from './demo-club.plan'
 import { writeDemoClubPlan } from './demo-club.writer'
 
@@ -117,6 +124,26 @@ describe('writeDemoClubPlan', () => {
             now: NOW,
         })
         expect($executeRaw).toHaveBeenCalledTimes(1)
+    })
+
+    it('writes the rates and adjustment, then freezes last month with the payroll rule', async () => {
+        const { tx, model, calls } = buildTx()
+        const snapshot = writePayrollSnapshot as jest.Mock
+        snapshot.mockReset().mockImplementation(async () => calls.push('payroll.snapshot'))
+        await run(tx)
+        expect(model('coachRate').createMany.mock.calls[0][0].data).toBe(plan.coachRates)
+        expect(model('payrollAdjustment').createMany.mock.calls[0][0].data).toBe(plan.payrollAdjustments)
+        // After every row the rule reads.
+        expect(calls.at(-1)).toBe('payroll.snapshot')
+        expect((computeLivePayroll as jest.Mock).mock.calls.at(-1)[1]).toEqual({
+            workspaceId: plan.workspaceId,
+            month: '2026-10',
+        })
+        expect(snapshot.mock.calls[0][1]).toMatchObject({
+            workspaceId: plan.workspaceId,
+            live: { month: '2026-10' },
+            closedBy: { id: plan.payrollClose?.closedById, name: 'Ольга Кузнецова' },
+        })
     })
 
     it('uses the fixed join code, or a fresh one when another club holds it', async () => {

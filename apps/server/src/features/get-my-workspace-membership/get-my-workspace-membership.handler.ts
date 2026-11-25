@@ -5,6 +5,7 @@ import {
     CLUB_ADMINS,
     type RoleName,
     SPORT_LEADS,
+    STAFF_ROLES,
 } from '../../shared/decorators/roles.decorator'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import {
@@ -33,7 +34,12 @@ export class GetMyWorkspaceMembershipHandler
             },
             include: {
                 workspace: {
-                    select: { name: true, ownerId: true, coachesMarkAnyClass: true },
+                    select: {
+                        name: true,
+                        ownerId: true,
+                        coachesMarkAnyClass: true,
+                        coachPayVisible: true,
+                    },
                 },
                 role: { select: { name: true } },
             },
@@ -74,6 +80,9 @@ export class GetMyWorkspaceMembershipHandler
                 isOwner ||
                 SPORT_LEADS.includes(role as RoleName) ||
                 (role === 'coach' && member.workspace.coachesMarkAnyClass),
+            canSeeOwnPay:
+                (isOwner || STAFF_ROLES.includes(role as RoleName)) &&
+                member.workspace.coachPayVisible,
         }
     }
 
@@ -94,7 +103,7 @@ export class GetMyWorkspaceMembershipHandler
     ) {
         const workspace = await this.prisma.workspace.findUnique({
             where: { id: workspaceId },
-            select: { name: true, ownerId: true, createdAt: true },
+            select: { name: true, ownerId: true, createdAt: true, coachPayVisible: true },
         })
 
         if (!workspace) {
@@ -116,6 +125,7 @@ export class GetMyWorkspaceMembershipHandler
             createdAt: workspace.createdAt.toISOString(),
             managedDirectionIds: [],
             marksAnyClass: true,
+            canSeeOwnPay: workspace.coachPayVisible,
         }
     }
 }

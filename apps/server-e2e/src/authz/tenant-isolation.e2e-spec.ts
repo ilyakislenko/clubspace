@@ -17,9 +17,13 @@ type SpecParameter = {
     name: string
     in: string
     required?: boolean
-    schema?: { format?: string; type?: string; minLength?: number }
+    schema?: { format?: string; type?: string; minLength?: number; pattern?: string }
 }
 type Operation = { method: string; path: string; query: string }
+
+// Sample values a string parameter with a declared `pattern` may take; the
+// first one the pattern accepts is used (a month «2026-01», a day, a digit run).
+const PATTERN_SAMPLES = ['2026-01', '2026-01-01', '1', '11', 'a', 'ab']
 
 // Required query parameters, filled from the spec's own declared format.
 // Without this a route like GET /schedule (from + to are required) answers 400
@@ -34,6 +38,14 @@ const buildQuery = (params: SpecParameter[]): string => {
             if (format === 'date-time') return `${p.name}=2026-01-01T00:00:00.000Z`
             if (p.schema?.type === 'number' || p.schema?.type === 'integer') {
                 return `${p.name}=1`
+            }
+            const pattern = p.schema?.pattern
+            if (pattern) {
+                const sample = PATTERN_SAMPLES.find((s) => new RegExp(pattern).test(s))
+                // A new pattern none of the samples fits: add one above rather
+                // than let the owner's control quietly turn into a 400.
+                if (!sample) throw new Error(`No sample value matches ${p.name} pattern ${pattern}`)
+                return `${p.name}=${encodeURIComponent(sample)}`
             }
             // A search term has a floor (GET /videos/search wants ≥ 2 chars).
             return `${p.name}=${'1'.repeat(p.schema?.minLength ?? 1)}`

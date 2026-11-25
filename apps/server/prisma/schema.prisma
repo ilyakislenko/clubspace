@@ -108,6 +108,10 @@ model Workspace {
   // foreign class only through an approved ClassSubstitution.
   coachesMarkAnyClass Boolean @default(false)
 
+  // «Тренеры видят свои выплаты» (docs/design/2026-11-26-coach-payroll.md): a
+  // coach sees their own closed payroll months in the app. Off by default.
+  coachPayVisible Boolean @default(false)
+
   // Club-wide switch for the attendance leaderboard. On by default (a gym
   // usually wants the motivation); the owner can turn the whole feature off,
   // and an individual member can still opt out via WorkspaceMember below.
@@ -168,6 +172,15 @@ model Workspace {
   publicDescription String? @db.Text
   logoKey           String? @db.VarChar(255)
   isListed          Boolean @default(false)
+
+  // «Пробные» (docs/design/2026-11-26-leads.md): the trial-request form on
+  // /c/<slug>/trial. The club is the operator of its prospects' personal data;
+  // the consent text quotes its name and address, so the form can't be
+  // switched on without both (nor before the owner accepts the DPA edition
+  // that lists lead subjects).
+  trialRequestsEnabled Boolean @default(false)
+  pdOperatorName       String? @db.VarChar(255)
+  pdOperatorAddress    String? @db.VarChar(500)
 
   // The generated in-person demo club (domains/demo, docs/demo.md). Only a
   // club carrying this flag AND the demo key may be wiped by «Сбросить демо».
@@ -278,6 +291,13 @@ model Workspace {
   // «ИИ-ассистент» chat in the admin: saved conversations and per-question usage.
   aiChatConversations       AiChatConversation[]
   aiChatUsage               AiChatUsage[]
+  // «Выплаты тренерам» (docs/design/2026-11-26-coach-payroll.md).
+  coachRates                CoachRate[]
+  payrollAdjustments        PayrollAdjustment[]
+  payrollMonths             PayrollMonth[]
+  payrollLines              PayrollLine[]
+  // «Пробные» (docs/design/2026-11-26-leads.md).
+  leads                     Lead[]
 
   @@index([isListed])
 }
@@ -415,6 +435,10 @@ model User {
   aiAccessTokens AiAccessToken[] @relation("AiAccessTokenCreatedBy")
   // Their «ИИ-ассистент» chat conversations (private to the author).
   aiChatConversations AiChatConversation[] @relation("AiChatConversationAuthor")
+  // «Выплаты тренерам»: this coach's rates by month.
+  coachRates          CoachRate[]          @relation("CoachRates")
+  // «Пробные»: trial requests this user was added to the club from.
+  convertedLeads      Lead[]               @relation("ConvertedLeads")
 
   @@index([isSuperAdmin])
 }
@@ -604,6 +628,7 @@ model Direction {
   announcements   Announcement[]
   courseAudiences CourseAudience[]
   managers        DirectionManager[]
+  leads              Lead[]
 
   @@index([workspaceId, order])
 }
@@ -682,6 +707,7 @@ model Group {
   dropInBookings     DropInBooking[]
   classOccurrences   ClassOccurrence[]
   classSubstitutions ClassSubstitution[]
+  trialLeads         Lead[]
 
   @@index([workspaceId])
   @@index([gymId])
@@ -3991,4 +4017,202 @@ model AiChatUsage {
   createdAt DateTime @default(now())
 
   @@index([workspaceId, createdAt])
+}
+
+// «Выплаты тренерам» (docs/design/2026-11-26-coach-payroll.md §2). A coach's
+// rate from a club-local month on (effectiveFrom = the 1st); the latest one at
+// or before a month is in force for it. Amounts in the club's whole currency
+// units; revenueBp 0..10000 = 0..100 % of the coach's attributed abonement money.
+model CoachRate {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  // Users are anonymised, not deleted; a deleted one takes their rates along.
+  coachId     String    @db.Uuid
+  coach       User      @relation("CoachRates", fields: [coachId], references: [id], onDelete: Cascade)
+
+  effectiveFrom       DateTime @db.Date
+  fixedMonthly        Int      @default(0)
+  perClass            Int      @default(0)
+  perClassMinStudents Int      @default(1)
+  perStudent          Int      @default(0)
+  revenueBp           Int      @default(0)
+  currency            String   @db.Char(3)
+  // Display/audit only, no FK.
+  updatedById         String   @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, coachId, effectiveFrom])
+  @@index([workspaceId, effectiveFrom])
+}
+
+// A bonus (+) or deduction (−) of one coach for one month. Locked while its
+// month is closed; stays when the month is reopened.
+model PayrollAdjustment {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  month       DateTime  @db.Date
+  // No FK: survives the coach's removal.
+  coachId     String    @db.Uuid
+  amount      Int
+  // The club's payroll currency when it was added; a month in another
+  // currency leaves it out (flagged), never reinterprets it.
+  currency    String    @default("RUB") @db.Char(3)
+  comment     String    @db.VarChar(500)
+
+  createdById   String   @db.Uuid
+  createdByName String   @db.VarChar(255)
+  createdAt     DateTime @default(now())
+
+  @@index([workspaceId, month])
+}
+
+// A closed payroll month: the frozen totals. Exists only while closed —
+// reopening deletes it (lines cascade; the audit keeps the totals).
+model PayrollMonth {
+  id                  String    @id @default(uuid()) @db.Uuid
+  workspaceId         String    @db.Uuid
+  workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  month               DateTime  @db.Date
+  currency            String    @db.Char(3)
+  total               Int
+  unattributedClasses Int       @default(0)
+  unattributedRevenue Int       @default(0)
+  // Revenue rows in another currency than the club's (a count, not a sum).
+  otherCurrencyRows   Int       @default(0)
+
+  closedAt     DateTime @default(now())
+  closedById   String   @db.Uuid
+  closedByName String   @db.VarChar(255)
+
+  lines PayrollLine[]
+
+  @@unique([workspaceId, month])
+}
+
+// One coach's frozen row of a closed month. `rate` holds the values used
+// (null = no rate in force); the coach has no FK, so the row survives removal.
+model PayrollLine {
+  id             String       @id @default(uuid()) @db.Uuid
+  payrollMonthId String       @db.Uuid
+  payrollMonth   PayrollMonth @relation(fields: [payrollMonthId], references: [id], onDelete: Cascade)
+  workspaceId    String       @db.Uuid
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  coachId        String       @db.Uuid
+  coachName      String       @db.VarChar(255)
+
+  classes     Int
+  classesPaid Int
+  marks       Int
+  // Marks in paid classes: what the per-mark part pays for.
+  marksPaid   Int
+  revenueBase Int
+
+  fixedAmount       Int
+  classAmount       Int
+  studentAmount     Int
+  revenueAmount     Int
+  adjustmentsAmount Int
+  total             Int
+  rate              Json?
+
+  @@index([workspaceId, coachId])
+  @@index([payrollMonthId])
+}
+
+// «Пробные» (docs/design/2026-11-26-leads.md §1–2). The rules live in
+// domains/leads/lead-rules.ts; «Купил» is derived, never stored.
+enum LeadStatus {
+  NEW
+  CONTACTED
+  TRIAL_BOOKED
+  CAME
+  LOST
+}
+
+enum LeadSource {
+  PUBLIC_PAGE
+  QR
+  MANUAL
+}
+
+enum LeadLostReason {
+  NO_ANSWER
+  CHANGED_MIND
+  PRICE
+  SCHEDULE
+  LOCATION
+  CHOSE_OTHER
+  SPAM
+  OTHER
+}
+
+// A person who asked for a trial class; not an account. Personal fields are
+// nulled once anonymised (retention, «Удалить данные», spam); source, statuses,
+// dates, direction, reason and the link stay so reports keep counting.
+model Lead {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  source          LeadSource
+  status          LeadStatus @default(NEW)
+  statusChangedAt DateTime   @default(now())
+
+  name  String? @db.VarChar(120)
+  phone String? @db.VarChar(20)
+  email String? @db.VarChar(254)
+
+  forChild  Boolean @default(false)
+  childName String? @db.VarChar(80)
+  childAge  Int?
+
+  directionId   String?    @db.Uuid
+  direction     Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
+  directionName String?    @db.VarChar(255)
+
+  // The person's own words.
+  comment   String? @db.Text
+  staffNote String? @db.Text
+
+  trialAt        DateTime?
+  trialGroupId   String?   @db.Uuid
+  trialGroup     Group?    @relation(fields: [trialGroupId], references: [id], onDelete: SetNull)
+  trialGroupName String?   @db.VarChar(255)
+
+  contactedAt   DateTime?
+  trialBookedAt DateTime?
+  cameAt        DateTime?
+  lostAt        DateTime?
+  lostReason    LeadLostReason?
+  lostComment   String?         @db.VarChar(500)
+
+  convertedUserId String?   @db.Uuid
+  convertedUser   User?     @relation("ConvertedLeads", fields: [convertedUserId], references: [id], onDelete: SetNull)
+  convertedAt     DateTime?
+
+  // Consent evidence (ConsentRecord needs an account): the edition, when, and
+  // from where. A manual entry records the staff member who attests verbal
+  // consent instead of an IP (no FK: the evidence outlives the account).
+  consentVersion      String   @db.VarChar(64)
+  consentAt           DateTime
+  consentIp           String?  @db.VarChar(64)
+  consentUserAgent    String?  @db.VarChar(512)
+  consentRecordedById String?  @db.Uuid
+  // null = the public form.
+  createdById         String?  @db.Uuid
+
+  resubmittedAt DateTime?
+  anonymizedAt  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([workspaceId, status, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, phone])
+  @@index([anonymizedAt, statusChangedAt])
+  @@index([convertedUserId])
 }

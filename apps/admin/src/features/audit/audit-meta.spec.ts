@@ -436,3 +436,69 @@ describe("club message audit", () => {
     ])
   })
 })
+
+describe("payroll audit", () => {
+  const rows = (meta: unknown, v = GRAPPLING) =>
+    parseMetadata(meta, v).map((r) => `${r.label}: ${r.value.replace(/\s/g, " ")}`)
+  const rate = (over: Record<string, unknown> = {}) => ({
+    effectiveFrom: "2026-12",
+    fixedMonthly: 0,
+    perClass: 1500,
+    perClassMinStudents: 3,
+    perStudent: 0,
+    revenueBp: 0,
+    currency: "RUB",
+    ...over,
+  })
+
+  it("labels the payroll actions in the club's words, and their family", () => {
+    expect(actionMetaFor(GRAPPLING)["payroll.setRate"].label).toBe("Ставка тренера изменена")
+    expect(actionMetaFor(DANCE)["payroll.setRate"].label).toBe("Ставка педагога изменена")
+    expect(actionMetaFor(GRAPPLING)["payroll.closeMonth"].label).toBe("Месяц выплат закрыт")
+    expect(actionMetaFor(GRAPPLING)["payroll.reopenMonth"].label).toBe("Месяц выплат открыт заново")
+    expect(actionMetaFor(GRAPPLING)["export.payroll"].label).toBe("Выгрузка CSV: выплаты")
+    expect(ACTION_CATEGORY_LABELS.payroll).toBe("Выплаты")
+    expect(targetTypeLabel("payroll")).toBe("Выплаты")
+  })
+
+  it("reads a rate change as months and the rate in words", () => {
+    expect(
+      rows({
+        coachId: "Ольга Кузнецова",
+        effectiveFrom: "2026-12",
+        before: null,
+        after: rate({ perStudent: 100 }),
+      }),
+    ).toEqual([
+      "Тренер: Ольга Кузнецова",
+      "Действует с: декабрь 2026",
+      "Стало: 1 500 ₽ за тренировку (от 3 учеников) · 100 ₽ за отметку",
+    ])
+  })
+
+  it("reads a close and a reopen with the totals, the reason and the coaches", () => {
+    expect(rows({ month: "2026-11", total: 412000, currency: "RUB", coaches: 8 }, DANCE)).toEqual([
+      "Месяц: ноябрь 2026",
+      "Итого: 412 000",
+      "Валюта: ₽",
+      "Педагоги: 8",
+    ])
+    expect(
+      rows({
+        month: "2026-11",
+        reason: "Забыли премию",
+        totalBefore: 61000,
+        lines: [{ coachId: "c1", name: "Ольга Кузнецова", total: 61000 }],
+      }),
+    ).toEqual([
+      "Месяц: ноябрь 2026",
+      "Причина: Забыли премию",
+      "Итого до открытия: 61 000",
+      "По сотрудникам: Ольга Кузнецова — 61 000",
+    ])
+  })
+
+  it("names the coach-pay switch of the settings", () => {
+    expect(rows({ fields: ["coachPayVisible"] })).toEqual(["Изменено: выплаты в приложении"])
+  })
+})

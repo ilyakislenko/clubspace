@@ -124,6 +124,25 @@ export type AuditAction =
     // never the text.
     | 'message.send'
     | 'message.cancel'
+    // «Выплаты тренерам» (docs/design/2026-11-26-coach-payroll.md §3.3): a
+    // rate set (`{ coachId, effectiveFrom, before, after }`), an adjustment
+    // added / deleted, a month closed (its total) and reopened (the reason
+    // and the frozen totals it dropped). Amounts, never student names.
+    | 'payroll.setRate'
+    | 'payroll.addAdjustment'
+    | 'payroll.deleteAdjustment'
+    | 'payroll.closeMonth'
+    | 'payroll.reopenMonth'
+    // «Пробные» (docs/design/2026-11-26-leads.md §3.3). Never a name, phone,
+    // e-mail or comment: the journal outlives lead retention. create
+    // `{ leadSource }` (actor null = the public form), update `{ fields }`,
+    // setStatus `{ fromStatus, toStatus, lostReason? }`, link `{ userId }`,
+    // erase `{}`.
+    | 'lead.create'
+    | 'lead.update'
+    | 'lead.setStatus'
+    | 'lead.link'
+    | 'lead.erase'
     // These carry the affected club's workspaceId, so they land in that club's
     // journal too — an owner can see who created and handed over their club.
     | 'workspace.create'
@@ -135,6 +154,10 @@ export type AuditAction =
     | 'export.attendance'
     // Old entries keep 'export.revenue' (revenue.csv, replaced by payments.csv).
     | 'export.payments'
+    // The payroll month as a file (`{ month }`).
+    | 'export.payroll'
+    // Trial requests as a file (`{ from, to }`).
+    | 'export.leads'
     // A platform admin opened a club they are not a member of. Recorded at
     // most once per admin, club and hour.
     | 'platform.accessClub'
@@ -203,6 +226,8 @@ export type AuditTargetType =
     | 'aiChat'
     | 'discount'
     | 'clubMessage'
+    | 'payroll'
+    | 'lead'
 
 @Injectable()
 export class AuditService {

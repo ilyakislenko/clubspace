@@ -2,6 +2,7 @@ import { localDateInTz } from '../../features/attendance/attendance-utils'
 import { DEMO_ACCOUNTS, DEMO_CLUB_KEY } from './demo-accounts'
 import { GROUPS } from './demo-club.catalog'
 import { revenueTrend } from '../metrics/revenue'
+import { countedClasses } from '../payroll/payroll-rules'
 import { type ForecastSubscription, renewalHistory } from '../analytics/forecast'
 import { buildDemoClubPlan, demoUuid, type DemoClubPlan } from './demo-club.plan'
 import { AI_CHAT_DATA_WARNING } from '../ai-assistant/ai-chat-warning'
@@ -642,6 +643,79 @@ describe('buildDemoClubPlan', () => {
         }
         const anya = plan.users.find((u) => u.id === demoUuid('child:anya'))
         expect((anya?.dateOfBirth as Date).toISOString().slice(0, 10)).toBe('2019-11-04')
+    })
+
+    // «Пробные» (docs/design/2026-11-26-leads.md §9).
+    it('seeds 16 leads across the pipeline; the bought ones bought after asking', () => {
+        const count = (status: string) => plan.leads.filter((l) => l.status === status).length
+        expect(plan.leads).toHaveLength(16)
+        expect([count('NEW'), count('CONTACTED'), count('TRIAL_BOOKED'), count('CAME'), count('LOST')]).toEqual([3, 2, 2, 6, 3])
+        expect(new Set(plan.leads.map((l) => l.source))).toEqual(new Set(['PUBLIC_PAGE', 'QR', 'MANUAL']))
+        expect(plan.leads.filter((l) => l.forChild).length).toBeGreaterThanOrEqual(3)
+        const sold = plan.subscriptions.filter((s) => s.isPaid && (s.amountPaid as number) > 0)
+        const bought = plan.leads.filter((l) =>
+            sold.some((s) => s.userId === l.convertedUserId && (s.createdAt as Date) > (l.createdAt as Date)),
+        )
+        expect(bought).toHaveLength(4)
+        const linkedNoAbonement = plan.leads.filter(
+            (l) => l.convertedUserId && !sold.some((s) => s.userId === l.convertedUserId),
+        )
+        expect(linkedNoAbonement).toHaveLength(1)
+        // A NEW lead older than a day drives «ждут больше суток».
+        expect(plan.leads.some((l) => l.status === 'NEW' && NOW.getTime() - (l.createdAt as Date).getTime() > 24 * 3600_000)).toBe(true)
+        // Lead phones never collide with members' placeholders.
+        const memberPhones = new Set(plan.users.map((u) => u.phone))
+        expect(plan.leads.some((l) => memberPhones.has(l.phone))).toBe(false)
+        // The form stays off while the DPA in force predates lead subjects.
+        expect(plan.workspace).toMatchObject({ trialRequestsEnabled: false, pdOperatorName: expect.any(String) })
+    })
+
+    it('pays coaches: rates, a raise this month, and last month to close with a substitute, a cancelled class and a bonus', () => {
+        expect(plan.workspace.coachPayVisible).toBe(true)
+        const ratesOf = (k: string) => plan.coachRates.filter((r) => r.coachId === demoUuid(`staff:${k}`))
+        expect(ratesOf('savelyev')).toEqual([expect.objectContaining({ fixedMonthly: 40000, revenueBp: 1000 })])
+        expect(ratesOf('vlasov')).toEqual([
+            expect.objectContaining({ perClass: 1500, perClassMinStudents: 3, perStudent: 100 }),
+        ])
+        expect(ratesOf('reshetyuk').map((r) => [(r.effectiveFrom as Date).toISOString().slice(0, 7), r.perClass])).toEqual([
+            ['2026-05', 2000],
+            ['2026-11', 2500],
+        ])
+        expect(plan.payrollClose).toMatchObject({ month: '2026-10', closedById: demoUuid('staff:admin') })
+        expect(plan.payrollClose!.closedAt.getTime()).toBeLessThan(NOW.getTime())
+        expect(plan.payrollAdjustments).toEqual([
+            expect.objectContaining({ amount: 5000, comment: 'Открытый урок', coachId: demoUuid('staff:savelyev') }),
+        ])
+
+        // The payroll rule over last month's rows: the class Савельев took is
+        // his, the one cancelled after its roster was opened drops out.
+        const sessions = plan.sessions.map((s) => ({
+            id: s.id as string,
+            groupId: (s.groupId as string | null) ?? null,
+            groupName: null,
+            groupCoachIds: [],
+            groupPrimaryCoachId: null,
+            scheduledSlotId: (s.slotId as string | null) ?? null,
+            sessionDate: s.sessionDate ? (s.sessionDate as Date).toISOString().slice(0, 10) : '',
+            startAt: s.startAt as Date,
+            isPersonal: s.isPersonal ?? false,
+            workspaceEventId: (s.workspaceEventId as string | null) ?? null,
+            coachId: (s.coachId as string | null) ?? null,
+            records: plan.records.filter((r) => r.sessionId === s.id).map((r) => ({ userId: r.userId, usedSubscriptionId: null })),
+        }))
+        const exceptions = plan.scheduleExceptions.map((e) => ({
+            groupId: e.groupId,
+            slotId: e.slotId ?? null,
+            fromDate: e.fromDate as Date,
+            untilDate: e.untilDate as Date,
+        }))
+        const { counted, cancelled } = countedClasses('2026-10', sessions, exceptions)
+        const substitution = plan.classSubstitutions.find((s) => s.id === demoUuid('substitution:payroll'))!
+        const covered = counted.find((c) => `slot:${sessions.find((s) => s.id === c.sessionId)!.scheduledSlotId}:${c.date}` === substitution.occurrenceKey)
+        expect(covered?.coachId).toBe(demoUuid('staff:savelyev'))
+        expect(cancelled).toHaveLength(1)
+        expect(cancelled[0].groupId).toBe(demoUuid('group:yuKidsJunior'))
+        expect(cancelled[0].marks).toBeGreaterThan(0)
     })
 
     it('moves every date with today', () => {

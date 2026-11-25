@@ -45,6 +45,7 @@ import { formatRoleName } from "../../shared/lib/role-labels"
 import { pluralRu } from "../../shared/lib/plural-ru"
 import { AI_DATA_MODE_LABEL, AI_TOOL_LABEL } from "../ai-assistant/ai-assistant-config"
 import { PROVIDER_LABEL } from "../payments/payment-labels"
+import { monthTitle, rateText } from "../payroll/payroll-view"
 
 export type ActionMeta = {
   label: string
@@ -436,6 +437,13 @@ export const actionMetaFor = (
     icon: MessageSquareX,
     tone: "amber",
   },
+  // «Ученики → Пробные»: trial requests. The metadata never holds names,
+  // phones or comments (the log outlives the lead's retention).
+  "lead.create": { label: "Заявка на пробное получена", icon: UserPlus, tone: "green" },
+  "lead.update": { label: "Заявка на пробное изменена", icon: Pencil, tone: "indigo" },
+  "lead.setStatus": { label: "Статус заявки на пробное изменён", icon: RefreshCw, tone: "indigo" },
+  "lead.link": { label: "Заявка на пробное связана с учеником", icon: UserPlus, tone: "green" },
+  "lead.erase": { label: "Данные заявки на пробное удалены", icon: Trash2, tone: "red" },
   "autopay.enabled": { label: "Автоплатёж включён", icon: CreditCard, tone: "green" },
   "autopay.cancelled": { label: "Автоплатёж отключён", icon: CreditCard, tone: "amber" },
   "autopay.termsAccepted": {
@@ -610,6 +618,41 @@ export const actionMetaFor = (
     icon: Download,
     tone: "amber",
   },
+  "export.payroll": {
+    label: "Выгрузка CSV: выплаты",
+    icon: Download,
+    tone: "amber",
+  },
+  "export.leads": {
+    label: "Выгрузка CSV: заявки на пробное",
+    icon: Download,
+    tone: "amber",
+  },
+  "payroll.setRate": {
+    label: `Ставка ${v.coach.gen} изменена`,
+    icon: Wallet,
+    tone: "indigo",
+  },
+  "payroll.addAdjustment": {
+    label: "Корректировка выплаты добавлена",
+    icon: Wallet,
+    tone: "green",
+  },
+  "payroll.deleteAdjustment": {
+    label: "Корректировка выплаты удалена",
+    icon: Trash2,
+    tone: "red",
+  },
+  "payroll.closeMonth": {
+    label: "Месяц выплат закрыт",
+    icon: Lock,
+    tone: "green",
+  },
+  "payroll.reopenMonth": {
+    label: "Месяц выплат открыт заново",
+    icon: RotateCcw,
+    tone: "amber",
+  },
   "platform.accessClub": {
     label: "Платформа открыла клуб",
     icon: ShieldAlert,
@@ -673,6 +716,8 @@ export const TARGET_LABEL: Record<string, string> = {
   aiToken: "Токен ИИ-ассистента",
   aiChat: "Чат ИИ-ассистента",
   clubMessage: "Сообщение",
+  payroll: "Выплаты",
+  lead: "Заявка на пробное",
 }
 
 // Unknown types (a newer server) get a neutral word, never the raw slug.
@@ -779,6 +824,20 @@ export const META_KEY_LABEL: Record<string, string> = {
   endsOn: "Действует до",
   maxUses: "Не больше раз",
   oncePerMember: "Один раз на ученика",
+  // Payroll (payroll.* events): the month, a rate's before → after, the
+  // closed totals; `coaches` and `coachId` are named in the club's words.
+  month: "Месяц",
+  effectiveFrom: "Действует с",
+  before: "Было",
+  after: "Стало",
+  total: "Итого",
+  totalBefore: "Итого до открытия",
+  lines: "По сотрудникам",
+  // Trial requests (lead.* events): where it came from, the move, the reason.
+  leadSource: "Источник",
+  fromStatus: "Статус до",
+  toStatus: "Статус после",
+  lostReason: "Причина отказа",
   paid: "Оплачено",
   periodMonths: "Месяцев",
   startDate: "Начало",
@@ -954,6 +1013,7 @@ const FIELD_LABEL: Record<string, string> = {
   email: "эл. почта",
   dateOfBirth: "дата рождения",
   coachSeesAllGroups: "доступ ко всем группам",
+  coachPayVisible: "выплаты в приложении",
   announcementsEnabled: "раздел «Объявления»",
   ranksEnabled: "раздел «Пояса»",
   leaderboardEnabled: "рейтинг",
@@ -981,6 +1041,14 @@ const FIELD_LABEL: Record<string, string> = {
   // «Настройки → Уведомления → Ученикам».
   birthdayGreetingsEnabled: "поздравления с днём рождения",
   messagesEmailEnabled: "сообщения ученикам на e-mail",
+  // A trial request (lead.update `fields`).
+  personName: "имя",
+  phone: "телефон",
+  forChild: "для ребёнка",
+  childName: "имя ребёнка",
+  childAge: "возраст ребёнка",
+  directionId: "направление",
+  staffNote: "заметка",
 }
 
 // Course edits naming a video or a chapter. The server resolves most of them
@@ -997,6 +1065,15 @@ const COURSE_ITEM_CHANGE: Record<string, { label: string; fallback: string }> = 
   removedChapter: { label: "Удалена глава", fallback: "Глава удалена" },
   renamedChapter: { label: "Переименована глава", fallback: "Глава переименована" },
   movedChapter: { label: "Перемещена глава", fallback: "Глава перемещена" },
+}
+
+// A trial request's stored status (lead.setStatus `fromStatus` / `toStatus`).
+const LEAD_STATUS_WORD: Record<string, string> = {
+  NEW: "новая",
+  CONTACTED: "связались",
+  TRIAL_BOOKED: "записан на пробное",
+  CAME: "пришёл",
+  LOST: "отказ",
 }
 
 const ENUM_LABEL: Record<string, Record<string, string>> = {
@@ -1062,6 +1139,20 @@ const ENUM_LABEL: Record<string, Record<string, string>> = {
     CALL_LIST: "кому позвонить",
     MEMBERS: "выбранные ученики",
   },
+  // Trial requests (lead.* events).
+  leadSource: { PUBLIC_PAGE: "страница клуба", QR: "QR-плакат", MANUAL: "вручную" },
+  fromStatus: LEAD_STATUS_WORD,
+  toStatus: LEAD_STATUS_WORD,
+  lostReason: {
+    NO_ANSWER: "не дозвонились",
+    CHANGED_MIND: "передумал",
+    PRICE: "не подошла цена",
+    SCHEDULE: "не подошло расписание",
+    LOCATION: "далеко",
+    CHOSE_OTHER: "выбрал другой клуб",
+    SPAM: "спам",
+    OTHER: "другое",
+  },
 }
 
 // The club area a platform request opened, by the path segment after the
@@ -1087,6 +1178,8 @@ const ROUTE_SECTION: Record<string, string> = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
+// A payroll month or a rate's first month: "2026-11".
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 
 const isId = (value: unknown): boolean =>
   typeof value === "string" && UUID_RE.test(value)
@@ -1173,6 +1266,26 @@ const groupPeopleValue = (value: unknown, v: ClubVocabulary): string | null => {
   return null
 }
 
+// A rate's values (payroll.setRate `before` / `after`).
+const isPayrollRate = (value: unknown): value is Parameters<typeof rateText>[0] =>
+  !!value &&
+  typeof value === "object" &&
+  ["fixedMonthly", "perClass", "perClassMinStudents", "perStudent", "revenueBp"].every(
+    (k) => typeof (value as Record<string, unknown>)[k] === "number",
+  ) &&
+  typeof (value as Record<string, unknown>).currency === "string"
+
+// The closed month's lines a reopen recorded: «Ольга Кузнецова — 61 000».
+const payrollLinesValue = (lines: unknown[]): string | null => {
+  const parts = lines.flatMap((l) => {
+    const line = l as { name?: unknown; total?: unknown }
+    return typeof line.name === "string" && typeof line.total === "number"
+      ? [`${line.name} — ${line.total.toLocaleString("ru-RU")}`]
+      : []
+  })
+  return parts.length > 0 ? parts.join("; ") : null
+}
+
 const routeSection = (route: unknown): string | null => {
   if (typeof route !== "string") return null
   const segment = route.match(/^\/workspaces\/[^/]+\/([^/?]+)/)?.[1]
@@ -1208,7 +1321,12 @@ export const parseMetadata = (
     }
     // The role name already says it; the resolved role id would repeat it.
     if (key === "toRoleId" && "toRoleName" in metadata) return []
-    const label = key === "coachId" ? cap(vocabulary.coach.nom) : META_KEY_LABEL[key]
+    const label =
+      key === "coachId"
+        ? cap(vocabulary.coach.nom)
+        : key === "coaches"
+          ? cap(vocabulary.coach.nomPl)
+          : META_KEY_LABEL[key]
     if (!label) return []
     let value: string | null
     if (key === "fields") {
@@ -1224,6 +1342,12 @@ export const parseMetadata = (
       value = typeof raw === "string" && !isId(raw) ? formatRoleName(raw, vocabulary) : null
     } else if (key === "route") {
       value = routeSection(raw)
+    } else if ((key === "month" || key === "effectiveFrom") && typeof raw === "string" && MONTH_RE.test(raw)) {
+      value = monthTitle(raw).toLowerCase()
+    } else if ((key === "before" || key === "after") && isPayrollRate(raw)) {
+      value = rateText(raw, vocabulary, raw.currency)
+    } else if (key === "lines" && Array.isArray(raw)) {
+      value = payrollLinesValue(raw)
     } else {
       value = formatMetaValue(key, raw, vocabulary)
     }
@@ -1250,6 +1374,8 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   platform: "Платформа",
   payment: "Платежи",
   discount: "Скидки",
+  payroll: "Выплаты",
+  lead: "Пробные",
   autopay: "Автоплатежи",
   ai: "ИИ-ассистент",
   message: "Сообщения",

@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common'
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { AuditService } from '../../domains/audit/services/audit.service'
+import { loadLeadsDpaAccepted } from '../../domains/leads/lead-consent'
 import {
     isOwnClubLogoKey,
     signClubLogoUrl,
@@ -29,6 +30,11 @@ import {
 
 const isUniqueClash = (e: unknown): boolean =>
     typeof e === 'object' && e !== null && 'code' in e && e.code === 'P2002'
+
+export const TRIAL_OPERATOR_REQUIRED =
+    'Укажите оператора персональных данных — название и адрес'
+export const TRIAL_DPA_REQUIRED =
+    'Сначала владелец принимает новую редакцию поручения на обработку данных («Подписка ClubSpace»)'
 
 @Feature(UpdateClubPublicProfileFeature)
 export class UpdateClubPublicProfileHandler
@@ -78,6 +84,24 @@ export class UpdateClubPublicProfileHandler
             })
         }
 
+        // «Заявки на пробное с сайта»: the consent names the operator, and the
+        // owner must have accepted the DPA edition listing lead subjects.
+        const trialRequestsEnabled =
+            payload.trialRequestsEnabled ?? current.trialRequestsEnabled
+        const pdOperatorName =
+            payload.pdOperatorName !== undefined ? payload.pdOperatorName : current.pdOperatorName
+        const pdOperatorAddress =
+            payload.pdOperatorAddress !== undefined
+                ? payload.pdOperatorAddress
+                : current.pdOperatorAddress
+        const leadsDpaAccepted = await loadLeadsDpaAccepted(this.prisma, workspaceId)
+        if (trialRequestsEnabled && (!pdOperatorName || !pdOperatorAddress)) {
+            throw new BadRequestError({ message: TRIAL_OPERATOR_REQUIRED })
+        }
+        if (trialRequestsEnabled && !current.trialRequestsEnabled && !leadsDpaAccepted) {
+            throw new BadRequestError({ message: TRIAL_DPA_REQUIRED })
+        }
+
         // A stale form is refused first; the slug goes before the page
         // fields, so a clash refuses the save before anything has changed —
         // all in one transaction.
@@ -109,6 +133,9 @@ export class UpdateClubPublicProfileHandler
                     publicDescription: payload.description,
                     logoKey: payload.logoKey,
                     isListed: payload.isListed,
+                    trialRequestsEnabled,
+                    pdOperatorName,
+                    pdOperatorAddress,
                 },
                 select: PUBLIC_PROFILE_WORKSPACE_SELECT,
             })
@@ -131,6 +158,8 @@ export class UpdateClubPublicProfileHandler
                 slug: payload.slug,
                 isListed: payload.isListed,
                 hasLogo: Boolean(payload.logoKey),
+                trialRequestsEnabled,
+                hasPdOperator: Boolean(pdOperatorName && pdOperatorAddress),
             },
         })
 
@@ -140,6 +169,7 @@ export class UpdateClubPublicProfileHandler
             appUrl: environment.appUrl,
             workspace,
             logoUrl: await signClubLogoUrl(this.files, workspace.logoKey),
+            leadsDpaAccepted,
         })
     }
 

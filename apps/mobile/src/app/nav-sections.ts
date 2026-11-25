@@ -56,6 +56,8 @@ export type NavSection = {
   needsOfflineDownloads?: boolean
   /** Shown only to staff who may hand out the club's code (see invite-access). */
   clubInviteOnly?: boolean
+  /** Shown only to staff whose club shows them their payouts (`canSeeOwnPay`). */
+  ownPayOnly?: boolean
   group: NavGroup
 }
 
@@ -75,6 +77,7 @@ export const visibleSections = (
   isFeatureOn: (key: AppFeatureKey) => boolean,
   offlineDownloadsAllowed: boolean,
   canSeeInvite = false,
+  canSeeOwnPay = false,
 ): ShownNavSection[] =>
   sections
     .filter(
@@ -82,7 +85,8 @@ export const visibleSections = (
         (!section.feature || isFeatureOn(section.feature)) &&
         (!section.alsoRequires || isFeatureOn(section.alsoRequires)) &&
         (!section.needsOfflineDownloads || offlineDownloadsAllowed) &&
-        (!section.clubInviteOnly || canSeeInvite),
+        (!section.clubInviteOnly || canSeeInvite) &&
+        (!section.ownPayOnly || canSeeOwnPay),
     )
     .map(({ label, shortLabel, ...rest }) => ({
       ...rest,
@@ -176,6 +180,14 @@ export const PROFILE_SECTIONS: readonly NavSection[] = [
     label: "Мой абонемент",
     shortLabel: "Абонемент",
     feature: "subscription",
+    group: "account",
+  },
+  {
+    route: "MyPay",
+    icon: "wallet-outline",
+    label: "Мои выплаты",
+    shortLabel: "Выплаты",
+    ownPayOnly: true,
     group: "account",
   },
   // With the schedule off, the Schedule tab IS «Мои группы» — a row here would

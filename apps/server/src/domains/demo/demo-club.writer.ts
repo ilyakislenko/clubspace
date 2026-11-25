@@ -1,6 +1,8 @@
 import { syncLastAttendedAt } from '../../features/attendance/last-attended'
 import type { PrismaTransactionClientType } from '../../infrastructure/prisma'
 import { BadRequestError } from '../../shared/errors/shared.errors'
+import { computeLivePayroll } from '../payroll/payroll-loader'
+import { writePayrollSnapshot } from '../payroll/payroll-month'
 import type { SubscriptionFreezeService } from '../subscriptions/services/subscription-freeze.service'
 import { generateJoinCode } from '../workspace/join-code'
 import type { DemoClubPlan } from './demo-club.plan'
@@ -164,6 +166,9 @@ export const writeDemoClubPlan = async (
     await tx.clubMessage.createMany({ data: plan.clubMessages })
     await inChunks(plan.clubMessageRecipients, (data) => tx.clubMessageRecipient.createMany({ data }))
     await tx.notification.createMany({ data: plan.notifications })
+    await tx.coachRate.createMany({ data: plan.coachRates })
+    await tx.payrollAdjustment.createMany({ data: plan.payrollAdjustments })
+    await tx.lead.createMany({ data: plan.leads })
 
     for (const f of plan.liveFreezes) {
         await deps.freezes.createInTx(tx, {
@@ -181,4 +186,16 @@ export const writeDemoClubPlan = async (
         plan.workspaceId,
         plan.members.map((m) => m.data.userId),
     )
+
+    // Frozen last: the payroll rule reads every row above (classes, visits,
+    // sales, refunds, rates, the adjustment), exactly as «Закрыть месяц» does.
+    if (plan.payrollClose) {
+        const close = plan.payrollClose
+        await writePayrollSnapshot(tx, {
+            workspaceId: plan.workspaceId,
+            live: await computeLivePayroll(tx, { workspaceId: plan.workspaceId, month: close.month }),
+            closedBy: { id: close.closedById, name: close.closedByName },
+            closedAt: close.closedAt,
+        })
+    }
 }

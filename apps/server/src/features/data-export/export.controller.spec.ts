@@ -8,6 +8,7 @@ const build = () => {
         paymentsCsv: jest
             .fn()
             .mockResolvedValue({ csv: 'payments-csv', from: '2026-10-16', to: '2026-11-15' }),
+        payrollCsv: jest.fn().mockResolvedValue('payroll-csv'),
     }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const res = { setHeader: jest.fn() }
@@ -85,6 +86,22 @@ describe('ExportController audit trail', () => {
             metadata: { from: '2026-10-16', to: '2026-11-15', method: 'CASH', groupId: 'g1' },
         })
         expect(audit.record.mock.calls[0][0].metadata).not.toHaveProperty('q')
+    })
+
+    it('exports a payroll month named after it, the month in the trail', async () => {
+        const { controller, audit, exportService, res } = build()
+        await expect(
+            controller.payroll('w1', { month: '2026-10' }, admin, res as never),
+        ).resolves.toBe('payroll-csv')
+        expect(exportService.payrollCsv).toHaveBeenCalledWith('w1', '2026-10')
+        expect(res.setHeader).toHaveBeenCalledWith(
+            'Content-Disposition',
+            'attachment; filename="payroll-2026-10.csv"',
+        )
+        expect(audit.record.mock.calls[0][0]).toMatchObject({
+            action: 'export.payroll',
+            metadata: { month: '2026-10' },
+        })
     })
 
     it('leaves no journal entry when the export fails', async () => {

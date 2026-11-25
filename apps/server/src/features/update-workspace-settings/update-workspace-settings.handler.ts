@@ -131,6 +131,7 @@ export class UpdateWorkspaceSettingsHandler
                     name: true,
                     coachSeesAllGroups: true,
                     coachesMarkAnyClass: true,
+                    coachPayVisible: true,
                     timezone: true,
                     joinAutoApprove: true,
                     birthdayGreetingsEnabled: true,

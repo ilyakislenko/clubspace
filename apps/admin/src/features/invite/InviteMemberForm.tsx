@@ -44,23 +44,34 @@ const buildNotice = (result: InviteMemberResult, wantedEmail: boolean) => {
   return base
 }
 
+// What another screen already knows about the person (a trial request).
+export type InvitePrefill = {
+  email?: string
+  firstname?: string
+  lastname?: string
+  groupId?: string | null
+}
+
 // `canInviteStaff`: club admins may invite coaches; a sport lead invites
-// students only, so the role field is not shown to them.
+// students only, so the role field is not shown to them. `prefill` starts the
+// form with known values; `onInvited` gets the server's answer (the user id).
 export function InviteMemberForm({
   workspaceId,
   canInviteStaff,
+  prefill,
   onInvited,
 }: {
   workspaceId: string
   canInviteStaff: boolean
-  onInvited: () => void
+  prefill?: InvitePrefill
+  onInvited: (result: InviteMemberResult) => void
 }) {
   const vocabulary = useVocabulary()
-  const [email, setEmail] = useState("")
-  const [firstname, setFirstname] = useState("")
-  const [lastname, setLastname] = useState("")
+  const [email, setEmail] = useState(prefill?.email ?? "")
+  const [firstname, setFirstname] = useState(prefill?.firstname ?? "")
+  const [lastname, setLastname] = useState(prefill?.lastname ?? "")
   const [role, setRole] = useState<Role>("user")
-  const [groupId, setGroupId] = useState(NO_GROUP)
+  const [groupId, setGroupId] = useState(prefill?.groupId ?? NO_GROUP)
   const [sendEmail, setSendEmail] = useState(true)
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -97,7 +108,7 @@ export function InviteMemberForm({
       setEmail("")
       setFirstname("")
       setLastname("")
-      onInvited()
+      onInvited(result)
     } catch (err) {
       setError(errorMessage(err, "Не удалось пригласить участника."))
     } finally {

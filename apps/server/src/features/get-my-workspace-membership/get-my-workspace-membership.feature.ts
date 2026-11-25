@@ -15,6 +15,9 @@ export const GetMyWorkspaceMembershipFeatureOutputSchema = z.object({
     // club admins and the owner, and coaches while the club has «Тренеры
     // могут отмечать в чужих группах без замены» on.
     marksAnyClass: z.boolean(),
+    // «Мои выплаты» in the app: staff (the owner too) while the club has
+    // «Тренеры видят свои выплаты» on (docs/design/2026-11-26-coach-payroll.md).
+    canSeeOwnPay: z.boolean(),
 })
 
 export class GetMyWorkspaceMembershipFeature {

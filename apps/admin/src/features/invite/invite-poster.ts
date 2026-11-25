@@ -8,7 +8,7 @@ export type InvitePosterParams = {
   appLinks: WorkspaceInvite["appLinks"]
 }
 
-const escapeHtml = (value: string): string =>
+export const escapeHtml = (value: string): string =>
   value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -59,12 +59,12 @@ export const buildInvitePosterHtml = (p: InvitePosterParams): string => `<!docty
 </body>
 </html>`
 
-// Opens the poster in a new tab and prints it once the QR has loaded.
+// Opens a poster document in a new tab and prints it once its QR has loaded.
 // Returns false when the browser blocked the popup.
-export const openInvitePoster = (p: InvitePosterParams): boolean => {
+export const openPrintablePoster = (html: string): boolean => {
   const win = window.open("", "_blank")
   if (!win) return false
-  win.document.write(buildInvitePosterHtml(p))
+  win.document.write(html)
   win.document.close()
   const img = win.document.querySelector("img")
   const print = () => win.print()
@@ -72,3 +72,6 @@ export const openInvitePoster = (p: InvitePosterParams): boolean => {
   else print()
   return true
 }
+
+export const openInvitePoster = (p: InvitePosterParams): boolean =>
+  openPrintablePoster(buildInvitePosterHtml(p))

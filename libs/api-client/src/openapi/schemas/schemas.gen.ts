@@ -72,6 +72,387 @@ export const CreateAiTokenInputSchema = {
     ]
 } as const;
 
+export const CreatePublicTrialRequestInputSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 120
+        },
+        phone: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 40
+        },
+        email: {
+            type: 'string',
+            maxLength: 254
+        },
+        forChild: {
+            type: 'boolean'
+        },
+        childName: {
+            type: 'string',
+            maxLength: 80
+        },
+        childAge: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 17
+        },
+        directionId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        comment: {
+            type: 'string',
+            maxLength: 1000
+        },
+        source: {
+            type: 'string',
+            enum: [
+                'page',
+                'qr'
+            ]
+        },
+        consent: {
+            type: 'boolean'
+        },
+        consentVersion: {
+            type: 'string',
+            maxLength: 64
+        },
+        website: {
+            type: 'string',
+            maxLength: 500
+        }
+    },
+    required: [
+        'name',
+        'phone',
+        'forChild',
+        'source',
+        'consent',
+        'consentVersion'
+    ]
+} as const;
+
+export const LinkLeadMemberInputSchema = {
+    type: 'object',
+    properties: {
+        userId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        }
+    },
+    required: [
+        'userId'
+    ]
+} as const;
+
+export const SetLeadStatusInputSchema = {
+    type: 'object',
+    properties: {
+        from: {
+            type: 'string',
+            enum: [
+                'NEW',
+                'CONTACTED',
+                'TRIAL_BOOKED',
+                'CAME',
+                'LOST'
+            ]
+        },
+        to: {
+            type: 'string',
+            enum: [
+                'NEW',
+                'CONTACTED',
+                'TRIAL_BOOKED',
+                'CAME',
+                'LOST'
+            ]
+        },
+        trialAt: {
+            type: 'string',
+            pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2})?$'
+        },
+        trialGroupId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+            nullable: true
+        },
+        notifyCoach: {
+            type: 'boolean'
+        },
+        lostReason: {
+            type: 'string',
+            enum: [
+                'NO_ANSWER',
+                'CHANGED_MIND',
+                'PRICE',
+                'SCHEDULE',
+                'LOCATION',
+                'CHOSE_OTHER',
+                'SPAM',
+                'OTHER'
+            ]
+        },
+        lostComment: {
+            type: 'string',
+            maxLength: 500
+        }
+    },
+    required: [
+        'from',
+        'to'
+    ]
+} as const;
+
+export const UpdateLeadInputSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 120
+        },
+        phone: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 40
+        },
+        email: {
+            type: 'string',
+            maxLength: 254,
+            nullable: true
+        },
+        forChild: {
+            type: 'boolean'
+        },
+        childName: {
+            type: 'string',
+            maxLength: 80,
+            nullable: true
+        },
+        childAge: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 17,
+            nullable: true
+        },
+        directionId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+            nullable: true
+        },
+        staffNote: {
+            type: 'string',
+            maxLength: 2000,
+            nullable: true
+        },
+        expectedUpdatedAt: {
+            description: 'The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE',
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    }
+} as const;
+
+export const CreateLeadInputSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 120
+        },
+        phone: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 40
+        },
+        email: {
+            type: 'string',
+            maxLength: 254
+        },
+        forChild: {
+            type: 'boolean'
+        },
+        childName: {
+            type: 'string',
+            maxLength: 80
+        },
+        childAge: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 17
+        },
+        directionId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        comment: {
+            type: 'string',
+            maxLength: 1000
+        },
+        staffNote: {
+            type: 'string',
+            maxLength: 2000
+        },
+        consentConfirmed: {
+            type: 'boolean',
+            enum: [
+                true
+            ]
+        }
+    },
+    required: [
+        'name',
+        'phone',
+        'forChild',
+        'consentConfirmed'
+    ]
+} as const;
+
+export const ReopenPayrollMonthInputSchema = {
+    type: 'object',
+    properties: {
+        reason: {
+            type: 'string',
+            minLength: 3,
+            maxLength: 500
+        }
+    },
+    required: [
+        'reason'
+    ]
+} as const;
+
+export const ClosePayrollMonthInputSchema = {
+    type: 'object',
+    properties: {
+        expectedTotal: {
+            type: 'integer',
+            minimum: -9007199254740991,
+            maximum: 9007199254740991
+        },
+        expectedLines: {
+            maxItems: 1000,
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    coachId: {
+                        type: 'string',
+                        format: 'uuid',
+                        pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+                    },
+                    total: {
+                        type: 'integer',
+                        minimum: -9007199254740991,
+                        maximum: 9007199254740991
+                    }
+                },
+                required: [
+                    'coachId',
+                    'total'
+                ]
+            }
+        }
+    },
+    required: [
+        'expectedTotal'
+    ]
+} as const;
+
+export const AddPayrollAdjustmentInputSchema = {
+    type: 'object',
+    properties: {
+        month: {
+            type: 'string',
+            pattern: '^\\d{4}-(0[1-9]|1[0-2])$'
+        },
+        coachId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        amount: {
+            type: 'integer',
+            minimum: -10000000,
+            maximum: 10000000
+        },
+        comment: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 500
+        }
+    },
+    required: [
+        'month',
+        'coachId',
+        'amount',
+        'comment'
+    ]
+} as const;
+
+export const SetCoachRateInputSchema = {
+    type: 'object',
+    properties: {
+        effectiveFrom: {
+            type: 'string',
+            pattern: '^\\d{4}-(0[1-9]|1[0-2])$'
+        },
+        fixedMonthly: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 10000000
+        },
+        perClass: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 10000000
+        },
+        perClassMinStudents: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 100
+        },
+        perStudent: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 10000000
+        },
+        revenueBp: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 10000
+        },
+        expectedUpdatedAt: {
+            description: 'The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE',
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    },
+    required: [
+        'effectiveFrom',
+        'fixedMonthly',
+        'perClass',
+        'perClassMinStudents',
+        'perStudent',
+        'revenueBp'
+    ]
+} as const;
+
 export const UpdateDiscountInputSchema = {
     type: 'object',
     properties: {
@@ -2300,6 +2681,19 @@ export const UpdateClubPublicProfileInputSchema = {
         isListed: {
             type: 'boolean'
         },
+        trialRequestsEnabled: {
+            type: 'boolean'
+        },
+        pdOperatorName: {
+            type: 'string',
+            maxLength: 255,
+            nullable: true
+        },
+        pdOperatorAddress: {
+            type: 'string',
+            maxLength: 500,
+            nullable: true
+        },
         expectedUpdatedAt: {
             description: 'The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE',
             type: 'string',
@@ -3311,6 +3705,9 @@ export const UpdateWorkspaceSettingsBodySchema = {
             type: 'boolean'
         },
         coachesMarkAnyClass: {
+            type: 'boolean'
+        },
+        coachPayVisible: {
             type: 'boolean'
         },
         timezone: {
