@@ -3,7 +3,7 @@
 # ─── Build stage ──────────────────────────────────────────────────────────────
 # Node 22 LTS, pinned to a patch release and Alpine version so a rebuild is
 # reproducible. Same tag in every app image — bump them together.
-FROM node:22.23.4-alpine3.24 AS builder
+FROM node:22.23.5-alpine3.24 AS builder
 
 WORKDIR /workspace
 
@@ -39,7 +39,7 @@ RUN npx nx build @clubspace/video-worker
 RUN rm -rf apps/admin apps/client apps/mobile && npm prune --omit=dev
 
 # ─── Runtime stage ────────────────────────────────────────────────────────────
-FROM node:22.23.4-alpine3.24 AS runtime
+FROM node:22.23.5-alpine3.24 AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production

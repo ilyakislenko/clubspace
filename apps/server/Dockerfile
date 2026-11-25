@@ -14,7 +14,7 @@
 # ─── Stage 1: deps ────────────────────────────────────────────────────────────
 # Node 22 LTS, pinned to a patch release and Alpine version so a rebuild is
 # reproducible. Same tag in every app image — bump them together.
-FROM node:22.23.4-alpine3.24 AS deps
+FROM node:22.23.5-alpine3.24 AS deps
 
 WORKDIR /workspace
 
@@ -37,7 +37,7 @@ COPY libs/sport-glossary/package.json libs/sport-glossary/
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 # ─── Stage 2: builder ─────────────────────────────────────────────────────────
-FROM node:22.23.4-alpine3.24 AS builder
+FROM node:22.23.5-alpine3.24 AS builder
 
 WORKDIR /workspace
 # NX_NO_CLOUD: no Nx Cloud from a server build (see apps/admin/Dockerfile).
@@ -62,7 +62,7 @@ RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
 RUN npx nx run @clubspace/server:build
 
 # ─── Stage 3: runtime ─────────────────────────────────────────────────────────
-FROM node:22.23.4-alpine3.24 AS runtime
+FROM node:22.23.5-alpine3.24 AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production \
