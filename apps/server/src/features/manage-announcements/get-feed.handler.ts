@@ -1,6 +1,7 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
 import { loadMemberDirectionIds } from '../../domains/directions/direction-scope'
+import { environment } from '../../environments/environment'
 import { isRenewalDue } from '../../domains/subscriptions/renewal-rules'
 import { Prisma, PrismaService } from '../../infrastructure/prisma'
 import {
@@ -11,7 +12,12 @@ import {
     GetAnnouncementFeedFeature,
     GetAnnouncementFeedFeatureResponse,
 } from './get-feed.feature'
-import { ANNOUNCEMENT_INCLUDE, serializeAnnouncement } from './schemas'
+import {
+    ANNOUNCEMENT_INCLUDE,
+    ORG_FEED_SELECT,
+    serializeAnnouncement,
+    serializeOrgFeedItem,
+} from './schemas'
 import { loadMemberGroupIds, visibleToMemberWhere } from './target'
 
 // Member-facing feed: published only, pinned first then newest. Any workspace
@@ -19,6 +25,11 @@ import { loadMemberGroupIds, visibleToMemberWhere } from './target'
 // direction announcement shows only to members of that direction, a group one
 // only to the students and coaches of its groups (a guardian reads it acting
 // as the child) — the owner and staff see every one.
+//
+// Federation announcements of the organizations this club is ACTIVE in are
+// merged in, tagged with `source`: STAFF_AND_MEMBERS ones for members where
+// the club allows them, every one (STAFF included) for the club's staff —
+// the place the staff push «От федерации» leads to. Never pinned.
 @Feature(GetAnnouncementFeedFeature)
 export class GetAnnouncementFeedHandler
     implements
@@ -73,21 +84,67 @@ export class GetAnnouncementFeedHandler
             ...visibleWhere,
         }
 
-        const [rows, total] = await Promise.all([
+        const orgWhere: Prisma.OrganizationAnnouncementWhereInput | null =
+            environment.organizations.enabled
+                ? {
+                      publishedAt: { lte: now },
+                      ...(isStaff ? {} : { audience: 'STAFF_AND_MEMBERS' as const }),
+                      organization: {
+                          isActive: true,
+                          clubs: {
+                              some: {
+                                  workspaceId: f.workspaceId,
+                                  status: 'ACTIVE',
+                                  ...(isStaff ? {} : { allowMemberAnnouncements: true }),
+                              },
+                          },
+                      },
+                  }
+                : null
+        const skip = (curPage - 1) * perPage
+
+        if (!orgWhere) {
+            const [rows, total] = await Promise.all([
+                this.prisma.announcement.findMany({
+                    where,
+                    include: ANNOUNCEMENT_INCLUDE,
+                    orderBy: [{ pinned: 'desc' }, { publishedAt: 'desc' }],
+                    skip,
+                    take: perPage,
+                }),
+                this.prisma.announcement.count({ where }),
+            ])
+            return { data: rows.map(serializeAnnouncement), total, curPage, perPage }
+        }
+
+        // Two sources, one order (pinned first, then newest): each source's
+        // first skip+perPage rows are enough to cut the page from.
+        const [rows, total, orgRows, orgTotal] = await Promise.all([
             this.prisma.announcement.findMany({
                 where,
                 include: ANNOUNCEMENT_INCLUDE,
                 orderBy: [{ pinned: 'desc' }, { publishedAt: 'desc' }],
-                skip: (curPage - 1) * perPage,
-                take: perPage,
+                take: skip + perPage,
             }),
             this.prisma.announcement.count({ where }),
+            this.prisma.organizationAnnouncement.findMany({
+                where: orgWhere,
+                select: ORG_FEED_SELECT,
+                orderBy: { publishedAt: 'desc' },
+                take: skip + perPage,
+            }),
+            this.prisma.organizationAnnouncement.count({ where: orgWhere }),
         ])
-        return {
-            data: rows.map(serializeAnnouncement),
-            total,
-            curPage,
-            perPage,
-        }
+        const data = [
+            ...rows.map(serializeAnnouncement),
+            ...orgRows.map(serializeOrgFeedItem),
+        ]
+            .sort(
+                (a, b) =>
+                    Number(b.pinned) - Number(a.pinned) ||
+                    (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''),
+            )
+            .slice(skip, skip + perPage)
+        return { data, total: total + orgTotal, curPage, perPage }
     }
 }

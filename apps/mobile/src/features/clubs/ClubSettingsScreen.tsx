@@ -1,7 +1,8 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useState } from "react"
+import React, { useCallback, useState } from "react"
 import {
   ActivityIndicator,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +15,14 @@ import {
   leaveWorkspace,
   setWorkspaceNotificationsMuted,
 } from "../../shared/api/my-memberships"
+import {
+  listMyClubOrganizations,
+  setMyOrganizationConsent,
+  type MyClubOrganization,
+} from "../../shared/api/organizations"
 import { useAuth } from "../../shared/auth-context"
+import { brand } from "../../shared/brand"
+import { useCachedResource } from "../../shared/cache/useCachedResource"
 import { CenteredColumn, READABLE_WIDTH } from "../../shared/components/CenteredColumn"
 import { Pressable } from "../../shared/components/Pressable"
 import { Switch } from "../../shared/components/Switch"
@@ -23,6 +31,11 @@ import { errorMessage } from "../../shared/error-message"
 import { haptics } from "../../shared/haptics"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
+import {
+  consentSwitchLabel,
+  consentToast,
+  federationLabel,
+} from "../org-events/org-helpers"
 import {
   clubSettingsView,
   leaveConfirm,
@@ -131,6 +144,8 @@ export function ClubSettingsScreen({ navigation, route }: Props) {
             <Text style={styles.hint}>{MUTE_HINT}</Text>
           </View>
 
+          <FederationConsent workspaceId={workspaceId} />
+
           {view.canLeave && (
             <View style={styles.danger}>
               <Text style={styles.sectionTitle}>Опасная зона</Text>
@@ -155,6 +170,76 @@ export function ClubSettingsScreen({ navigation, route }: Props) {
         </ScrollView>
       </CenteredColumn>
     </View>
+  )
+}
+
+// «Федерация «…»»: one card per federation the club is an active member of,
+// with the person's switch (a guardian acting for a child decides for the
+// child), the consent text and the policy. Nothing without a federation, or
+// with federations off on the server.
+function FederationConsent({ workspaceId }: { workspaceId: string }) {
+  const theme = useTheme()
+  const styles = useThemedStyles(makeStyles)
+  const { actingAs } = useAuth()
+  const { showToast } = useToast()
+  // Same key as the Home card and «События»: one answer everywhere.
+  const orgs = useCachedResource<MyClubOrganization[]>(
+    `my-orgs:${workspaceId}`,
+    useCallback(async () => await listMyClubOrganizations({ workspaceId }), [workspaceId]),
+  )
+  const [pending, setPending] = useState<string | null>(null)
+  if (!orgs.data || orgs.data.length === 0) return null
+  const forChild = actingAs !== null
+
+  const toggle = async (org: MyClubOrganization, granted: boolean) => {
+    if (pending) return
+    setPending(org.organizationId)
+    try {
+      const updated = await setMyOrganizationConsent({
+        workspaceId,
+        organizationId: org.organizationId,
+        granted,
+      })
+      haptics.light()
+      showToast(consentToast(updated.consentGranted))
+      orgs.mutate((prev) =>
+        (prev ?? []).map((o) => (o.organizationId === updated.organizationId ? updated : o)),
+      )
+    } catch (e) {
+      showToast(errorMessage(e, "Не удалось сохранить согласие"), "error")
+    } finally {
+      setPending(null)
+    }
+  }
+
+  return (
+    <>
+      {orgs.data.map((org) => (
+        <View key={org.organizationId} style={styles.card}>
+          <Text style={styles.cardTitle}>{federationLabel(org.name)}</Text>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>{consentSwitchLabel(forChild)}</Text>
+            {pending === org.organizationId ? (
+              <ActivityIndicator color={theme.colors.accent} />
+            ) : (
+              <Switch
+                accessibilityLabel={`${consentSwitchLabel(forChild)}: ${org.name}`}
+                value={org.consentGranted}
+                onValueChange={(v) => void toggle(org, v)}
+              />
+            )}
+          </View>
+          <Text style={styles.hint}>{org.consentText}</Text>
+          <Pressable
+            onPress={() => void Linking.openURL(brand.legal.privacyUrl)}
+            accessibilityRole="link"
+            hitSlop={8}
+          >
+            <Text style={styles.link}>Политика конфиденциальности</Text>
+          </Pressable>
+        </View>
+      ))}
+    </>
   )
 }
 
@@ -199,4 +284,6 @@ const makeStyles = (theme: Theme) =>
     },
     dangerText: { color: theme.colors.danger, fontSize: 15, fontWeight: "700" },
     pressed: { opacity: 0.85 },
+    cardTitle: { ...theme.typography.bodyStrong, color: theme.colors.text },
+    link: { fontSize: 13, color: theme.colors.accent },
   })

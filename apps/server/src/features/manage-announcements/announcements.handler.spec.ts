@@ -1,3 +1,9 @@
+// The federation merge of the feed is covered in get-feed.handler.spec.ts;
+// here the hub is off (and environment.ts is never loaded).
+jest.mock('../../environments/environment', () => ({
+  environment: { organizations: { enabled: false } },
+}));
+
 import {
   CreateAnnouncementFeature,
   CreateAnnouncementInputSchema,

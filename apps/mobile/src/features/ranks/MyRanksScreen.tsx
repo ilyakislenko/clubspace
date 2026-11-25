@@ -15,6 +15,10 @@ import {
 } from "../../shared/components/CenteredColumn"
 
 import {
+  listMyClubOrganizations,
+  type MyClubOrganization,
+} from "../../shared/api/organizations"
+import {
   getMyRankProgress,
   type MyRankProgress,
 } from "../../shared/api/rank-progress"
@@ -29,6 +33,7 @@ import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { DirectionTag } from "../directions/DirectionTag"
 import { fmtDate } from "../subscription/subscription-state"
+import { registryLine } from "../org-events/org-helpers"
 import {
   formatLevelWithStripes,
   ladderNamesDirection,
@@ -64,6 +69,16 @@ export function MyRanksScreen() {
     useCallback(
       async () =>
         await getMyRankProgress({ workspaceId: workspace!.workspaceId }),
+      [workspace],
+    ),
+  )
+  // «Подтверждён клубом … · в реестре: …» while a federation sees the belt.
+  // Same key as the club settings' switch. Best-effort, like the progress.
+  const { data: orgs } = useCachedResource<MyClubOrganization[]>(
+    workspace ? `my-orgs:${workspace.workspaceId}` : null,
+    useCallback(
+      async () =>
+        await listMyClubOrganizations({ workspaceId: workspace!.workspaceId }),
       [workspace],
     ),
   )
@@ -121,6 +136,7 @@ export function MyRanksScreen() {
 
         {data?.current.map((p: Promotion) => {
           const entry = progress?.data.find((e) => e.ladderId === p.ladderId)
+          const registry = registryLine(workspace.name, p.ladderId, orgs ?? [])
           return (
           <Card key={p.id} style={styles.card}>
             <View style={styles.ladderLine}>
@@ -138,6 +154,7 @@ export function MyRanksScreen() {
               </Text>
             </View>
             <Text style={styles.meta}>Получен {fmtDate(p.awardedAt)}</Text>
+            {registry ? <Text style={styles.registry}>{registry}</Text> : null}
             {p.awardedByName ? (
               <Text style={styles.meta}>
                 {cap(vocabulary.coach.nom)}: {p.awardedByName}
@@ -232,6 +249,7 @@ const makeStyles = (theme: Theme) =>
     },
     levelName: { color: theme.colors.text, fontSize: 18, fontWeight: "700" },
     meta: { color: theme.colors.muted, fontSize: 13 },
+    registry: { color: theme.colors.success, fontSize: 13 },
     note: {
       color: theme.colors.textSecondary,
       fontSize: 13,

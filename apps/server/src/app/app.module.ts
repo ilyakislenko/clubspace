@@ -533,6 +533,65 @@ import { LinkLeadMemberHandler } from '../features/leads/link-lead-member.handle
 import { ListLeadsHandler } from '../features/leads/list-leads.handler'
 import { SetLeadStatusHandler } from '../features/leads/set-lead-status.handler'
 import { UpdateLeadHandler } from '../features/leads/update-lead.handler'
+// Federation hub (docs/design/2026-11-26-federation-hub-mvp.md).
+import { OrgRbacService } from '../domains/organizations/org-access'
+import { OrgMetricsCacheService } from '../domains/organizations/org-metrics-cache.service'
+import { OrgNotifierService } from '../domains/organizations/org-notifier.service'
+import { MyOrganizationsController } from '../features/organizations/my-organizations.controller'
+import { OrganizationsController } from '../features/organizations/organizations.controller'
+import { ListMyOrganizationsHandler } from '../features/organizations/list-my-organizations.handler'
+import { GetOrganizationHandler } from '../features/organizations/get-organization.handler'
+import { UpdateOrganizationHandler } from '../features/organizations/update-organization.handler'
+import { CreateOrganizationLogoUploadHandler } from '../features/organizations/create-organization-logo-upload.handler'
+import { ListOrganizationClubsHandler } from '../features/organizations/list-organization-clubs.handler'
+import { InviteClubToOrganizationHandler } from '../features/organizations/invite-club-to-organization.handler'
+import { RemoveClubFromOrganizationHandler } from '../features/organizations/remove-club-from-organization.handler'
+import { ListOrgMembersHandler } from '../features/organizations/list-org-members.handler'
+import { AddOrgMemberHandler } from '../features/organizations/add-org-member.handler'
+import { RemoveOrgMemberHandler } from '../features/organizations/remove-org-member.handler'
+import { ListOrgAuditEventsHandler } from '../features/organizations/list-org-audit-events.handler'
+import { CreatePlatformOrganizationHandler } from '../features/platform/create-organization.handler'
+import { ListPlatformOrganizationsHandler } from '../features/platform/list-organizations.handler'
+import { ClubOrganizationsController } from '../features/club-organizations/club-organizations.controller'
+import { ListClubOrganizationsHandler } from '../features/club-organizations/list-club-organizations.handler'
+import { AcceptOrganizationInviteHandler } from '../features/club-organizations/accept-organization-invite.handler'
+import { DeclineOrganizationInviteHandler } from '../features/club-organizations/decline-organization-invite.handler'
+import { UpdateOrganizationSharingHandler } from '../features/club-organizations/update-organization-sharing.handler'
+import { LeaveOrganizationHandler } from '../features/club-organizations/leave-organization.handler'
+import { OrgAnnouncementsController } from '../features/organizations/announcements/org-announcements.controller'
+import { ListOrgAnnouncementsHandler } from '../features/organizations/announcements/list-org-announcements.handler'
+import { CreateOrgAnnouncementHandler } from '../features/organizations/announcements/create-org-announcement.handler'
+import { UpdateOrgAnnouncementHandler } from '../features/organizations/announcements/update-org-announcement.handler'
+import { DeleteOrgAnnouncementHandler } from '../features/organizations/announcements/delete-org-announcement.handler'
+import { OrgRegistryController } from '../features/organizations/registry/org-registry.controller'
+import { SearchOrganizationRegistryHandler } from '../features/organizations/registry/search-organization-registry.handler'
+import { GetOrganizationRegistryPersonHandler } from '../features/organizations/registry/get-organization-registry-person.handler'
+import { OrgEventsController } from '../features/organizations/events/org-events.controller'
+import { ListOrgEventsHandler } from '../features/organizations/events/list-org-events.handler'
+import { GetOrgEventHandler } from '../features/organizations/events/get-org-event.handler'
+import { CreateOrgEventHandler } from '../features/organizations/events/create-org-event.handler'
+import { UpdateOrgEventHandler } from '../features/organizations/events/update-org-event.handler'
+import { DeleteOrgEventHandler } from '../features/organizations/events/delete-org-event.handler'
+import { ListOrgEventRegistrationsHandler } from '../features/organizations/events/list-org-event-registrations.handler'
+import { OrgLadderTemplatesController } from '../features/organizations/ladder-templates/org-ladder-templates.controller'
+import { ListOrgLadderTemplatesHandler } from '../features/organizations/ladder-templates/list-org-ladder-templates.handler'
+import { CreateOrgLadderTemplateHandler } from '../features/organizations/ladder-templates/create-org-ladder-template.handler'
+import { UpdateOrgLadderTemplateHandler } from '../features/organizations/ladder-templates/update-org-ladder-template.handler'
+import { DeleteOrgLadderTemplateHandler } from '../features/organizations/ladder-templates/delete-org-ladder-template.handler'
+import { CreateOrgLadderTemplateLevelHandler } from '../features/organizations/ladder-templates/create-org-ladder-template-level.handler'
+import { UpdateOrgLadderTemplateLevelHandler } from '../features/organizations/ladder-templates/update-org-ladder-template-level.handler'
+import { DeleteOrgLadderTemplateLevelHandler } from '../features/organizations/ladder-templates/delete-org-ladder-template-level.handler'
+import { MyClubOrganizationsController } from '../features/club-organizations/consent/my-club-organizations.controller'
+import { ListMyClubOrganizationsHandler } from '../features/club-organizations/consent/list-my-club-organizations.handler'
+import { SetMyOrganizationConsentHandler } from '../features/club-organizations/consent/set-my-organization-consent.handler'
+import { ClubOrgEventsController } from '../features/club-organizations/events/club-org-events.controller'
+import { ListClubOrgEventsHandler } from '../features/club-organizations/events/list-club-org-events.handler'
+import { RegisterForOrgEventHandler } from '../features/club-organizations/events/register-for-org-event.handler'
+import { CancelOrgEventRegistrationHandler } from '../features/club-organizations/events/cancel-org-event-registration.handler'
+import { ListOrgEventStudentsHandler } from '../features/club-organizations/events/list-org-event-students.handler'
+import { ClubLadderTemplatesController } from '../features/club-organizations/templates/club-ladder-templates.controller'
+import { ListAdoptableLadderTemplatesHandler } from '../features/club-organizations/templates/list-adoptable-ladder-templates.handler'
+import { CreateRankLadderFromTemplateHandler } from '../features/manage-ranks/create-ladder-from-template.handler'
 import { CreatePublicTrialRequestHandler } from '../features/public-trial-requests/create-public-trial-request.handler'
 import { GetPublicTrialFormHandler } from '../features/public-trial-requests/get-public-trial-form.handler'
 import { PublicTrialRequestsController } from '../features/public-trial-requests/public-trial-requests.controller'
@@ -959,6 +1018,17 @@ const controllers: ModuleMetadata['controllers'] = [
     SaleDiscountsController,
     CoachPayrollController,
     LeadsController,
+    // Federation hub. `orgs/mine` before `orgs/:organizationId`.
+    MyOrganizationsController,
+    OrganizationsController,
+    ClubOrganizationsController,
+    OrgAnnouncementsController,
+    OrgRegistryController,
+    OrgEventsController,
+    OrgLadderTemplatesController,
+    MyClubOrganizationsController,
+    ClubOrgEventsController,
+    ClubLadderTemplatesController,
     PublicTrialRequestsController,
     MyPaymentsController,
     PaymentWebhooksController,
@@ -1351,6 +1421,54 @@ const handlers: ModuleMetadata['providers'] = [
     LinkLeadMemberHandler,
     EraseLeadHandler,
     GetLeadConversionReportHandler,
+    // Federation hub (docs/design/2026-11-26-federation-hub-mvp.md).
+    OrgMetricsCacheService,
+    OrgNotifierService,
+    ListMyOrganizationsHandler,
+    GetOrganizationHandler,
+    UpdateOrganizationHandler,
+    CreateOrganizationLogoUploadHandler,
+    ListOrganizationClubsHandler,
+    InviteClubToOrganizationHandler,
+    RemoveClubFromOrganizationHandler,
+    ListOrgMembersHandler,
+    AddOrgMemberHandler,
+    RemoveOrgMemberHandler,
+    ListOrgAuditEventsHandler,
+    CreatePlatformOrganizationHandler,
+    ListPlatformOrganizationsHandler,
+    ListClubOrganizationsHandler,
+    AcceptOrganizationInviteHandler,
+    DeclineOrganizationInviteHandler,
+    UpdateOrganizationSharingHandler,
+    LeaveOrganizationHandler,
+    ListOrgAnnouncementsHandler,
+    CreateOrgAnnouncementHandler,
+    UpdateOrgAnnouncementHandler,
+    DeleteOrgAnnouncementHandler,
+    SearchOrganizationRegistryHandler,
+    GetOrganizationRegistryPersonHandler,
+    ListOrgEventsHandler,
+    GetOrgEventHandler,
+    CreateOrgEventHandler,
+    UpdateOrgEventHandler,
+    DeleteOrgEventHandler,
+    ListOrgEventRegistrationsHandler,
+    ListOrgLadderTemplatesHandler,
+    CreateOrgLadderTemplateHandler,
+    UpdateOrgLadderTemplateHandler,
+    DeleteOrgLadderTemplateHandler,
+    CreateOrgLadderTemplateLevelHandler,
+    UpdateOrgLadderTemplateLevelHandler,
+    DeleteOrgLadderTemplateLevelHandler,
+    ListMyClubOrganizationsHandler,
+    SetMyOrganizationConsentHandler,
+    ListClubOrgEventsHandler,
+    RegisterForOrgEventHandler,
+    CancelOrgEventRegistrationHandler,
+    ListOrgEventStudentsHandler,
+    ListAdoptableLadderTemplatesHandler,
+    CreateRankLadderFromTemplateHandler,
     GetTrialLinkHandler,
     GetPublicTrialFormHandler,
     CreatePublicTrialRequestHandler,
@@ -1475,6 +1593,8 @@ z.config(z.locales.ru())
           useClass: DefaultErrorFilter,
       },
       RbacService,
+      // Org console authz (federation hub), next to the club one.
+      OrgRbacService,
       ExportService,
       SubscriptionService,
       PaymentGatewayClient,

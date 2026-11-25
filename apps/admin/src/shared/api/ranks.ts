@@ -4,6 +4,9 @@ import { getApiClient } from "./client"
 
 export type RankLadder = ApiTypes.RankLadderOutputDtoOutput
 export type RankLevel = RankLadder["levels"][number]
+// `templates`: the federation standards the listed ladders were copied from,
+// as they are now («Стандарт федерации обновлён до версии N»).
+export type RankLadderList = ApiTypes.ListLaddersOutputOutput
 export type LadderInput = ApiTypes.CreateLadderInput
 export type LevelInput = ApiTypes.CreateLevelInput
 export type MemberRanks = ApiTypes.MemberRanksOutputOutput
@@ -17,8 +20,8 @@ const ws = (id: string) => `/workspaces/${id}`
 export const listRankLadders = async (p: {
   workspaceId: string
   includeInactive?: boolean
-}): Promise<{ data: RankLadder[] }> =>
-  await getApiClient().request<{ data: RankLadder[] }>({
+}): Promise<RankLadderList> =>
+  await getApiClient().request<RankLadderList>({
     method: "get",
     url: `${ws(p.workspaceId)}/rank-ladders`,
     params: { includeInactive: p.includeInactive },

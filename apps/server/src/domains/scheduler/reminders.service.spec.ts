@@ -1,3 +1,9 @@
+// environment.ts reads required env vars at import; the federation hub's
+// fan-outs only read the flag.
+jest.mock('../../environments/environment', () => ({
+    environment: { organizations: { enabled: true } },
+}))
+
 import type { PushNotificationRow } from '../notifications/services/notification-producer.service'
 import { RemindersService } from './reminders.service'
 
@@ -69,6 +75,8 @@ const buildPrisma = (
         places: { userId: string; occurrence: { slotId: string; sessionDate: Date } }[]
         substitutes: { slotId: string; sessionDate: Date; substituteId: string }[]
         claimedAlready: (kind: string, refId: string) => boolean
+        orgAnnouncements: unknown[]
+        orgRegistrations: unknown[]
     }> = {},
 ) => {
     const slots = o.slots ?? []
@@ -138,6 +146,7 @@ const buildPrisma = (
                         .map((d) => ({ refId: d.refId })),
             ),
             findMany: jest.fn().mockResolvedValue([]),
+            count: jest.fn().mockResolvedValue(0),
         },
         announcement: {
             findMany: jest.fn().mockResolvedValue([]),
@@ -145,6 +154,13 @@ const buildPrisma = (
         clubMessage: {
             findMany: jest.fn().mockResolvedValue([]),
             updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        organizationAnnouncement: {
+            findMany: jest.fn().mockResolvedValue(o.orgAnnouncements ?? []),
+            update: jest.fn().mockResolvedValue({}),
+        },
+        organizationEventRegistration: {
+            findMany: jest.fn().mockResolvedValue(o.orgRegistrations ?? []),
         },
     }
 }
@@ -157,6 +173,7 @@ const build = (prisma: ReturnType<typeof buildPrisma>) => {
             return batch.length
         }),
         notifyWorkspace: jest.fn().mockResolvedValue(1),
+        canNotifyUser: jest.fn().mockResolvedValue(true),
     }
     const realtime = { emitListDelta: jest.fn(), invalidate: jest.fn() }
     const clubMessages = { deliver: jest.fn().mockResolvedValue(true) }
@@ -648,5 +665,123 @@ describe('RemindersService club messages', () => {
             .mockResolvedValueOnce(true)
         expect((await svc.run(new Date('2026-11-26T05:00:00Z'))).clubMessagesSent).toBe(1)
         expect(clubMessages.deliver).toHaveBeenCalledTimes(3)
+    })
+})
+
+// Federation hub (docs/design/2026-11-26-federation-hub-mvp.md §3.4): at
+// 12:00 UTC it is 15:00 in Moscow (awake) and 22:00 in Vladivostok (quiet).
+describe('RemindersService federation fan-outs', () => {
+    const announcement = () => ({
+        id: 'oa1',
+        organizationId: 'org1',
+        title: 'Собрание тренеров',
+        body: 'В пятницу в 19:00',
+        organization: {
+            name: 'Федерация',
+            clubs: [
+                { workspaceId: 'msk', workspace: { timezone: 'Europe/Moscow', ownerId: 'own-msk' } },
+                { workspaceId: 'vvo', workspace: { timezone: 'Asia/Vladivostok', ownerId: 'own-vvo' } },
+            ],
+        },
+    })
+
+    it('pushes the staff of awake clubs only and keeps the announcement pending for the quiet one', async () => {
+        const prisma = buildPrisma({
+            orgAnnouncements: [announcement()],
+            members: [{ userId: 'coach-msk', workspaceId: 'msk' }],
+        })
+        const { svc, rows } = build(prisma)
+
+        const summary = await svc.run(baseNow)
+
+        expect(summary.orgAnnouncementsNotified).toBe(1)
+        expect(rows.map((r) => r.userId).sort()).toEqual(['coach-msk', 'own-msk'])
+        expect(rows[0].metadata).toMatchObject({
+            kind: 'org.announcement',
+            workspaceId: 'msk',
+            organizationId: 'org1',
+        })
+        const claim = prisma.notificationDispatchLog.createManyAndReturn.mock.calls.find(
+            ([a]: [{ data: { kind: string }[] }]) => a.data[0]?.kind === 'org.announcement',
+        )
+        expect(claim?.[0].data).toEqual([{ kind: 'org.announcement', refId: 'oa1:msk' }])
+        // Staff of the club only: STAFF_ROLES, ACTIVE.
+        expect(prisma.workspaceMember.findMany.mock.calls.at(-1)[0].where).toMatchObject({
+            workspaceId: { in: ['msk'] },
+            status: 'ACTIVE',
+            role: { name: { in: ['admin', 'head_coach', 'coach'] } },
+        })
+        expect(prisma.organizationAnnouncement.update).not.toHaveBeenCalled()
+    })
+
+    it('stamps staffNotifiedAt once no club is quiet', async () => {
+        const a = announcement()
+        a.organization.clubs = [a.organization.clubs[0]]
+        const prisma = buildPrisma({ orgAnnouncements: [a] })
+        const { svc } = build(prisma)
+        await svc.run(baseNow)
+        expect(prisma.organizationAnnouncement.update).toHaveBeenCalledWith(
+            expect.objectContaining({ where: { id: 'oa1' }, data: { staffNotifiedAt: baseNow } }),
+        )
+    })
+
+    it('also stamps it when the quiet club was served before its night began', async () => {
+        const prisma = buildPrisma({ orgAnnouncements: [announcement()] })
+        prisma.notificationDispatchLog.count.mockResolvedValue(1)
+        const { svc } = build(prisma)
+        await svc.run(baseNow)
+        expect(prisma.notificationDispatchLog.count).toHaveBeenCalledWith({
+            where: { kind: 'org.announcement', refId: { in: ['oa1:vvo'] } },
+        })
+        expect(prisma.organizationAnnouncement.update).toHaveBeenCalled()
+    })
+
+    it('pushes a person once per announcement even when a second club of theirs is served later', async () => {
+        // own-msk already got it through another club in an earlier run.
+        const prisma = buildPrisma({
+            orgAnnouncements: [announcement()],
+            members: [{ userId: 'coach-msk', workspaceId: 'msk' }],
+            claimedAlready: (kind, refId) =>
+                kind === 'org.announcement.person' && refId === 'oa1:own-msk',
+        })
+        const { svc, rows } = build(prisma)
+        await svc.run(baseNow)
+        expect(rows.map((r) => r.userId)).toEqual(['coach-msk'])
+    })
+
+    it('reminds a booked person within a day, never during their club quiet hours', async () => {
+        const reg = (id: string, tz: string) => ({
+            id,
+            userId: `u-${id}`,
+            workspaceId: `w-${id}`,
+            workspace: { timezone: tz },
+            event: {
+                id: 'e1',
+                organizationId: 'org1',
+                title: 'Открытый турнир',
+                startAt: new Date(baseNow.getTime() + 20 * 3_600_000),
+                timezone: 'Asia/Tomsk',
+                place: 'Олимп',
+            },
+        })
+        const prisma = buildPrisma({
+            orgRegistrations: [reg('r1', 'Europe/Moscow'), reg('r2', 'Asia/Vladivostok')],
+        })
+        const { svc, rows } = build(prisma)
+
+        const summary = await svc.run(baseNow)
+
+        expect(summary.orgEventRemindersSent).toBe(1)
+        expect(rows).toEqual([
+            expect.objectContaining({
+                userId: 'u-r1',
+                topic: 'Скоро событие федерации',
+                message: 'Открытый турнир · 09.05 в 15:00 · Олимп',
+                metadata: expect.objectContaining({ kind: 'org_event.reminder', eventId: 'e1' }),
+            }),
+        ])
+        expect(
+            prisma.organizationEventRegistration.findMany.mock.calls[0][0].where,
+        ).toMatchObject({ status: 'BOOKED', event: { publishedAt: { not: null } } })
     })
 })

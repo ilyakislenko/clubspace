@@ -33,6 +33,10 @@ import {
 } from '../notifications/services/notification-producer.service'
 import { ClubMessageDeliveryService } from '../messages/deliver'
 import { isQuietHour, nextSendAt } from '../notifications/quiet-hours'
+import {
+    dispatchOrgAnnouncementStaffPushes,
+    dispatchOrgEventReminders,
+} from '../organizations/org-dispatch'
 import { RealtimeEmitter } from '../realtime/realtime-emitter.service'
 import { claimDispatchMany } from './dispatch-claims'
 
@@ -114,6 +118,8 @@ export class RemindersService {
         cancellationsNotified: number
         scheduledAnnouncementsPublished: number
         clubMessagesSent: number
+        orgAnnouncementsNotified: number
+        orgEventRemindersSent: number
     }> {
         const sessionsNotified = await this.dispatchSessionReminders(now)
         const eventsNotified = await this.dispatchEventReminders(now)
@@ -121,12 +127,26 @@ export class RemindersService {
         const scheduledAnnouncementsPublished =
             await this.dispatchScheduledAnnouncements(now)
         const clubMessagesSent = await this.dispatchDueClubMessages(now)
+        // Federation hub: staff pushes of org announcements and reminders of
+        // org event bookings, both held back through each club's quiet hours.
+        const orgAnnouncementsNotified = await dispatchOrgAnnouncementStaffPushes(
+            this.prisma,
+            this.notifications,
+            now,
+        )
+        const orgEventRemindersSent = await dispatchOrgEventReminders(
+            this.prisma,
+            this.notifications,
+            now,
+        )
         return {
             sessionsNotified,
             eventsNotified,
             cancellationsNotified,
             scheduledAnnouncementsPublished,
             clubMessagesSent,
+            orgAnnouncementsNotified,
+            orgEventRemindersSent,
         }
     }
 

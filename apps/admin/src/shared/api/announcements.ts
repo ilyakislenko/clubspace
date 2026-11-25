@@ -22,6 +22,18 @@ export const listAnnouncements = async (p: {
     params: { curPage: p.curPage, perPage: p.perPage, directionId: p.directionId },
   })
 
+// The published feed a member sees; for club staff it also carries the
+// announcements of the federations the club is in (`source`).
+export const getAnnouncementFeed = async (p: {
+  workspaceId: string
+  perPage?: number
+}): Promise<AnnouncementList> =>
+  await getApiClient().request<AnnouncementList>({
+    method: "get",
+    url: `${base(p.workspaceId)}/feed`,
+    params: { perPage: p.perPage },
+  })
+
 export const createAnnouncement = async (p: {
   workspaceId: string
   data: AnnouncementInput

@@ -17,6 +17,7 @@ import { confirmDialog } from "../../shared/ui/confirm-dialog"
 const ABOUT: Record<PlatformDemoClubId, string> = {
   academy: "«ACADEMY» — клуб единоборств (Томск + Северск)",
   ritm: "«Ритм» — танцевальная студия: направления, дети с родителями, мастер-классы с записью",
+  berkut: "«Беркут» — небольшой клуб единоборств, вместе с ACADEMY состоит в демо-федерации",
 }
 
 // One in-person demo club (docs/demo.md): who to sign in as on the Mac and the

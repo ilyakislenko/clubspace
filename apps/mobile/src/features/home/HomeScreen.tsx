@@ -72,6 +72,7 @@ import {
 import { NotificationBell } from "./NotificationBell"
 import { InvitationsBanner } from "../invitations/InvitationsBanner"
 import { WebPushBanner } from "../notifications/WebPushBanner"
+import { OrgConsentCard } from "./OrgConsentCard"
 import { BrandJoinOffer } from "../join/BrandJoinOffer"
 import { fetchMyAgenda } from "../../shared/api/agenda"
 import {
@@ -618,6 +619,11 @@ export function HomeScreen({ navigation }: TabScreenProps<"Home">) {
           <InvitationsBanner />
 
           <WebPushBanner />
+
+          {/* Students and parents: the federation registry is theirs. */}
+          {workspaceId && !isStaffWorkspace(workspace) && (
+            <OrgConsentCard workspaceId={workspaceId} />
+          )}
 
           {stale && <OfflineNotice />}
 

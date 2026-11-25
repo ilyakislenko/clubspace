@@ -29,11 +29,24 @@ export const RankLadderOutputSchema = z.object({
     // Discipline of the ladder; null = club-wide.
     direction: DirectionRefSchema.nullable(),
     levels: z.array(RankLevelOutputSchema),
+    // Copied from a federation standard (an editable copy, no live link):
+    // the template and the version taken. The list read names the template
+    // and its current version («Стандарт федерации обновлён до версии N»).
+    templateId: z.string().uuid().nullable(),
+    templateVersion: z.number().int().nullable(),
 })
 export type RankLadderOutput = z.infer<typeof RankLadderOutputSchema>
 
 export const RankDeletedOutputSchema = z.object({
     status: z.literal('deleted'),
+})
+
+// A federation standard some listed ladder was copied from, as it is now.
+export const RankLadderTemplateRefSchema = z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    organizationName: z.string(),
+    version: z.number().int(),
 })
 
 export const serializeLevel = (l: {
@@ -69,6 +82,8 @@ export const serializeLadder = (l: {
     order: number
     direction?: DirectionRef | null
     levels?: Parameters<typeof serializeLevel>[0][]
+    templateId?: string | null
+    templateVersion?: number | null
 }): RankLadderOutput => ({
     id: l.id,
     workspaceId: l.workspaceId,
@@ -78,4 +93,6 @@ export const serializeLadder = (l: {
     order: l.order,
     direction: l.direction ?? null,
     levels: (l.levels ?? []).map(serializeLevel),
+    templateId: l.templateId ?? null,
+    templateVersion: l.templateVersion ?? null,
 })

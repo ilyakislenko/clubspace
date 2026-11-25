@@ -43,6 +43,15 @@ export const AnnouncementOutputSchema = z.object({
     authorName: z.string(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
+    // Set on a federation announcement merged into the feed («Федерация
+    // «…»», read-only); absent on the club's own.
+    source: z
+        .object({
+            kind: z.literal('organization'),
+            organizationId: z.string().uuid(),
+            name: z.string(),
+        })
+        .optional(),
 })
 export type AnnouncementOutput = z.infer<typeof AnnouncementOutputSchema>
 
@@ -130,4 +139,49 @@ export const serializeAnnouncement = (a: {
     authorName: fullNameWithoutEmail(a.author),
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
+})
+
+// What the feed reads of a federation announcement for serializeOrgFeedItem.
+export const ORG_FEED_SELECT = {
+    id: true,
+    organizationId: true,
+    title: true,
+    body: true,
+    publishedAt: true,
+    authorName: true,
+    createdAt: true,
+    updatedAt: true,
+    organization: { select: { name: true } },
+} as const
+
+// A federation announcement in a club feed: never pinned, whole club, no
+// direction or groups (design docs/design/2026-11-26-federation-hub-mvp.md §3.3).
+export const serializeOrgFeedItem = (a: {
+    id: string
+    organizationId: string
+    title: string
+    body: string
+    publishedAt: Date | null
+    authorName: string
+    createdAt: Date
+    updatedAt: Date
+    organization: { name: string }
+}): AnnouncementOutput => ({
+    id: a.id,
+    title: a.title,
+    body: a.body,
+    pinned: false,
+    audience: 'ALL',
+    direction: null,
+    groups: [],
+    groupsRemoved: false,
+    publishedAt: a.publishedAt ? a.publishedAt.toISOString() : null,
+    authorName: a.authorName,
+    createdAt: a.createdAt.toISOString(),
+    updatedAt: a.updatedAt.toISOString(),
+    source: {
+        kind: 'organization',
+        organizationId: a.organizationId,
+        name: a.organization.name,
+    },
 })

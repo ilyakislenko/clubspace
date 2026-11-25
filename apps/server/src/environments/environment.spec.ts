@@ -30,6 +30,7 @@ const loadEnvironment = (extra: Record<string, string>) => {
         'PRODUCTION',
         'PLAYBACK_TOKEN_SECRET',
         'API_DOCS_ENABLED',
+        'ORGANIZATIONS_ENABLED',
     ]) {
         delete process.env[k]
     }
@@ -149,5 +150,17 @@ describe('environment storage', () => {
         ).toBe('http://minio:9000')
         expect(loadEnvironment({ S3_INTERNAL_URL: '' }).s3Storage.s3InternalUrl).toBeUndefined()
         expect(loadEnvironment({}).s3Storage.s3InternalUrl).toBeUndefined()
+    })
+})
+
+describe('environment organizations', () => {
+    it('keeps the federation hub off unless ORGANIZATIONS_ENABLED is true', () => {
+        expect(loadEnvironment({}).organizations.enabled).toBe(false)
+        expect(
+            loadEnvironment({ ORGANIZATIONS_ENABLED: 'false' }).organizations.enabled,
+        ).toBe(false)
+        expect(
+            loadEnvironment({ ORGANIZATIONS_ENABLED: 'true' }).organizations.enabled,
+        ).toBe(true)
     })
 })

@@ -49,6 +49,7 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import type { Theme } from "../../shared/theme"
 import type { RootStackParamList } from "../../app/navigation"
+import { OrgEventsSection } from "../org-events/OrgEventsSection"
 
 type Props = NativeStackScreenProps<RootStackParamList, "Events">
 
@@ -544,6 +545,8 @@ export function EventsScreen({ navigation, route }: Props) {
         </Text>
 
         {stale && events ? <OfflineNotice /> : null}
+
+        <OrgEventsSection workspaceId={workspace.workspaceId} />
 
         {error && !events ? (
           <ErrorRetry message={error} onRetry={refetch} />

@@ -217,6 +217,18 @@ export const routeForNotification = (
       return str(m.messageId)
         ? { name: "ClubMessage", params: { messageId: str(m.messageId) } }
         : { name: "ClubMessages" }
+    // Federation hub: an invitation to the club owner is decided in the admin
+    // («Настройки → Федерация»), the inbox row is the notice; a federation
+    // announcement to the club's staff opens the feed; a coach booked the
+    // member (a child: the guardian) on a federation event, or it is the day
+    // before a booked one.
+    case "org.club_invited":
+      return null
+    case "org.announcement":
+      return gated("Announcements")
+    case "org_event.registered_by_club":
+    case "org_event.reminder":
+      return gated("Events")
   }
 
   // Older rows and unknown kinds: a video id alone is still enough to open it.

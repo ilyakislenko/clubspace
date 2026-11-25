@@ -23,6 +23,7 @@ describe('isMuteExempt', () => {
         'lead.created',
         'lead.stale',
         'lead.trialBooked',
+        'org_event.registered_by_club',
     ])('keeps %s', (kind) => {
         expect(isMuteExempt(kind)).toBe(true)
     })
@@ -35,6 +36,8 @@ describe('isMuteExempt', () => {
         'member.inactive',
         'achievement.unlocked',
         'message.broadcast',
+        'org.announcement',
+        'org_event.reminder',
         'constructor',
     ])('mutes %s', (kind) => {
         expect(isMuteExempt(kind)).toBe(false)

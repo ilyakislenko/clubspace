@@ -6,16 +6,20 @@ import { BadRequestError, ForbiddenError } from '../../shared/errors/shared.erro
 import { isDemoModeOn } from '../../shared/utils/demo-mode.util'
 import { AnalyticsSnapshotService } from '../analytics/analytics-snapshot.service'
 import { AuditService } from '../audit/services/audit.service'
+import { OrgMetricsCacheService } from '../organizations/org-metrics-cache.service'
 import { SubscriptionFreezeService } from '../subscriptions/services/subscription-freeze.service'
+import { buildBerkutDemoPlan } from './berkut-demo.plan'
 import { DEMO_CLUB_IDS, DEMO_CLUBS, type DemoClubId } from './demo-clubs'
 import { buildDemoClubPlan, type DemoClubPlan, type DemoPlanInput } from './demo-club.plan'
 import { deleteDemoOnlyUsers, wipeDemoWorkspace } from './demo-club.wipe'
 import { writeDemoClubPlan } from './demo-club.writer'
+import { DEMO_ORG_ID, DEMO_ORG_KEY, seedDemoOrganization } from './demo-organization'
 import { buildRitmDemoPlan } from './ritm-demo.plan'
 
 const BUILDERS: Readonly<Record<DemoClubId, (input: DemoPlanInput) => DemoClubPlan>> = {
     academy: buildDemoClubPlan,
     ritm: buildRitmDemoPlan,
+    berkut: buildBerkutDemoPlan,
 }
 
 export type DemoSeedStatus = 'created' | 'present' | 'blocked'
@@ -44,9 +48,11 @@ const countsOf = (plan: DemoClubPlan): DemoResetResult['counts'] => ({
 // The in-person demo clubs (docs/demo.md, demo-clubs.ts): wipes ONLY the club
 // that holds that demo club's key and was generated as a demo, with its
 // generated people, and builds it again with every date relative to today. The
-// other demo club is never touched. One transaction: a failure leaves the
-// previous demo as it was. Used by the platform console, the `npm run
-// demo:reset` CLI and SEED_DEMO_WORKSPACE at boot.
+// other demo clubs are never touched. One transaction: a failure leaves the
+// previous demo as it was. The demo federation over ACADEMY and «Беркут»
+// (demo-organization.ts) is put back as scripted after every generation, in
+// its own transaction. Used by the platform console, the `npm run demo:reset`
+// CLI and SEED_DEMO_WORKSPACE at boot.
 @Injectable()
 export class DemoClubService {
     private readonly logger = new Logger(DemoClubService.name)
@@ -56,6 +62,7 @@ export class DemoClubService {
         private readonly freezes: SubscriptionFreezeService,
         private readonly audit: AuditService,
         private readonly analytics: AnalyticsSnapshotService,
+        private readonly orgMetrics: OrgMetricsCacheService,
     ) {}
 
     async reset(p: { club: DemoClubId; actorId: string | null; now?: Date }): Promise<DemoResetResult> {
@@ -65,7 +72,9 @@ export class DemoClubService {
                     'Демо-режим выключен: задайте DEMO_MODE=true, DEMO_WORKSPACE_KEY и DEMO_LOGIN_CODE',
             })
         }
-        const result = await this.regenerate(p.club, p.now ?? new Date())
+        const now = p.now ?? new Date()
+        const result = await this.regenerate(p.club, now)
+        await this.seedOrganization(now)
         await this.audit.record({
             action: 'workspace.demoReset',
             targetType: 'workspace',
@@ -77,14 +86,34 @@ export class DemoClubService {
         return result
     }
 
-    // SEED_DEMO_WORKSPACE: create every demo club that is missing. Never
-    // touches an existing one and never a real club holding a demo key.
+    // SEED_DEMO_WORKSPACE: create every demo club that is missing, and the
+    // demo federation when a club was created or it is missing. Never touches
+    // an existing club and never a real club holding a demo key.
     async ensureSeeded(now: Date = new Date()): Promise<Record<DemoClubId, DemoSeedStatus>> {
         const statuses = {} as Record<DemoClubId, DemoSeedStatus>
         for (const club of DEMO_CLUB_IDS) {
             statuses[club] = await this.ensureClubSeeded(club, now)
         }
+        const org = await this.prisma.organization.findUnique({ where: { key: DEMO_ORG_KEY }, select: { id: true } })
+        if (!org || Object.values(statuses).includes('created')) await this.seedOrganization(now)
         return statuses
+    }
+
+    private async seedOrganization(now: Date): Promise<void> {
+        const status = await this.prisma.$transaction(
+            (tx) =>
+                seedDemoOrganization(tx, {
+                    now,
+                    personalDataConsentVersion: environment.consent.personalDataVersion,
+                }),
+            { maxWait: 15_000, timeout: 60_000 },
+        )
+        if (status === 'blocked') {
+            this.logger.warn(`Key "${DEMO_ORG_KEY}" or the federation demo address belongs to a real account — demo federation not seeded`)
+            return
+        }
+        // The console's cached club numbers describe the clubs before the reset.
+        await this.orgMetrics.invalidate(DEMO_ORG_ID)
     }
 
     private async ensureClubSeeded(club: DemoClubId, now: Date): Promise<DemoSeedStatus> {

@@ -1,5 +1,6 @@
 import {
   Baby,
+  Building2,
   Bot,
   FileVideo,
   ListVideo,
@@ -693,6 +694,28 @@ export const actionMetaFor = (
     icon: Bot,
     tone: "indigo",
   },
+  // Federation hub: the federation's own journal and, for the club's
+  // decisions, the club's history too.
+  "org.create": { label: "Федерация создана", icon: Building2, tone: "green" },
+  "org.update": { label: "Профиль федерации изменён", icon: Pencil, tone: "indigo" },
+  "org.inviteClub": { label: "Клуб приглашён в федерацию", icon: Building2, tone: "blue" },
+  "org.removeClub": { label: "Клуб исключён из федерации", icon: Building2, tone: "red" },
+  "org.memberAdd": { label: "Добавлен в команду федерации", icon: UserPlus, tone: "green" },
+  "org.memberRemove": { label: "Убран из команды федерации", icon: UserMinus, tone: "red" },
+  "org.announcementCreate": { label: "Объявление федерации создано", icon: Megaphone, tone: "green" },
+  "org.announcementUpdate": { label: "Объявление федерации изменено", icon: Megaphone, tone: "indigo" },
+  "org.announcementDelete": { label: "Объявление федерации удалено", icon: Trash2, tone: "red" },
+  "org.eventCreate": { label: "Событие федерации создано", icon: CalendarPlus, tone: "green" },
+  "org.eventUpdate": { label: "Событие федерации изменено", icon: Calendar, tone: "indigo" },
+  "org.eventDelete": { label: "Событие федерации удалено", icon: CalendarOff, tone: "red" },
+  "org.templateCreate": { label: "Стандарт лестницы создан", icon: Layers, tone: "green" },
+  "org.templateUpdate": { label: "Стандарт лестницы изменён", icon: Layers, tone: "indigo" },
+  "org.templateDelete": { label: "Стандарт лестницы удалён", icon: Trash2, tone: "red" },
+  "org.acceptInvite": { label: "Клуб вступил в федерацию", icon: Building2, tone: "green" },
+  "org.declineInvite": { label: "Приглашение федерации отклонено", icon: Building2, tone: "zinc" },
+  "org.updateSharing": { label: "Изменено, что видит федерация", icon: ShieldCheck, tone: "amber" },
+  "org.leave": { label: "Клуб вышел из федерации", icon: Building2, tone: "red" },
+  "ladder.fromTemplate": { label: "Лестница создана по стандарту федерации", icon: Layers, tone: "green" },
 })
 
 export const TONE_CLASS: Record<ActionMeta["tone"], string> = {
@@ -718,6 +741,13 @@ export const TARGET_LABEL: Record<string, string> = {
   clubMessage: "Сообщение",
   payroll: "Выплаты",
   lead: "Заявка на пробное",
+  organization: "Федерация",
+  organizationClub: "Клуб в федерации",
+  organizationMember: "Команда федерации",
+  organizationAnnouncement: "Объявление федерации",
+  organizationEvent: "Событие федерации",
+  organizationTemplate: "Стандарт лестницы",
+  rankLadder: "Лестница поясов",
 }
 
 // Unknown types (a newer server) get a neutral word, never the raw slug.
@@ -1379,6 +1409,8 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   autopay: "Автоплатежи",
   ai: "ИИ-ассистент",
   message: "Сообщения",
+  org: "Федерация",
+  ladder: "Пояса",
 }
 
 // Account-level families are recorded without a club (workspaceId null), so

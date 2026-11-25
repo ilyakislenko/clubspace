@@ -337,6 +337,51 @@ export type CreatePlatformWorkspaceOutputOutput = {
     ownerNotified: boolean;
 };
 
+export type ListPlatformOrganizationsOutputDtoOutput = {
+    data: Array<{
+        id: string;
+        key: string;
+        name: string;
+        type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
+        city: string | null;
+        timezone: string;
+        isDemo: boolean;
+        isActive: boolean;
+        activeClubs: number;
+        invitedClubs: number;
+        members: number;
+        createdAt: string;
+    }>;
+};
+
+export type CreatePlatformOrganizationInputDto = {
+    name: string;
+    key?: string;
+    type?: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
+    city?: string;
+    timezone?: string;
+    adminEmail: string;
+};
+
+export type CreatePlatformOrganizationOutputDtoOutput = {
+    organization: {
+        id: string;
+        key: string;
+        name: string;
+        type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
+        city: string | null;
+        timezone: string;
+        isDemo: boolean;
+        isActive: boolean;
+        activeClubs: number;
+        invitedClubs: number;
+        members: number;
+        createdAt: string;
+    };
+    adminCreated: boolean;
+    adminNotified: boolean;
+};
+
 export type ListPlatformAuditOutputOutput = {
     data: Array<{
         id: string;
@@ -870,7 +915,7 @@ export type ListPlatformDemoRequestsOutputOutput = {
 };
 
 export type GetPlatformDemoClubOutputOutput = {
-    club: 'academy' | 'ritm';
+    club: 'academy' | 'ritm' | 'berkut';
     name: string;
     enabled: boolean;
     workspaceKey: string;
@@ -891,7 +936,7 @@ export type GetPlatformDemoClubOutputOutput = {
 };
 
 export type ResetPlatformDemoClubOutputOutput = {
-    club: 'academy' | 'ritm';
+    club: 'academy' | 'ritm' | 'berkut';
     workspaceId: string;
     durationMs: number;
     counts: {
@@ -6675,6 +6720,43 @@ export type RankLadderOutputDtoOutput = {
         minWeeks: number | null;
         isActive: boolean;
     }>;
+    templateId: string | null;
+    templateVersion: number | null;
+};
+
+export type CreateRankLadderFromTemplateInput = {
+    templateId: string;
+    directionId?: string | null;
+    name?: string;
+};
+
+export type CreateRankLadderFromTemplateOutputOutput = {
+    id: string;
+    workspaceId: string;
+    name: string;
+    audience: string | null;
+    isActive: boolean;
+    order: number;
+    direction: {
+        id: string;
+        name: string;
+        color: string | null;
+        icon: string | null;
+    } | null;
+    levels: Array<{
+        id: string;
+        ladderId: string;
+        name: string;
+        order: number;
+        color: string | null;
+        maxStripes: number;
+        requirements: string | null;
+        minVisits: number | null;
+        minWeeks: number | null;
+        isActive: boolean;
+    }>;
+    templateId: string | null;
+    templateVersion: number | null;
 };
 
 export type ListLaddersOutputOutput = {
@@ -6703,6 +6785,14 @@ export type ListLaddersOutputOutput = {
             minWeeks: number | null;
             isActive: boolean;
         }>;
+        templateId: string | null;
+        templateVersion: number | null;
+    }>;
+    templates: Array<{
+        id: string;
+        name: string;
+        organizationName: string;
+        version: number;
     }>;
 };
 
@@ -6739,6 +6829,8 @@ export type UpdateLadderOutputOutput = {
         minWeeks: number | null;
         isActive: boolean;
     }>;
+    templateId: string | null;
+    templateVersion: number | null;
 };
 
 export type DeleteLadderOutputOutput = {
@@ -7325,6 +7417,11 @@ export type AnnouncementOutputDtoOutput = {
     authorName: string;
     createdAt: string;
     updatedAt: string;
+    source?: {
+        kind: 'organization';
+        organizationId: string;
+        name: string;
+    };
 };
 
 export type AnnouncementListOutputOutput = {
@@ -7351,6 +7448,11 @@ export type AnnouncementListOutputOutput = {
         authorName: string;
         createdAt: string;
         updatedAt: string;
+        source?: {
+            kind: 'organization';
+            organizationId: string;
+            name: string;
+        };
     }>;
     total: number;
     curPage: number;
@@ -7381,6 +7483,11 @@ export type AnnouncementFeedOutputOutput = {
         authorName: string;
         createdAt: string;
         updatedAt: string;
+        source?: {
+            kind: 'organization';
+            organizationId: string;
+            name: string;
+        };
     }>;
     total: number;
     curPage: number;
@@ -7425,6 +7532,11 @@ export type UpdateAnnouncementOutputOutput = {
     authorName: string;
     createdAt: string;
     updatedAt: string;
+    source?: {
+        kind: 'organization';
+        organizationId: string;
+        name: string;
+    };
 };
 
 export type DeleteAnnouncementOutputOutput = {
@@ -9644,6 +9756,889 @@ export type LinkLeadMemberInput = {
     userId: string;
 };
 
+export type ListMyOrganizationsOutputDtoOutput = {
+    data: Array<{
+        id: string;
+        name: string;
+        type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
+        city: string | null;
+        logoUrl: string | null;
+        role: 'ORG_ADMIN' | 'ORG_COACH';
+    }>;
+};
+
+export type GetOrganizationOutputDtoOutput = {
+    id: string;
+    key: string;
+    name: string;
+    type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
+    city: string | null;
+    description: string | null;
+    logoKey: string | null;
+    logoUrl: string | null;
+    timezone: string;
+    isDemo: boolean;
+    myRole: 'ORG_ADMIN' | 'ORG_COACH';
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type UpdateOrganizationInputDto = {
+    name: string;
+    city: string | null;
+    description: string | null;
+    logoKey: string | null;
+    timezone: string;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
+};
+
+export type UpdateOrganizationOutputDtoOutput = {
+    id: string;
+    key: string;
+    name: string;
+    type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
+    city: string | null;
+    description: string | null;
+    logoKey: string | null;
+    logoUrl: string | null;
+    timezone: string;
+    isDemo: boolean;
+    myRole: 'ORG_ADMIN' | 'ORG_COACH';
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type CreateOrganizationLogoUploadInputDto = {
+    contentType: 'image/jpeg' | 'image/png' | 'image/webp';
+    contentLength: number;
+};
+
+export type CreateOrganizationLogoUploadOutputDtoOutput = {
+    key: string;
+    upload: {
+        url: string;
+        method: 'PUT';
+    };
+};
+
+export type ListOrganizationClubsOutputDtoOutput = {
+    data: Array<{
+        id: string;
+        status: 'INVITED' | 'ACTIVE' | 'DECLINED' | 'LEFT' | 'REMOVED';
+        invitedAt: string;
+        decidedAt: string | null;
+        club: {
+            workspaceId: string;
+            name: string;
+            city: string | null;
+            logoUrl: string | null;
+            contacts: Array<{
+                label: string;
+                phone: string;
+            }>;
+        };
+        sharing: {
+            shareRegistry: boolean;
+            shareMrr: boolean;
+            shareRevenue30d: boolean;
+            allowMemberAnnouncements: boolean;
+            allowMemberEvents: boolean;
+        };
+        metrics: {
+            students: number;
+            activeStudents: number;
+            attended30d: number;
+            new30d: number;
+            newcomerRetention3m: {
+                rate: number | null;
+                eligible: number;
+            };
+            mrr: {
+                amount: number;
+                currency: string | null;
+            } | null;
+            revenue30d: {
+                amount: number;
+                currency: string | null;
+            } | null;
+        } | null;
+    }>;
+    totals: {
+        activeClubs: number;
+        students: number;
+        activeStudents: number;
+        attended30d: number;
+        new30d: number;
+        newcomerRetention3m: {
+            rate: number | null;
+            eligible: number;
+        };
+        mrr: {
+            amount: number;
+            currency: string | null;
+            clubs: number;
+        } | null;
+        revenue30d: {
+            amount: number;
+            currency: string | null;
+            clubs: number;
+        } | null;
+    };
+    computedAt: string;
+};
+
+export type InviteClubToOrganizationInputDto = {
+    joinCode: string;
+};
+
+export type InviteClubToOrganizationOutputDtoOutput = {
+    id: string;
+    status: 'INVITED' | 'ACTIVE' | 'DECLINED' | 'LEFT' | 'REMOVED';
+    invitedAt: string;
+    decidedAt: string | null;
+    club: {
+        workspaceId: string;
+        name: string;
+        city: string | null;
+        logoUrl: string | null;
+        contacts: Array<{
+            label: string;
+            phone: string;
+        }>;
+    };
+    sharing: {
+        shareRegistry: boolean;
+        shareMrr: boolean;
+        shareRevenue30d: boolean;
+        allowMemberAnnouncements: boolean;
+        allowMemberEvents: boolean;
+    };
+    metrics: {
+        students: number;
+        activeStudents: number;
+        attended30d: number;
+        new30d: number;
+        newcomerRetention3m: {
+            rate: number | null;
+            eligible: number;
+        };
+        mrr: {
+            amount: number;
+            currency: string | null;
+        } | null;
+        revenue30d: {
+            amount: number;
+            currency: string | null;
+        } | null;
+    } | null;
+};
+
+export type RemoveClubFromOrganizationOutputDtoOutput = {
+    success: true;
+};
+
+export type ListOrgMembersOutputDtoOutput = {
+    data: Array<{
+        userId: string;
+        name: string | null;
+        email: string | null;
+        role: 'ORG_ADMIN' | 'ORG_COACH';
+        createdAt: string;
+    }>;
+};
+
+export type AddOrgMemberInputDto = {
+    email: string;
+    role: 'ORG_ADMIN' | 'ORG_COACH';
+};
+
+export type AddOrgMemberOutputDtoOutput = {
+    userId: string;
+    name: string | null;
+    email: string | null;
+    role: 'ORG_ADMIN' | 'ORG_COACH';
+    createdAt: string;
+};
+
+export type RemoveOrgMemberOutputDtoOutput = {
+    success: true;
+};
+
+export type ListOrgAuditEventsOutputDtoOutput = {
+    data: Array<{
+        id: string;
+        workspaceId: string | null;
+        actorId: string | null;
+        actorEmail: string | null;
+        actorLabel: string | null;
+        action: string;
+        targetType: string;
+        targetId: string | null;
+        targetLabel: string | null;
+        metadata: unknown;
+        createdAt: string;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+};
+
+export type ListClubOrganizationsOutputDtoOutput = {
+    data: Array<{
+        id: string;
+        status: 'INVITED' | 'ACTIVE' | 'DECLINED' | 'LEFT' | 'REMOVED';
+        invitedAt: string;
+        decidedAt: string | null;
+        organization: {
+            id: string;
+            name: string;
+            type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
+            city: string | null;
+            description: string | null;
+            logoUrl: string | null;
+        };
+        sharing: {
+            shareRegistry: boolean;
+            shareMrr: boolean;
+            shareRevenue30d: boolean;
+            allowMemberAnnouncements: boolean;
+            allowMemberEvents: boolean;
+        };
+        canAccept: boolean;
+    }>;
+};
+
+export type AcceptOrganizationInviteInputDto = {
+    sharing?: {
+        shareRegistry?: boolean;
+        shareMrr?: boolean;
+        shareRevenue30d?: boolean;
+        allowMemberAnnouncements?: boolean;
+        allowMemberEvents?: boolean;
+    };
+};
+
+export type ClubOrganizationLinkOutputDtoOutput = {
+    id: string;
+    status: 'INVITED' | 'ACTIVE' | 'DECLINED' | 'LEFT' | 'REMOVED';
+    invitedAt: string;
+    decidedAt: string | null;
+    organization: {
+        id: string;
+        name: string;
+        type: 'GRAPPLING' | 'FITNESS' | 'YOGA' | 'DANCE' | 'CUSTOM';
+        city: string | null;
+        description: string | null;
+        logoUrl: string | null;
+    };
+    sharing: {
+        shareRegistry: boolean;
+        shareMrr: boolean;
+        shareRevenue30d: boolean;
+        allowMemberAnnouncements: boolean;
+        allowMemberEvents: boolean;
+    };
+    canAccept: boolean;
+};
+
+export type UpdateOrganizationSharingInputDto = {
+    shareRegistry?: boolean;
+    shareMrr?: boolean;
+    shareRevenue30d?: boolean;
+    allowMemberAnnouncements?: boolean;
+    allowMemberEvents?: boolean;
+};
+
+export type ListOrgAnnouncementsOutputOutput = {
+    data: Array<{
+        id: string;
+        organizationId: string;
+        title: string;
+        body: string;
+        audience: 'STAFF' | 'STAFF_AND_MEMBERS';
+        publishedAt: string | null;
+        staffNotifiedAt: string | null;
+        authorName: string;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+};
+
+export type CreateOrgAnnouncementInput = {
+    title: string;
+    body: string;
+    audience?: 'STAFF' | 'STAFF_AND_MEMBERS';
+    publish?: boolean;
+    publishAt?: string;
+};
+
+export type OrgAnnouncementOutputDtoOutput = {
+    id: string;
+    organizationId: string;
+    title: string;
+    body: string;
+    audience: 'STAFF' | 'STAFF_AND_MEMBERS';
+    publishedAt: string | null;
+    staffNotifiedAt: string | null;
+    authorName: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type UpdateOrgAnnouncementInput = {
+    title?: string;
+    body?: string;
+    audience?: 'STAFF' | 'STAFF_AND_MEMBERS';
+    publish?: boolean;
+    publishAt?: string;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
+};
+
+export type UpdateOrgAnnouncementOutputOutput = {
+    id: string;
+    organizationId: string;
+    title: string;
+    body: string;
+    audience: 'STAFF' | 'STAFF_AND_MEMBERS';
+    publishedAt: string | null;
+    staffNotifiedAt: string | null;
+    authorName: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type DeleteOrgAnnouncementOutputOutput = {
+    status: 'deleted';
+};
+
+export type SearchOrganizationRegistryOutputOutput = {
+    data: Array<{
+        personKey: string;
+        personName: string;
+        levelName: string;
+        levelColor: string | null;
+        stripes: number;
+        ladderName: string;
+        clubId: string;
+        clubName: string;
+        awardedAt: string;
+        templateLevelName: string | null;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+};
+
+export type GetOrganizationRegistryPersonOutputOutput = {
+    personKey: string;
+    personName: string;
+    history: Array<{
+        personKey: string;
+        personName: string;
+        levelName: string;
+        levelColor: string | null;
+        stripes: number;
+        ladderName: string;
+        clubId: string;
+        clubName: string;
+        awardedAt: string;
+        templateLevelName: string | null;
+    }>;
+};
+
+export type ListOrgEventsOutputOutput = {
+    data: Array<{
+        id: string;
+        organizationId: string;
+        kind: 'COMPETITION' | 'SEMINAR' | 'CAMP' | 'GRADING' | 'MEETING' | 'OTHER';
+        title: string;
+        description: string | null;
+        startAt: string;
+        endAt: string | null;
+        timezone: string;
+        place: string | null;
+        address: string | null;
+        hostClub: {
+            id: string;
+            name: string;
+        } | null;
+        audience: 'STAFF' | 'STAFF_AND_MEMBERS';
+        capacity: number | null;
+        registrationOpen: boolean;
+        registrationClosesAt: string | null;
+        feeNote: string | null;
+        publishedAt: string | null;
+        bookedCount: number;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+};
+
+export type CreateOrgEventInput = {
+    kind?: 'COMPETITION' | 'SEMINAR' | 'CAMP' | 'GRADING' | 'MEETING' | 'OTHER';
+    title: string;
+    description?: string | null;
+    startAt: string;
+    endAt?: string | null;
+    timezone?: string;
+    place?: string | null;
+    address?: string | null;
+    hostClubId?: string | null;
+    audience?: 'STAFF' | 'STAFF_AND_MEMBERS';
+    capacity?: number | null;
+    registrationOpen?: boolean;
+    registrationClosesAt?: string | null;
+    feeNote?: string | null;
+    publish?: boolean;
+};
+
+export type OrgEventOutputDtoOutput = {
+    id: string;
+    organizationId: string;
+    kind: 'COMPETITION' | 'SEMINAR' | 'CAMP' | 'GRADING' | 'MEETING' | 'OTHER';
+    title: string;
+    description: string | null;
+    startAt: string;
+    endAt: string | null;
+    timezone: string;
+    place: string | null;
+    address: string | null;
+    hostClub: {
+        id: string;
+        name: string;
+    } | null;
+    audience: 'STAFF' | 'STAFF_AND_MEMBERS';
+    capacity: number | null;
+    registrationOpen: boolean;
+    registrationClosesAt: string | null;
+    feeNote: string | null;
+    publishedAt: string | null;
+    bookedCount: number;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type GetOrgEventOutputOutput = {
+    id: string;
+    organizationId: string;
+    kind: 'COMPETITION' | 'SEMINAR' | 'CAMP' | 'GRADING' | 'MEETING' | 'OTHER';
+    title: string;
+    description: string | null;
+    startAt: string;
+    endAt: string | null;
+    timezone: string;
+    place: string | null;
+    address: string | null;
+    hostClub: {
+        id: string;
+        name: string;
+    } | null;
+    audience: 'STAFF' | 'STAFF_AND_MEMBERS';
+    capacity: number | null;
+    registrationOpen: boolean;
+    registrationClosesAt: string | null;
+    feeNote: string | null;
+    publishedAt: string | null;
+    bookedCount: number;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type UpdateOrgEventInput = {
+    kind?: 'COMPETITION' | 'SEMINAR' | 'CAMP' | 'GRADING' | 'MEETING' | 'OTHER';
+    title?: string;
+    description?: string | null;
+    startAt?: string;
+    endAt?: string | null;
+    timezone?: string;
+    place?: string | null;
+    address?: string | null;
+    hostClubId?: string | null;
+    audience?: 'STAFF' | 'STAFF_AND_MEMBERS';
+    capacity?: number | null;
+    registrationOpen?: boolean;
+    registrationClosesAt?: string | null;
+    feeNote?: string | null;
+    publish?: boolean;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
+};
+
+export type UpdateOrgEventOutputOutput = {
+    id: string;
+    organizationId: string;
+    kind: 'COMPETITION' | 'SEMINAR' | 'CAMP' | 'GRADING' | 'MEETING' | 'OTHER';
+    title: string;
+    description: string | null;
+    startAt: string;
+    endAt: string | null;
+    timezone: string;
+    place: string | null;
+    address: string | null;
+    hostClub: {
+        id: string;
+        name: string;
+    } | null;
+    audience: 'STAFF' | 'STAFF_AND_MEMBERS';
+    capacity: number | null;
+    registrationOpen: boolean;
+    registrationClosesAt: string | null;
+    feeNote: string | null;
+    publishedAt: string | null;
+    bookedCount: number;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type DeleteOrgEventOutputOutput = {
+    status: 'deleted';
+};
+
+export type ListOrgEventRegistrationsOutputOutput = {
+    data: Array<{
+        id: string;
+        personName: string;
+        clubId: string;
+        clubName: string;
+        status: 'BOOKED' | 'CANCELLED';
+        bookedBy: 'SELF' | 'COACH';
+        belt: {
+            levelName: string;
+            levelColor: string | null;
+            stripes: number;
+            ladderName: string;
+        } | null;
+        createdAt: string;
+    }>;
+    hiddenCount: number;
+};
+
+export type ListOrgLadderTemplatesOutputOutput = {
+    data: Array<{
+        id: string;
+        organizationId: string;
+        name: string;
+        audience: string | null;
+        version: number;
+        isActive: boolean;
+        levels: Array<{
+            id: string;
+            templateId: string;
+            name: string;
+            order: number;
+            color: string | null;
+            maxStripes: number;
+            requirements: string | null;
+            minVisits: number | null;
+            minWeeks: number | null;
+        }>;
+        adoptions: Array<{
+            clubId: string;
+            clubName: string;
+            version: number;
+        }>;
+        updatedAt: string;
+    }>;
+};
+
+export type CreateOrgLadderTemplateInput = {
+    name: string;
+    audience?: string | null;
+    levels?: Array<{
+        name: string;
+        order: number;
+        color?: string | null;
+        maxStripes?: number;
+        requirements?: string | null;
+        minVisits?: number | null;
+        minWeeks?: number | null;
+    }>;
+};
+
+export type OrgLadderTemplateOutputDtoOutput = {
+    id: string;
+    organizationId: string;
+    name: string;
+    audience: string | null;
+    version: number;
+    isActive: boolean;
+    levels: Array<{
+        id: string;
+        templateId: string;
+        name: string;
+        order: number;
+        color: string | null;
+        maxStripes: number;
+        requirements: string | null;
+        minVisits: number | null;
+        minWeeks: number | null;
+    }>;
+    adoptions: Array<{
+        clubId: string;
+        clubName: string;
+        version: number;
+    }>;
+    updatedAt: string;
+};
+
+export type UpdateOrgLadderTemplateInput = {
+    name?: string;
+    audience?: string | null;
+    isActive?: boolean;
+};
+
+export type UpdateOrgLadderTemplateOutputOutput = {
+    id: string;
+    organizationId: string;
+    name: string;
+    audience: string | null;
+    version: number;
+    isActive: boolean;
+    levels: Array<{
+        id: string;
+        templateId: string;
+        name: string;
+        order: number;
+        color: string | null;
+        maxStripes: number;
+        requirements: string | null;
+        minVisits: number | null;
+        minWeeks: number | null;
+    }>;
+    adoptions: Array<{
+        clubId: string;
+        clubName: string;
+        version: number;
+    }>;
+    updatedAt: string;
+};
+
+export type DeleteOrgLadderTemplateOutputOutput = {
+    status: 'deleted';
+};
+
+export type CreateOrgLadderTemplateLevelInput = {
+    name: string;
+    order: number;
+    color?: string | null;
+    maxStripes?: number;
+    requirements?: string | null;
+    minVisits?: number | null;
+    minWeeks?: number | null;
+};
+
+export type CreateOrgLadderTemplateLevelOutputOutput = {
+    id: string;
+    organizationId: string;
+    name: string;
+    audience: string | null;
+    version: number;
+    isActive: boolean;
+    levels: Array<{
+        id: string;
+        templateId: string;
+        name: string;
+        order: number;
+        color: string | null;
+        maxStripes: number;
+        requirements: string | null;
+        minVisits: number | null;
+        minWeeks: number | null;
+    }>;
+    adoptions: Array<{
+        clubId: string;
+        clubName: string;
+        version: number;
+    }>;
+    updatedAt: string;
+};
+
+export type UpdateOrgLadderTemplateLevelInput = {
+    name?: string;
+    order?: number;
+    color?: string | null;
+    maxStripes?: number;
+    requirements?: string | null;
+    minVisits?: number | null;
+    minWeeks?: number | null;
+};
+
+export type UpdateOrgLadderTemplateLevelOutputOutput = {
+    id: string;
+    organizationId: string;
+    name: string;
+    audience: string | null;
+    version: number;
+    isActive: boolean;
+    levels: Array<{
+        id: string;
+        templateId: string;
+        name: string;
+        order: number;
+        color: string | null;
+        maxStripes: number;
+        requirements: string | null;
+        minVisits: number | null;
+        minWeeks: number | null;
+    }>;
+    adoptions: Array<{
+        clubId: string;
+        clubName: string;
+        version: number;
+    }>;
+    updatedAt: string;
+};
+
+export type DeleteOrgLadderTemplateLevelOutputOutput = {
+    id: string;
+    organizationId: string;
+    name: string;
+    audience: string | null;
+    version: number;
+    isActive: boolean;
+    levels: Array<{
+        id: string;
+        templateId: string;
+        name: string;
+        order: number;
+        color: string | null;
+        maxStripes: number;
+        requirements: string | null;
+        minVisits: number | null;
+        minWeeks: number | null;
+    }>;
+    adoptions: Array<{
+        clubId: string;
+        clubName: string;
+        version: number;
+    }>;
+    updatedAt: string;
+};
+
+export type ListMyClubOrganizationsOutputOutput = {
+    data: Array<{
+        organizationId: string;
+        name: string;
+        city: string | null;
+        consentGranted: boolean;
+        consentGrantedAt: string | null;
+        consentText: string;
+        consentVersion: string;
+        visibleInRegistry: boolean;
+        registryLadderIds: Array<string>;
+        eventsEnabled: boolean;
+    }>;
+};
+
+export type SetMyOrganizationConsentInput = {
+    granted: boolean;
+};
+
+export type SetMyOrganizationConsentOutputOutput = {
+    organizationId: string;
+    name: string;
+    city: string | null;
+    consentGranted: boolean;
+    consentGrantedAt: string | null;
+    consentText: string;
+    consentVersion: string;
+    visibleInRegistry: boolean;
+    registryLadderIds: Array<string>;
+    eventsEnabled: boolean;
+};
+
+export type ListClubOrgEventsOutputOutput = {
+    data: Array<{
+        id: string;
+        organizationId: string;
+        organizationName: string;
+        kind: 'COMPETITION' | 'SEMINAR' | 'CAMP' | 'GRADING' | 'MEETING' | 'OTHER';
+        title: string;
+        description: string | null;
+        startAt: string;
+        endAt: string | null;
+        timezone: string;
+        place: string | null;
+        address: string | null;
+        hostClubName: string | null;
+        audience: 'STAFF' | 'STAFF_AND_MEMBERS';
+        capacity: number | null;
+        bookedCount: number;
+        registrationState: 'OPEN' | 'FULL' | 'CLOSED';
+        registrationClosesAt: string | null;
+        feeNote: string | null;
+        myRegistration: {
+            id: string;
+            status: 'BOOKED' | 'CANCELLED';
+        } | null;
+    }>;
+};
+
+export type RegisterForOrgEventInput = {
+    userId?: string;
+};
+
+export type OrgEventRegistrationRefOutputOutput = {
+    id: string;
+    eventId: string;
+    status: 'BOOKED' | 'CANCELLED';
+    bookedCount: number;
+};
+
+export type CancelOrgEventRegistrationOutputOutput = {
+    id: string;
+    eventId: string;
+    status: 'BOOKED' | 'CANCELLED';
+    bookedCount: number;
+};
+
+export type ListOrgEventStudentsOutputOutput = {
+    data: Array<{
+        userId: string;
+        name: string;
+        consented: boolean;
+        registration: {
+            id: string;
+            status: 'BOOKED' | 'CANCELLED';
+            canCancel: boolean;
+        } | null;
+    }>;
+};
+
+export type ListAdoptableLadderTemplatesOutputOutput = {
+    data: Array<{
+        id: string;
+        organizationId: string;
+        organizationName: string;
+        name: string;
+        audience: string | null;
+        version: number;
+        levels: Array<{
+            id: string;
+            name: string;
+            order: number;
+            color: string | null;
+            maxStripes: number;
+        }>;
+        adoptedLadders: Array<{
+            ladderId: string;
+            ladderName: string;
+            templateVersion: number;
+        }>;
+    }>;
+};
+
 export type PublicTrialFormOutputOutput = {
     clubName: string;
     logoUrl: string | null;
@@ -10224,6 +11219,32 @@ export type CreatePlatformWorkspaceResponses = {
 
 export type CreatePlatformWorkspaceResponse = CreatePlatformWorkspaceResponses[keyof CreatePlatformWorkspaceResponses];
 
+export type ListPlatformOrganizationsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/platform/organizations';
+};
+
+export type ListPlatformOrganizationsResponses = {
+    default: ListPlatformOrganizationsOutputDtoOutput;
+};
+
+export type ListPlatformOrganizationsResponse = ListPlatformOrganizationsResponses[keyof ListPlatformOrganizationsResponses];
+
+export type CreatePlatformOrganizationData = {
+    body: CreatePlatformOrganizationInputDto;
+    path?: never;
+    query?: never;
+    url: '/platform/organizations';
+};
+
+export type CreatePlatformOrganizationResponses = {
+    default: CreatePlatformOrganizationOutputDtoOutput;
+};
+
+export type CreatePlatformOrganizationResponse = CreatePlatformOrganizationResponses[keyof CreatePlatformOrganizationResponses];
+
 export type ListPlatformAuditData = {
     body?: never;
     path?: never;
@@ -10484,7 +11505,7 @@ export type GetPlatformDemoClubData = {
     body?: never;
     path?: never;
     query?: {
-        club?: 'academy' | 'ritm';
+        club?: 'academy' | 'ritm' | 'berkut';
     };
     url: '/platform/demo-club';
 };
@@ -10499,7 +11520,7 @@ export type ResetPlatformDemoClubData = {
     body?: never;
     path?: never;
     query?: {
-        club?: 'academy' | 'ritm';
+        club?: 'academy' | 'ritm' | 'berkut';
     };
     url: '/platform/demo-club/reset';
 };
@@ -14674,6 +15695,21 @@ export type CreateRankLadderResponses = {
 
 export type CreateRankLadderResponse = CreateRankLadderResponses[keyof CreateRankLadderResponses];
 
+export type CreateRankLadderFromTemplateData = {
+    body: CreateRankLadderFromTemplateInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/rank-ladders/from-template';
+};
+
+export type CreateRankLadderFromTemplateResponses = {
+    default: CreateRankLadderFromTemplateOutputOutput;
+};
+
+export type CreateRankLadderFromTemplateResponse = CreateRankLadderFromTemplateResponses[keyof CreateRankLadderFromTemplateResponses];
+
 export type DeleteRankLadderData = {
     body?: never;
     path: {
@@ -16336,6 +17372,676 @@ export type EraseLeadResponses = {
 };
 
 export type EraseLeadResponse = EraseLeadResponses[keyof EraseLeadResponses];
+
+export type ListMyOrganizationsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/orgs/mine';
+};
+
+export type ListMyOrganizationsResponses = {
+    default: ListMyOrganizationsOutputDtoOutput;
+};
+
+export type ListMyOrganizationsResponse = ListMyOrganizationsResponses[keyof ListMyOrganizationsResponses];
+
+export type GetOrganizationData = {
+    body?: never;
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}';
+};
+
+export type GetOrganizationResponses = {
+    default: GetOrganizationOutputDtoOutput;
+};
+
+export type GetOrganizationResponse = GetOrganizationResponses[keyof GetOrganizationResponses];
+
+export type UpdateOrganizationData = {
+    body: UpdateOrganizationInputDto;
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}';
+};
+
+export type UpdateOrganizationResponses = {
+    default: UpdateOrganizationOutputDtoOutput;
+};
+
+export type UpdateOrganizationResponse = UpdateOrganizationResponses[keyof UpdateOrganizationResponses];
+
+export type CreateOrganizationLogoUploadData = {
+    body: CreateOrganizationLogoUploadInputDto;
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/logo-upload';
+};
+
+export type CreateOrganizationLogoUploadResponses = {
+    default: CreateOrganizationLogoUploadOutputDtoOutput;
+};
+
+export type CreateOrganizationLogoUploadResponse = CreateOrganizationLogoUploadResponses[keyof CreateOrganizationLogoUploadResponses];
+
+export type ListOrganizationClubsData = {
+    body?: never;
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/clubs';
+};
+
+export type ListOrganizationClubsResponses = {
+    default: ListOrganizationClubsOutputDtoOutput;
+};
+
+export type ListOrganizationClubsResponse = ListOrganizationClubsResponses[keyof ListOrganizationClubsResponses];
+
+export type InviteClubToOrganizationData = {
+    body: InviteClubToOrganizationInputDto;
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/clubs/invitations';
+};
+
+export type InviteClubToOrganizationResponses = {
+    default: InviteClubToOrganizationOutputDtoOutput;
+};
+
+export type InviteClubToOrganizationResponse = InviteClubToOrganizationResponses[keyof InviteClubToOrganizationResponses];
+
+export type RemoveClubFromOrganizationData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        linkId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/clubs/{linkId}';
+};
+
+export type RemoveClubFromOrganizationResponses = {
+    default: RemoveClubFromOrganizationOutputDtoOutput;
+};
+
+export type RemoveClubFromOrganizationResponse = RemoveClubFromOrganizationResponses[keyof RemoveClubFromOrganizationResponses];
+
+export type ListOrgMembersData = {
+    body?: never;
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/members';
+};
+
+export type ListOrgMembersResponses = {
+    default: ListOrgMembersOutputDtoOutput;
+};
+
+export type ListOrgMembersResponse = ListOrgMembersResponses[keyof ListOrgMembersResponses];
+
+export type AddOrgMemberData = {
+    body: AddOrgMemberInputDto;
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/members';
+};
+
+export type AddOrgMemberResponses = {
+    default: AddOrgMemberOutputDtoOutput;
+};
+
+export type AddOrgMemberResponse = AddOrgMemberResponses[keyof AddOrgMemberResponses];
+
+export type RemoveOrgMemberData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        userId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/members/{userId}';
+};
+
+export type RemoveOrgMemberResponses = {
+    default: RemoveOrgMemberOutputDtoOutput;
+};
+
+export type RemoveOrgMemberResponse = RemoveOrgMemberResponses[keyof RemoveOrgMemberResponses];
+
+export type ListOrgAuditEventsData = {
+    body?: never;
+    path: {
+        organizationId: string;
+    };
+    query?: {
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/orgs/{organizationId}/audit';
+};
+
+export type ListOrgAuditEventsResponses = {
+    default: ListOrgAuditEventsOutputDtoOutput;
+};
+
+export type ListOrgAuditEventsResponse = ListOrgAuditEventsResponses[keyof ListOrgAuditEventsResponses];
+
+export type ListClubOrganizationsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/organizations';
+};
+
+export type ListClubOrganizationsResponses = {
+    default: ListClubOrganizationsOutputDtoOutput;
+};
+
+export type ListClubOrganizationsResponse = ListClubOrganizationsResponses[keyof ListClubOrganizationsResponses];
+
+export type AcceptOrganizationInviteData = {
+    body: AcceptOrganizationInviteInputDto;
+    path: {
+        workspaceId: string;
+        linkId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/organizations/{linkId}/accept';
+};
+
+export type AcceptOrganizationInviteResponses = {
+    default: ClubOrganizationLinkOutputDtoOutput;
+};
+
+export type AcceptOrganizationInviteResponse = AcceptOrganizationInviteResponses[keyof AcceptOrganizationInviteResponses];
+
+export type DeclineOrganizationInviteData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        linkId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/organizations/{linkId}/decline';
+};
+
+export type DeclineOrganizationInviteResponses = {
+    default: ClubOrganizationLinkOutputDtoOutput;
+};
+
+export type DeclineOrganizationInviteResponse = DeclineOrganizationInviteResponses[keyof DeclineOrganizationInviteResponses];
+
+export type UpdateOrganizationSharingData = {
+    body: UpdateOrganizationSharingInputDto;
+    path: {
+        workspaceId: string;
+        linkId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/organizations/{linkId}/sharing';
+};
+
+export type UpdateOrganizationSharingResponses = {
+    default: ClubOrganizationLinkOutputDtoOutput;
+};
+
+export type UpdateOrganizationSharingResponse = UpdateOrganizationSharingResponses[keyof UpdateOrganizationSharingResponses];
+
+export type LeaveOrganizationData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        linkId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/organizations/{linkId}/leave';
+};
+
+export type LeaveOrganizationResponses = {
+    default: ClubOrganizationLinkOutputDtoOutput;
+};
+
+export type LeaveOrganizationResponse = LeaveOrganizationResponses[keyof LeaveOrganizationResponses];
+
+export type ListOrgAnnouncementsData = {
+    body?: never;
+    path: {
+        organizationId: string;
+    };
+    query?: {
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/orgs/{organizationId}/announcements';
+};
+
+export type ListOrgAnnouncementsResponses = {
+    default: ListOrgAnnouncementsOutputOutput;
+};
+
+export type ListOrgAnnouncementsResponse = ListOrgAnnouncementsResponses[keyof ListOrgAnnouncementsResponses];
+
+export type CreateOrgAnnouncementData = {
+    body: CreateOrgAnnouncementInput;
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/announcements';
+};
+
+export type CreateOrgAnnouncementResponses = {
+    default: OrgAnnouncementOutputDtoOutput;
+};
+
+export type CreateOrgAnnouncementResponse = CreateOrgAnnouncementResponses[keyof CreateOrgAnnouncementResponses];
+
+export type DeleteOrgAnnouncementData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        announcementId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/announcements/{announcementId}';
+};
+
+export type DeleteOrgAnnouncementResponses = {
+    default: DeleteOrgAnnouncementOutputOutput;
+};
+
+export type DeleteOrgAnnouncementResponse = DeleteOrgAnnouncementResponses[keyof DeleteOrgAnnouncementResponses];
+
+export type UpdateOrgAnnouncementData = {
+    body: UpdateOrgAnnouncementInput;
+    path: {
+        organizationId: string;
+        announcementId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/announcements/{announcementId}';
+};
+
+export type UpdateOrgAnnouncementResponses = {
+    default: UpdateOrgAnnouncementOutputOutput;
+};
+
+export type UpdateOrgAnnouncementResponse = UpdateOrgAnnouncementResponses[keyof UpdateOrgAnnouncementResponses];
+
+export type SearchOrganizationRegistryData = {
+    body?: never;
+    path: {
+        organizationId: string;
+    };
+    query?: {
+        q?: string;
+        clubId?: string;
+        templateLevelId?: string;
+        awardedFrom?: string;
+        awardedTo?: string;
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/orgs/{organizationId}/registry';
+};
+
+export type SearchOrganizationRegistryResponses = {
+    default: SearchOrganizationRegistryOutputOutput;
+};
+
+export type SearchOrganizationRegistryResponse = SearchOrganizationRegistryResponses[keyof SearchOrganizationRegistryResponses];
+
+export type GetOrganizationRegistryPersonData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        personKey: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/registry/{personKey}';
+};
+
+export type GetOrganizationRegistryPersonResponses = {
+    default: GetOrganizationRegistryPersonOutputOutput;
+};
+
+export type GetOrganizationRegistryPersonResponse = GetOrganizationRegistryPersonResponses[keyof GetOrganizationRegistryPersonResponses];
+
+export type ListOrgEventsData = {
+    body?: never;
+    path: {
+        organizationId: string;
+    };
+    query?: {
+        includePast?: boolean;
+    };
+    url: '/orgs/{organizationId}/events';
+};
+
+export type ListOrgEventsResponses = {
+    default: ListOrgEventsOutputOutput;
+};
+
+export type ListOrgEventsResponse = ListOrgEventsResponses[keyof ListOrgEventsResponses];
+
+export type CreateOrgEventData = {
+    body: CreateOrgEventInput;
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/events';
+};
+
+export type CreateOrgEventResponses = {
+    default: OrgEventOutputDtoOutput;
+};
+
+export type CreateOrgEventResponse = CreateOrgEventResponses[keyof CreateOrgEventResponses];
+
+export type DeleteOrgEventData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/events/{eventId}';
+};
+
+export type DeleteOrgEventResponses = {
+    default: DeleteOrgEventOutputOutput;
+};
+
+export type DeleteOrgEventResponse = DeleteOrgEventResponses[keyof DeleteOrgEventResponses];
+
+export type GetOrgEventData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/events/{eventId}';
+};
+
+export type GetOrgEventResponses = {
+    default: GetOrgEventOutputOutput;
+};
+
+export type GetOrgEventResponse = GetOrgEventResponses[keyof GetOrgEventResponses];
+
+export type UpdateOrgEventData = {
+    body: UpdateOrgEventInput;
+    path: {
+        organizationId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/events/{eventId}';
+};
+
+export type UpdateOrgEventResponses = {
+    default: UpdateOrgEventOutputOutput;
+};
+
+export type UpdateOrgEventResponse = UpdateOrgEventResponses[keyof UpdateOrgEventResponses];
+
+export type ListOrgEventRegistrationsData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/events/{eventId}/registrations';
+};
+
+export type ListOrgEventRegistrationsResponses = {
+    default: ListOrgEventRegistrationsOutputOutput;
+};
+
+export type ListOrgEventRegistrationsResponse = ListOrgEventRegistrationsResponses[keyof ListOrgEventRegistrationsResponses];
+
+export type ListOrgLadderTemplatesData = {
+    body?: never;
+    path: {
+        organizationId: string;
+    };
+    query?: {
+        includeInactive?: boolean;
+    };
+    url: '/orgs/{organizationId}/ladder-templates';
+};
+
+export type ListOrgLadderTemplatesResponses = {
+    default: ListOrgLadderTemplatesOutputOutput;
+};
+
+export type ListOrgLadderTemplatesResponse = ListOrgLadderTemplatesResponses[keyof ListOrgLadderTemplatesResponses];
+
+export type CreateOrgLadderTemplateData = {
+    body: CreateOrgLadderTemplateInput;
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/ladder-templates';
+};
+
+export type CreateOrgLadderTemplateResponses = {
+    default: OrgLadderTemplateOutputDtoOutput;
+};
+
+export type CreateOrgLadderTemplateResponse = CreateOrgLadderTemplateResponses[keyof CreateOrgLadderTemplateResponses];
+
+export type DeleteOrgLadderTemplateData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        templateId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/ladder-templates/{templateId}';
+};
+
+export type DeleteOrgLadderTemplateResponses = {
+    default: DeleteOrgLadderTemplateOutputOutput;
+};
+
+export type DeleteOrgLadderTemplateResponse = DeleteOrgLadderTemplateResponses[keyof DeleteOrgLadderTemplateResponses];
+
+export type UpdateOrgLadderTemplateData = {
+    body: UpdateOrgLadderTemplateInput;
+    path: {
+        organizationId: string;
+        templateId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/ladder-templates/{templateId}';
+};
+
+export type UpdateOrgLadderTemplateResponses = {
+    default: UpdateOrgLadderTemplateOutputOutput;
+};
+
+export type UpdateOrgLadderTemplateResponse = UpdateOrgLadderTemplateResponses[keyof UpdateOrgLadderTemplateResponses];
+
+export type CreateOrgLadderTemplateLevelData = {
+    body: CreateOrgLadderTemplateLevelInput;
+    path: {
+        organizationId: string;
+        templateId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/ladder-templates/{templateId}/levels';
+};
+
+export type CreateOrgLadderTemplateLevelResponses = {
+    default: CreateOrgLadderTemplateLevelOutputOutput;
+};
+
+export type CreateOrgLadderTemplateLevelResponse = CreateOrgLadderTemplateLevelResponses[keyof CreateOrgLadderTemplateLevelResponses];
+
+export type DeleteOrgLadderTemplateLevelData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        templateId: string;
+        levelId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/ladder-templates/{templateId}/levels/{levelId}';
+};
+
+export type DeleteOrgLadderTemplateLevelResponses = {
+    default: DeleteOrgLadderTemplateLevelOutputOutput;
+};
+
+export type DeleteOrgLadderTemplateLevelResponse = DeleteOrgLadderTemplateLevelResponses[keyof DeleteOrgLadderTemplateLevelResponses];
+
+export type UpdateOrgLadderTemplateLevelData = {
+    body: UpdateOrgLadderTemplateLevelInput;
+    path: {
+        organizationId: string;
+        templateId: string;
+        levelId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/ladder-templates/{templateId}/levels/{levelId}';
+};
+
+export type UpdateOrgLadderTemplateLevelResponses = {
+    default: UpdateOrgLadderTemplateLevelOutputOutput;
+};
+
+export type UpdateOrgLadderTemplateLevelResponse = UpdateOrgLadderTemplateLevelResponses[keyof UpdateOrgLadderTemplateLevelResponses];
+
+export type ListMyClubOrganizationsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/organizations';
+};
+
+export type ListMyClubOrganizationsResponses = {
+    default: ListMyClubOrganizationsOutputOutput;
+};
+
+export type ListMyClubOrganizationsResponse = ListMyClubOrganizationsResponses[keyof ListMyClubOrganizationsResponses];
+
+export type SetMyOrganizationConsentData = {
+    body: SetMyOrganizationConsentInput;
+    path: {
+        workspaceId: string;
+        organizationId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/me/organizations/{organizationId}/consent';
+};
+
+export type SetMyOrganizationConsentResponses = {
+    default: SetMyOrganizationConsentOutputOutput;
+};
+
+export type SetMyOrganizationConsentResponse = SetMyOrganizationConsentResponses[keyof SetMyOrganizationConsentResponses];
+
+export type ListClubOrgEventsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/org-events';
+};
+
+export type ListClubOrgEventsResponses = {
+    default: ListClubOrgEventsOutputOutput;
+};
+
+export type ListClubOrgEventsResponse = ListClubOrgEventsResponses[keyof ListClubOrgEventsResponses];
+
+export type RegisterForOrgEventData = {
+    body: RegisterForOrgEventInput;
+    path: {
+        workspaceId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/org-events/{eventId}/registrations';
+};
+
+export type RegisterForOrgEventResponses = {
+    default: OrgEventRegistrationRefOutputOutput;
+};
+
+export type RegisterForOrgEventResponse = RegisterForOrgEventResponses[keyof RegisterForOrgEventResponses];
+
+export type CancelOrgEventRegistrationData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        registrationId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/org-event-registrations/{registrationId}';
+};
+
+export type CancelOrgEventRegistrationResponses = {
+    default: CancelOrgEventRegistrationOutputOutput;
+};
+
+export type CancelOrgEventRegistrationResponse = CancelOrgEventRegistrationResponses[keyof CancelOrgEventRegistrationResponses];
+
+export type ListOrgEventStudentsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/org-events/{eventId}/students';
+};
+
+export type ListOrgEventStudentsResponses = {
+    default: ListOrgEventStudentsOutputOutput;
+};
+
+export type ListOrgEventStudentsResponse = ListOrgEventStudentsResponses[keyof ListOrgEventStudentsResponses];
+
+export type ListAdoptableLadderTemplatesData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/organization-ladder-templates';
+};
+
+export type ListAdoptableLadderTemplatesResponses = {
+    default: ListAdoptableLadderTemplatesOutputOutput;
+};
+
+export type ListAdoptableLadderTemplatesResponse = ListAdoptableLadderTemplatesResponses[keyof ListAdoptableLadderTemplatesResponses];
 
 export type GetPublicTrialFormData = {
     body?: never;

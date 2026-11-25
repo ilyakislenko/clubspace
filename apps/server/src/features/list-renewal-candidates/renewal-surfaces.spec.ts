@@ -89,6 +89,11 @@ const prisma = {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
     },
+    // The feed merges federation announcements when the hub is on: none here.
+    organizationAnnouncement: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+    },
     groupMember: { findMany: jest.fn().mockResolvedValue([]) },
     groupCoach: { findMany: jest.fn().mockResolvedValue([]) },
     // Nobody on autopay: the «Продлить» rows carry autopay: null.

@@ -23,6 +23,7 @@ import { PlatformOnboardingRequests } from "../../../features/platform/PlatformO
 import { PlatformDemoRequests } from "../../../features/platform/PlatformDemoRequests"
 import { PlatformDemoClub } from "../../../features/platform/PlatformDemoClub"
 import { PlatformWorkspaceBilling } from "../../../features/platform/PlatformWorkspaceBilling"
+import { PlatformOrganizations } from "../../../features/platform/PlatformOrganizations"
 import { TimezoneSelect } from "../../../features/settings/TimezoneSelect"
 import { inputCls, inputClsFull } from "../../../shared/lib/input-class"
 import { browserTimezone } from "../../../shared/lib/timezones"
@@ -473,7 +474,7 @@ export default function PlatformConsolePage() {
 
       <PlatformDemoRequests />
 
-      {(["academy", "ritm"] as const).map((club) => (
+      {(["academy", "ritm", "berkut"] as const).map((club) => (
         <PlatformDemoClub
           key={club}
           club={club}
@@ -483,6 +484,8 @@ export default function PlatformConsolePage() {
           }}
         />
       ))}
+
+      <PlatformOrganizations onNotice={setNotice} />
 
       <PlatformOnboardingRequests
         onShowClub={(workspaceName) => {

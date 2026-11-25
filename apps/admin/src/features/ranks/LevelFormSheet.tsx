@@ -15,19 +15,27 @@ import {
 } from "@clubspace/ui-kit/ui"
 import { cap, countForm, type ClubVocabulary } from "@clubspace/ui-kit/brand"
 
-import {
-  createRankLevel,
-  updateRankLevel,
-  type RankLevel,
-} from "../../shared/api/ranks"
-import { FORM_LIMITS } from "../../shared/lib/contract-limits"
+import type { RankLevel } from "../../shared/api/ranks"
+import { FORM_LIMITS, type ContractLimit } from "../../shared/lib/contract-limits"
 import { errorMessage } from "../../shared/lib/error-message"
 import { parseIntInput } from "../../shared/lib/parse-int-input"
 import { confirmLeave, sameData, useDirtyGuard } from "../../shared/lib/use-dirty-guard"
 import { pluralRu } from "../../shared/lib/plural-ru"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 
-const L = FORM_LIMITS.level
+// The level fields the sheet edits; club ladders and federation standards
+// (`OrganizationLadderTemplateLevel` mirrors `RankLevel`) share it.
+export type LevelFormValue = Pick<
+  RankLevel,
+  "name" | "color" | "maxStripes" | "minVisits" | "minWeeks"
+>
+// What a save sends: the rule only when the level carries one.
+export type LevelFormData = Pick<LevelFormValue, "name" | "color" | "maxStripes"> &
+  Partial<Pick<LevelFormValue, "minVisits" | "minWeeks">>
+export type LevelLimits = Record<
+  "name" | "color" | "maxStripes" | "minVisits" | "minWeeks",
+  ContractLimit
+>
 
 // Common belt colours; any CSS colour can still be typed.
 const PRESET_COLORS = [
@@ -45,7 +53,7 @@ const PRESET_COLORS = [
 
 // «Допуск к аттестации» of a level as one line, or null when it has none.
 export const describeLevelRule = (
-  lv: RankLevel,
+  lv: Pick<RankLevel, "minVisits" | "minWeeks">,
   vocabulary: ClubVocabulary,
 ): string | null => {
   const parts = [
@@ -60,29 +68,29 @@ export const describeLevelRule = (
 }
 
 type Props = {
-  workspaceId: string
-  ladderId: string
   open: boolean
   onOpenChange: (open: boolean) => void
   // null = create mode.
-  level: RankLevel | null
-  // `order` of a new level (after the last one).
-  nextOrder: number
+  level: LevelFormValue | null
+  // Creates the level (`isCreate`) or updates the edited one.
+  save: (data: LevelFormData, isCreate: boolean) => Promise<unknown>
+  // The contract bounds of the body `save` sends.
+  limits?: LevelLimits
   // The «допуск» is the step up to this level: the first level has none.
   withRule: boolean
   onSaved: () => void
 }
 
 export function LevelFormSheet({
-  workspaceId,
-  ladderId,
   open,
   onOpenChange,
   level,
-  nextOrder,
+  save,
+  limits = FORM_LIMITS.level,
   withRule,
   onSaved,
 }: Props) {
+  const L = limits
   const vocabulary = useVocabulary()
   const isCreate = !level
   const [name, setName] = useState("")
@@ -139,22 +147,14 @@ export function LevelFormSheet({
     }
     setSaving(true)
     setError("")
-    const data = {
+    const data: LevelFormData = {
       name: name.trim(),
       color: color.trim() || null,
       maxStripes: stripes,
       ...(withRule ? { minVisits, minWeeks } : {}),
     }
     try {
-      if (level) {
-        await updateRankLevel({ workspaceId, ladderId, levelId: level.id, data })
-      } else {
-        await createRankLevel({
-          workspaceId,
-          ladderId,
-          data: { ...data, order: nextOrder },
-        })
-      }
+      await save(data, !level)
       onSaved()
       onOpenChange(false)
     } catch (err) {

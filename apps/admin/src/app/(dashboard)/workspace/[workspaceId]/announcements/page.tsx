@@ -14,6 +14,7 @@ import {
 
 import {
   deleteAnnouncement,
+  getAnnouncementFeed,
   listAnnouncements,
   updateAnnouncement,
   type Announcement,
@@ -30,6 +31,10 @@ import {
 } from "../../../../../features/directions/DirectionFilter"
 import { useDirections } from "../../../../../features/directions/use-directions"
 import { AnnouncementFormSheet } from "../../../../../features/announcements/AnnouncementFormSheet"
+import {
+  announcementSourceLine,
+  mergeFederationItems,
+} from "../../../../../features/announcements/announcement-source"
 import {
   GROUPS_REMOVED_TEXT,
   groupsLabel,
@@ -68,12 +73,24 @@ export default function WorkspaceAnnouncementsPage() {
   const load = useCallback(async () => {
     if (!workspaceId) return
     try {
-      const res = await listAnnouncements({
-        workspaceId,
-        directionId: directionFilterParam(directionFilter),
-      })
+      const [res, feed] = await Promise.all([
+        listAnnouncements({
+          workspaceId,
+          directionId: directionFilterParam(directionFilter),
+        }),
+        // Federation announcements come only with the feed; they belong to
+        // no direction, so a direction filter hides them.
+        directionFilter === ALL_DIRECTIONS
+          ? getAnnouncementFeed({ workspaceId, perPage: 100 }).catch(() => null)
+          : null,
+      ])
       // «Только для всего клуба» has no server filter — narrow client-side.
-      setItems(res.data.filter((a) => matchesTargetFilter(directionFilter, a)))
+      setItems(
+        mergeFederationItems(
+          res.data.filter((a) => matchesTargetFilter(directionFilter, a)),
+          (feed?.data ?? []).filter((a) => a.source?.kind === "organization"),
+        ),
+      )
       setError(null)
     } catch (e) {
       setError(errorMessage(e, "Не удалось загрузить объявления"))
@@ -206,6 +223,19 @@ export default function WorkspaceAnnouncementsPage() {
           {items.map((a) => {
             const pub = a.publishedAt ? new Date(a.publishedAt) : null
             const scheduled = pub !== null && pub > new Date()
+            // A federation's announcement: read-only here, with its source.
+            const sourceLine = announcementSourceLine(a)
+            if (sourceLine) {
+              return (
+                <li key={a.id} className="rounded-xl border border-border p-4">
+                  <span className="block font-medium">{a.title}</span>
+                  <span className="mt-1 block whitespace-pre-wrap text-sm text-muted-foreground">
+                    {a.body}
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">{sourceLine}</span>
+                </li>
+              )
+            }
             return (
               <li
                 key={a.id}

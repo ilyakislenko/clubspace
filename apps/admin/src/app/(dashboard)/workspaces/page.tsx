@@ -1,11 +1,17 @@
 "use client"
 
+import { ChevronRight } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
+import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
 import { Button } from "@clubspace/ui-kit/ui"
 import { signOut } from "../../../shared/api/client"
 import { fetchMe } from "../../../shared/api/me"
+import {
+  listMyOrganizations,
+  type MyOrganization,
+} from "../../../shared/api/organizations"
 import {
   fetchWorkspaces,
   isAdminWorkspace,
@@ -17,6 +23,8 @@ import {
   setActiveWorkspaceId,
 } from "../../../shared/workspace/storage"
 import { CreateClubLink } from "../../../features/billing/CreateClubLink"
+import { orgRoleLabel } from "../../../features/org/org-view"
+import { pickerLanding } from "../../../features/org/picker-landing"
 
 export default function WorkspacesPage() {
   const router = useRouter()
@@ -27,6 +35,8 @@ export default function WorkspacesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  // Federations whose team this account is on (`GET orgs/mine`).
+  const [organizations, setOrganizations] = useState<MyOrganization[]>([])
 
   useEffect(() => {
     let isMounted = true
@@ -38,7 +48,11 @@ export default function WorkspacesPage() {
       try {
         // `me` comes along because platform power is a property of the
         // account, not of a membership — the workspace list can't reveal it.
-        const [data, me] = await Promise.all([fetchWorkspaces(), fetchMe()])
+        const [data, me, orgs] = await Promise.all([
+          fetchWorkspaces(),
+          fetchMe(),
+          listMyOrganizations(),
+        ])
         if (!isMounted) {
           return
         }
@@ -50,26 +64,31 @@ export default function WorkspacesPage() {
         // dead-end them on the "у тебя нет клубов" notice — the one account
         // that can administer everything had nowhere to go. Send them to the
         // console instead, and never auto-dive into a single club: they are
-        // operating the platform, not running that club.
-        if (me.isSuperAdmin) {
-          setIsPlatformAdmin(true)
-          if (adminScoped.length === 0) {
-            router.replace("/platform")
-            return
-          }
-          setWorkspaces(adminScoped)
-          setStudentOnlyWorkspaces(studentScoped)
+        // operating the platform, not running that club. One admin club (or
+        // one federation and no club) opens straight away.
+        const landing = pickerLanding({
+          isSuperAdmin: me.isSuperAdmin,
+          adminClubIds: adminScoped.map((w) => w.workspaceId),
+          organizationIds: orgs.map((o) => o.id),
+        })
+        setIsPlatformAdmin(me.isSuperAdmin)
+        if (landing.kind === "platform") {
+          router.replace("/platform")
           return
         }
-
-        if (adminScoped.length === 1) {
-          setActiveWorkspaceId(adminScoped[0].workspaceId)
-          router.replace(`/workspace/${adminScoped[0].workspaceId}`)
+        if (landing.kind === "club") {
+          setActiveWorkspaceId(landing.workspaceId)
+          router.replace(`/workspace/${landing.workspaceId}`)
+          return
+        }
+        if (landing.kind === "org") {
+          router.replace(`/org/${landing.organizationId}`)
           return
         }
 
         setWorkspaces(adminScoped)
         setStudentOnlyWorkspaces(studentScoped)
+        setOrganizations(orgs)
       } catch {
         if (isMounted) {
           setError("Не удалось загрузить клубы. Попробуйте ещё раз.")
@@ -104,9 +123,13 @@ export default function WorkspacesPage() {
       <div className="w-full max-w-3xl space-y-6 rounded-lg border bg-background p-6 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold">Выберите клуб</h1>
+            <h1 className="text-2xl font-semibold">
+              {organizations.length > 0 ? "Выберите клуб или федерацию" : "Выберите клуб"}
+            </h1>
             <p className="text-sm text-muted-foreground">
-              Выберите клуб, которым хотите управлять.
+              {organizations.length > 0
+                ? "Выберите, чем хотите управлять."
+                : "Выберите клуб, которым хотите управлять."}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -131,7 +154,7 @@ export default function WorkspacesPage() {
           <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
           </div>
-        ) : workspaces.length === 0 ? (
+        ) : workspaces.length === 0 && organizations.length === 0 ? (
           <div className="space-y-3">
             <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
               <div className="font-medium">Доступ в админку только у тренеров и администраторов</div>
@@ -147,23 +170,57 @@ export default function WorkspacesPage() {
             <CreateClubLink text="Хотите вести свой клуб?" />
           </div>
         ) : (
-          <div className="grid gap-3">
-            {workspaces.map((workspace) => (
-              <div
-                key={workspace.workspaceId}
-                className="flex flex-col items-start justify-between gap-4 rounded-md border p-4 sm:flex-row sm:items-center"
-              >
-                <div className="space-y-1">
-                  <div className="text-base font-medium">{workspace.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {workspace.key} · {workspaceTypeLabel(workspace.type)}
-                  </div>
-                </div>
-                <Button onClick={() => handleSelect(workspace)}>
-                  Открыть клуб
-                </Button>
-              </div>
-            ))}
+          <div className="space-y-6">
+            {workspaces.length > 0 && (
+              <section className="space-y-2">
+                {organizations.length > 0 && (
+                  <h2 className="text-sm font-medium text-muted-foreground">Клубы</h2>
+                )}
+                <ul className="divide-y divide-border overflow-hidden rounded-md border">
+                  {workspaces.map((workspace) => (
+                    <li key={workspace.workspaceId}>
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-muted/50"
+                        onClick={() => handleSelect(workspace)}
+                      >
+                        <span className="space-y-1">
+                          <span className="block text-base font-medium">{workspace.name}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {workspace.key} · {workspaceTypeLabel(workspace.type)}
+                          </span>
+                        </span>
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {organizations.length > 0 && (
+              <section className="space-y-2">
+                <h2 className="text-sm font-medium text-muted-foreground">Федерации</h2>
+                <ul className="divide-y divide-border overflow-hidden rounded-md border">
+                  {organizations.map((org) => (
+                    <li key={org.id}>
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-muted/50"
+                        onClick={() => router.push(`/org/${org.id}`)}
+                      >
+                        <span className="space-y-1">
+                          <span className="block text-base font-medium">{org.name}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {orgRoleLabel(org.role, vocabularyForWorkspaceType(org.type))}
+                          </span>
+                        </span>
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
         )}
       </div>

@@ -132,3 +132,18 @@ export const LEGACY_REDIRECTS: readonly { from: string; to: string }[] = [
   { from: 'analytics/churn', to: 'retention' },
   { from: 'videos', to: 'content' },
 ]
+
+// The federation console (/org/<id>, docs/design/2026-11-26-federation-hub-mvp.md
+// §4.1). `email` signs in and must land on /org/<id> (a federation-only
+// account) and see exactly `routes` in its sidebar, each rendering clean.
+// Routes are relative to /org/<id>/.
+export const ORG_ROUTES = ['', 'registry', 'events', 'announcements', 'ladders', 'team', 'settings'] as const
+
+export const ORG_MATRIX: readonly { email: string; routes: readonly string[] }[] = [
+  { email: 'federation@academy.demo', routes: ORG_ROUTES },
+]
+
+// A club owner is not on the federation's team: opening the console by URL
+// shows the notice, and the club's own settings offer «Федерация» (ACADEMY is
+// a member club).
+export const ORG_OUTSIDER = { email: 'owner@academy.demo', federationSettings: 'settings/federation' } as const

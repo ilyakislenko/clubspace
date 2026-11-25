@@ -1,15 +1,17 @@
+import Redis from 'ioredis'
 import { argv, exit } from 'process'
 
 import { AnalyticsSnapshotService } from './domains/analytics/analytics-snapshot.service'
 import { AuditService } from './domains/audit/services/audit.service'
 import { DEMO_CLUB_IDS, DEMO_CLUBS, type DemoClubId, isDemoClubId } from './domains/demo/demo-clubs'
 import { DemoClubService } from './domains/demo/demo-club.service'
+import { OrgMetricsCacheService } from './domains/organizations/org-metrics-cache.service'
 import { SubscriptionFreezeService } from './domains/subscriptions/services/subscription-freeze.service'
 import { environment } from './environments/environment'
 import { PrismaService } from './infrastructure/prisma'
 import { resolveDemoMode } from './shared/utils/demo-mode.util'
 
-// `npm run demo:reset [-- academy|ritm|all]` — the console's «Сбросить демо»
+// `npm run demo:reset [-- academy|ritm|berkut|all]` — the console's «Сбросить демо»
 // from a terminal (the Mac before a meeting, docs/demo.md). ACADEMY when no
 // club is named. Same service, same guards: DEMO_MODE must be on and name the
 // demo club, and only the named demo club and its generated people are
@@ -27,6 +29,16 @@ async function main() {
     resolveDemoMode(environment.demo)
     const clubs = clubsToReset(argv[2])
     const prisma = new PrismaService({ url: environment.databaseUrl, poolMax: 4 })
+    // Only to drop the demo federation's cached club numbers after the reset.
+    const redis = new Redis({
+        host: environment.redis.host,
+        port: environment.redis.port,
+        password: environment.redis.password,
+        db: environment.redis.db,
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+    })
+    redis.on('error', () => undefined)
     try {
         await prisma.$connect()
         const demo = new DemoClubService(
@@ -34,6 +46,7 @@ async function main() {
             new SubscriptionFreezeService(prisma),
             new AuditService(prisma),
             new AnalyticsSnapshotService(prisma),
+            new OrgMetricsCacheService(redis),
         )
         for (const club of clubs) {
             const result = await demo.reset({ club, actorId: null })
@@ -46,6 +59,7 @@ async function main() {
         }
     } finally {
         await prisma.$disconnect()
+        redis.disconnect()
     }
 }
 

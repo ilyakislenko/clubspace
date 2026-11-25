@@ -18,6 +18,10 @@ const EXEMPT_PREFIXES = [
     // group (docs/design/2026-11-26-leads.md §3.4). Muting the club's chatter
     // must not lose a new person.
     'lead.',
+    // Federation hub membership (docs/design/2026-11-26-federation-hub-mvp.md
+    // §3.4): an invitation to the club owner, a club joining or leaving to the
+    // org admins — decisions about the club's data, not its chatter.
+    'org.club_',
 ]
 const EXEMPT_KINDS: Record<string, true> = {
     'member.approved': true,
@@ -32,6 +36,9 @@ const EXEMPT_KINDS: Record<string, true> = {
     // reach a member who muted the club; a broadcast (message.broadcast) doesn't.
     'message.direct': true,
     'message.service': true,
+    // A coach booked the person on a federation event: something booked for
+    // them, not chatter (the reminder and org announcements stay mutable).
+    'org_event.registered_by_club': true,
 }
 
 export const isMuteExempt = (kind: string): boolean =>

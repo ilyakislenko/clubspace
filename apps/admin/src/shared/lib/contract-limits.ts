@@ -1,4 +1,15 @@
 import {
+  CreateOrgAnnouncementInputSchema,
+  CreateOrgEventInputSchema,
+  CreateOrgLadderTemplateInputSchema,
+  CreateOrgLadderTemplateLevelInputSchema,
+  CreatePlatformOrganizationInputDtoSchema,
+  InviteClubToOrganizationInputDtoSchema,
+  UpdateOrgAnnouncementInputSchema,
+  UpdateOrgEventInputSchema,
+  UpdateOrgLadderTemplateInputSchema,
+  UpdateOrgLadderTemplateLevelInputSchema,
+  UpdateOrganizationInputDtoSchema,
   ApproveSubscriptionFreezeRequestInputSchema,
   AskAiChatInputSchema,
   AddPayrollAdjustmentInputSchema,
@@ -159,6 +170,10 @@ const MEMBER_PROFILE = [UpdateMemberProfileBodySchema] as const
 const NAMES = [UpdateMemberProfileBodySchema, UpdateMeInputSchema] as const
 // «Добавить заявку» and «Изменить данные» of a trial request.
 const LEAD = [CreateLeadInputSchema, UpdateLeadInputSchema] as const
+const ORG_ANNOUNCEMENT = [CreateOrgAnnouncementInputSchema, UpdateOrgAnnouncementInputSchema] as const
+const ORG_EVENT = [CreateOrgEventInputSchema, UpdateOrgEventInputSchema] as const
+const ORG_TEMPLATE = [CreateOrgLadderTemplateInputSchema, UpdateOrgLadderTemplateInputSchema] as const
+const TEMPLATE_LEVEL = [CreateOrgLadderTemplateLevelInputSchema, UpdateOrgLadderTemplateLevelInputSchema] as const
 
 export const FORM_LIMITS = {
   plan: {
@@ -354,5 +369,42 @@ export const FORM_LIMITS = {
   },
   leadLost: {
     comment: text([SetLeadStatusInputSchema] as const, "lostComment"),
+  },
+  // Federation hub: the org console and the platform's «Создать федерацию».
+  orgAnnouncement: {
+    title: text(ORG_ANNOUNCEMENT, "title"),
+    body: text(ORG_ANNOUNCEMENT, "body"),
+  },
+  orgEvent: {
+    title: text(ORG_EVENT, "title"),
+    description: text(ORG_EVENT, "description"),
+    place: text(ORG_EVENT, "place"),
+    address: text(ORG_EVENT, "address"),
+    feeNote: text(ORG_EVENT, "feeNote"),
+    capacity: int(ORG_EVENT, "capacity"),
+  },
+  organization: {
+    name: text([UpdateOrganizationInputDtoSchema] as const, "name"),
+    city: text([UpdateOrganizationInputDtoSchema] as const, "city"),
+    description: text([UpdateOrganizationInputDtoSchema] as const, "description"),
+  },
+  orgInvite: {
+    joinCode: text([InviteClubToOrganizationInputDtoSchema] as const, "joinCode"),
+  },
+  orgTemplate: {
+    name: text(ORG_TEMPLATE, "name"),
+    audience: text(ORG_TEMPLATE, "audience"),
+  },
+  templateLevel: {
+    name: text(TEMPLATE_LEVEL, "name"),
+    color: text(TEMPLATE_LEVEL, "color"),
+    maxStripes: int(TEMPLATE_LEVEL, "maxStripes"),
+    minVisits: int(TEMPLATE_LEVEL, "minVisits"),
+    minWeeks: int(TEMPLATE_LEVEL, "minWeeks"),
+  },
+  platformOrganization: {
+    name: text([CreatePlatformOrganizationInputDtoSchema] as const, "name"),
+    key: text([CreatePlatformOrganizationInputDtoSchema] as const, "key"),
+    city: text([CreatePlatformOrganizationInputDtoSchema] as const, "city"),
   },
 } as const satisfies Record<string, Record<string, ContractLimit>>

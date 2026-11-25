@@ -48,6 +48,7 @@ import { type ClubVocabulary } from "@clubspace/ui-kit/brand"
 import { signOut } from "../../../../shared/api/client"
 import { fetchMe, type Me } from "../../../../shared/api/me"
 import { fetchWorkspaces, isAdminWorkspace } from "../../../../shared/api/workspaces"
+import { listMyOrganizations } from "../../../../shared/api/organizations"
 import {
   hasAccess,
   isClubAdmin,
@@ -183,8 +184,10 @@ export function WorkspaceSidebar() {
   const [me, setMe] = useState<Me | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   // «Сменить клуб» only when there is another club to switch to: with one,
-  // /workspaces sends the account straight back here.
+  // /workspaces sends the account straight back here. On a federation's team
+  // too: it also leads to the federation.
   const [adminClubs, setAdminClubs] = useState(0)
+  const [hasOrganization, setHasOrganization] = useState(false)
   useEffect(() => {
     let alive = true
     fetchMe()
@@ -192,6 +195,9 @@ export function WorkspaceSidebar() {
       .catch(() => undefined)
     fetchWorkspaces()
       .then((list) => alive && setAdminClubs(list.filter(isAdminWorkspace).length))
+      .catch(() => undefined)
+    listMyOrganizations()
+      .then((orgs) => alive && setHasOrganization(orgs.length > 0))
       .catch(() => undefined)
     return () => {
       alive = false
@@ -324,11 +330,11 @@ export function WorkspaceSidebar() {
                     </Link>
                   </DropdownMenuItem>
                 )}
-                {(adminClubs > 1 || me?.isSuperAdmin) && (
+                {(adminClubs > 1 || hasOrganization || me?.isSuperAdmin) && (
                   <DropdownMenuItem asChild>
                     <Link href="/workspaces">
                       <ArrowLeftRight className="size-4" />
-                      Сменить клуб
+                      {hasOrganization ? "Сменить клуб или федерацию" : "Сменить клуб"}
                     </Link>
                   </DropdownMenuItem>
                 )}

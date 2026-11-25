@@ -95,6 +95,34 @@ export const createPlatformWorkspace = async (
     }),
   )
 
+// Federations (docs/design/2026-11-26-federation-hub-mvp.md §3.2): created
+// by the platform in the MVP. 404 while ORGANIZATIONS_ENABLED is off — the
+// console then shows no «Федерации» section.
+export type PlatformOrganization = ApiTypes.ListPlatformOrganizationsOutputDtoOutput["data"][number]
+export type CreatePlatformOrganizationBody = ApiTypes.CreatePlatformOrganizationInputDto
+export type CreatePlatformOrganizationResult = ApiTypes.CreatePlatformOrganizationOutputDtoOutput
+
+export const fetchPlatformOrganizations = async (): Promise<PlatformOrganization[]> =>
+  (
+    await getApiClient().request<ApiTypes.ListPlatformOrganizationsOutputDtoOutput>({
+      method: "get",
+      url: "/platform/organizations",
+    })
+  ).data
+
+export const createPlatformOrganization = async (
+  body: CreatePlatformOrganizationBody,
+): Promise<CreatePlatformOrganizationResult> => {
+  const result = await getApiClient().request<CreatePlatformOrganizationResult, CreatePlatformOrganizationBody>({
+    method: "post",
+    url: "/platform/organizations",
+    data: body,
+  })
+  // The creator may have named themselves the first admin.
+  invalidateReads("orgs:mine")
+  return result
+}
+
 export type PlatformWorkspaceBillingCard =
   ApiTypes.PlatformWorkspaceBillingOutputOutput
 export type UpdatePlatformWorkspaceBillingBody =

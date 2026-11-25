@@ -1,6 +1,7 @@
 import { isoDayOfWeek, localDateInTz } from '../../features/attendance/attendance-utils'
 import { ymdToDbDate } from '../subscriptions/freeze-dates'
 import { buildDemoClubPlan, type DemoClubPlan, type DemoPlanInput } from './demo-club.plan'
+import { buildBerkutDemoPlan } from './berkut-demo.plan'
 import { buildRitmDemoPlan } from './ritm-demo.plan'
 
 // Whatever day and hour the demo is reset, both clubs read the same: classes
@@ -67,6 +68,9 @@ describe('demo clubs, reset on any day at any hour', () => {
                     const now = new Date(START.getTime() + d * DAY + h * 3_600_000)
                     check(buildDemoClubPlan(input(now, timezone)), now, timezone, true)
                     check(buildRitmDemoPlan(input(now, timezone)), now, timezone, false)
+                    // «Беркут» is the federation's club (no requests or
+                    // promo of its own): only nothing «in the future».
+                    expect(futureStamps(buildBerkutDemoPlan(input(now, timezone)), now)).toEqual([])
                 }
             }
         })
