@@ -51,10 +51,11 @@ export default {
     // the 40th file instead of reporting its failures. Setting this moves the
     // files into a single child worker (still one at a time — maxWorkers: 1)
     // that jest replaces whenever its heap is above the limit after a file, so
-    // memory is bounded by one file, not by the suite. The heap ceiling for
-    // that worker comes from NODE_OPTIONS in package.json `test:e2e`,
-    // scripts/verify.sh and the CI e2e job.
-    workerIdleMemoryLimit: '2GB',
+    // memory is bounded by one file, not by the suite. Same value as the
+    // preset, repeated here because this suite depends on it to get a child
+    // worker at all. The heap ceiling for that worker comes from NODE_OPTIONS
+    // in package.json `test:e2e`, scripts/verify.sh and the CI e2e job.
+    workerIdleMemoryLimit: '1GB',
 
     // Booting the whole AppModule (Prisma connect, BullMQ handshake, seeding)
     // costs a few seconds before the first assertion in a fresh suite.
