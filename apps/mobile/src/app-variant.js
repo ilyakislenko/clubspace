@@ -61,6 +61,13 @@ const CAMERA_PERMISSION =
 const PHOTOS_PERMISSION =
   "Доступ к галерее нужен, чтобы отправить своё видео на разбор"
 
+// EAS Update (OTA): a JS/asset fix published with scripts/eas-update.mjs
+// reaches installed apps without a store release. On every cold start the app
+// asks the update server and waits at most this long; on a slow or dead
+// network it starts the update it already has and finishes the download in
+// the background, so the new one runs from the next cold start.
+const UPDATE_CHECK_TIMEOUT_MS = 3000
+
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
 
 const trimmed = (value) => {
@@ -143,6 +150,40 @@ function joinLinkClaims(host) {
   }
 }
 
+// EAS Update, only for a build tied to an EAS project (EAS_PROJECT_ID): the
+// update server lives under the project id. Without one — `expo start`, the
+// PWA, a local demo build — updates are off and the app runs the bundle it
+// was built with.
+//
+// Runtime version = fingerprint, not appVersion: `version` stays 1.0.0 until
+// the first store release, so under appVersion every build would share one
+// runtime, and a JS update that needs a newly added native module (or a
+// permission, a plugin option) would land on binaries without it and crash.
+// The fingerprint hashes the native side — this resolved config, the native
+// packages, config plugins — so any native change makes a new runtime and an
+// update reaches only the builds it fits. The config depends on the build env
+// (variant, brand colour, link host, http API), which is why an update is
+// published with its profile's env: scripts/eas-update.mjs.
+//
+// No channel here: EAS Build writes the eas.json profile's `channel` into the
+// binary (preview → preview, production/store → production, branded/
+// branded-store → branded; development has none and takes no updates). A
+// per-profile value in this config would also change the fingerprint, which
+// `eas update` computes without a build profile. A club's branded app lives
+// in its own EAS project (own slug, project id and update URL), so ClubSpace
+// updates never reach it, and the other way round.
+function updatesConfig(projectId) {
+  if (!projectId) return { updates: { enabled: false } }
+  return {
+    runtimeVersion: { policy: "fingerprint" },
+    updates: {
+      url: `https://u.expo.dev/${projectId}`,
+      checkAutomatically: "ON_LOAD",
+      fallbackToCacheTimeout: UPDATE_CHECK_TIMEOUT_MS,
+    },
+  }
+}
+
 function resolveAppConfig(env) {
   const id = resolveAppIdentity(env)
   const asset = (file) => `${id.assetsDir}/${file}`
@@ -162,6 +203,7 @@ function resolveAppConfig(env) {
     scheme: [id.scheme],
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
+    ...updatesConfig(projectId),
     ios: {
       supportsTablet: true,
       bundleIdentifier: id.bundleId,

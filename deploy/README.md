@@ -341,6 +341,12 @@ SQL
   Expo, а Android-сборке нужен FCM-ключ (Firebase → `google-services.json`),
   загруженный в EAS-проект; для iOS — APNs-ключ в EAS. Без них приложение
   работает, но уведомления не приходят. Подробно — [docs/store-distribution.md](../docs/store-distribution.md).
+- **Исправления без магазина (OTA).** Правка JS после показа доходит до
+  установленных приложений за один-два перезапуска:
+  `cd apps/mobile && npm run update:ota -- production "что исправлено"`
+  (нужны `eas login`, `EAS_PROJECT_ID` и локальная копия `google-services.json`
+  в `GOOGLE_SERVICES_FILE`). Что так можно выпустить, а что
+  требует сборки, и как откатить — [docs/store-distribution.md, раздел 11](../docs/store-distribution.md#11-ota-обновления-eas-update).
 
 ### 10. Проверка «всё работает»
 
@@ -741,9 +747,11 @@ rerun it with
    which rejects APKs. `store` extends `production`, so both share the same env
    (API URL, web URL, support email) that `set-mobile-target.sh` wrote.
    (eas.json is strict JSON-schema: it cannot carry comments, so this is where
-   that is written down.) Push notifications additionally need `EAS_PROJECT_ID`
-   and `GOOGLE_SERVICES_FILE` — see
-   [docs/store-distribution.md](../docs/store-distribution.md).
+   that is written down.) Push notifications and OTA updates additionally need
+   `EAS_PROJECT_ID` (push on Android also `GOOGLE_SERVICES_FILE`) — see
+   [docs/store-distribution.md](../docs/store-distribution.md). Both profiles
+   share the `production` update channel: one `npm run update:ota -- production
+   "<message>"` reaches the APK and the Play build.
 
    ```bash
    npx eas build --profile store --platform android

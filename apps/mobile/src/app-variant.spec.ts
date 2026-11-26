@@ -18,6 +18,14 @@ type ExpoConfig = {
   web: { favicon: string }
   extra: { eas?: { projectId: string } } & Record<string, unknown>
   plugins: (string | [string, Record<string, unknown>])[]
+  runtimeVersion?: { policy: string }
+  updates?: {
+    enabled?: boolean
+    url?: string
+    checkAutomatically?: string
+    fallbackToCacheTimeout?: number
+    requestHeaders?: Record<string, string>
+  }
 }
 
 const {
@@ -242,6 +250,66 @@ describe("resolveAppConfig — plain-http API", () => {
     for (const url of ["https://api.club.test", "", undefined]) {
       const out = resolveAppConfig({ ...CANONICAL_ENV, EXPO_PUBLIC_API_URL: url })
       expect(out.plugins).not.toContain(CLEARTEXT)
+    }
+  })
+})
+
+describe("resolveAppConfig — OTA updates (EAS Update)", () => {
+  const PROJECT_ID = "6f1c0d2e-0000-4000-8000-000000000000"
+
+  it("keeps updates off without an EAS project (expo start, PWA, local builds)", () => {
+    for (const env of [{}, CANONICAL_ENV, BRANDED_ENV]) {
+      for (const id of [undefined, "", "   "]) {
+        const out = resolveAppConfig({ ...env, EAS_PROJECT_ID: id })
+        expect(out.updates).toEqual({ enabled: false })
+        expect(out.runtimeVersion).toBeUndefined()
+      }
+    }
+  })
+
+  it("checks the project's update server on launch, never blocking start-up for long", () => {
+    const out = resolveAppConfig({
+      ...CANONICAL_ENV,
+      EAS_PROJECT_ID: ` ${PROJECT_ID} `,
+    })
+    expect(out.updates).toEqual({
+      url: `https://u.expo.dev/${PROJECT_ID}`,
+      checkAutomatically: "ON_LOAD",
+      fallbackToCacheTimeout: 3000,
+    })
+  })
+
+  it("ties an update to the native build by fingerprint, not the fixed 1.0.0", () => {
+    const out = resolveAppConfig({ ...CANONICAL_ENV, EAS_PROJECT_ID: PROJECT_ID })
+    expect(out.runtimeVersion).toEqual({ policy: "fingerprint" })
+  })
+
+  it("serves a branded app from its own EAS project", () => {
+    const clubProject = "0d9e8f7a-1111-4000-8000-000000000000"
+    const out = resolveAppConfig({ ...BRANDED_ENV, EAS_PROJECT_ID: clubProject })
+    expect(out.updates?.url).toBe(`https://u.expo.dev/${clubProject}`)
+    expect(out.runtimeVersion).toEqual({ policy: "fingerprint" })
+  })
+
+  it("sets no channel: eas.json does, outside the fingerprinted config", () => {
+    for (const env of [CANONICAL_ENV, BRANDED_ENV]) {
+      for (const profile of [undefined, "preview", "production", "branded"]) {
+        const out = resolveAppConfig({
+          ...env,
+          EAS_PROJECT_ID: PROJECT_ID,
+          EAS_BUILD_PROFILE: profile,
+        })
+        expect(Object.keys(out.updates ?? {}).sort()).toEqual([
+          "checkAutomatically",
+          "fallbackToCacheTimeout",
+          "url",
+        ])
+        expect(JSON.stringify(out)).not.toContain("expo-channel-name")
+        // The config, and so the fingerprint, is the same for every profile.
+        expect(out).toEqual(
+          resolveAppConfig({ ...env, EAS_PROJECT_ID: PROJECT_ID }),
+        )
+      }
     }
   })
 })

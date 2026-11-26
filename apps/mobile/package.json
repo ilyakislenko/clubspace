@@ -9,7 +9,8 @@
     "ios": "expo run:ios",
     "build:pwa": "node scripts/build-pwa.mjs",
     "serve:pwa": "node scripts/serve-pwa.mjs",
-    "start:web": "node scripts/sync-web-assets.mjs && expo start --web"
+    "start:web": "node scripts/sync-web-assets.mjs && expo start --web",
+    "update:ota": "node scripts/eas-update.mjs"
   },
   "dependencies": {
     "@expo/metro-config": "*",
@@ -36,6 +37,7 @@
     "expo-splash-screen": "*",
     "expo-status-bar": "*",
     "expo-system-ui": "*",
+    "expo-updates": "~58.0.22",
     "expo-video": "~58.0.14",
     "jest-expo": "^58.0.15",
     "metro-config": "*",

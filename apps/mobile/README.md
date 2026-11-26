@@ -57,6 +57,17 @@ with no env at all; the release check refuses that for a real build.
 - Push: `expo-notifications` is a config plugin; `EAS_PROJECT_ID` becomes
   `extra.eas.projectId` (push tokens) and `GOOGLE_SERVICES_FILE` (an EAS file
   variable) becomes `android.googleServicesFile` (FCM).
+- OTA updates (`expo-updates`): with `EAS_PROJECT_ID` the build checks
+  `https://u.expo.dev/<id>` on every cold start (waits at most 3 s, otherwise
+  applies the download on the next cold start); `runtimeVersion` is the
+  fingerprint, so a native change needs a new build. Channels come from
+  `eas.json`. Publish with `npm run update:ota -- <profile> "<message>"`
+  (`scripts/eas-update.mjs`, never bare `eas update`: it skips the profile's
+  env). Android publishes need `GOOGLE_SERVICES_FILE`: a local copy of the
+  build's `google-services.json` (its content is fingerprinted). Without
+  `EAS_PROJECT_ID` updates are off. Settings → «О приложении» appends the
+  running update's short id to the version. Details:
+  `docs/store-distribution.md`, section 11.
 - Release check (`scripts/check-release-env.mjs`, rules in `src/release-env.js`):
   refuses placeholder URLs/contacts, a canonical build that is not the picker, a
   branded build without its own name, id, club key or artwork, or under a
@@ -111,3 +122,4 @@ with no env at all; the release check refuses that for a real build.
   `tsconfig.json` reports clean when it is not).
 - Tests: `NX_DAEMON=false npx nx test @clubspace/mobile`
 - PWA: `npm run build:pwa`
+- OTA update: `npm run update:ota -- production "<message>"` (from `apps/mobile`)

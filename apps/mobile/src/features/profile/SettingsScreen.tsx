@@ -27,6 +27,7 @@ import { useVocabulary } from "../../shared/use-vocabulary"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
+import { runningUpdateId } from "../../shared/app-update"
 import { Chevron } from "../../shared/components/Chevron"
 import { Switch } from "../../shared/components/Switch"
 import { environment } from "../../shared/env"
@@ -185,8 +186,12 @@ export function SettingsScreen(_props: Props) {
     )
   }
 
+  // With an OTA update running, its short id follows the version: support
+  // reads it to tell whether a fix has arrived.
+  const updateId = runningUpdateId()
   const appVersion =
-    Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "—"
+    (Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "—") +
+    (updateId ? ` · ${updateId}` : "")
 
   if (!prefs) {
     return <SafeAreaView style={styles.root} />
@@ -493,7 +498,11 @@ export function SettingsScreen(_props: Props) {
         <Section title="О приложении">
           <Row
             label={brand.displayName}
-            right={<Text style={styles.value}>версия {appVersion}</Text>}
+            right={
+              <Text style={styles.value} selectable>
+                версия {appVersion}
+              </Text>
+            }
           />
           <LinkRow
             label="Поддержка"

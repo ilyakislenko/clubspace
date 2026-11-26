@@ -29,6 +29,33 @@ const isMissing = (value) =>
   (value ?? "").trim().length === 0 || value.startsWith("REPLACE_")
 
 /**
+ * The server and web URLs a release bundle is made with: https, not a
+ * placeholder. Shared with src/ota-publish.js, so an OTA update can't ship
+ * what the build guard refuses.
+ *
+ * @param {Record<string, string | undefined>} env
+ * @returns {string[]}
+ */
+function releaseUrlErrors(env) {
+  const errors = []
+  for (const name of ["EXPO_PUBLIC_API_URL", "EXPO_PUBLIC_WEB_URL"]) {
+    const value = env[name] ?? ""
+    let hostname = ""
+    try {
+      hostname = new URL(value).hostname
+    } catch {
+      /* falls through to the https check below */
+    }
+    if (!value.startsWith("https://") || hostname === "") {
+      errors.push(`${name} must be an https URL, got "${value}"`)
+    } else if (isPlaceholderHost(hostname)) {
+      errors.push(`${name} is a placeholder, got "${value}"`)
+    }
+  }
+  return errors
+}
+
+/**
  * @param {{
  *   profile: string | undefined,
  *   platform: string | undefined,
@@ -44,23 +71,9 @@ function checkReleaseEnv({ profile, platform, env, fileExists, sameFile }) {
   const branded = BRANDED_PROFILES.includes(profile)
   if (!branded && !CANONICAL_PROFILES.includes(profile)) return null
 
-  const errors = []
+  const errors = releaseUrlErrors(env)
   const warnings = []
 
-  for (const name of ["EXPO_PUBLIC_API_URL", "EXPO_PUBLIC_WEB_URL"]) {
-    const value = env[name] ?? ""
-    let hostname = ""
-    try {
-      hostname = new URL(value).hostname
-    } catch {
-      /* falls through to the https check below */
-    }
-    if (!value.startsWith("https://") || hostname === "") {
-      errors.push(`${name} must be an https URL, got "${value}"`)
-    } else if (isPlaceholderHost(hostname)) {
-      errors.push(`${name} is a placeholder, got "${value}"`)
-    }
-  }
   const required = ["EXPO_PUBLIC_BRAND", "EXPO_PUBLIC_SUPPORT_EMAIL"]
   if (branded) {
     required.push(
@@ -94,11 +107,13 @@ function checkReleaseEnv({ profile, platform, env, fileExists, sameFile }) {
   }
 
   // Push: Expo issues push tokens per EAS project, and Android delivers them
-  // through FCM. Neither breaks the build, so they are warnings.
+  // through FCM. OTA updates are served per EAS project too. None of it breaks
+  // the build, so they are warnings.
   if (isMissing(env.EAS_PROJECT_ID)) {
     warnings.push(
       "EAS_PROJECT_ID is not set: extra.eas.projectId is missing, push tokens " +
-        "fall back to the worker's project id (set it for local builds too).",
+        "fall back to the worker's project id (set it for local builds too), " +
+        "and OTA updates are off — this build never receives an `eas update`.",
     )
   }
   const googleServices = (env.GOOGLE_SERVICES_FILE ?? "").trim()
@@ -177,4 +192,9 @@ function checkBrandedIdentity(env, { errors, fileExists, sameFile }) {
   }
 }
 
-module.exports = { checkReleaseEnv, CANONICAL_PROFILES, BRANDED_PROFILES }
+module.exports = {
+  checkReleaseEnv,
+  releaseUrlErrors,
+  CANONICAL_PROFILES,
+  BRANDED_PROFILES,
+}

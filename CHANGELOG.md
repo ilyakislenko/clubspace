@@ -5,6 +5,28 @@
 
 ## Unreleased
 
+### Мобильное приложение: исправления без магазина (OTA)
+- `expo-updates` (~58.0.22): при заданном `EAS_PROJECT_ID` приложение на
+  каждом холодном запуске проверяет `https://u.expo.dev/<проект>`, ждёт не
+  дольше 3 секунд и иначе применяет скачанное при следующем холодном запуске;
+  без `EAS_PROJECT_ID` обновления выключены. `runtimeVersion` — `fingerprint`:
+  версия стоит на 1.0.0, а нативное изменение должно давать новую среду
+  выполнения. Каналы `eas.json`: `preview`, `production` (и `store`),
+  `branded` (в проекте клуба); `development` без канала, у `preview` явная
+  среда EAS `preview`.
+- `npm run update:ota -- <профиль> "<сообщение>"` (`scripts/eas-update.mjs`)
+  публикует `eas update --channel … --environment … --message …` с env
+  профиля из `eas.json` — голый `eas update` его не читает. Для Android нужен
+  `GOOGLE_SERVICES_FILE` — локальная копия того же `google-services.json`, что
+  в EAS (иначе отпечаток не совпадёт); `production`/`store` с заглушками или
+  не-https адресами в `eas.json` не публикуются.
+- «Настройки» → «О приложении»: при запущенном OTA-обновлении после версии
+  стоит его короткий id («версия 1.0.0 · a1b2c3d4») — для поддержки. В PWA
+  его нет, `expo-updates` в веб-сборку не попадает.
+- Проверка релиза предупреждает, что без `EAS_PROJECT_ID` сборка не получит
+  OTA. Как публиковать, что можно и нельзя выпускать OTA, откат —
+  `docs/store-distribution.md`, раздел 11.
+
 ### Зависимости
 - Минорные и патч-обновления npm (Dependabot #507): Expo SDK 58 (патчи),
   Radix, React Navigation, AWS SDK, `@nestjs/throttler`, Scalar, date-fns,
