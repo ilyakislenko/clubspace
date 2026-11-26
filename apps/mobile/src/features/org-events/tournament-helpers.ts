@@ -331,3 +331,16 @@ export const podiumLines = (
       line: `${placeLabel(p.place)} — ${p.tournamentTitle} · ${formatRuDay(p.date)}`,
       linked,
     }))
+
+// ---- «Итоги турнира» ------------------------------------------------------------------
+
+// Divisions that have a podium, the viewer's own first: a member opens the
+// results from their «2 место» line, and their division would otherwise sit
+// under every other one. The rest keep the server's order.
+export const resultsDivisions = <D extends { podium: readonly { isMe: boolean }[] }>(
+  divisions: readonly D[],
+): D[] => {
+  const shown = divisions.filter((d) => d.podium.length > 0)
+  const mine = (d: D) => d.podium.some((p) => p.isMe)
+  return [...shown.filter(mine), ...shown.filter((d) => !mine(d))]
+}

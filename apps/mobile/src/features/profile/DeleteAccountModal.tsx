@@ -155,6 +155,8 @@ export function DeleteAccountModal({
                 inputMode="numeric"
                 maxLength={CODE_LENGTH}
                 returnKeyType="done"
+                // iOS number pad bar: RN's own label is the English «Done».
+                inputAccessoryViewButtonLabel="Удалить аккаунт"
                 onSubmitEditing={() => void confirm()}
                 autoComplete="one-time-code"
                 textContentType="oneTimeCode"

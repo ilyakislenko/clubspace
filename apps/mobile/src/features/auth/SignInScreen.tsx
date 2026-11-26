@@ -225,6 +225,9 @@ export function SignInScreen() {
                 maxLength={6}
                 onSubmitEditing={() => void verifyCode()}
                 returnKeyType="go"
+                // iOS number pads have no return key: RN adds a bar with this
+                // button, labelled in English («Go») unless given a label.
+                inputAccessoryViewButtonLabel="Войти"
                 // iOS/Android offer the code straight from the notification, and
                 // Chrome fills it from the email.
                 autoComplete="one-time-code"
@@ -249,6 +252,7 @@ export function SignInScreen() {
                     maxLength={6}
                     onSubmitEditing={() => void verifyCode()}
                     returnKeyType="go"
+                    inputAccessoryViewButtonLabel="Войти"
                     autoComplete="one-time-code"
                     textContentType="oneTimeCode"
                     autoFocus

@@ -7,6 +7,7 @@ import {
   type ClubTournamentEntry,
   type ClubTournamentLevel,
 } from "../../shared/api/tournaments"
+import { choiceA11y } from "../../shared/choice-a11y"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import { Sheet, useSheetAction } from "../../shared/components/Sheet"
@@ -86,8 +87,7 @@ export function TournamentConfirmSheet({
                   <Pressable
                     key={l.id}
                     onPress={() => setLevelId(l.id)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: active }}
+                    {...choiceA11y("radio", active)}
                     style={styles.option}
                   >
                     <Text style={[styles.text, styles.optionText]}>

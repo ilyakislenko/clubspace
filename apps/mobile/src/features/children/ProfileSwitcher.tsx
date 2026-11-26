@@ -2,6 +2,7 @@ import React from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 
 import { useAuth } from "../../shared/auth-context"
+import { choiceA11y } from "../../shared/choice-a11y"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -61,8 +62,7 @@ export function ProfileSwitcher() {
               key={o.key}
               onPress={() => void switchTo(o.id)}
               disabled={active || busy !== null}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: active, busy: loading }}
+              {...choiceA11y("radio", active, { busy: loading })}
               accessibilityLabel={
                 o.id ? `Профиль ребёнка: ${o.full}` : "Мой профиль"
               }

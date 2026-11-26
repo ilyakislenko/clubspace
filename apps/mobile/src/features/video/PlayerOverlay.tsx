@@ -557,7 +557,11 @@ export function PlayerOverlay({
             />
             <View style={styles.toolbar}>
               <Text style={styles.time}>
-                {formatPosition(time)}
+                {/* A finished video stops a few frames short of its length:
+                    «0:09 / 0:10» under a full bar reads as cut off. */}
+                {formatPosition(
+                  snapshot.duration && !snapshot.playing && snapshot.duration - time < 0.5 ? snapshot.duration : time,
+                )}
                 {snapshot.duration ? ` / ${formatPosition(snapshot.duration)}` : ""}
               </Text>
               <View style={styles.spacer} />

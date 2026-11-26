@@ -18,6 +18,7 @@ import {
   pendingSlotLabel,
   personLabel,
   podiumLines,
+  resultsDivisions,
   roundLabel,
   sortAthletes,
   tournamentSections,
@@ -365,5 +366,19 @@ describe("«Мои пояса»", () => {
       { eventId: "e2", line: "1 место — Открытый турнир · 20 ноября", linked: false },
       { eventId: "e1", line: "3 место — Кубок федерации, 1-й этап · 18 октября", linked: true },
     ])
+  })
+})
+
+describe("«Итоги турнира»", () => {
+  it("puts the viewer's divisions first, drops empty ones, keeps the rest in order", () => {
+    const division = (id: string, places: boolean[]) => ({ id, podium: places.map((isMe) => ({ isMe })) })
+    expect(
+      resultsDivisions([
+        division("men", [false, false]),
+        division("empty", []),
+        division("women", [false]),
+        division("kids", [false, true]),
+      ]).map((d) => d.id),
+    ).toEqual(["kids", "men", "women"])
   })
 })

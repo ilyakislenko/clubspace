@@ -8,6 +8,7 @@ import {
   registerForOrgEvent,
   type OrgEventStudent,
 } from "../../shared/api/organizations"
+import { choiceA11y } from "../../shared/choice-a11y"
 import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
@@ -134,8 +135,7 @@ export function OrgEventStudentsSheet({
                     key={s.userId}
                     onPress={() => onRow(s)}
                     disabled={inert}
-                    accessibilityRole="button"
-                    accessibilityState={{ checked: booked, disabled: inert }}
+                    {...choiceA11y("checkbox", booked, { disabled: inert })}
                     style={({ pressed }) => [styles.row, pressed && styles.pressed]}
                   >
                     <Text style={[styles.name, state === "noConsent" && styles.muted]} numberOfLines={1}>

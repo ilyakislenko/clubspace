@@ -16,6 +16,7 @@ import {
   View,
   type ScrollViewInstance,
 } from "react-native"
+import { choiceA11y } from "../../shared/choice-a11y"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
@@ -777,8 +778,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                       ]}
                       onPress={() => void toggle(g.userId, g.present)}
                       disabled={busy}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: g.present, disabled: busy }}
+                      {...choiceA11y("checkbox", g.present, { disabled: busy })}
                     >
                       <View
                         style={[styles.check, g.present && styles.checkOn]}
@@ -837,8 +837,7 @@ export function SessionAttendanceScreen({ navigation, route }: Props) {
                         ]}
                         onPress={() => void toggle(e.userId, e.present)}
                         disabled={busy}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: e.present, disabled: busy }}
+                        {...choiceA11y("checkbox", e.present, { disabled: busy })}
                       >
                         <View
                           style={[

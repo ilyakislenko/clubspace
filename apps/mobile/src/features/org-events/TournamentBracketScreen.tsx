@@ -34,8 +34,9 @@ type Props = NativeStackScreenProps<RootStackParamList, "TournamentBracket">
 /**
  * One division's bracket, read-only. Phone: round tabs («1/4 · 1/2 · Финал»)
  * over a list of matches; tablet: every round as a column. The viewer's
- * athlete has the accent border, their club a dot; hidden people read
- * «Участник скрыт». Nobody's weight or birth year is ever here.
+ * athlete has the accent border, their club's name is in bold (as in «Итоги»);
+ * hidden people read «Участник скрыт». Nobody's weight or birth year is ever
+ * here.
  */
 export function TournamentBracketScreen({ route }: Props) {
   const { workspaceId, eventId, divisionId } = route.params
@@ -168,19 +169,20 @@ function PersonLine({
     )
   }
   return (
-    <View style={styles.person}>
-      <View style={styles.personText}>
-        <Text style={[styles.name, winner && styles.winner]} numberOfLines={1}>
-          {personName(person)}
-        </Text>
-        {!person.hidden && person.clubName && (
-          <Text style={styles.club} numberOfLines={1}>
-            {person.clubName}
-          </Text>
-        )}
-      </View>
+    <View>
+      <Text style={[styles.name, winner && styles.winner]} numberOfLines={1}>
+        {personName(person)}
+      </Text>
       {/* A hidden person shows nothing about them, the club included. */}
-      {person.isMyClub && !person.hidden && <View style={styles.dot} accessibilityLabel="Ваш клуб" />}
+      {!person.hidden && person.clubName && (
+        <Text
+          style={[styles.club, person.isMyClub && styles.myClub]}
+          numberOfLines={1}
+          accessibilityLabel={person.isMyClub ? `${person.clubName}, ваш клуб` : undefined}
+        >
+          {person.clubName}
+        </Text>
+      )}
     </View>
   )
 }
@@ -260,11 +262,9 @@ const makeStyles = (theme: Theme) =>
       backgroundColor: theme.colors.surfaceElevated,
     },
     cardMe: { borderColor: theme.colors.accent, borderWidth: 2 },
-    person: { flexDirection: "row", alignItems: "center", gap: theme.spacing(2) },
-    personText: { flex: 1 },
     name: { fontSize: 15, color: theme.colors.text },
     pending: { fontSize: 13, color: theme.colors.muted, paddingVertical: 2 },
     winner: { fontWeight: "700" },
     club: { fontSize: 12, color: theme.colors.muted },
-    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.mutedFaint },
+    myClub: { color: theme.colors.text, fontWeight: "600" },
   })
