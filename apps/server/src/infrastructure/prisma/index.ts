@@ -2,6 +2,7 @@ export * from './generated/client'
 export * from './prisma.config'
 export * from './prisma.module'
 export * from './prisma.service'
+export * from './background-tasks'
 export * from './generated/enums'
 
 import { DefaultArgs, ITXClientDenyList } from '@prisma/client/runtime/client'

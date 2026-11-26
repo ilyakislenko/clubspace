@@ -1,7 +1,8 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 
 import { captureException } from '../../app/sentry'
 import { ClassPackNotifierService } from '../../domains/subscriptions/services/class-pack-notifier.service'
+import { PrismaService } from '../../infrastructure/prisma'
 import { AchievementNotifierService } from '../get-my-achievements/achievement-notifier.service'
 
 export type CheckInFollowUp = {
@@ -21,32 +22,24 @@ export type CheckInFollowUp = {
  * the coach or member, whose check-in already stands.
  */
 @Injectable()
-export class CheckInFollowUpService implements OnModuleDestroy {
+export class CheckInFollowUpService {
     private readonly logger = new Logger(CheckInFollowUpService.name)
-    private readonly inFlight = new Set<Promise<void>>()
 
     constructor(
+        private readonly prisma: PrismaService,
         private readonly classPacks: ClassPackNotifierService,
         private readonly achievements: AchievementNotifierService,
     ) {}
 
-    /** Fire-and-forget; the caller must already have committed. */
+    /**
+     * Fire-and-forget; the caller must already have committed. Tracked in
+     * PrismaService.background, so shutdown waits for it.
+     */
     schedule(job: CheckInFollowUp): void {
         if (job.userIds.length === 0 && job.subscriptionIds.length === 0) {
             return
         }
-        const task = this.run(job).finally(() => this.inFlight.delete(task))
-        this.inFlight.add(task)
-    }
-
-    /** Resolves once every scheduled follow-up has settled. */
-    async drain(): Promise<void> {
-        await Promise.all([...this.inFlight])
-    }
-
-    // Let pending pushes finish before Prisma disconnects on shutdown.
-    async onModuleDestroy(): Promise<void> {
-        await this.drain()
+        this.prisma.background.run(() => this.run(job))
     }
 
     private async run(job: CheckInFollowUp): Promise<void> {

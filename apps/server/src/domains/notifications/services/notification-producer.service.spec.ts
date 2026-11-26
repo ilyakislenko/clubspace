@@ -1,6 +1,7 @@
 import { NotificationProducerService } from './notification-producer.service'
 
 const p2002 = () => Object.assign(new Error('dup'), { code: 'P2002' })
+const p2003 = () => Object.assign(new Error('fk'), { code: 'P2003' })
 
 // Every app-section flag on — the default a workspace row carries.
 const allFeaturesOn = {
@@ -146,6 +147,31 @@ describe('writeMany', () => {
         // No guardian link: an ordinary user, written as is.
         expect(n).toBe(1)
     })
+
+    it('drops a recipient deleted before the insert and writes the rest', async () => {
+        const prisma = {
+            ...makePrisma(),
+            user: { findMany: jest.fn().mockResolvedValue([{ id: 'b' }]) },
+        }
+        prisma.notification.createManyAndReturn.mockRejectedValueOnce(p2003())
+        const push = makePush()
+        const n = await svc(prisma as never, push).writeMany([
+            { userId: 'gone', topic: 't', message: 'm', metadata: { kind: 'k' } },
+            { userId: 'b', topic: 't', message: 'm', metadata: { kind: 'k' } },
+        ])
+        expect(n).toBe(1)
+        const retry = prisma.notification.createManyAndReturn.mock.calls[1][0].data
+        expect(retry).toEqual([expect.objectContaining({ userId: 'b' })])
+        expect(push.enqueue).toHaveBeenCalledWith(['n1'])
+    })
+
+    it('still throws on any other insert error', async () => {
+        const prisma = makePrisma()
+        prisma.notification.createManyAndReturn.mockRejectedValueOnce(new Error('db down'))
+        await expect(
+            svc(prisma).writeMany([{ userId: 'a', topic: 't', message: 'm', metadata: { kind: 'k' } }]),
+        ).rejects.toThrow('db down')
+    })
 })
 
 describe('notifyUser for a dependent', () => {
@@ -217,6 +243,21 @@ describe('notifyUser', () => {
             promotionId: 'pr1',
         })
         expect(push.enqueue).toHaveBeenCalledWith(['n1'])
+    })
+
+    it('skips a recipient deleted after routing instead of throwing', async () => {
+        const prisma = makePrisma()
+        prisma.notification.create.mockRejectedValueOnce(p2003())
+        const push = makePush()
+        const ok = await svc(prisma, push).notifyUser({
+            userId: 'gone',
+            kind: 'rank.promoted',
+            refId: 'pr1',
+            topic: 'Rank',
+            message: 'Blue belt',
+        })
+        expect(ok).toBe(false)
+        expect(push.enqueue).not.toHaveBeenCalled()
     })
 
     it('stamps the club on the row, and a caller\'s own workspaceId wins', async () => {

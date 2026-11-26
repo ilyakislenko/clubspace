@@ -6,6 +6,8 @@ import {
     OnModuleInit,
 } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { captureException } from '../../app/sentry';
+import { BackgroundTasks } from './background-tasks';
 import { PrismaClient } from './generated/client';
 
 import type { PrismaConfig } from './prisma.config';
@@ -21,6 +23,14 @@ export class PrismaService
 
     private logger = new Logger(PrismaService.name)
     private keepAlive?: ReturnType<typeof setInterval>
+
+    /** Work started by a request and not awaited by it; drained on shutdown. */
+    readonly background = new BackgroundTasks((err) => {
+        this.logger.error(
+            `background task failed: ${err instanceof Error ? err.message : String(err)}`,
+        )
+        captureException(err)
+    })
 
     constructor(
         @Inject(PRISMA_CONFIG)
@@ -101,6 +111,9 @@ export class PrismaService
         if (this.keepAlive) {
             clearInterval(this.keepAlive)
         }
+        // A task still running would reconnect after $disconnect and leave a
+        // pool behind that nothing ends.
+        await this.background.drain()
         await this.$disconnect()
     }
 }

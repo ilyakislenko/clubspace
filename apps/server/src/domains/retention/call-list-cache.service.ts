@@ -74,19 +74,22 @@ export class CallListCacheService {
             workspaceId,
             now: new Date(startedAt),
         })
-        // Stored in the background: the caller already has the list.
+        // Stored in the background (tracked, so shutdown waits for it): the
+        // caller already has the list.
         const entry: Entry = { at: startedAt, list }
-        void withinCacheWait(
-            this.redis.eval(
-                STORE_UNLESS_DROPPED,
-                2,
-                listKey(workspaceId),
-                droppedKey(workspaceId),
-                JSON.stringify(entry),
-                String(startedAt),
-                String(CALL_LIST_TTL_MS),
-            ),
-        ).catch((err: unknown) => this.warn('write', err))
+        this.prisma.background.run(() =>
+            withinCacheWait(
+                this.redis.eval(
+                    STORE_UNLESS_DROPPED,
+                    2,
+                    listKey(workspaceId),
+                    droppedKey(workspaceId),
+                    JSON.stringify(entry),
+                    String(startedAt),
+                    String(CALL_LIST_TTL_MS),
+                ),
+            ).catch((err: unknown) => this.warn('write', err)),
+        )
         return list
     }
 

@@ -2,6 +2,7 @@ jest.mock('./call-list', () => ({ loadCallList: jest.fn() }))
 
 import { Logger } from '@nestjs/common'
 
+import { BackgroundTasks } from '../../infrastructure/prisma/background-tasks'
 import { loadCallList } from './call-list'
 import { CACHE_WAIT_MS, CALL_LIST_TTL_MS, CallListCacheService } from './call-list-cache.service'
 
@@ -32,7 +33,7 @@ const makeRedis = () => {
 
 const make = () => {
     const redis = makeRedis()
-    const prisma = {}
+    const prisma = { background: new BackgroundTasks(jest.fn()) }
     return { redis, prisma, cache: new CallListCacheService(prisma as never, redis as never) }
 }
 
