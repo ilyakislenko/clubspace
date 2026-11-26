@@ -6,6 +6,7 @@ import {
   type ClubTournamentEntry,
   type CompetitorSex,
 } from "../../shared/api/tournaments"
+import { choiceA11y } from "../../shared/choice-a11y"
 import { Pressable } from "../../shared/components/Pressable"
 import { Sheet, useSheetAction } from "../../shared/components/Sheet"
 import { TextInput } from "../../shared/components/TextInput"
@@ -121,6 +122,10 @@ export function TournamentEntrySheet({
             onChangeText={setWeight}
             keyboardType="decimal-pad"
             inputMode="decimal"
+            // iOS decimal/number pads have no return key: this bar's «Готово»
+            // closes the keyboard (RN's own label is the English «Done»).
+            returnKeyType="done"
+            inputAccessoryViewButtonLabel="Готово"
             placeholder="77,4"
             placeholderTextColor={theme.colors.muted}
             style={styles.input}
@@ -137,8 +142,7 @@ export function TournamentEntrySheet({
                 <Pressable
                   key={o.value}
                   onPress={() => setSex(o.value)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: active }}
+                  {...choiceA11y("radio", active)}
                   style={[styles.segment, active && styles.segmentActive]}
                 >
                   <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{o.label}</Text>
@@ -155,6 +159,8 @@ export function TournamentEntrySheet({
               onChangeText={setBirthYear}
               keyboardType="number-pad"
               inputMode="numeric"
+              returnKeyType="done"
+              inputAccessoryViewButtonLabel="Готово"
               maxLength={4}
               placeholder="2012"
               placeholderTextColor={theme.colors.muted}

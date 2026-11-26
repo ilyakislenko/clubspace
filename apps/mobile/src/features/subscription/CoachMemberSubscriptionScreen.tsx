@@ -40,6 +40,7 @@ import {
 import { useAuth } from "../../shared/auth-context"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import { subscribeInvalidation } from "../../shared/cache/cache-events"
+import { choiceA11y } from "../../shared/choice-a11y"
 import {
   CenteredColumn,
   DASHBOARD_WIDTH,
@@ -605,8 +606,7 @@ export function CoachMemberSubscriptionScreen({ navigation, route }: Props) {
           key={m}
           onPress={() => setMethod(m)}
           disabled={busy}
-          accessibilityRole="radio"
-          accessibilityState={{ checked: method === m }}
+          {...choiceA11y("radio", method === m)}
           style={[styles.methodChip, method === m && styles.methodChipOn]}
         >
           <Text style={method === m ? styles.primaryText : styles.secondaryText}>
@@ -693,8 +693,7 @@ export function CoachMemberSubscriptionScreen({ navigation, route }: Props) {
                 key={id ?? "none"}
                 onPress={() => onPick(c)}
                 disabled={busy}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: on }}
+                {...choiceA11y("radio", on)}
                 style={[styles.methodChip, on && styles.methodChipOn]}
               >
                 <Text style={on ? styles.primaryText : styles.secondaryText}>

@@ -105,11 +105,32 @@ describe("orgEventAction", () => {
 
 describe("event lines", () => {
   it("reads places left to members and places taken to the staff", () => {
-    expect(orgEventPlacesLine({ capacity: 200, bookedCount: 23 }, false)).toBe("Свободно 177 из 200")
-    expect(orgEventPlacesLine({ capacity: 200, bookedCount: 200 }, false)).toBe("Мест нет")
-    expect(orgEventPlacesLine({ capacity: 200, bookedCount: 23 }, true)).toBe("Записано 23 из 200")
-    expect(orgEventPlacesLine({ capacity: null, bookedCount: 4 }, false)).toBeNull()
-    expect(orgEventPlacesLine({ capacity: null, bookedCount: 4 }, true)).toBe("Записано 4")
+    const places = (capacity: number | null, bookedCount: number) => ({
+      capacity,
+      bookedCount,
+      tournament: null,
+      registrationState: "OPEN" as const,
+    })
+    expect(orgEventPlacesLine(places(200, 23), false)).toBe("Свободно 177 из 200")
+    expect(orgEventPlacesLine(places(200, 200), false)).toBe("Мест нет")
+    expect(orgEventPlacesLine(places(200, 23), true)).toBe("Записано 23 из 200")
+    expect(orgEventPlacesLine(places(null, 4), false)).toBeNull()
+    expect(orgEventPlacesLine(places(null, 4), true)).toBe("Записано 4")
+    expect(orgEventPlacesLine({ ...places(200, 23), registrationState: "CLOSED" }, false)).toBeNull()
+  })
+
+  it("offers members places only while the tournament is being set up", () => {
+    const cup = (status: "SETUP" | "WEIGH_IN" | "RUNNING" | "FINISHED") => ({
+      capacity: 120,
+      bookedCount: 50,
+      tournament: { id: "t", status, toConfirmCount: null },
+      registrationState: "OPEN" as const,
+    })
+    expect(orgEventPlacesLine(cup("SETUP"), false)).toBe("Свободно 70 из 120")
+    expect(orgEventPlacesLine(cup("WEIGH_IN"), false)).toBeNull()
+    expect(orgEventPlacesLine(cup("RUNNING"), false)).toBeNull()
+    expect(orgEventPlacesLine(cup("FINISHED"), false)).toBeNull()
+    expect(orgEventPlacesLine(cup("RUNNING"), true)).toBe("Записано 50 из 120")
   })
 
   it("shows the organiser's wall clock", () => {

@@ -108,15 +108,19 @@ export const canRegisterStudents = (
   event.audience === "STAFF_AND_MEMBERS" &&
   event.registrationState !== "CLOSED"
 
-// Members read the places left, the staff how many signed up.
+// Members read the places left, the staff how many signed up. A member sees
+// no places once registration is closed, and a tournament takes entries only
+// while it is being set up (not at the weigh-in, while it runs or after).
 export const orgEventPlacesLine = (
-  event: Pick<ClubOrgEvent, "capacity" | "bookedCount">,
+  event: Pick<ClubOrgEvent, "capacity" | "bookedCount" | "tournament" | "registrationState">,
   staff: boolean,
 ): string | null => {
   if (staff) {
     return bookedLine({ capacity: event.capacity, booked: event.bookedCount, waitlist: 0 })
   }
-  return event.capacity === null
+  const closed =
+    event.registrationState === "CLOSED" || (!!event.tournament && event.tournament.status !== "SETUP")
+  return event.capacity === null || closed
     ? null
     : spotsLine({ capacity: event.capacity, booked: event.bookedCount, waitlist: 0 })
 }

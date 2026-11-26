@@ -112,14 +112,6 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 initPendingJoinCapture();
 initPendingMomentCapture();
 
-// The navigator's scene background is transparent so the app-wide
-// ThemedBackground (a gradient for glass, a flat colour otherwise) shows
-// through; each screen still paints its own opaque background except glass.
-const NAV_THEME = {
-  ...DefaultTheme,
-  colors: { ...DefaultTheme.colors, background: 'transparent' },
-};
-
 function RootStack({ activeRoute }: { activeRoute?: string }) {
   const {
     ready,
@@ -562,7 +554,25 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
 
 installCrashReporting();
 
-export const App = () => {
+// The navigator's scene background is transparent so the app-wide
+// ThemedBackground (a gradient for glass, a flat colour otherwise) shows
+// through; each screen still paints its own opaque background except glass.
+// `dark` follows the header the app paints: the native header takes its
+// light/dark style from it, and a fixed light one drew the iOS back button as
+// a light capsule with black text over a dark header — the dark scheme's, and
+// glass's purple one in both schemes.
+const navTheme = (dark: boolean) => ({
+  ...DefaultTheme,
+  dark,
+  colors: { ...DefaultTheme.colors, background: 'transparent' },
+});
+
+function AppNavigation() {
+  const { scheme, key } = useTheme();
+  const theme = React.useMemo(
+    () => navTheme(scheme === 'dark' || key === 'glass'),
+    [scheme, key],
+  );
   // The desktop sidebar highlights the screen you're on. It renders alongside
   // the navigator rather than inside it, so it can't read navigation state via
   // a hook — the container reports the current route instead.
@@ -572,46 +582,50 @@ export const App = () => {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <ToastProvider>
-          <AuthProvider>
-            <DrillProvider>
-              <ThemedBackground>
-                <AppErrorBoundary>
-                  <NavigationContainer
-                    ref={navigationRef}
-                    theme={NAV_THEME}
-                    // Web only: a native stack keeps history in memory, which
-                    // leaves the whole PWA at "/" with a Back button that exits
-                    // the site. Native deep-linking is a separate decision —
-                    // don't turn it on here by accident. (Join links and shared
-                    // lesson moments are the exceptions, handled outside React
-                    // Navigation: pending-join, pending-moment.)
-                    linking={isWeb ? webLinking : undefined}
-                    documentTitle={{
-                      formatter: (options) =>
-                        formatDocumentTitle(options?.title, brand.displayName),
-                    }}
-                    onReady={() => {
-                      syncActiveRoute();
-                      flushPendingPush();
-                      flushPendingJoin();
-                      flushPendingMoment();
-                    }}
-                    onStateChange={syncActiveRoute}
-                  >
-                    <RootStack activeRoute={activeRoute} />
-                  </NavigationContainer>
-                </AppErrorBoundary>
-              </ThemedBackground>
-            </DrillProvider>
-          </AuthProvider>
-        </ToastProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={theme}
+      // Web only: a native stack keeps history in memory, which
+      // leaves the whole PWA at "/" with a Back button that exits
+      // the site. Native deep-linking is a separate decision —
+      // don't turn it on here by accident. (Join links and shared
+      // lesson moments are the exceptions, handled outside React
+      // Navigation: pending-join, pending-moment.)
+      linking={isWeb ? webLinking : undefined}
+      documentTitle={{
+        formatter: (options) =>
+          formatDocumentTitle(options?.title, brand.displayName),
+      }}
+      onReady={() => {
+        syncActiveRoute();
+        flushPendingPush();
+        flushPendingJoin();
+        flushPendingMoment();
+      }}
+      onStateChange={syncActiveRoute}
+    >
+      <RootStack activeRoute={activeRoute} />
+    </NavigationContainer>
   );
-};
+}
+
+export const App = () => (
+  <SafeAreaProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <DrillProvider>
+            <ThemedBackground>
+              <AppErrorBoundary>
+                <AppNavigation />
+              </AppErrorBoundary>
+            </ThemedBackground>
+          </DrillProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
+  </SafeAreaProvider>
+);
 
 export default App;
 

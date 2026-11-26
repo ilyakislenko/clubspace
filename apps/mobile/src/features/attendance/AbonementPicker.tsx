@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import type { VisitAbonement } from "../../shared/api/attendance"
+import { choiceA11y } from "../../shared/choice-a11y"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -47,8 +48,7 @@ export function AbonementOptionList({
             key={o.subscriptionId}
             onPress={() => onSelect(o.subscriptionId)}
             disabled={disabled}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: selected, disabled }}
+            {...choiceA11y("radio", selected, { disabled })}
             style={({ pressed }) => [
               styles.option,
               selected && styles.optionSelected,

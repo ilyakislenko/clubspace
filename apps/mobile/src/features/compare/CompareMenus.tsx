@@ -5,6 +5,7 @@
 import React from "react"
 import { StyleSheet, Text, View } from "react-native"
 
+import { choiceA11y } from "../../shared/choice-a11y"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import { Sheet, useSheetAction } from "../../shared/components/Sheet"
@@ -35,11 +36,13 @@ function OptionRow({
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      accessibilityRole={role}
+      {...(role === "radio"
+        ? choiceA11y("radio", selected, { disabled })
+        : {
+            accessibilityRole: role,
+            accessibilityState: role === "button" ? { disabled } : { checked: selected, disabled },
+          })}
       accessibilityLabel={detail ? `${label}, ${detail}` : label}
-      accessibilityState={
-        role === "button" ? { disabled } : { checked: selected, disabled }
-      }
       style={[styles.row, disabled && styles.disabled]}
     >
       <View style={styles.text}>

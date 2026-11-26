@@ -155,7 +155,9 @@ export function DeleteAccountModal({
                 inputMode="numeric"
                 maxLength={CODE_LENGTH}
                 returnKeyType="done"
-                onSubmitEditing={() => void confirm()}
+                // The number pad bar only closes the keyboard: deleting the
+                // account stays on the red button. (RN's own label: «Done».)
+                inputAccessoryViewButtonLabel="Готово"
                 autoComplete="one-time-code"
                 textContentType="oneTimeCode"
                 editable={!deleting}

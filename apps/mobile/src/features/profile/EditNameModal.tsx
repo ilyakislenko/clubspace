@@ -164,6 +164,8 @@ export function EditNameModal({
                   maxLength={10}
                   accessibilityHint="Необязательно. Например, 07.03.1990"
                   returnKeyType="done"
+                  // iOS number pad bar: RN's own label is the English «Done».
+                  inputAccessoryViewButtonLabel="Сохранить"
                   onSubmitEditing={() => void save()}
                 />
                 <Text style={styles.hint}>

@@ -8,6 +8,7 @@ import {
   type ViewStyle,
 } from "react-native"
 
+import { choiceA11y } from "../../shared/choice-a11y"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
@@ -47,8 +48,7 @@ export function PlayerChoicePopover<T>({
               <Pressable
                 key={String(choice.value)}
                 onPress={() => onSelect(choice.value)}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: isSelected }}
+                {...choiceA11y("radio", isSelected)}
                 accessibilityLabel={choice.accessibilityLabel ?? choice.label}
                 style={({ pressed }) => [
                   styles.option,

@@ -21,6 +21,7 @@ import {
 import { useAuth } from "../../shared/auth-context"
 import { useVocabulary } from "../../shared/use-vocabulary"
 import { invalidateResource } from "../../shared/cache/cache-events"
+import { choiceA11y } from "../../shared/choice-a11y"
 import {
   CenteredColumn,
   READABLE_WIDTH,
@@ -217,8 +218,7 @@ export function ComposeClubMessageScreen({ navigation, route }: Props) {
   ) => (
     <Pressable
       onPress={() => onChange(!checked)}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
+      {...choiceA11y("checkbox", checked)}
       accessibilityLabel={label}
       style={styles.check}
     >

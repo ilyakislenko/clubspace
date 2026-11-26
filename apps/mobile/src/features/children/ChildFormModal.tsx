@@ -188,6 +188,8 @@ export function ChildFormModal({
                   maxLength={10}
                   accessibilityHint="Например, 07.03.2015"
                   returnKeyType="done"
+                  // iOS number pad bar: RN's own label is the English «Done».
+                  inputAccessoryViewButtonLabel={editing ? "Сохранить" : "Добавить"}
                   onSubmitEditing={() => void save()}
                 />
               </View>

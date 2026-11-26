@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import type { MyConsent } from "../../shared/api/consent"
 import { useAuth } from "../../shared/auth-context"
 import { brand } from "../../shared/brand"
+import { choiceA11y } from "../../shared/choice-a11y"
 import { CenteredColumn, READABLE_WIDTH } from "../../shared/components/CenteredColumn"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
@@ -133,8 +134,7 @@ export function ConsentScreen({ consent }: { consent: MyConsent }) {
 
           <Pressable
             onPress={() => setAgreed((v) => !v)}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: agreed }}
+            {...choiceA11y("checkbox", agreed)}
             style={styles.checkRow}
           >
             <View style={[styles.checkbox, agreed && styles.checkboxOn]}>

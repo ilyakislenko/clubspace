@@ -12,7 +12,7 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
-import { personName } from "./tournament-helpers"
+import { personName, resultsDivisions } from "./tournament-helpers"
 
 type Props = NativeStackScreenProps<RootStackParamList, "TournamentResults">
 
@@ -49,9 +49,8 @@ export function TournamentResultsScreen({ route }: Props) {
         >
           {results.error && !data && <ErrorRetry message={results.error} onRetry={results.refetch} />}
           {results.stale && data ? <OfflineNotice /> : null}
-          {data?.divisions
-            .filter((d) => d.podium.length > 0)
-            .map((d) => (
+          {data &&
+            resultsDivisions(data.divisions).map((d) => (
               <View key={d.divisionId} style={styles.division}>
                 <Text style={styles.divisionName}>{d.name}</Text>
                 {[...d.podium]

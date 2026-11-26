@@ -2,6 +2,7 @@ import React from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import type { DependentRelation } from "../../shared/api/dependents"
+import { choiceA11y } from "../../shared/choice-a11y"
 import { Icon } from "../../shared/components/Icon"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
@@ -21,8 +22,7 @@ export function ConsentCheckbox({
   return (
     <Pressable
       onPress={() => onChange(!checked)}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
+      {...choiceA11y("checkbox", checked)}
       accessibilityLabel={CONSENT_TEXT}
       style={styles.consent}
     >
@@ -55,8 +55,7 @@ export function RelationPicker({
             <Pressable
               key={r}
               onPress={() => onChange(r)}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: active }}
+              {...choiceA11y("radio", active)}
               style={[styles.chip, active && styles.chipActive]}
             >
               <Text style={[styles.chipText, active && styles.chipTextActive]}>
