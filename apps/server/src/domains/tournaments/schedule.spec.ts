@@ -1,4 +1,4 @@
-import { autoAssignMats, matQueue, nextMatchFor, type ScheduleMatch } from './schedule'
+import { autoAssignMats, matchesAhead, matQueue, nextMatchFor, type ScheduleMatch } from './schedule'
 
 const m = (
     id: string,
@@ -61,15 +61,25 @@ describe('matQueue', () => {
 })
 
 describe('nextMatchFor', () => {
-    it('counts the matches ahead and names the opponent', () => {
+    it('counts the matches ahead, ready or not, and names the opponent', () => {
+        // d2 runs first on mat 2: its open semifinal and its final (not ready yet).
         expect(nextMatchFor('b', divisions, matches)).toEqual({
             matchId: 'd1-1-1',
             mat: 2,
-            ahead: 1,
+            ahead: 2,
             opponentEntryId: 'a',
             waitingFor: null,
         })
         expect(nextMatchFor('r', divisions, matches)?.ahead).toBe(0)
+    })
+
+    it('«перед вами» never grows as results come in', () => {
+        const afterSemi = matches.map((x) =>
+            x.id === 'd2-1-2' ? { ...x, winnerEntryId: 'r' } : x.id === 'd2-2-1' ? { ...x, entryBId: 'r' } : x,
+        )
+        expect(nextMatchFor('b', divisions, afterSemi)?.ahead).toBe(1)
+        const afterFinal = afterSemi.map((x) => (x.id === 'd2-2-1' ? { ...x, winnerEntryId: 'p' } : x))
+        expect(nextMatchFor('b', divisions, afterFinal)?.ahead).toBe(0)
     })
 
     it('waits for the winner of the feeding match', () => {
@@ -89,6 +99,15 @@ describe('nextMatchFor', () => {
 
     it('a ready match without a mat has no queue position', () => {
         expect(nextMatchFor('x', divisions, matches)).toMatchObject({ mat: null, ahead: null })
+    })
+})
+
+describe('matchesAhead', () => {
+    it('counts earlier divisions on the mat, then earlier rounds and positions of its own', () => {
+        // d1-2-2: d2's semifinal + final, d1's round-1 match, d1-2-1 (round 2, position 1).
+        expect(matchesAhead(divisions, matches, matches.find((x) => x.id === 'd1-2-2')!)).toBe(4)
+        expect(matchesAhead(divisions, matches, matches.find((x) => x.id === 'd2-1-2')!)).toBe(0)
+        expect(matchesAhead(divisions, matches, matches.find((x) => x.id === 'd3-1-1')!)).toBeNull()
     })
 })
 

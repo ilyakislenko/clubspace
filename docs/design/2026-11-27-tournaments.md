@@ -100,7 +100,7 @@ table is added as `ORG_COACH` (hub «Команда»); a dedicated per-event ju
 |---|---|---|---|---|
 | Name, club in bracket / results | if visible¹ | ✓ | ✓ | if visible¹ |
 | Division, place, match method / score | ✓ | ✓ | ✓ | ✓ |
-| Birth year, sex, declared / weighed weight | ✓ | ✓ | ✓ | **never** |
+| Birth year, sex, declared / weighed weight | if visible¹ | ✓ | ✓ | **never** |
 | Level (belt) | as registry, or the coach-picked level | ✓ | ✓ | division label only |
 
 ¹ *Visible* = a live `ORGANIZATION_SHARING` consent for this org at or above `TOURNAMENT_CONSENT_MIN_VERSION`, own
@@ -126,7 +126,9 @@ withdrawing consent never rewrites results. The hub has the same rule for regist
 - **Children:** only a guardian's consent counts (confirmed guardianship). Pushes for a child go to guardians
   (`guardian-routing`, already in `NotificationProducerService`). No photos anywhere in tournament screens.
 - **Retention:** the minute job sets `declaredWeightG` and `weighedWeightG` to null 30 days after
-  `resultsPublishedAt`. Places stay (they are the result), birth year and sex stay (they explain the division).
+  `resultsPublishedAt`, or 30 days after the event's end (its start without an end) when the results are not
+  published, so an abandoned or unpublished tournament doesn't keep weights and a republish never restarts the
+  clock. Places stay (they are the result), birth year and sex stay (they explain the division).
 - Lawyer questions go to `docs/legal/README.md` (§16).
 
 ## 3. Data model (Prisma, additive; `db push` without `--accept-data-loss`)
@@ -720,11 +722,33 @@ Also `notification-route.spec.ts` (three kinds).
   gets 404 on «Подтвердить», as on every other club tournament route.
 - **Every result takes the tournament row lock as well as the division's** (implementation), so a result can't
   interleave with «Опубликовать итоги» or the start; results on different mats queue for milliseconds.
-- **«Мои спортсмены» lists booked people only** (implementation): `listClubTournamentAthletes` returns the people booked
-  on the event through the club (a coach: those of their own groups). An entry needs the booking, and the phone polls the
-  list while the tournament runs, so a whole club of «не записан» rows was noise.
+- **«Мои спортсмены» lists booked people in the coach's write scope** (implementation): `listClubTournamentAthletes`
+  returns the people booked on the event through the club whom the coach may confirm (own groups even where coaches
+  see every group; admin scope: all). An entry needs the booking, the phone polls the list while the tournament runs,
+  and the list and «Ждут подтверждения» now agree with «Подтвердить».
 - **Publishing counts drawable entrants only** (implementation): an unweighed entry returned to the tournament after
   the start can never be drawn, so it doesn't make its undrawn division «не закончена».
+- **«Вернуть приём заявок» drops every bracket drawn during the weigh-in** (implementation, review): club-side
+  cancel, re-declaration and confirmation don't touch brackets, so a bracket kept over SETUP would hold ghosts. A
+  re-declaration that resets the confirmation also clears the weigh-in (weigh again).
+- **The club can't revive a withdrawn entry** (implementation, review): a declaration over a WITHDRAWN entry is
+  400 «Заявка снята», as confirmation already was.
+- **Hidden means hidden in the console too** (implementation, review): for a hidden person the console's entry rows
+  carry no sex, birth year, weights, fit or withdrawal reason (§2.3 table), matching the consent text «после отзыва
+  федерация перестаёт видеть эти данные». They sort by id, not surname. A hidden person in a club bracket carries no
+  «ваш клуб» mark.
+- **«перед вами N» counts matches not ready yet** (implementation, review): `matchesAhead` counts every undecided match
+  of the divisions queued earlier on the mat and the earlier rounds/positions of one's own division, so the number
+  only goes down; `match_soon` uses the same count.
+- **«По очкам» needs both scores, the winner's higher** (implementation, review; 400 otherwise). A decision may be
+  level.
+- **Discipline words in server copy** (implementation, review): pushes and errors say «схватка» / «пояс» for
+  GRAPPLING federations and «выступление» / «уровень» otherwise (`tournament-words.ts`); store errors use the neutral
+  «пара». The mat stays «ковёр».
+- **Minute job bounded** (implementation, review): «Сетки готовы» goes to entrants in a bracket (weighed) of divisions
+  drawn within 2 days, and the job reads existing claims before claiming, so a long tournament isn't re-claimed every
+  minute. The withdrawal journal row stores `reasonGiven`, never the free text. Cancelling a booking releases its entry
+  in the same transaction.
 
 **Admin console, S2 (implementation):**
 - **No «⋯» on the tournament header** (implementation). By status it would hold one or two items (the

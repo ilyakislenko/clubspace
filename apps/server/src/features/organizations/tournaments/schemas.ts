@@ -157,8 +157,10 @@ export const TournamentEntryRowSchema = z.object({
     clubId: z.string().uuid().nullable(),
     clubName: z.string().nullable(),
     status: TournamentEntryStatusSchema,
-    sex: CompetitorSexSchema,
-    birthYear: z.number().int(),
+    // Null for a hidden person (consent withdrawn or club gone): the consent
+    // text promises the federation stops seeing birth year, sex and weight.
+    sex: CompetitorSexSchema.nullable(),
+    birthYear: z.number().int().nullable(),
     declaredWeightKg: z.number().nullable(),
     weighedWeightKg: z.number().nullable(),
     weighedAt: z.iso.datetime().nullable(),
@@ -168,8 +170,9 @@ export const TournamentEntryRowSchema = z.object({
     levelName: z.string().nullable(),
     levelPickedByCoach: z.boolean(),
     // The current weight (weighed, else declared) fits its division; null
-    // without a division or a weight.
+    // without a division or a weight, and for a hidden person.
     fits: z.boolean().nullable(),
+    // Null for a hidden person (free text may name them).
     withdrawnReason: z.string().nullable(),
     place: z.number().int().nullable(),
     updatedAt: z.iso.datetime(),
@@ -311,33 +314,37 @@ export const serializeTournamentDivision = (d: DivisionView): TournamentDivision
     updatedAt: d.updatedAt.toISOString(),
 })
 
-// The org's view of one entry: weights and birth year always (§2.3), the
-// name and club only for a visible person.
+// A hidden person (§2.3) keeps only what runs the bracket: status, division,
+// level label and place. Name, club, sex, birth year, weights, the fit and
+// the free-text withdrawal reason go.
 export const serializeTournamentEntryRow = (
     e: EntryView,
     division: { name: string } | undefined,
     fits: boolean | null,
-): TournamentEntryRow => ({
-    id: e.id,
-    hidden: !e.visible,
-    personName: e.visible ? e.personName : null,
-    clubId: e.visible ? e.workspaceId : null,
-    clubName: e.visible ? e.clubName : null,
-    status: e.status,
-    sex: e.sex,
-    birthYear: e.birthYear,
-    declaredWeightKg: kg(e.declaredWeightG),
-    weighedWeightKg: kg(e.weighedWeightG),
-    weighedAt: e.weighedAt?.toISOString() ?? null,
-    divisionId: e.divisionId,
-    divisionName: division?.name ?? null,
-    levelName: e.levelName,
-    levelPickedByCoach: e.levelSetById !== null,
-    fits,
-    withdrawnReason: e.withdrawnReason,
-    place: e.place,
-    updatedAt: e.updatedAt.toISOString(),
-})
+): TournamentEntryRow => {
+    const shown = e.visible
+    return {
+        id: e.id,
+        hidden: !shown,
+        personName: shown ? e.personName : null,
+        clubId: shown ? e.workspaceId : null,
+        clubName: shown ? e.clubName : null,
+        status: e.status,
+        sex: shown ? e.sex : null,
+        birthYear: shown ? e.birthYear : null,
+        declaredWeightKg: shown ? kg(e.declaredWeightG) : null,
+        weighedWeightKg: shown ? kg(e.weighedWeightG) : null,
+        weighedAt: shown ? (e.weighedAt?.toISOString() ?? null) : null,
+        divisionId: e.divisionId,
+        divisionName: division?.name ?? null,
+        levelName: e.levelName,
+        levelPickedByCoach: e.levelSetById !== null,
+        fits: shown ? fits : null,
+        withdrawnReason: shown ? e.withdrawnReason : null,
+        place: e.place,
+        updatedAt: e.updatedAt.toISOString(),
+    }
+}
 
 export const serializeTournamentCompetitor = (
     e: EntryView,

@@ -10964,8 +10964,8 @@ export type ListTournamentEntriesOutputOutput = {
         clubId: string | null;
         clubName: string | null;
         status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
-        sex: 'FEMALE' | 'MALE';
-        birthYear: number;
+        sex: 'FEMALE' | 'MALE' | null;
+        birthYear: number | null;
         declaredWeightKg: number | null;
         weighedWeightKg: number | null;
         weighedAt: string | null;
@@ -10995,8 +10995,8 @@ export type RecordTournamentWeighInOutputOutput = {
         clubId: string | null;
         clubName: string | null;
         status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
-        sex: 'FEMALE' | 'MALE';
-        birthYear: number;
+        sex: 'FEMALE' | 'MALE' | null;
+        birthYear: number | null;
         declaredWeightKg: number | null;
         weighedWeightKg: number | null;
         weighedAt: string | null;
@@ -11025,8 +11025,8 @@ export type MoveTournamentEntryOutputOutput = {
     clubId: string | null;
     clubName: string | null;
     status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
-    sex: 'FEMALE' | 'MALE';
-    birthYear: number;
+    sex: 'FEMALE' | 'MALE' | null;
+    birthYear: number | null;
     declaredWeightKg: number | null;
     weighedWeightKg: number | null;
     weighedAt: string | null;
@@ -11052,8 +11052,8 @@ export type SetTournamentEntryWithdrawnOutputOutput = {
     clubId: string | null;
     clubName: string | null;
     status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
-    sex: 'FEMALE' | 'MALE';
-    birthYear: number;
+    sex: 'FEMALE' | 'MALE' | null;
+    birthYear: number | null;
     declaredWeightKg: number | null;
     weighedWeightKg: number | null;
     weighedAt: string | null;

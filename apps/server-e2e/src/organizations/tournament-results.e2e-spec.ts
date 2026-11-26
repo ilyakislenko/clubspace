@@ -43,13 +43,14 @@ describe('tournament results', () => {
     const orgMatches = async (s: TournamentSetup, divisionId: string): Promise<Match[]> =>
         (await http().get(`${base(s)}/divisions/${divisionId}/bracket`).set(...s.secretary.auth).expect(200)).body
             .matches
-    // Decides the division's only match for `winnerEntryId`.
+    // Decides the division's only match for `winnerEntryId` («По очкам» 2:0).
     const decide = async (s: TournamentSetup, divisionId: string, winnerEntryId: string) => {
         const [m] = await orgMatches(s, divisionId)
+        const aWins = m.entryA?.entryId === winnerEntryId
         await http()
             .post(`${base(s)}/matches/${m.id}/result`)
             .set(...s.secretary.auth)
-            .send({ winnerEntryId, method: 'POINTS', scoreA: 2, scoreB: 0, expectedUpdatedAt: m.updatedAt })
+            .send({ winnerEntryId, method: 'POINTS', scoreA: aWins ? 2 : 0, scoreB: aWins ? 0 : 2, expectedUpdatedAt: m.updatedAt })
             .expect(201)
         return m
     }
@@ -270,6 +271,24 @@ describe('tournament results', () => {
         // The console hides the same person (§2.3: everywhere).
         const orgView = await http().get(`${base(s)}/divisions/${division.id}/bracket`).set(...s.secretary.auth).expect(200)
         expect(JSON.stringify(orgView.body)).not.toContain('Старов')
+        // …and the console's entry list keeps only what runs the bracket for them.
+        const rows = (await http().get(`${base(s)}/entries`).set(...s.secretary.auth).expect(200)).body.data
+        expect(rows.find((r: { id: string }) => r.id === starov.entry.id)).toMatchObject({
+            hidden: true,
+            personName: null,
+            clubName: null,
+            sex: null,
+            birthYear: null,
+            declaredWeightKg: null,
+            weighedWeightKg: null,
+            fits: null,
+            divisionId: division.id,
+        })
+        expect(rows.find((r: { id: string }) => r.id === petrov.entry.id)).toMatchObject({
+            hidden: false,
+            birthYear: 2000,
+            weighedWeightKg: 74,
+        })
     })
 
     describe('every tournament route of the org console is closed to outsiders', () => {

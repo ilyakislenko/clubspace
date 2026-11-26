@@ -88,9 +88,13 @@ const eventRow = () => ({
     hostWorkspace: { name: 'ACADEMY' },
 })
 
-const tournamentRow = (status: TStatus = 'SETUP', o: { closes?: Date; published?: Date } = {}) => ({
+const tournamentRow = (
+    status: TStatus = 'SETUP',
+    o: { closes?: Date; published?: Date; orgType?: string } = {},
+) => ({
     id: 't1',
     organizationId: ORG,
+    organization: { type: o.orgType ?? 'GRAPPLING' },
     eventId: 'e1',
     status,
     matCount: 2,
@@ -640,8 +644,9 @@ describe('getClubTournament', () => {
             opponent: null,
             waitingFor: {
                 entryA: { hidden: false, personName: nameOf('rival'), clubName: 'Боевой дух', isMe: false, isMyClub: false },
-                // A teammate without the consent: hidden from a plain member.
-                entryB: { hidden: true, personName: null, clubName: null, isMe: false, isMyClub: true },
+                // A teammate without the consent: hidden from a plain member,
+                // and a hidden person never carries the club mark.
+                entryB: { hidden: true, personName: null, clubName: null, isMe: false, isMyClub: false },
             },
         })
     })
@@ -993,15 +998,39 @@ describe('confirmTournamentEntry', () => {
         )
     })
 
-    it('needs a level when the registry has none (400 TOURNAMENT_LEVEL_REQUIRED)', async () => {
+    it('needs a level when the registry has none (400 TOURNAMENT_LEVEL_REQUIRED), in the discipline words', async () => {
         const { result } = run(standardDb(), 'en-stu', undefined)
-        await expect(result).rejects.toMatchObject({ code: 'TOURNAMENT_LEVEL_REQUIRED', statusCode: 400 })
+        await expect(result).rejects.toMatchObject({
+            code: 'TOURNAMENT_LEVEL_REQUIRED',
+            statusCode: 400,
+            message: 'Укажите пояс по стандарту федерации',
+        })
+        const yoga = makePrisma({
+            tournament: tournamentRow('SETUP', { orgType: 'YOGA' }),
+            divisions: STANDARD_DIVISIONS,
+            levels: LEVELS,
+            entries: [entry('stu')],
+        })
+        await expect(run(yoga, 'en-stu', undefined).result).rejects.toMatchObject({
+            code: 'TOURNAMENT_LEVEL_REQUIRED',
+            message: 'Укажите уровень по стандарту федерации',
+        })
         expect(mockedConfirm).not.toHaveBeenCalled()
     })
 
-    it('answers 404 for a level outside the org standards', async () => {
+    it('answers 404 for a level outside the org standards, in the discipline words', async () => {
         const { result } = run(standardDb(), 'en-stu', 'lvl-foreign')
         await expect(result).rejects.toBeInstanceOf(NotFoundError)
+        await expect(result).rejects.toMatchObject({ message: 'Пояс не найден в стандартах федерации' })
+        const fitness = makePrisma({
+            tournament: tournamentRow('SETUP', { orgType: 'FITNESS' }),
+            divisions: STANDARD_DIVISIONS,
+            levels: LEVELS,
+            entries: [entry('stu')],
+        })
+        await expect(run(fitness, 'en-stu', 'lvl-foreign').result).rejects.toMatchObject({
+            message: 'Уровень не найден в стандартах федерации',
+        })
         expect(mockedConfirm).not.toHaveBeenCalled()
     })
 
@@ -1124,14 +1153,15 @@ describe('listClubTournamentAthletes', () => {
             },
         ])
         expect(out.toConfirmCount).toBe(1)
-        // Only live bookings of this club, then narrowed to the coach's own groups.
+        // Only live bookings of this club, then narrowed to the coach's write
+        // scope (own groups' students).
         expect(prisma.organizationEventRegistration.findMany.mock.calls[0][0].where).toEqual({
             eventId: 'e1',
             workspaceId: W,
             status: 'BOOKED',
         })
-        expect(prisma.groupMember.findMany.mock.calls[0][0].where).toMatchObject({
-            userId: { in: ['stu', 'mate', 'ann', 'guest'] },
+        expect(prisma.groupMember.findMany).toHaveBeenCalledTimes(1)
+        expect(prisma.groupMember.findMany.mock.calls[0][0].where).toEqual({
             group: { workspaceId: W, OR: [{ coaches: { some: { userId: 'coach' } } }, expect.anything()] },
         })
         // Entries of these people in this club only.
@@ -1159,9 +1189,10 @@ describe('listClubTournamentAthletes', () => {
         }
     })
 
-    it('shows a coach who sees all groups every booked person, but counts only own students', async () => {
+    it('gives a coach who sees all groups only their own booked students (write scope)', async () => {
         const out = await run(clubDb({ seesAll: true }))
-        expect(out.data.map((a) => a.userId).sort()).toEqual(['ann', 'guest', 'mate', 'stu'])
+        expect(out.data.map((a) => a.userId)).toEqual(['stu', 'mate'])
+        // DECLARED among the listed entries: stu's, not ann's.
         expect(out.toConfirmCount).toBe(1)
     })
 
@@ -1242,8 +1273,8 @@ describe('getClubTournamentBracket', () => {
             decidedAt: '2026-12-20T05:00:00.000Z',
         })
         expect(m2.entryA).toEqual({ hidden: false, personName: nameOf('rival'), clubName: 'Боевой дух', isMe: false, isMyClub: false })
-        // A teammate without the consent is hidden from a member, too.
-        expect(m2.entryB).toEqual({ hidden: true, personName: null, clubName: null, isMe: false, isMyClub: true })
+        // A teammate without the consent is hidden from a member too, without the club mark.
+        expect(m2.entryB).toEqual({ hidden: true, personName: null, clubName: null, isMe: false, isMyClub: false })
         expect(m2.winnerSide).toBeNull()
         expect(m3.entryB).toBeNull()
     })
@@ -1326,11 +1357,12 @@ describe('getClubTournamentResults', () => {
         // d85 has no placed entries: left out.
         expect(out.divisions).toHaveLength(1)
         expect(out.divisions[0]).toMatchObject({ divisionId: 'd77', name: 'Мужчины до 77 кг' })
-        // Two thirds, both hidden from a member: the teammate, then the other club's.
+        // Two thirds, both hidden from a member and unmarked (a hidden person
+        // never carries the club mark): the teammate, then the other club's.
         expect(out.divisions[0].podium).toEqual([
             { hidden: false, personName: nameOf('stu'), clubName: 'ACADEMY', isMe: true, isMyClub: true, place: 1 },
             { hidden: false, personName: nameOf('rival'), clubName: 'Боевой дух', isMe: false, isMyClub: false, place: 2 },
-            { hidden: true, personName: null, clubName: null, isMe: false, isMyClub: true, place: 3 },
+            { hidden: true, personName: null, clubName: null, isMe: false, isMyClub: false, place: 3 },
             { hidden: true, personName: null, clubName: null, isMe: false, isMyClub: false, place: 3 },
         ])
         const { keys, leaves } = scan(out)

@@ -140,6 +140,7 @@ const makePrisma = (o: { role?: Role; rows?: Row[] } = {}) => {
                     ? {
                           ...t,
                           eventId: 'ev1',
+                          organization: { type: 'GRAPPLING' },
                           status: 'WEIGH_IN',
                           matCount: 2,
                           resultsPublishedAt: null,
@@ -238,26 +239,62 @@ describe('listTournamentEntries', () => {
         expect(byId.get('e6')).toMatchObject({ status: 'DECLARED', declaredWeightKg: 81, fits: true })
     })
 
-    it('shows hidden people as «Участник скрыт»: no name, no club, the org still sees the weight', async () => {
-        const out = await list({})
+    it('shows hidden people as «Участник скрыт»: no name, club, sex, birth year, weights, fit or reason', async () => {
+        const out = await list({ filter: 'all' })
         const byId = new Map(out.data.map((r) => [r.id, r]))
-        // No tournament-edition consent.
-        expect(byId.get('e7')).toMatchObject({
+        const hidden = {
             hidden: true,
             personName: null,
             clubId: null,
             clubName: null,
-            birthYear: 2000,
-            weighedWeightKg: 75,
-        })
+            sex: null,
+            birthYear: null,
+            declaredWeightKg: null,
+            weighedWeightKg: null,
+            weighedAt: null,
+            fits: null,
+            withdrawnReason: null,
+        }
+        // No tournament-edition consent (weighed 75 in «до 77 кг» — would fit).
+        expect(byId.get('e7')).toMatchObject({ ...hidden, status: 'CONFIRMED', divisionId: D77 })
         // Consented, but the club is no longer ACTIVE in the org.
-        expect(byId.get('e8')).toMatchObject({
-            hidden: true,
-            personName: null,
-            clubId: null,
-            clubName: null,
-            weighedWeightKg: 79,
+        expect(byId.get('e8')).toMatchObject({ ...hidden, divisionId: D82 })
+        // Visible rows keep everything.
+        expect(byId.get('e3')).toMatchObject({
+            sex: 'MALE',
+            birthYear: 2000,
+            weighedWeightKg: 80,
+            weighedAt: STAMP.toISOString(),
+            fits: false,
         })
+    })
+
+    it('hides a withdrawn person’s reason too', async () => {
+        const rows = [
+            ...roster(),
+            entry('e10', 'Скрытов', 'Сергей', { divisionId: D77, status: 'WITHDRAWN', withdrawnReason: 'Травма' }),
+        ]
+        const out = await list({ filter: 'withdrawn' }, { prisma: makePrisma({ rows }) })
+        expect(out.data.map((r) => [r.id, r.withdrawnReason])).toEqual([
+            ['e5', 'Травма'],
+            ['e10', null],
+        ])
+    })
+
+    it('orders hidden people by entry id, never by surname', async () => {
+        // Surnames А < Я, ids the other way round: the hidden order follows the ids.
+        const rows = [
+            entry('h2', 'Агеев', 'Антон', { divisionId: D77 }),
+            entry('v1', 'Петров', 'Пётр', { divisionId: D77 }),
+            entry('h1', 'Яковлев', 'Яков', { divisionId: D77 }),
+            entry('v2', 'Андреев', 'Андрей', { divisionId: D77 }),
+        ]
+        const prisma = makePrisma({ rows })
+        prisma.consentRecord.findMany.mockResolvedValue(
+            ['u-v1', 'u-v2'].map((userId) => ({ userId, dependentId: null, version: '2026-11-27.1' })),
+        )
+        const out = await list({}, { prisma })
+        expect(ids(out)).toEqual(['v2', 'v1', 'h1', 'h2'])
     })
 
     it('hides a person whose consent is of an older edition', async () => {
@@ -458,8 +495,12 @@ describe('recordTournamentWeighIn', () => {
     })
 
     it('leaves an entry without a division when several fit (assigned by hand)', async () => {
+        // Consented, so the row shows the weight.
         const rows = [...roster(), entry('e9', 'Фёдорова', 'Анна', { sex: 'FEMALE' })]
         const prisma = makePrisma({ rows })
+        prisma.consentRecord.findMany.mockResolvedValue(
+            [...CONSENTED, 'u-e9'].map((userId) => ({ userId, dependentId: null, version: '2026-11-27.1' })),
+        )
         fakeWeighIn(prisma)
         const a = audit()
         const out = await weigh('e9', 60, { prisma, a })
@@ -471,6 +512,19 @@ describe('recordTournamentWeighIn', () => {
             suggestedDivisionName: null,
         })
         expect(a.record.mock.calls[0][0].metadata.divisionName).toBeNull()
+    })
+
+    it('weighs a hidden entry: the answer says whether it fits, the row hides the weight', async () => {
+        const prisma = makePrisma()
+        fakeWeighIn(prisma)
+        // Алексеев (no consent) in «до 77 кг» weighs 80.
+        const out = await weigh('e7', 80, { prisma })
+        expect(jest.mocked(recordWeighIn).mock.calls[0][1]).toMatchObject({ entryId: 'e7', weighedWeightG: 80000 })
+        expect(out).toMatchObject({
+            entry: { id: 'e7', hidden: true, weighedWeightKg: null, fits: null, divisionId: D77 },
+            fits: false,
+            suggestedDivisionId: D82,
+        })
     })
 
     it('does not reassign an entry that already has a division', async () => {
@@ -666,7 +720,8 @@ describe('setTournamentEntryWithdrawn', () => {
                 tournamentId: T,
                 entryId: 'e1',
                 withdrawn: true,
-                reason: 'Травма колена',
+                // Whether a reason was typed, never its text.
+                reasonGiven: true,
                 divisionName: 'Мужчины · 18–35 лет · до 77 кг',
             },
         })
@@ -679,7 +734,8 @@ describe('setTournamentEntryWithdrawn', () => {
         const out = await run('e2', { withdrawn: true }, { prisma, a })
         expect(jest.mocked(setEntryWithdrawn).mock.calls[0][1].reason).toBe('Снят секретарём')
         expect(out.withdrawnReason).toBe('Снят секретарём')
-        expect(a.record.mock.calls[0][0].metadata.reason).toBe('Снят секретарём')
+        expect(a.record.mock.calls[0][0].metadata).toMatchObject({ withdrawn: true, reasonGiven: false })
+        expect(a.record.mock.calls[0][0].metadata).not.toHaveProperty('reason')
     })
 
     it('returns an entry: no reason, audited as withdrawn=false', async () => {
@@ -694,7 +750,8 @@ describe('setTournamentEntryWithdrawn', () => {
             reason: null,
         })
         expect(out).toMatchObject({ id: 'e5', status: 'CONFIRMED', withdrawnReason: null })
-        expect(a.record.mock.calls[0][0].metadata).toMatchObject({ withdrawn: false, reason: null })
+        expect(a.record.mock.calls[0][0].metadata).toMatchObject({ withdrawn: false, reasonGiven: false })
+        expect(a.record.mock.calls[0][0].metadata).not.toHaveProperty('reason')
     })
 
     it('withdraws an entry without a division (divisionName null)', async () => {

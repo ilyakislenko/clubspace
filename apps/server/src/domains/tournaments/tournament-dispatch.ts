@@ -14,15 +14,18 @@ import type {
     PushNotificationRow,
 } from '../notifications/services/notification-producer.service'
 import { claimDispatchMany } from '../scheduler/dispatch-claims'
-import { plural } from './tournament-errors'
-import { matQueue } from './schedule'
+import { matchesAhead, matQueue } from './schedule'
+import { countMatches, tournamentWords } from './tournament-words'
 
-// Results news older than this is left alone (as hub announcements).
+// Results news older than this is left alone (as hub announcements); a
+// bracket drawn longer ago than this was announced already.
 export const RESULTS_LOOKBACK_MS = 2 * 24 * 60 * 60_000
-// Weights are erased this long after publication; places, birth year and sex
-// stay (they are the result and explain the division).
+// Weights are erased this long after publication, or after the event's end
+// for a tournament never (or no longer) published; places, birth year and
+// sex stay (they are the result and explain the division).
 export const WEIGHT_RETENTION_MS = 30 * 24 * 60 * 60_000
-// Entrants of these queue positions on a mat hear «Скоро ваша схватка».
+// Entrants with fewer matches than this in front on the mat hear «Скоро
+// ваша схватка».
 export const MATCH_SOON_POSITIONS = 2
 
 type DispatchPrisma = Pick<
@@ -44,6 +47,7 @@ const ENTRY_PUSH_SELECT = {
             organizationId: true,
             eventId: true,
             event: { select: { title: true } },
+            organization: { select: { type: true } },
         },
     },
 } as const
@@ -62,8 +66,25 @@ const meta = (
     tournamentId: e.tournament.id,
 })
 
-// «Сетки готовы»: every entrant of a drawn division of a RUNNING tournament,
-// once per draw.
+// The keys of `refIds` nobody claimed yet: the minute job reads them first so
+// it writes only for news (the claim itself still decides once-only across
+// replicas).
+const unclaimed = async (
+    prisma: Pick<PrismaService, 'notificationDispatchLog'>,
+    kind: string,
+    refIds: string[],
+): Promise<string[]> => {
+    if (refIds.length === 0) return []
+    const taken = await prisma.notificationDispatchLog.findMany({
+        where: { kind, refId: { in: refIds } },
+        select: { refId: true },
+    })
+    const done = new Set(taken.map((t) => t.refId))
+    return refIds.filter((r) => !done.has(r))
+}
+
+// «Сетки готовы»: every entrant in a bracket (confirmed, weighed, in a
+// division drawn within the lookback) of a RUNNING tournament, once per draw.
 export const dispatchBracketReady = async (
     prisma: DispatchPrisma,
     notifications: Notifier,
@@ -72,14 +93,16 @@ export const dispatchBracketReady = async (
     const entries = await prisma.tournamentEntry.findMany({
         where: {
             status: 'CONFIRMED',
-            division: { drawnAt: { not: null } },
+            weighedWeightG: { not: null },
+            division: { drawnAt: { gt: new Date(now.getTime() - RESULTS_LOOKBACK_MS) } },
             tournament: { status: 'RUNNING', organization: { isActive: true } },
         },
         select: ENTRY_PUSH_SELECT,
     })
     const awake = entries.filter((e) => e.division && !isQuietHour(now, e.workspace.timezone))
     const key = (e: (typeof awake)[number]) => `${e.id}:${e.division!.drawNo}`
-    const won = await claimDispatchMany(prisma, 'tournament.bracket_ready', awake.map(key))
+    const fresh = await unclaimed(prisma, 'tournament.bracket_ready', awake.map(key))
+    const won = await claimDispatchMany(prisma, 'tournament.bracket_ready', fresh)
     const rows: PushNotificationRow[] = awake
         .filter((e) => won.has(key(e)))
         .map((e) => ({
@@ -115,11 +138,12 @@ export const dispatchResultsPublished = async (
         select: ENTRY_PUSH_SELECT,
     })
     const awake = entries.filter((e) => !isQuietHour(now, e.workspace.timezone))
-    const won = await claimDispatchMany(
+    const fresh = await unclaimed(
         prisma,
         'tournament.results_published',
         awake.map((e) => e.id),
     )
+    const won = await claimDispatchMany(prisma, 'tournament.results_published', fresh)
     const rows: PushNotificationRow[] = awake
         .filter((e) => won.has(e.id))
         .map((e) => ({
@@ -131,22 +155,32 @@ export const dispatchResultsPublished = async (
     return rows.length === 0 ? 0 : notifications.writeMany(rows)
 }
 
-// 30 days after publication the weights go (§2.4).
+// Weights go 30 days after publication, or 30 days after the event ended
+// when the results aren't published (abandoned, unpublished): an
+// unpublish/republish never restarts the clock past the event's end (§2.4).
 export const purgeTournamentWeights = async (
     prisma: Pick<PrismaService, 'tournamentEntry'>,
     now: Date,
-): Promise<number> =>
-    (
+): Promise<number> => {
+    const before = new Date(now.getTime() - WEIGHT_RETENTION_MS)
+    return (
         await prisma.tournamentEntry.updateMany({
             where: {
-                tournament: {
-                    resultsPublishedAt: { lte: new Date(now.getTime() - WEIGHT_RETENTION_MS) },
-                },
-                OR: [{ declaredWeightG: { not: null } }, { weighedWeightG: { not: null } }],
+                AND: [
+                    { OR: [{ declaredWeightG: { not: null } }, { weighedWeightG: { not: null } }] },
+                    {
+                        OR: [
+                            { tournament: { resultsPublishedAt: { lte: before } } },
+                            { tournament: { event: { endAt: { lte: before } } } },
+                            { tournament: { event: { endAt: null, startAt: { lte: before } } } },
+                        ],
+                    },
+                ],
             },
             data: { declaredWeightG: null, weighedWeightG: null },
         })
     ).count
+}
 
 // The minute job's part (RemindersService).
 export const dispatchTournamentPushes = async (
@@ -164,9 +198,10 @@ export const dispatchTournamentPushes = async (
     }
 }
 
-// Right after a result: the entrants of the first matches in the mat's queue
-// («Скоро ваша схватка: ковёр 2, перед вами 1 схватка»). Dropped in quiet
-// hours; once per (match, entrant).
+// Right after a result: the entrants of ready matches with fewer than
+// MATCH_SOON_POSITIONS matches in front on the mat (matchesAhead, the same
+// count as «перед вами» on the phone). Dropped in quiet hours; once per
+// (match, entrant).
 export const notifyMatchSoon = async (
     prisma: DispatchPrisma,
     notifications: Notifier,
@@ -192,13 +227,13 @@ export const notifyMatchSoon = async (
             },
         }),
     ])
-    const queue = matQueue(divisions, matches, p.mat)
-        .slice(0, MATCH_SOON_POSITIONS)
-    const targets = queue.flatMap((m, ahead) =>
-        [m.entryAId, m.entryBId]
+    const targets = matQueue(divisions, matches, p.mat).flatMap((m) => {
+        const ahead = matchesAhead(divisions, matches, m) ?? Number.MAX_SAFE_INTEGER
+        if (ahead >= MATCH_SOON_POSITIONS) return []
+        return [m.entryAId, m.entryBId]
             .filter((id): id is string => id !== null)
-            .map((entryId) => ({ matchId: m.id, entryId, ahead })),
-    )
+            .map((entryId) => ({ matchId: m.id, entryId, ahead }))
+    })
     if (targets.length === 0) return 0
     const entries = await prisma.tournamentEntry.findMany({
         where: { id: { in: targets.map((t) => t.entryId) } },
@@ -215,13 +250,14 @@ export const notifyMatchSoon = async (
         .filter((t) => won.has(key(t)))
         .map((t) => {
             const e = byId.get(t.entryId)!
+            const w = tournamentWords(e.tournament.organization.type)
             return {
                 userId: e.userId,
-                topic: 'Скоро ваша схватка',
+                topic: `Скоро ${w.match.your} ${w.match.nom}`,
                 message:
                     t.ahead === 0
-                        ? `Ковёр ${p.mat}, ваша схватка следующая`
-                        : `Ковёр ${p.mat}, перед вами ${t.ahead} ${plural(t.ahead, 'схватка', 'схватки', 'схваток')}`,
+                        ? `Ковёр ${p.mat}, ${w.match.your} ${w.match.nom} ${w.match.next}`
+                        : `Ковёр ${p.mat}, перед вами ${countMatches(t.ahead, w)}`,
                 metadata: meta('tournament.match_soon', e),
             }
         })

@@ -234,6 +234,8 @@ export const TOURNAMENT_SELECT = {
     id: true,
     organizationId: true,
     eventId: true,
+    // The discipline's words in copy (tournament-words.ts).
+    organization: { select: { type: true } },
     status: true,
     matCount: true,
     resultsPublishedAt: true,
@@ -255,6 +257,7 @@ export type TournamentRow = {
     id: string
     organizationId: string
     eventId: string
+    organization: { type: string }
     status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED'
     matCount: number
     resultsPublishedAt: Date | null
@@ -527,7 +530,9 @@ export const loadEntryViews = async (
             visible: visible(e),
             personName: fullNameWithoutEmail(user),
             clubName: workspace.name,
-            sortKey: `${user.lastname ?? ''} ${user.firstname ?? ''}`,
+            // A hidden person sorts by id: their surname must not leak
+            // through the order of the «Участник скрыт» rows.
+            sortKey: visible(e) ? `${user.lastname ?? ''} ${user.firstname ?? ''}` : e.id,
         }))
         .sort((a, b) =>
             a.visible !== b.visible ? (a.visible ? -1 : 1) : a.sortKey.localeCompare(b.sortKey, 'ru'),

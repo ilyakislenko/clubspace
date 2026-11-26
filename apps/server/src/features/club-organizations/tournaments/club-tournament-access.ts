@@ -12,6 +12,7 @@ import {
     type TournamentRow,
 } from '../../../domains/tournaments/tournament-read'
 import type { EntryConfirmation } from '../../../domains/tournaments/tournament-store'
+import { type TournamentWords, tournamentWords } from '../../../domains/tournaments/tournament-words'
 import { PrismaService } from '../../../infrastructure/prisma'
 import { DefaultError } from '../../../shared/errors/default.error'
 import { NotFoundError } from '../../../shared/errors/shared.errors'
@@ -19,11 +20,12 @@ import type { CoachContext, RbacService } from '../../../shared/services/rbac.se
 import { type ClubOrgEventRow, loadVisibleOrgEvent } from '../events/club-org-events'
 import { type ClubTournamentNextMatch, type ClubViewer, serializeClubPerson } from './schemas'
 
-// The registry shows no level and the coach picked none.
+// The registry shows no level and the coach picked none («Укажите пояс …» in
+// grappling, «Укажите уровень …» elsewhere).
 export class TournamentLevelRequiredError extends DefaultError {
-    constructor() {
+    constructor(words: TournamentWords) {
         super({
-            message: 'Укажите пояс по стандарту федерации',
+            message: `Укажите ${words.levelAcc} по стандарту федерации`,
             code: 'TOURNAMENT_LEVEL_REQUIRED',
             statusCode: 400,
         })
@@ -50,6 +52,7 @@ export const resolveConfirmation = async (
     },
 ): Promise<EntryConfirmation> => {
     const organizationId = p.tournament.organizationId
+    const words = tournamentWords(p.tournament.organization.type)
     const registry = (await registryLevelsFor(prisma, organizationId, [p.entry.userId])).get(
         p.entry.userId,
     )
@@ -60,13 +63,13 @@ export const resolveConfirmation = async (
     } else if (p.pickedLevelId) {
         const refs = await loadLevelRefs(prisma, organizationId, [p.pickedLevelId])
         level = refs.get(p.pickedLevelId) ?? null
-        if (!level) throw new NotFoundError({ message: 'Пояс не найден в стандартах федерации' })
+        if (!level) throw new NotFoundError({ message: `${words.levelNom} не найден в стандартах федерации` })
         picked = true
     }
     const divisions = await loadDivisionCriteria(prisma, p.tournament.id)
     // A level is needed only when some division is defined on a standard.
     if (!level && p.required && divisions.some((d) => d.templateId !== null)) {
-        throw new TournamentLevelRequiredError()
+        throw new TournamentLevelRequiredError(words)
     }
     const facts = entryFacts(
         p.entry,

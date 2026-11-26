@@ -23,13 +23,14 @@ const event = (o: Record<string, unknown> = {}) => ({
     ...o,
 })
 
-// The transaction client is the mocked Prisma itself; the row lock is a
-// $queryRaw returning the event's capacity.
+// The transaction client is the mocked Prisma itself; the row locks are
+// $queryRaw calls: the event's returns its capacity, a tournament's its status.
 const prismaWith = (o: {
     consented?: boolean
     capacity?: number | null
     existing?: unknown
     booked?: number
+    tournamentStatus?: string
 }) => {
     const prisma = {
         consentRecord: {
@@ -38,7 +39,15 @@ const prismaWith = (o: {
                 .mockResolvedValue(o.consented === false ? [] : [{ userId: 'u1', dependentId: null }]),
         },
         guardianship: { findMany: jest.fn().mockResolvedValue([]) },
-        $queryRaw: jest.fn().mockResolvedValue([{ capacity: o.capacity ?? null }]),
+        $queryRaw: jest.fn(async (sql: TemplateStringsArray) =>
+            sql.join('?').includes('"Tournament"')
+                ? [{ status: o.tournamentStatus }]
+                : [{ capacity: o.capacity ?? null }],
+        ),
+        tournament: {
+            findUnique: jest.fn().mockResolvedValue(o.tournamentStatus ? { id: 't1' } : null),
+        },
+        tournamentEntry: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
         organizationEventRegistration: {
             findUnique: jest.fn().mockResolvedValue(o.existing ?? null),
             findUniqueOrThrow: jest.fn().mockResolvedValue(o.existing ?? null),
@@ -138,6 +147,23 @@ describe('org event registration rules', () => {
         const done = prismaWith({ existing: { id: 'r1', eventId: 'e1', status: 'CANCELLED' } })
         await cancelOrgEventBooking(done as never, { registrationId: 'r1', now })
         expect(done.organizationEventRegistration.update).not.toHaveBeenCalled()
+    })
+
+    it('takes a SETUP tournament entry with it in the same transaction; locked afterwards', async () => {
+        const booked = { id: 'r1', eventId: 'e1', status: 'BOOKED' }
+        const setup = prismaWith({ existing: booked, tournamentStatus: 'SETUP' })
+        await cancelOrgEventBooking(setup as never, { registrationId: 'r1', now })
+        expect(setup.$transaction).toHaveBeenCalledTimes(1)
+        expect(setup.tournament.findUnique.mock.calls[0][0].where).toEqual({ eventId: 'e1' })
+        expect(setup.tournamentEntry.deleteMany).toHaveBeenCalledWith({ where: { registrationId: 'r1' } })
+        expect(setup.organizationEventRegistration.update).toHaveBeenCalled()
+
+        const locked = prismaWith({ existing: booked, tournamentStatus: 'WEIGH_IN' })
+        await expect(
+            cancelOrgEventBooking(locked as never, { registrationId: 'r1', now }),
+        ).rejects.toMatchObject({ code: 'TOURNAMENT_LOCKED', statusCode: 409 })
+        expect(locked.tournamentEntry.deleteMany).not.toHaveBeenCalled()
+        expect(locked.organizationEventRegistration.update).not.toHaveBeenCalled()
     })
 
     it('counts BOOKED places per event', async () => {

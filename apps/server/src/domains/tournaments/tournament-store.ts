@@ -10,6 +10,7 @@ import type {
 } from '../../infrastructure/prisma'
 import { BadRequestError, NotFoundError, StaleUpdateError } from '../../shared/errors/shared.errors'
 import { claimUnchanged } from '../../shared/utils/optimistic-concurrency'
+import { pluralRu } from '../../shared/utils/plural-ru'
 import {
     bracketSize,
     firstRoundMatches,
@@ -22,7 +23,6 @@ import {
 import {
     DivisionHasResultsError,
     MatchUndoBlockedError,
-    plural,
     TournamentPublishedError,
     TournamentLockedError,
     TournamentUnassignedError,
@@ -253,7 +253,7 @@ export const setTournamentStatus = async (
                 const tooBig = divisions.filter((d) => (sizeOf.get(d.id) ?? 0) > MAX_DRAW_ENTRIES)
                 if (tooBig.length > 0) {
                     throw new BadRequestError({
-                        message: `Разделите ${plural(tooBig.length, 'категорию', 'категории', 'категорий')}: ${tooBig
+                        message: `Разделите ${pluralRu(tooBig.length, 'категорию', 'категории', 'категорий')}: ${tooBig
                             .map((d) => d.name)
                             .join(', ')} (больше ${MAX_DRAW_ENTRIES} участников)`,
                     })
@@ -280,6 +280,18 @@ export const setTournamentStatus = async (
                     })
                     drawn += 1
                 }
+            }
+            // Back to taking entries: the club may cancel, re-declare or be
+            // confirmed into another division, and none of that touches a
+            // bracket. So every bracket drawn during the weigh-in goes (no
+            // result can exist before RUNNING); the start draws again.
+            if (p.to === 'SETUP') {
+                const drawnDivisions = await tx.tournamentDivision.findMany({
+                    where: { tournamentId: p.tournamentId, drawnAt: { not: null } },
+                    select: { id: true },
+                })
+                await lockDivisions(tx, drawnDivisions.map((d) => d.id))
+                for (const d of drawnDivisions) await clearBracket(tx, d.id)
             }
             await tx.tournament.update({
                 where: { id: p.tournamentId },
@@ -332,7 +344,7 @@ export const setResultsPublished = async (
         const unfinished = divisions.filter((d) => d.drawnAt !== null || d._count.entries > 0)
         if (unfinished.length > 0) {
             throw new BadRequestError({
-                message: `Не закончены: ${unfinished.length} ${plural(unfinished.length, 'категория', 'категории', 'категорий')}`,
+                message: `Не закончены: ${unfinished.length} ${pluralRu(unfinished.length, 'категория', 'категории', 'категорий')}`,
             })
         }
         await tx.tournament.update({
@@ -427,7 +439,7 @@ export const recordResult = async (
     prisma.$transaction(async (tx) => {
         const { status } = await lockTournament(tx, p.tournamentId)
         const head = await loadMatch(tx, p.tournamentId, p.matchId)
-        if (!head) throw new NotFoundError({ message: 'Схватка не найдена' })
+        if (!head) throw new NotFoundError({ message: 'Пара не найдена' })
         if (status === 'FINISHED') throw new TournamentPublishedError()
         if (status !== 'RUNNING') {
             throw new BadRequestError({ message: 'Результаты записывают после начала турнира' })
@@ -449,10 +461,23 @@ export const recordResult = async (
             })
         }
         if (match.isBye || match.entryAId === null || match.entryBId === null) {
-            throw new BadRequestError({ message: 'Схватка ещё не готова: соперник неизвестен' })
+            throw new BadRequestError({ message: 'Пара ещё не готова: соперник неизвестен' })
         }
         if (p.result.winnerEntryId !== match.entryAId && p.result.winnerEntryId !== match.entryBId) {
-            throw new BadRequestError({ message: 'Победитель должен быть участником схватки' })
+            throw new BadRequestError({ message: 'Победитель должен быть участником пары' })
+        }
+        // «По очкам»: both scores, the winner's higher.
+        if (p.result.method === 'POINTS') {
+            const winnerIsA = p.result.winnerEntryId === match.entryAId
+            const [won, lost] = winnerIsA
+                ? [p.result.scoreA, p.result.scoreB]
+                : [p.result.scoreB, p.result.scoreA]
+            if (won === null || lost === null) {
+                throw new BadRequestError({ message: 'Для победы по очкам укажите счёт обоих участников' })
+            }
+            if (won <= lost) {
+                throw new BadRequestError({ message: 'По очкам побеждает тот, у кого очков больше' })
+            }
         }
         await claimUnchanged(p.expectedUpdatedAt, (expected) =>
             tx.tournamentMatch.updateMany({
@@ -513,7 +538,7 @@ export const undoResult = async (
     prisma.$transaction(async (tx) => {
         const { status } = await lockTournament(tx, p.tournamentId)
         const head = await loadMatch(tx, p.tournamentId, p.matchId)
-        if (!head) throw new NotFoundError({ message: 'Схватка не найдена' })
+        if (!head) throw new NotFoundError({ message: 'Пара не найдена' })
         if (status === 'FINISHED') throw new TournamentPublishedError()
         if (status !== 'RUNNING') {
             throw new BadRequestError({ message: 'Результаты отменяют, пока турнир идёт' })
@@ -521,10 +546,10 @@ export const undoResult = async (
         await lockDivisions(tx, [head.divisionId])
         const match = (await loadMatch(tx, p.tournamentId, p.matchId))!
         if (match.isBye) {
-            throw new BadRequestError({ message: 'Проход без схватки не отменяется — пережеребьте категорию' })
+            throw new BadRequestError({ message: 'Проход без соперника не отменяется — пережеребьте категорию' })
         }
         if (match.winnerEntryId === null || match.method === null) {
-            throw new BadRequestError({ message: 'Результат этой схватки не записан' })
+            throw new BadRequestError({ message: 'Результат этой пары не записан' })
         }
         const next = nextSlot(match.round, match.position)
         const downstream = await tx.tournamentMatch.findUnique({
@@ -539,7 +564,7 @@ export const undoResult = async (
         })
         if (downstream?.winnerEntryId) {
             throw new MatchUndoBlockedError(
-                'Сначала отмените схватку следующего круга — победитель уже провёл её',
+                'Сначала отмените результат следующего круга — победитель уже выступил в нём',
             )
         }
         await claimUnchanged(p.expectedUpdatedAt, (expected) =>
@@ -783,6 +808,10 @@ export const declareEntry = async (
                 declaredWeightG: true,
             },
         })
+        // The federation took it off the tournament: the club can't revive it.
+        if (existing?.status === 'WITHDRAWN') {
+            throw new BadRequestError({ message: 'Заявка снята' })
+        }
         const facts = {
             sex: p.sex,
             birthYear: p.birthYear,
@@ -833,6 +862,11 @@ export const declareEntry = async (
                               confirmedAt: null,
                               divisionId: null,
                               withdrawnReason: null,
+                              // A weight taken before «Вернуть приём заявок»
+                              // belongs to the old declaration: weigh again.
+                              weighedWeightG: null,
+                              weighedAt: null,
+                              weighedById: null,
                           })),
             },
             select: { id: true },
@@ -874,17 +908,18 @@ export const confirmEntry = async (
 
 // Cancelling a registration (SETUP only) takes its entry with it; after
 // SETUP the club can't (TOURNAMENT_LOCKED — changes through the secretary).
-export const releaseRegistrationEntry = async (
-    prisma: PrismaService,
+// Runs inside the cancellation's transaction, so a declaration can't land
+// between the entry going and the booking being cancelled.
+export const releaseRegistrationEntryIn = async (
+    tx: Tx,
     p: { eventId: string; registrationId: string },
-): Promise<void> =>
-    prisma.$transaction(async (tx) => {
-        const t = await tx.tournament.findUnique({
-            where: { eventId: p.eventId },
-            select: { id: true },
-        })
-        if (!t) return
-        const { status } = await lockTournament(tx, t.id)
-        if (status !== 'SETUP') throw new TournamentLockedError()
-        await tx.tournamentEntry.deleteMany({ where: { registrationId: p.registrationId } })
+): Promise<void> => {
+    const t = await tx.tournament.findUnique({
+        where: { eventId: p.eventId },
+        select: { id: true },
     })
+    if (!t) return
+    const { status } = await lockTournament(tx, t.id)
+    if (status !== 'SETUP') throw new TournamentLockedError()
+    await tx.tournamentEntry.deleteMany({ where: { registrationId: p.registrationId } })
+}

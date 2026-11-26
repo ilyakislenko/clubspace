@@ -142,20 +142,22 @@ export type ClubViewer = {
 }
 
 // §2.3 for club audiences: the person themself and their own club's coach
-// always see the name; everyone else only for a visible person.
+// always see the name; everyone else only for a visible person. A hidden
+// person carries no club mark either (in a small division «your club» alone
+// would name them).
 export const serializeClubPerson = (
     e: EntryView,
     v: ClubViewer,
 ): z.infer<typeof ClubTournamentPersonSchema> => {
     const isMe = e.userId === v.userId
-    const isMyClub = e.workspaceId === v.workspaceId
-    const shown = e.visible || isMe || (v.staff && isMyClub)
+    const sameClub = e.workspaceId === v.workspaceId
+    const shown = e.visible || isMe || (v.staff && sameClub)
     return {
         hidden: !shown,
         personName: shown ? e.personName : null,
         clubName: shown ? e.clubName : null,
         isMe,
-        isMyClub,
+        isMyClub: shown && sameClub,
     }
 }
 

@@ -17,7 +17,7 @@ import {
 // 05:00 UTC: 12:00 in Tomsk (awake), 08:00 in Moscow (quiet until 09:00).
 const NOW = new Date('2026-12-20T05:00:00Z')
 
-const pushEntry = (id: string, tz: string, o: Record<string, unknown> = {}) => ({
+const pushEntry = (id: string, tz: string, o: Record<string, unknown> = {}, orgType = 'GRAPPLING') => ({
     id,
     userId: `user-${id}`,
     workspaceId: `club-${id}`,
@@ -29,6 +29,7 @@ const pushEntry = (id: string, tz: string, o: Record<string, unknown> = {}) => (
         organizationId: 'org1',
         eventId: 'ev1',
         event: { title: 'Кубок федерации' },
+        organization: { type: orgType },
     },
     ...o,
 })
@@ -43,6 +44,12 @@ const build = (o: { entries?: unknown[]; claimed?: string[]; divisions?: unknown
         tournamentDivision: { findMany: jest.fn().mockResolvedValue(o.divisions ?? []) },
         tournamentMatch: { findMany: jest.fn().mockResolvedValue(o.matches ?? []) },
         notificationDispatchLog: {
+            // The minute job reads what is claimed before claiming.
+            findMany: jest.fn(async ({ where }: { where: { kind: string; refId: { in: string[] } } }) =>
+                where.refId.in
+                    .filter((refId) => claimed.has(`${where.kind}/${refId}`))
+                    .map((refId) => ({ refId })),
+            ),
             createManyAndReturn: jest.fn(async ({ data }: { data: Array<{ kind: string; refId: string }> }) =>
                 data
                     .filter((d) => !claimed.has(`${d.kind}/${d.refId}`))
@@ -75,7 +82,10 @@ describe('bracket_ready', () => {
         await expect(dispatchBracketReady(prisma as never, notifications, NOW)).resolves.toBe(1)
         expect(prisma.tournamentEntry.findMany.mock.calls[0][0].where).toEqual({
             status: 'CONFIRMED',
-            division: { drawnAt: { not: null } },
+            // in a bracket: weighed (an entry returned after the draw isn't)
+            weighedWeightG: { not: null },
+            // bounded: a bracket drawn before the lookback was announced already
+            division: { drawnAt: { gt: new Date(NOW.getTime() - RESULTS_LOOKBACK_MS) } },
             tournament: { status: 'RUNNING', organization: { isActive: true } },
         })
         expect(rows).toEqual([
@@ -112,12 +122,17 @@ describe('bracket_ready', () => {
         expect(rows).toEqual([expect.objectContaining({ userId: 'user-a', message: 'Абсолютная' })])
     })
 
-    it('writes nothing when every entrant was told already', async () => {
+    it('reads the claims first and writes nothing when every entrant was told already', async () => {
         const { prisma, notifications } = build({
             claimed: ['tournament.bracket_ready/a:1'],
             entries: [pushEntry('a', 'Asia/Tomsk')],
         })
         await expect(dispatchBracketReady(prisma as never, notifications, NOW)).resolves.toBe(0)
+        expect(prisma.notificationDispatchLog.findMany.mock.calls[0][0].where).toEqual({
+            kind: 'tournament.bracket_ready',
+            refId: { in: ['a:1'] },
+        })
+        expect(prisma.notificationDispatchLog.createManyAndReturn).not.toHaveBeenCalled()
         expect(notifications.writeMany).not.toHaveBeenCalled()
     })
 })
@@ -157,13 +172,24 @@ describe('results_published', () => {
 })
 
 describe('weight retention', () => {
-    it('clears both weights 30 days after publication, nothing else', async () => {
+    it('clears both weights 30 days after publication or after the event end, nothing else', async () => {
         const { prisma } = build()
+        const before = new Date(NOW.getTime() - WEIGHT_RETENTION_MS)
         await expect(purgeTournamentWeights(prisma as never, NOW)).resolves.toBe(3)
         expect(prisma.tournamentEntry.updateMany).toHaveBeenCalledWith({
             where: {
-                tournament: { resultsPublishedAt: { lte: new Date(NOW.getTime() - WEIGHT_RETENTION_MS) } },
-                OR: [{ declaredWeightG: { not: null } }, { weighedWeightG: { not: null } }],
+                AND: [
+                    { OR: [{ declaredWeightG: { not: null } }, { weighedWeightG: { not: null } }] },
+                    {
+                        OR: [
+                            { tournament: { resultsPublishedAt: { lte: before } } },
+                            // never published, abandoned or unpublished: the event's end
+                            // (its start without an end) — a republish can't restart it
+                            { tournament: { event: { endAt: { lte: before } } } },
+                            { tournament: { event: { endAt: null, startAt: { lte: before } } } },
+                        ],
+                    },
+                ],
             },
             data: { declaredWeightG: null, weighedWeightG: null },
         })
@@ -217,37 +243,52 @@ describe('match_soon', () => {
         m('later', 'd2', 1, 2, 'e', 'f'),
     ]
 
-    it('tells the entrants of the first two ready matches; quiet ones are dropped, not held', async () => {
+    it('tells the entrants of matches with fewer than two in front; quiet ones are dropped, not held', async () => {
         const { prisma, notifications, rows } = build({
             divisions,
             matches,
-            entries: [
-                pushEntry('a', 'Asia/Tomsk'),
-                pushEntry('b', 'Asia/Tomsk'),
-                pushEntry('c', 'Asia/Tomsk'),
-                pushEntry('msk', 'Europe/Moscow'),
-            ],
+            entries: [pushEntry('a', 'Asia/Tomsk'), pushEntry('b', 'Europe/Moscow')],
         })
         await expect(
             notifyMatchSoon(prisma as never, notifications, { tournamentId: 't1', mat: 2, now: NOW }),
-        ).resolves.toBe(3)
+        ).resolves.toBe(1)
+        // «then» (d2) waits behind d1's open match and its not-yet-ready final:
+        // two in front, so c and msk hear nothing yet.
         expect(prisma.tournamentEntry.findMany.mock.calls[0][0].where).toEqual({
-            id: { in: ['a', 'b', 'c', 'msk'] },
+            id: { in: ['a', 'b'] },
         })
-        expect(rows.map((r) => [r.userId, r.message])).toEqual([
-            ['user-a', 'Ковёр 2, ваша схватка следующая'],
-            ['user-b', 'Ковёр 2, ваша схватка следующая'],
-            ['user-c', 'Ковёр 2, перед вами 1 схватка'],
+        expect(rows).toEqual([
+            expect.objectContaining({
+                userId: 'user-a',
+                topic: 'Скоро ваша схватка',
+                message: 'Ковёр 2, ваша схватка следующая',
+                metadata: expect.objectContaining({ kind: 'tournament.match_soon', eventId: 'ev1', workspaceId: 'club-a' }),
+            }),
         ])
-        expect(rows[0]).toMatchObject({
-            topic: 'Скоро ваша схватка',
-            metadata: { kind: 'tournament.match_soon', eventId: 'ev1', workspaceId: 'club-a' },
-        })
         // the quiet entrant is not claimed: nothing is queued for the morning
         expect(prisma.notificationDispatchLog.createManyAndReturn.mock.calls[0][0].data).toEqual([
             { kind: 'tournament.match_soon', refId: 'next:a' },
-            { kind: 'tournament.match_soon', refId: 'next:b' },
-            { kind: 'tournament.match_soon', refId: 'then:c' },
+        ])
+    })
+
+    it('counts in the discipline’s words and reaches the next division once one match is left', async () => {
+        const finalOnly = [
+            m('done', 'd1', 1, 1, 'x', 'y', 'x'),
+            m('next', 'd1', 1, 2, 'a', 'b', 'a'),
+            m('final', 'd1', 2, 1, 'x', 'a'),
+            m('then', 'd2', 1, 1, 'c', 'd'),
+        ]
+        const { prisma, notifications, rows } = build({
+            divisions,
+            matches: finalOnly,
+            entries: ['x', 'a', 'c', 'd'].map((id) => pushEntry(id, 'Asia/Tomsk', {}, 'FITNESS')),
+        })
+        await notifyMatchSoon(prisma as never, notifications, { tournamentId: 't1', mat: 2, now: NOW })
+        expect(rows.map((r) => [r.userId, r.topic, r.message])).toEqual([
+            ['user-x', 'Скоро ваше выступление', 'Ковёр 2, ваше выступление следующее'],
+            ['user-a', 'Скоро ваше выступление', 'Ковёр 2, ваше выступление следующее'],
+            ['user-c', 'Скоро ваше выступление', 'Ковёр 2, перед вами 1 выступление'],
+            ['user-d', 'Скоро ваше выступление', 'Ковёр 2, перед вами 1 выступление'],
         ])
     })
 
@@ -255,7 +296,7 @@ describe('match_soon', () => {
         const { prisma, notifications } = build({
             divisions,
             matches,
-            entries: [pushEntry('a', 'Asia/Tomsk'), pushEntry('b', 'Asia/Tomsk'), pushEntry('c', 'Asia/Tomsk')],
+            entries: [pushEntry('a', 'Asia/Tomsk'), pushEntry('b', 'Asia/Tomsk')],
         })
         await notifyMatchSoon(prisma as never, notifications, { tournamentId: 't1', mat: 2, now: NOW })
         await expect(

@@ -74882,13 +74882,16 @@
                   "type": "string",
                   "enum": [
                     "FEMALE",
-                    "MALE"
-                  ]
+                    "MALE",
+                    null
+                  ],
+                  "nullable": true
                 },
                 "birthYear": {
                   "type": "integer",
                   "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
+                  "maximum": 9007199254740991,
+                  "nullable": true
                 },
                 "declaredWeightKg": {
                   "type": "number",
@@ -75042,13 +75045,16 @@
                 "type": "string",
                 "enum": [
                   "FEMALE",
-                  "MALE"
-                ]
+                  "MALE",
+                  null
+                ],
+                "nullable": true
               },
               "birthYear": {
                 "type": "integer",
                 "minimum": -9007199254740991,
-                "maximum": 9007199254740991
+                "maximum": 9007199254740991,
+                "nullable": true
               },
               "declaredWeightKg": {
                 "type": "number",
@@ -75196,13 +75202,16 @@
             "type": "string",
             "enum": [
               "FEMALE",
-              "MALE"
-            ]
+              "MALE",
+              null
+            ],
+            "nullable": true
           },
           "birthYear": {
             "type": "integer",
             "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "maximum": 9007199254740991,
+            "nullable": true
           },
           "declaredWeightKg": {
             "type": "number",
@@ -75330,13 +75339,16 @@
             "type": "string",
             "enum": [
               "FEMALE",
-              "MALE"
-            ]
+              "MALE",
+              null
+            ],
+            "nullable": true
           },
           "birthYear": {
             "type": "integer",
             "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "maximum": 9007199254740991,
+            "nullable": true
           },
           "declaredWeightKg": {
             "type": "number",

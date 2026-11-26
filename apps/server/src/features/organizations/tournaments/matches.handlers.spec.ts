@@ -203,6 +203,7 @@ const makePrisma = (o: { role?: Role; tournament?: Record<string, unknown> } = {
                     ? {
                           ...t,
                           eventId: 'ev1',
+                          organization: { type: 'GRAPPLING' },
                           status: 'RUNNING',
                           matCount: 2,
                           resultsPublishedAt: null,
@@ -514,9 +515,15 @@ describe('getTournamentMatQueue', () => {
         expect(out).toEqual({ mat: 1, current: null, next: [], unassignedDivisions: 1 })
     })
 
-    it('refuses a mat outside the tournament', async () => {
+    it('refuses a mat outside the tournament, naming the mat count', async () => {
         await expect(queue(0)).rejects.toBeInstanceOf(BadRequestError)
-        await expect(queue(3)).rejects.toBeInstanceOf(BadRequestError)
+        await expect(queue(3)).rejects.toMatchObject({ message: 'В турнире 2 ковра' })
+        await expect(queue(2, { prisma: makePrisma({ tournament: { matCount: 1 } }) })).rejects.toMatchObject({
+            message: 'В турнире 1 ковёр',
+        })
+        await expect(queue(6, { prisma: makePrisma({ tournament: { matCount: 5 } }) })).rejects.toMatchObject({
+            message: 'В турнире 5 ковров',
+        })
     })
 
     it("answers 404 for another org's tournament", async () => {
@@ -682,7 +689,7 @@ describe('recordTournamentMatchResult', () => {
     })
 
     it('passes the store 404 on (a match of another tournament)', async () => {
-        jest.mocked(recordResult).mockRejectedValue(new NotFoundError({ message: 'Схватка не найдена' }))
+        jest.mocked(recordResult).mockRejectedValue(new NotFoundError({ message: 'Пара не найдена' }))
         const a = audit()
         await expect(record('m-elsewhere', { winnerEntryId: 'a1', method: 'POINTS' }, { a })).rejects.toBeInstanceOf(
             NotFoundError,
@@ -789,7 +796,7 @@ describe('undoTournamentMatchResult', () => {
     })
 
     it('passes the store 404 on (a match of another tournament)', async () => {
-        jest.mocked(undoResult).mockRejectedValue(new NotFoundError({ message: 'Схватка не найдена' }))
+        jest.mocked(undoResult).mockRejectedValue(new NotFoundError({ message: 'Пара не найдена' }))
         await expect(undo('m-elsewhere', {})).rejects.toBeInstanceOf(NotFoundError)
     })
 

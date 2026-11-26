@@ -60,7 +60,9 @@ export class SetTournamentEntryWithdrawnHandler
                 tournamentId: t.id,
                 entryId: entry.id,
                 withdrawn: f.payload.withdrawn,
-                reason,
+                // Whether the secretary typed a reason — never the text: it can
+                // carry names or health notes, and the journal outlives them.
+                reasonGiven: f.payload.withdrawn && !!f.payload.reason,
                 divisionName: d?.name ?? null,
             },
         })

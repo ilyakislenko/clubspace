@@ -49,11 +49,12 @@ describe('tournament run', () => {
         (await http().get(`${base(s)}/divisions/${divisionId}/bracket`).set(...s.secretary.auth).expect(200)).body
     const at = (b: Bracket, round: number, position: number) =>
         b.matches.find((m) => m.round === round && m.position === position)!
+    // A «По очкам» win 4:2 for the side (the scores follow the sides).
     const resultBody = (m: Match, side: 'A' | 'B', o: Record<string, unknown> = {}) => ({
         winnerEntryId: (side === 'A' ? m.entryA : m.entryB)!.entryId,
         method: 'POINTS',
-        scoreA: 4,
-        scoreB: 2,
+        scoreA: side === 'A' ? 4 : 2,
+        scoreB: side === 'A' ? 2 : 4,
         expectedUpdatedAt: m.updatedAt,
         ...o,
     })
@@ -223,7 +224,7 @@ describe('tournament run', () => {
         expect(lost.body).toMatchObject({
             code: 'STALE_UPDATE',
             message: 'Результат уже записан с другого планшета',
-            metadata: { winnerEntryId: won.winnerEntryId, method: 'POINTS', scoreA: 4, scoreB: 2 },
+            metadata: { winnerEntryId: won.winnerEntryId, method: 'POINTS', scoreA: won.scoreA, scoreB: won.scoreB },
         })
         const stored = at(await bracket(s, division.id), 1, 1)
         expect(stored.winnerEntryId).toBe(won.winnerEntryId)
@@ -236,8 +237,13 @@ describe('tournament run', () => {
             await ctx.prisma.auditEvent.count({ where: { organizationId: s.org.id, action: 'tournament.matchResult' } }),
         ).toBe(1)
         // A different result later is still refused: changing a result goes through undo.
-        const changed = await record(s, final, { ...won, scoreA: 9, expectedUpdatedAt: stored.updatedAt }).expect(409)
+        const changed = await record(s, final, { ...won, method: 'DECISION', expectedUpdatedAt: stored.updatedAt }).expect(409)
         expect(changed.body.code).toBe('STALE_UPDATE')
+        // «По очкам» with the loser ahead is refused before anything is written.
+        const { s: s2, division: d2 } = await runningWith(2)
+        const m2 = at(await bracket(s2, d2.id), 1, 1)
+        const backwards = await record(s2, m2, resultBody(m2, 'A', { scoreA: 1, scoreB: 3 })).expect(400)
+        expect(backwards.body.message).toBe('По очкам побеждает тот, у кого очков больше')
     })
 
     it('undo is blocked while the next match is decided and works after undoing that one first', async () => {

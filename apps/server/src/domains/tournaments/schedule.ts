@@ -49,11 +49,45 @@ export const matQueue = <M extends ScheduleMatch>(
         })
 }
 
+// Matches fought before `match` on its mat, ready or not: every undecided
+// match of the divisions queued earlier there (a division runs to its end
+// before the next) and of its own division's earlier rounds and positions.
+// It only ever goes down as results come in. Null without a mat.
+export const matchesAhead = (
+    divisions: ScheduleDivision[],
+    matches: ScheduleMatch[],
+    match: Pick<ScheduleMatch, 'id' | 'divisionId' | 'round' | 'position'>,
+): number | null => {
+    const mat = divisions.find((d) => d.id === match.divisionId)?.mat ?? null
+    if (mat === null) return null
+    const rank = new Map(
+        divisions.filter((d) => d.mat === mat).map((d) => [d.id, divisionRank(d)]),
+    )
+    const key = (m: Pick<ScheduleMatch, 'divisionId' | 'round' | 'position'>) => [
+        ...rank.get(m.divisionId)!,
+        m.round,
+        m.position,
+    ]
+    const mine = key(match)
+    const before = (k: number[]) => {
+        for (let i = 0; i < k.length; i += 1) if (k[i] !== mine[i]) return k[i] < mine[i]
+        return false
+    }
+    return matches.filter(
+        (m) =>
+            m.id !== match.id &&
+            rank.has(m.divisionId) &&
+            !m.isBye &&
+            m.winnerEntryId === null &&
+            before(key(m)),
+    ).length
+}
+
 export type NextMatch = {
     matchId: string
     mat: number | null
-    // Queued matches in front on that mat; null while the opponent is
-    // unknown or the division has no mat.
+    // Matches in front on that mat (matchesAhead); null while the opponent
+    // is unknown or the division has no mat.
     ahead: number | null
     opponentEntryId: string | null
     // The match whose winner will be the opponent («ждёт победителя схватки
@@ -81,12 +115,10 @@ export const nextMatchFor = (
     const mat = division?.mat ?? null
     const opponentEntryId = current.entryAId === entryId ? current.entryBId : current.entryAId
     if (opponentEntryId !== null) {
-        const queue = mat === null ? [] : matQueue(divisions, matches, mat)
-        const index = queue.findIndex((m) => m.id === current.id)
         return {
             matchId: current.id,
             mat,
-            ahead: index >= 0 ? index : null,
+            ahead: matchesAhead(divisions, matches, current),
             opponentEntryId,
             waitingFor: null,
         }

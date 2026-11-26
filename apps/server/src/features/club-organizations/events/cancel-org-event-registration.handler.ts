@@ -5,7 +5,6 @@ import {
     cancelOrgEventBooking,
 } from '../../../domains/organizations/org-events'
 import { RealtimeEmitter } from '../../../domains/realtime/realtime-emitter.service'
-import { releaseRegistrationEntry } from '../../../domains/tournaments/tournament-store'
 import { PrismaService } from '../../../infrastructure/prisma'
 import { BadRequestError, NotFoundError } from '../../../shared/errors/shared.errors'
 import {
@@ -51,10 +50,6 @@ export class CancelOrgEventRegistrationHandler
         if (reg.event.startAt <= now) {
             throw new BadRequestError({ message: 'Событие уже началось — запись не отменить' })
         }
-        await releaseRegistrationEntry(this.prisma, {
-            eventId: reg.event.id,
-            registrationId: reg.id,
-        })
         const updated = await cancelOrgEventBooking(this.prisma, {
             registrationId: reg.id,
             now,

@@ -8,6 +8,7 @@ import {
     MATCH_SELECT,
 } from '../../../domains/tournaments/tournament-read'
 import { nextSlot } from '../../../domains/tournaments/bracket'
+import { countMats } from '../../../domains/tournaments/tournament-words'
 import { PrismaService } from '../../../infrastructure/prisma'
 import { BadRequestError } from '../../../shared/errors/shared.errors'
 import {
@@ -37,7 +38,7 @@ export class GetTournamentMatQueueHandler
         })
         const t = await loadOrgTournament(this.prisma, f.organizationId, f.tournamentId)
         if (f.mat < 1 || f.mat > t.matCount) {
-            throw new BadRequestError({ message: `В турнире ${t.matCount} ковр(а/ов)` })
+            throw new BadRequestError({ message: `В турнире ${countMats(t.matCount)}` })
         }
         const [divisions, matches] = await Promise.all([
             this.prisma.tournamentDivision.findMany({

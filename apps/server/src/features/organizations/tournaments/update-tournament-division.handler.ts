@@ -4,6 +4,7 @@ import { AuditService } from '../../../domains/audit/services/audit.service'
 import { assertOrgStaff, OrgRbacService } from '../../../domains/organizations/org-access'
 import { gramsToKg } from '../../../domains/tournaments/divisions'
 import { TournamentPublishedError } from '../../../domains/tournaments/tournament-errors'
+import { countMats } from '../../../domains/tournaments/tournament-words'
 import {
     DIVISION_SELECT,
     loadDivisionView,
@@ -49,7 +50,7 @@ export class UpdateTournamentDivisionHandler
         if (!current) throw new NotFoundError({ message: 'Категория не найдена' })
         const p = f.payload
         if (p.mat != null && p.mat > t.matCount) {
-            throw new BadRequestError({ message: `В турнире ${t.matCount} ковр(а/ов)` })
+            throw new BadRequestError({ message: `В турнире ${countMats(t.matCount)}` })
         }
         const pick = <K extends keyof typeof p, V>(key: K, fallback: V) =>
             (p[key] === undefined ? fallback : p[key]) as V

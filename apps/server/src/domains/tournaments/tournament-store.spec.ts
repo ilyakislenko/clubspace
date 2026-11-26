@@ -8,7 +8,7 @@ import {
     NOT_WEIGHED_REASON,
     recordResult,
     recordWeighIn,
-    releaseRegistrationEntry,
+    releaseRegistrationEntryIn,
     type ResultInput,
     setEntryWithdrawn,
     setResultsPublished,
@@ -282,6 +282,7 @@ const placeOf = (w: World, id: string) => w.tables.tournamentEntry.find((e) => e
 const entryRow = (w: World, id: string) => w.tables.tournamentEntry.find((e) => e.id === id)!
 const divisionRow = (w: World, id = 'd1') => w.tables.tournamentDivision.find((d) => d.id === id)!
 
+// A «По очкам» win 4:2 for the given side (the scores follow the sides).
 const win = (
     m: Row,
     side: 'A' | 'B' = 'A',
@@ -289,8 +290,8 @@ const win = (
 ): ResultInput => ({
     winnerEntryId: (side === 'A' ? m.entryAId : m.entryBId) as string,
     method: 'POINTS',
-    scoreA: 4,
-    scoreB: 2,
+    scoreA: side === 'A' ? 4 : 2,
+    scoreB: side === 'A' ? 2 : 4,
     note: null,
     ...o,
 })
@@ -582,8 +583,8 @@ describe('results', () => {
         expect(at(w, 1, 1)).toMatchObject({
             winnerEntryId: sf1.entryBId,
             method: 'POINTS',
-            scoreA: 4,
-            scoreB: 2,
+            scoreA: 2,
+            scoreB: 4,
             decidedAt: NOW,
             decidedById: 'secretary',
         })
@@ -676,6 +677,23 @@ describe('results', () => {
         expect(out.map((o) => o.retried).sort()).toEqual([false, true])
     })
 
+    it('«По очкам» needs both scores and the winner’s higher; a decision may be level', async () => {
+        const w = await running(2)
+        const m = at(w, 1, 1)
+        await expect(record(w, m, win(m, 'A', { scoreA: 2, scoreB: 4 }))).rejects.toMatchObject({
+            statusCode: 400,
+            message: 'По очкам побеждает тот, у кого очков больше',
+        })
+        await expect(record(w, m, win(m, 'B', { scoreA: 3, scoreB: 3 }))).rejects.toMatchObject({ statusCode: 400 })
+        await expect(record(w, m, win(m, 'A', { scoreB: null }))).rejects.toMatchObject({
+            message: 'Для победы по очкам укажите счёт обоих участников',
+        })
+        expect(at(w, 1, 1).winnerEntryId).toBeNull()
+        await expect(
+            record(w, m, win(m, 'B', { method: 'DECISION', scoreA: 2, scoreB: 2 })),
+        ).resolves.toMatchObject({ finished: true })
+    })
+
     it('refuses a match not ready, a bye, a stranger as winner and the wrong phase', async () => {
         const w = await running(3)
         const bye = matchesOf(w).find((m) => m.isBye)!
@@ -742,7 +760,7 @@ describe('undo', () => {
     it('refuses a bye, an undecided match, an unknown one and the wrong phase', async () => {
         const w = await running(3)
         const bye = matchesOf(w).find((m) => m.isBye)!
-        await expect(undo(w, bye)).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/без схватки/) })
+        await expect(undo(w, bye)).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/без соперника/) })
         const [m] = readyOf(w)
         await expect(undo(w, m)).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/не записан/) })
         await expect(undo(w, { ...m, id: 'nope' })).rejects.toMatchObject({ statusCode: 404 })
@@ -1030,19 +1048,83 @@ describe('club-side declarations', () => {
 
     it('cancelling a registration deletes its SETUP entry and is locked afterwards', async () => {
         const w = world()
-        const release = () =>
-            releaseRegistrationEntry(w.prisma as never, { eventId: 'ev1', registrationId: 'reg-a' })
-        await expect(release()).resolves.toBeUndefined()
+        const release = (registrationId: string) =>
+            w.prisma.$transaction((tx) =>
+                releaseRegistrationEntryIn(tx as never, { eventId: 'ev1', registrationId }),
+            )
+        await expect(release('reg-a')).resolves.toBeUndefined()
         tournament(w, 'SETUP')
         entry(w, 'a')
         entry(w, 'b')
-        await release()
+        await release('reg-a')
         expect(w.tables.tournamentEntry.map((e) => e.id)).toEqual(['b'])
         w.tables.tournament[0].status = 'WEIGH_IN'
-        await expect(
-            releaseRegistrationEntry(w.prisma as never, { eventId: 'ev1', registrationId: 'reg-b' }),
-        ).rejects.toMatchObject({ code: 'TOURNAMENT_LOCKED' })
+        await expect(release('reg-b')).rejects.toMatchObject({ code: 'TOURNAMENT_LOCKED' })
         expect(w.tables.tournamentEntry).toHaveLength(1)
+    })
+
+    it('a club declaration never revives an entry the federation withdrew', async () => {
+        const w = world()
+        tournament(w, 'SETUP')
+        entry(w, 'gone', { registrationId: 'reg-1', status: 'WITHDRAWN', withdrawnReason: 'Травма' })
+        await expect(declare(w)).rejects.toMatchObject({ statusCode: 400, message: 'Заявка снята' })
+        await expect(declare(w, { declaredById: 'coach', confirmation })).rejects.toMatchObject({
+            message: 'Заявка снята',
+        })
+        expect(entryRow(w, 'gone')).toMatchObject({ status: 'WITHDRAWN', withdrawnReason: 'Травма' })
+    })
+})
+
+describe('back to SETUP after a weigh-in draw', () => {
+    it('clears the brackets, so cancel and re-declare leave no ghost and the start draws afresh', async () => {
+        const w = world()
+        tournament(w, 'WEIGH_IN')
+        division(w, 'd1')
+        entry(w, 'a', { registrationId: 'reg-a' })
+        entry(w, 'b', { registrationId: 'reg-b' })
+        entry(w, 'c', { registrationId: 'reg-c' })
+        entry(w, 'd', { registrationId: 'reg-d' })
+        await drawDivision(w.prisma as never, { tournamentId: T, divisionId: 'd1', now: NOW })
+        expect(matchesOf(w)).toHaveLength(3)
+
+        await setTournamentStatus(w.prisma as never, { tournamentId: T, to: 'SETUP', now: NOW })
+        expect(matchesOf(w)).toHaveLength(0)
+        expect(divisionRow(w)).toMatchObject({ drawnAt: null, finishedAt: null })
+
+        // «a» cancels; «b» re-declares another weight (the old weigh-in goes).
+        await w.prisma.$transaction((tx) =>
+            releaseRegistrationEntryIn(tx as never, { eventId: 'ev1', registrationId: 'reg-a' }),
+        )
+        await declareEntry(w.prisma as never, {
+            tournamentId: T,
+            registrationId: 'reg-b',
+            userId: 'user-b',
+            workspaceId: 'club-a',
+            sex: 'MALE',
+            birthYear: 2000,
+            declaredWeightG: 81_000,
+            declaredById: 'user-b',
+            confirmation: null,
+            now: NOW,
+        })
+        expect(entryRow(w, 'b')).toMatchObject({
+            status: 'DECLARED',
+            divisionId: null,
+            weighedWeightG: null,
+            weighedAt: null,
+            weighedById: null,
+        })
+
+        // Weigh-in again, then the start: «b» was never re-weighed, so it is
+        // withdrawn «Не взвешен»; c and d are drawn in a fresh bracket.
+        await setTournamentStatus(w.prisma as never, { tournamentId: T, to: 'WEIGH_IN', now: NOW })
+        await expect(
+            setTournamentStatus(w.prisma as never, { tournamentId: T, to: 'RUNNING', now: NOW }),
+        ).resolves.toEqual({ from: 'WEIGH_IN', withdrawn: 1, drawn: 1 })
+        expect(entryRow(w, 'b')).toMatchObject({ status: 'WITHDRAWN', withdrawnReason: NOT_WEIGHED_REASON })
+        const seeded = matchesOf(w).flatMap((m) => [m.entryAId, m.entryBId]).filter(Boolean)
+        expect(seeded.sort()).toEqual(['c', 'd'])
+        expect(divisionRow(w).drawNo).toBe(2)
     })
 })
 
