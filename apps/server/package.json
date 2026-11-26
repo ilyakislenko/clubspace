@@ -7,6 +7,25 @@
       "build": {
         "dependsOn": [
           "prisma:generate"
+        ],
+        "inputs": [
+          "production",
+          "^production",
+          "{workspaceRoot}/package.json",
+          "{workspaceRoot}/package-lock.json",
+          {
+            "externalDependencies": [
+              "webpack-cli"
+            ]
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "extends",
+              "files",
+              "include"
+            ]
+          }
         ]
       },
       "prune-lockfile": {

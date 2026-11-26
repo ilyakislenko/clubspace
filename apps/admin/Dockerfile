@@ -57,7 +57,7 @@ RUN apk add --no-cache tini wget
 # apps/admin/server.js with its traced node_modules alongside.
 COPY --from=builder /workspace/dist/apps/admin/.next/standalone ./
 # public/ sits next to server.js; the static assets go into the build's distDir
-# (withNx sets it to ../../dist/apps/admin/.next, kept in the standalone
+# (next.config.js sets it to ../../dist/apps/admin/.next, kept in the standalone
 # server.js) — anywhere else every /_next/static/* answers 404 and the panel
 # renders without scripts or styles.
 COPY --from=builder /workspace/dist/apps/admin/.next/static ./dist/apps/admin/.next/static

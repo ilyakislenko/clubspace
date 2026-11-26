@@ -130,5 +130,8 @@
   },
   "affected": {
     "legacy": true
+  },
+  "sync": {
+    "disabledTaskSyncGenerators": ["@nx/js:typescript-sync"]
   }
 }

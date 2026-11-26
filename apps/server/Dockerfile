@@ -59,7 +59,7 @@ COPY . .
 # container start for `prisma db push` (and stays strict there on purpose).
 RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
     npx nx run @clubspace/server:prisma:generate
-RUN npx nx run @clubspace/server:build
+RUN npx nx run @clubspace/server:build --skip-sync
 
 # ─── Stage 3: runtime ─────────────────────────────────────────────────────────
 FROM node:22.23.5-alpine3.24 AS runtime
