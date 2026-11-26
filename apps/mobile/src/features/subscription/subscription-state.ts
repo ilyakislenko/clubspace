@@ -356,16 +356,14 @@ export const abonementShortLine = (
 }
 
 // Text colour for a state line. Shared by the abonement screen and Home card.
-// «warn» is the warning colour, like the pack's progress bar under it (the
-// accent made «Осталось 4 занятия…» purple over an orange bar, and read as a link).
 export const toneColor = (
-  colors: Pick<Theme["colors"], "danger" | "warning" | "text" | "muted">,
+  colors: Pick<Theme["colors"], "danger" | "accent" | "text" | "muted">,
   tone: SubscriptionTone,
 ): string =>
   tone === "danger"
     ? colors.danger
     : tone === "warn"
-      ? colors.warning
+      ? colors.accent
       : tone === "ok"
         ? colors.text
         : colors.muted

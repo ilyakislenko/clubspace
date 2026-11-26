@@ -155,10 +155,10 @@ describe("accessStatus", () => {
 })
 
 describe("toneColor", () => {
-  const colors = { danger: "d", warning: "w", text: "t", muted: "m" }
+  const colors = { danger: "d", accent: "a", text: "t", muted: "m" }
   it("maps each tone onto a theme colour", () => {
     expect(toneColor(colors, "danger")).toBe("d")
-    expect(toneColor(colors, "warn")).toBe("w")
+    expect(toneColor(colors, "warn")).toBe("a")
     expect(toneColor(colors, "ok")).toBe("t")
     expect(toneColor(colors, "muted")).toBe("m")
   })
