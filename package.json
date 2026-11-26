@@ -132,7 +132,6 @@
     "@nx/nest": "^22.3.3",
     "@nx/next": "^22.3.3",
     "@nx/node": "22.3.3",
-    "@nx/vitest": "22.3.3",
     "@nx/web": "22.3.3",
     "@nx/webpack": "22.3.3",
     "@nx/workspace": "22.3.3",
@@ -153,7 +152,6 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/supertest": "^7.2.1",
-    "@vitest/coverage-v8": "^4.0.0",
     "autoprefixer": "^10.7.0",
     "babel-jest": "^30.5.2",
     "babel-plugin-transform-remove-console": "^6.9.4",
@@ -188,8 +186,6 @@
     "tsx": "^4.23.15",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.73.0",
-    "vite": "^7.0.0",
-    "vitest": "^4.0.8",
     "webpack-cli": "^5.1.4"
   },
   "//overrides": {
