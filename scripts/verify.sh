@@ -229,6 +229,11 @@ run_step "prepare (prisma client + referenced libs)" prepare
 run_step "typecheck (5 projects)" typecheck
 run_step "unit + UI tests (coverage-gated)" unit_tests
 run_step "contract (open-api / api types / theme css)" contract
+# Seconds, and it catches a lock the Docker images can't `npm ci` (written by
+# a newer npm than the one in node:22). Skipped without a Docker daemon.
+if docker info >/dev/null 2>&1; then
+    run_step "lockfile (npm ci in the prod node image)" bash scripts/check-lockfile.sh
+fi
 if [ "$QUICK" = 0 ]; then
     if infra_reachable; then
         run_step "e2e (real server + real database)" e2e_tests

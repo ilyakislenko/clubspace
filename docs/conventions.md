@@ -31,6 +31,10 @@ Exact commands are pinned on purpose. Use them verbatim.
   - admin: `npx tsc -p apps/admin/tsconfig.json --noEmit`
   - mobile: `npx tsc -p apps/mobile/tsconfig.app.json --noEmit`
     (⚠️ `tsconfig.json` in mobile is a **false-clean** — always use `tsconfig.app.json`).
+- **Lockfile:** after any dependency change run `bash scripts/check-lockfile.sh`
+  (also part of `npm run verify` when Docker is up). The images run the npm of
+  `node:22` (npm 10); a lock written by npm 11 can miss entries it needs and every
+  Docker build then stops at `npm ci`. Fix: `bash scripts/check-lockfile.sh --fix`.
 - **Definition of done for a task:** relevant jest green + the area's tsc clean +
   (if endpoints changed) contract regenerated (§Contract) + committed on a feature branch.
 
