@@ -31,6 +31,8 @@ describe('federation registry', () => {
         'levelName',
         'personKey',
         'personName',
+        // Published tournament podiums («призёр», docs/design/2026-11-27-tournaments.md §5.1).
+        'podiumCount',
         'stripes',
         'templateLevelName',
     ]

@@ -559,7 +559,8 @@ Integrator checks: tsc server / admin / mobile; `npx nx test @clubspace/server -
 
 ## 12. Out of the MVP — next steps with sketches
 
-1. **Tournaments (L):** `Tournament` on `OrganizationEvent(kind=COMPETITION)`; `Division` (age band, weight, level
+1. **Tournaments (L)** — спроектировано и сделано: [2026-11-27-tournaments.md](2026-11-27-tournaments.md) (the judge
+   PWA with an offline queue stays out, its §15). The sketch: `Tournament` on `OrganizationEvent(kind=COMPETITION)`; `Division` (age band, weight, level
    — config per org, not enums); `Entry` from registrations with declared weight; tablet weigh-in moving athletes
    between divisions; single-elimination brackets seeded to separate clubs; `Match` (method, points); a judge
    role per event and a mat-side scoring PWA with an offline queue; results feed the registry («призёр»).

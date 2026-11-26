@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { gramsToKg } from '../../../domains/tournaments/divisions'
+import type { EntryView } from '../../../domains/tournaments/tournament-read'
 import {
     CompetitorSexSchema,
     MatchWinMethodSchema,
@@ -38,6 +40,7 @@ export const ClubTournamentNextMatchSchema = z.object({
         })
         .nullable(),
 })
+export type ClubTournamentNextMatch = z.infer<typeof ClubTournamentNextMatchSchema>
 
 // An entry as its own people see it (athlete, guardian, own club coach).
 export const ClubTournamentEntrySchema = z.object({
@@ -104,6 +107,11 @@ export const ClubTournamentAthleteSchema = z.object({
     registrationId: z.string().uuid().nullable(),
     consentCurrent: z.boolean(),
     profileBirthYear: z.number().int().nullable(),
+    // The level the federation registry shows for the student (confirming
+    // takes it); null = the coach picks one («Пояс по стандарту федерации»).
+    registryLevel: z
+        .object({ templateLevelId: z.string().uuid(), name: z.string() })
+        .nullable(),
     entry: ClubTournamentEntrySchema.nullable(),
 })
 
@@ -123,4 +131,58 @@ export const ClubTournamentBracketMatchSchema = z.object({
 
 export const ClubTournamentPodiumRowSchema = ClubTournamentPersonSchema.extend({
     place: z.number().int(),
+})
+
+export type ClubViewer = {
+    // The person (a guardian's child when acting for it).
+    userId: string
+    workspaceId: string
+    // Owner or staff of the club: names of the club's own athletes always.
+    staff: boolean
+}
+
+// §2.3 for club audiences: the person themself and their own club's coach
+// always see the name; everyone else only for a visible person.
+export const serializeClubPerson = (
+    e: EntryView,
+    v: ClubViewer,
+): z.infer<typeof ClubTournamentPersonSchema> => {
+    const isMe = e.userId === v.userId
+    const isMyClub = e.workspaceId === v.workspaceId
+    const shown = e.visible || isMe || (v.staff && isMyClub)
+    return {
+        hidden: !shown,
+        personName: shown ? e.personName : null,
+        clubName: shown ? e.clubName : null,
+        isMe,
+        isMyClub,
+    }
+}
+
+// Own data: the entry of the person or of the coach's own student.
+export const serializeClubTournamentEntry = (
+    e: EntryView,
+    o: {
+        division: { name: string; drawnAt: Date | null } | undefined
+        tournamentStatus: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED'
+        nextMatch: z.infer<typeof ClubTournamentNextMatchSchema> | null
+    },
+): ClubTournamentEntry => ({
+    id: e.id,
+    userId: e.userId,
+    status: e.status,
+    sex: e.sex,
+    birthYear: e.birthYear,
+    declaredWeightKg: e.declaredWeightG === null ? null : gramsToKg(e.declaredWeightG),
+    weighedWeightKg: e.weighedWeightG === null ? null : gramsToKg(e.weighedWeightG),
+    divisionId: e.divisionId,
+    divisionName: o.division?.name ?? null,
+    levelName: e.levelName,
+    withdrawnReason: e.withdrawnReason,
+    place: e.place,
+    bracketAvailable:
+        !!o.division?.drawnAt &&
+        (o.tournamentStatus === 'RUNNING' || o.tournamentStatus === 'FINISHED'),
+    nextMatch: o.nextMatch,
+    updatedAt: e.updatedAt.toISOString(),
 })

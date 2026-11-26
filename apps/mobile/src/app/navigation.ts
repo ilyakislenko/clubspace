@@ -86,6 +86,12 @@ export type RootStackParamList = {
   Gyms: undefined
   // `eventId`: scroll to and mark that event (Home's «Ближайшее событие»).
   Events: { eventId?: string } | undefined
+  // A federation tournament (docs/design/2026-11-27-tournaments.md §8): the
+  // athlete's / guardian's entry and next match, the coach's students; one
+  // division's bracket; the published results.
+  OrgTournament: { workspaceId: string; eventId: string; title?: string }
+  TournamentBracket: { workspaceId: string; eventId: string; divisionId: string }
+  TournamentResults: { workspaceId: string; eventId: string }
   ClubAbout: undefined
   SessionAttendance: {
     slotId: string

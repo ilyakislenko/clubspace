@@ -136,14 +136,69 @@ export const LEGACY_REDIRECTS: readonly { from: string; to: string }[] = [
 // The federation console (/org/<id>, docs/design/2026-11-26-federation-hub-mvp.md
 // §4.1). `email` signs in and must land on /org/<id> (a federation-only
 // account) and see exactly `routes` in its sidebar, each rendering clean.
+// `blocked`: not in its sidebar, and opening it shows the admins-only notice.
+// `pages`: routes outside the sidebar (tournament pages under «Календарь»),
+// visited like the rest; `expect` must appear on the page, `absent` must not.
 // Routes are relative to /org/<id>/.
 export const ORG_ROUTES = ['', 'registry', 'events', 'announcements', 'ladders', 'team', 'settings'] as const
 
-export const ORG_MATRIX: readonly { email: string; routes: readonly string[] }[] = [
-  { email: 'federation@academy.demo', routes: ORG_ROUTES },
+export type OrgPage = { route: string; expect?: readonly string[]; absent?: readonly string[] }
+
+export type OrgCase = {
+  email: string
+  routes: readonly string[]
+  blocked: readonly string[]
+  pages: readonly OrgPage[]
+}
+
+// Demo federation tournaments (docs/design/2026-11-27-tournaments.md §10):
+// `demoUuid` ids, pinned here and asserted by the server's
+// demo-tournaments.spec.ts. «Кубок федерации, 2-й этап» runs now (3 mats),
+// «1-й этап» finished with published results.
+export const DEMO_TOURNAMENT = {
+  cupEventId: '5f68658e-0226-4a50-b495-d9f6c6d57de5',
+  autumnEventId: 'ab6f7d09-1b62-43cb-83e2-6af13eb8f555',
+  // student@'s division (men, white belt, up to 82 kg): drawn, half played, mat 2.
+  cupDivisionId: '0e194e7d-6b00-4fbd-96d0-234b881e6edf',
+} as const
+
+const PUBLISH_ACTIONS = ['Опубликовать итоги', 'Снять публикацию'] as const
+
+const tournamentPages = (role: 'admin' | 'secretary'): OrgPage[] => {
+  const cup = `events/${DEMO_TOURNAMENT.cupEventId}/tournament`
+  const autumn = `events/${DEMO_TOURNAMENT.autumnEventId}/tournament`
+  const secretary = role === 'secretary' ? { absent: PUBLISH_ACTIONS } : {}
+  return [
+    { route: cup, expect: ['Идёт'], ...secretary },
+    { route: `${cup}?tab=entries`, ...secretary },
+    // The table at mat 2 has a match to record now.
+    { route: `${cup}?tab=mats&mat=2`, expect: ['Сейчас', 'Записать результат'], ...secretary },
+    { route: `${cup}?tab=results`, ...secretary },
+    { route: `${cup}/divisions/${DEMO_TOURNAMENT.cupDivisionId}`, expect: ['Финал'], ...secretary },
+    {
+      route: `${autumn}?tab=results`,
+      expect: role === 'admin' ? ['Опубликовано', 'Снять публикацию'] : ['Опубликовано'],
+      ...secretary,
+    },
+  ]
+}
+
+export const ORG_MATRIX: readonly OrgCase[] = [
+  { email: 'federation@academy.demo', routes: ORG_ROUTES, blocked: [], pages: tournamentPages('admin') },
+  {
+    // ORG_COACH — the table secretary: runs the day, never publishes.
+    email: 'secretary@academy.demo',
+    routes: ['', 'registry', 'events', 'announcements', 'ladders'],
+    blocked: ['team', 'settings'],
+    pages: tournamentPages('secretary'),
+  },
 ]
 
 // A club owner is not on the federation's team: opening the console by URL
-// shows the notice, and the club's own settings offer «Федерация» (ACADEMY is
-// a member club).
-export const ORG_OUTSIDER = { email: 'owner@academy.demo', federationSettings: 'settings/federation' } as const
+// (a tournament page included) shows the notice, and the club's own settings
+// offer «Федерация» (ACADEMY is a member club).
+export const ORG_OUTSIDER = {
+  email: 'owner@academy.demo',
+  federationSettings: 'settings/federation',
+  tournament: `events/${DEMO_TOURNAMENT.cupEventId}/tournament`,
+} as const

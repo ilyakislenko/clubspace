@@ -11,7 +11,7 @@ const link = (o: Record<string, unknown> = {}) => ({
 })
 
 // org1 has this club sharing its registry, org2 doesn't.
-const makePrisma = (o: { link?: unknown; consents?: unknown[] } = {}) => ({
+const makePrisma = (o: { link?: unknown; consents?: unknown[]; podiums?: unknown[] } = {}) => ({
     organizationClub: {
         findFirst: jest.fn().mockResolvedValue(o.link === undefined ? link() : o.link),
         findMany: jest.fn(
@@ -32,6 +32,8 @@ const makePrisma = (o: { link?: unknown; consents?: unknown[] } = {}) => ({
     guardianship: { findMany: jest.fn().mockResolvedValue([]) },
     // The registry's own read: the linked ladder with a visible belt.
     $queryRaw: jest.fn().mockResolvedValue([{ ladderId: 'lad-bjj' }]),
+    // Published podiums (personPodiums).
+    tournamentEntry: { findMany: jest.fn().mockResolvedValue(o.podiums ?? []) },
 })
 
 const setConsent = (
@@ -153,5 +155,61 @@ describe('listMyClubOrganizations', () => {
         )
         expect(out.data[0].consentText).toContain('имя и фамилию моего ребёнка')
         expect(out.data[0].consentText).not.toContain('моё имя')
+    })
+
+    it('flags an older consent edition as not current (tournaments need the new one)', async () => {
+        const old = makePrisma({
+            consents: [{ userId: 'adult', dependentId: null, version: '2026-11-26.2' }],
+        })
+        const outOld = await new ListMyClubOrganizationsHandler(old as never).execute(
+            new ListMyClubOrganizationsFeature('w1', 'adult', null),
+        )
+        expect(outOld.data[0]).toMatchObject({ consentGranted: true, consentCurrent: false })
+        const current = makePrisma({
+            consents: [{ userId: 'adult', dependentId: null, version: '2026-11-27.1' }],
+        })
+        const outNew = await new ListMyClubOrganizationsHandler(current as never).execute(
+            new ListMyClubOrganizationsFeature('w1', 'adult', null),
+        )
+        expect(outNew.data[0]).toMatchObject({ consentGranted: true, consentCurrent: true })
+        expect(outNew.data[0].consentVersion).toBe('2026-11-27.1')
+    })
+
+    it('lists own published podiums even without a consent (own data)', async () => {
+        const prisma = makePrisma({
+            consents: [],
+            podiums: [
+                {
+                    userId: 'kid',
+                    place: 2,
+                    division: { name: 'Мальчики · 8–9 лет · до 30 кг' },
+                    tournament: {
+                        event: {
+                            id: 'ev-1',
+                            title: 'Кубок федерации, 1-й этап',
+                            startAt: new Date('2026-10-17T03:00:00Z'),
+                            timezone: 'Asia/Tomsk',
+                        },
+                    },
+                },
+            ],
+        })
+        const out = await new ListMyClubOrganizationsHandler(prisma as never).execute(
+            new ListMyClubOrganizationsFeature('w1', 'kid', 'parent'),
+        )
+        expect(out.data[0]).toMatchObject({ consentGranted: false, consentCurrent: false })
+        expect(out.data[0].podiums).toEqual([
+            {
+                eventId: 'ev-1',
+                tournamentTitle: 'Кубок федерации, 1-й этап',
+                date: '2026-10-17',
+                divisionName: 'Мальчики · 8–9 лет · до 30 кг',
+                place: 2,
+            },
+        ])
+        expect(prisma.tournamentEntry.findMany.mock.calls[0][0].where).toMatchObject({
+            userId: { in: ['kid'] },
+            tournament: { status: 'FINISHED', resultsPublishedAt: { not: null } },
+        })
     })
 })

@@ -98,6 +98,7 @@ export default function OrgEventsPage() {
                     <span className="mt-0.5 block text-xs text-muted-foreground">
                       {[
                         EVENT_KIND_LABEL[e.kind],
+                        e.tournament?.status === "RUNNING" ? "идёт" : null,
                         eventWhen(e.startAt, e.endAt, e.timezone),
                         e.hostClub?.name ?? e.place,
                         bookedText(e.bookedCount, e.capacity),

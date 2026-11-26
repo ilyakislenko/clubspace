@@ -5,6 +5,7 @@ import {
     cancelOrgEventBooking,
 } from '../../../domains/organizations/org-events'
 import { RealtimeEmitter } from '../../../domains/realtime/realtime-emitter.service'
+import { releaseRegistrationEntry } from '../../../domains/tournaments/tournament-store'
 import { PrismaService } from '../../../infrastructure/prisma'
 import { BadRequestError, NotFoundError } from '../../../shared/errors/shared.errors'
 import {
@@ -13,7 +14,9 @@ import {
 } from './cancel-org-event-registration.feature'
 
 // The person themself (a guardian for the child) or the coach who booked
-// them through this club gives the place back, until the event starts.
+// them through this club gives the place back, until the event starts. With
+// a tournament: only while it takes entries (SETUP; the entry goes too) —
+// after that 409 TOURNAMENT_LOCKED, changes go through the secretary.
 @Feature(CancelOrgEventRegistrationFeature)
 export class CancelOrgEventRegistrationHandler
     implements
@@ -48,6 +51,10 @@ export class CancelOrgEventRegistrationHandler
         if (reg.event.startAt <= now) {
             throw new BadRequestError({ message: 'Событие уже началось — запись не отменить' })
         }
+        await releaseRegistrationEntry(this.prisma, {
+            eventId: reg.event.id,
+            registrationId: reg.id,
+        })
         const updated = await cancelOrgEventBooking(this.prisma, {
             registrationId: reg.id,
             now,

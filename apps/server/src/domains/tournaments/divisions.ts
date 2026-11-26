@@ -42,6 +42,23 @@ export const entryWeightG = (e: {
     weighedWeightG: number | null
 }): number | null => e.weighedWeightG ?? e.declaredWeightG
 
+// The facts of a stored entry on the event's local date.
+export const entryFacts = (
+    e: {
+        sex: CompetitorSex
+        birthYear: number
+        declaredWeightG: number | null
+        weighedWeightG: number | null
+    },
+    eventLocalDate: string,
+    level: { templateId: string; order: number } | null,
+): EntryFacts => ({
+    sex: e.sex,
+    age: ageFor(e.birthYear, eventLocalDate),
+    weightG: entryWeightG(e),
+    level,
+})
+
 export const isOpenWeight = (d: Pick<DivisionCriteria, 'weightMinG' | 'weightMaxG'>) =>
     d.weightMinG === null && d.weightMaxG === null
 

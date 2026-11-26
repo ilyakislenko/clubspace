@@ -229,6 +229,19 @@ export const routeForNotification = (
     case "org_event.registered_by_club":
     case "org_event.reminder":
       return gated("Events")
+    // Federation tournaments: brackets drawn, the entrant's match is near,
+    // results published — the tournament screen of that event (gated like
+    // «События», where it lives).
+    case "tournament.bracket_ready":
+    case "tournament.match_soon":
+    case "tournament.results_published": {
+      const workspaceId = str(m.workspaceId)
+      const eventId = str(m.eventId)
+      if (!gated("Events")) return null
+      return workspaceId && eventId
+        ? { name: "OrgTournament", params: { workspaceId, eventId } }
+        : gated("Events")
+    }
   }
 
   // Older rows and unknown kinds: a video id alone is still enough to open it.

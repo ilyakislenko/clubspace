@@ -1,4 +1,5 @@
 import { cap } from "@clubspace/ui-kit/brand"
+import { useNavigation } from "@react-navigation/native"
 import React, { useCallback } from "react"
 import {
   ActivityIndicator,
@@ -7,6 +8,9 @@ import {
   Text,
   View,
 } from "react-native"
+import type { AppNavigation } from "../../app/navigation"
+import { Chevron } from "../../shared/components/Chevron"
+import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { SafeAreaView } from "react-native-safe-area-context"
 import {
@@ -34,6 +38,7 @@ import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { DirectionTag } from "../directions/DirectionTag"
 import { fmtDate } from "../subscription/subscription-state"
 import { registryLine } from "../org-events/org-helpers"
+import { podiumLines } from "../org-events/tournament-helpers"
 import {
   formatLevelWithStripes,
   ladderNamesDirection,
@@ -46,6 +51,7 @@ export function MyRanksScreen() {
   const styles = useThemedStyles(makeStyles)
   const { workspace } = useAuth()
   const vocabulary = useVocabulary()
+  const navigation = useNavigation<AppNavigation>()
 
   const {
     data,
@@ -107,6 +113,25 @@ export function MyRanksScreen() {
   const severalLadders =
     new Set([...(data?.current ?? []), ...(data?.history ?? [])].map((p) => p.ladderId))
       .size > 1
+  // Federation podiums («2 место — Кубок федерации, 1-й этап · 12 октября»):
+  // under the federation line of the belt the federation sees, else under
+  // the first belt; own data, shown even after the consent was withdrawn.
+  // A line opens that tournament's results — the athlete's way back to them
+  // once the event has left «События».
+  const podiums = podiumLines((orgs ?? []).flatMap((o) => o.podiums))
+  const podiumCardId =
+    data?.current.find((p) => registryLine(workspace.name, p.ladderId, orgs ?? []))?.id ?? data?.current[0]?.id
+  const podiumRows = podiums.map((p) => (
+    <Pressable
+      key={p.eventId}
+      onPress={() => navigation.navigate("TournamentResults", { workspaceId: workspace.workspaceId, eventId: p.eventId })}
+      accessibilityRole="button"
+      style={styles.podiumRow}
+    >
+      <Text style={styles.podium}>{p.line}</Text>
+      <Chevron />
+    </Pressable>
+  ))
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -155,6 +180,7 @@ export function MyRanksScreen() {
             </View>
             <Text style={styles.meta}>Получен {fmtDate(p.awardedAt)}</Text>
             {registry ? <Text style={styles.registry}>{registry}</Text> : null}
+            {p.id === podiumCardId && podiumRows}
             {p.awardedByName ? (
               <Text style={styles.meta}>
                 {cap(vocabulary.coach.nom)}: {p.awardedByName}
@@ -196,6 +222,8 @@ export function MyRanksScreen() {
             </View>
           </View>
         )}
+
+        {data && data.current.length === 0 && podiums.length > 0 && <View style={styles.rows}>{podiumRows}</View>}
       </ScrollView>
       </CenteredColumn>
     </SafeAreaView>
@@ -250,6 +278,8 @@ const makeStyles = (theme: Theme) =>
     levelName: { color: theme.colors.text, fontSize: 18, fontWeight: "700" },
     meta: { color: theme.colors.muted, fontSize: 13 },
     registry: { color: theme.colors.success, fontSize: 13 },
+    podiumRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(2), minHeight: 44 },
+    podium: { flex: 1, color: theme.colors.text, fontSize: 13 },
     note: {
       color: theme.colors.textSecondary,
       fontSize: 13,

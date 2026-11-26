@@ -22,6 +22,7 @@ export type DemoAccountKey =
     | 'student'
     | 'parent'
     | 'federation'
+    | 'federationSecretary'
 
 export type DemoAccount = {
     key: DemoAccountKey
@@ -98,7 +99,19 @@ export const DEMO_FEDERATION_ACCOUNT: DemoAccount = {
     lastname: 'Белов',
     roleLabel: 'Президент федерации (демо)',
     summary:
-        'Админка: кабинет «Федерация БЖЖ Томской области» — клубы и их цифры, реестр поясов, календарь с турниром, объявления, стандарты',
+        'Админка: кабинет «Федерация БЖЖ Томской области» — клубы и их цифры, реестр поясов, календарь с турнирами, объявления, стандарты',
+}
+
+// The tournament secretary of the demo federation (an org coach): runs the
+// weigh-in and the mats of «Кубок федерации, 2-й этап», can't publish the
+// results. Written by the federation seed like the administrator.
+export const DEMO_FEDERATION_SECRETARY_ACCOUNT: DemoAccount = {
+    key: 'federationSecretary',
+    email: `secretary@${DEMO_EMAIL_DOMAIN}`,
+    firstname: 'Ирина',
+    lastname: 'Ковалёва',
+    roleLabel: 'Секретарь турнира (демо)',
+    summary: 'Админка: турнир федерации — взвешивание, ковры, сетки; итоги публикует президент',
 }
 
 // Children have no e-mail and never sign in: the parent opens them from the

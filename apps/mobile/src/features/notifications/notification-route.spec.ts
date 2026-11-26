@@ -151,6 +151,20 @@ describe("routeForNotification", () => {
     expect(routeForNotification({ kind: "org_event.registered_by_club" }, off)).toBeNull()
   })
 
+  it.each(["tournament.bracket_ready", "tournament.match_soon", "tournament.results_published"])(
+    "%s opens the tournament of its event, nothing while «События» is off",
+    (kind) => {
+      const metadata = { kind, workspaceId: "ws-1", organizationId: "o-1", eventId: "e-1", tournamentId: "t-1" }
+      expect(routeForNotification(metadata, on)).toEqual({
+        name: "OrgTournament",
+        params: { workspaceId: "ws-1", eventId: "e-1" },
+      })
+      expect(routeForNotification(metadata, off)).toBeNull()
+      // An older row without the ids still lands on «События».
+      expect(routeForNotification({ kind }, on)).toEqual({ name: "Events" })
+    },
+  )
+
   it("member.invitation opens the Invitations screen", () => {
     expect(
       routeForNotification(

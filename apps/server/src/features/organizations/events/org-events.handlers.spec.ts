@@ -174,6 +174,19 @@ describe('updateOrgEvent', () => {
             NotFoundError,
         )
     })
+
+    it('keeps a tournament event a COMPETITION (400) and lets other kinds change', async () => {
+        const withTournament = makePrisma({ current: stored({ tournament: { id: 't1' } }) })
+        await expect(run({ kind: 'SEMINAR' }, withTournament)).rejects.toBeInstanceOf(BadRequestError)
+        expect(withTournament.organizationEvent.update).not.toHaveBeenCalled()
+        // Staying a competition, or no tournament on it: the edit goes through.
+        const same = makePrisma({ current: stored({ tournament: { id: 't1' } }) })
+        await run({ kind: 'COMPETITION', title: 'Кубок' }, same)
+        expect(same.organizationEvent.update.mock.calls[0][0].data).toMatchObject({ title: 'Кубок' })
+        const plain = makePrisma({ current: stored({ tournament: null }) })
+        await run({ kind: 'SEMINAR' }, plain)
+        expect(plain.organizationEvent.update.mock.calls[0][0].data).toMatchObject({ kind: 'SEMINAR' })
+    })
 })
 
 describe('reads and delete', () => {
@@ -216,6 +229,27 @@ describe('reads and delete', () => {
                 new DeleteOrgEventFeature(ORG, 'e1', 'u1', false),
             ),
         ).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it('keeps an event whose tournament started (409 TOURNAMENT_STARTED), deletes one in setup', async () => {
+        for (const status of ['RUNNING', 'FINISHED']) {
+            const prisma = makePrisma({ current: { id: 'e1', title: 'Турнир', tournament: { status } } })
+            await expect(
+                new DeleteOrgEventHandler(prisma as never, orgRbac() as never, audit() as never).execute(
+                    new DeleteOrgEventFeature(ORG, 'e1', 'u1', false),
+                ),
+            ).rejects.toMatchObject({ code: 'TOURNAMENT_STARTED', statusCode: 409 })
+            expect(prisma.organizationEvent.delete).not.toHaveBeenCalled()
+        }
+        for (const status of ['SETUP', 'WEIGH_IN']) {
+            const prisma = makePrisma({ current: { id: 'e1', title: 'Турнир', tournament: { status } } })
+            await expect(
+                new DeleteOrgEventHandler(prisma as never, orgRbac() as never, audit() as never).execute(
+                    new DeleteOrgEventFeature(ORG, 'e1', 'u1', false),
+                ),
+            ).resolves.toEqual({ status: 'deleted' })
+            expect(prisma.organizationEvent.delete).toHaveBeenCalledWith({ where: { id: 'e1' } })
+        }
     })
 
     it('lists registrations of an event of the org', async () => {

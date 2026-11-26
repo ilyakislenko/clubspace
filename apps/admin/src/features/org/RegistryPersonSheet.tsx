@@ -45,7 +45,7 @@ export function RegistryPersonSheet({
           <SheetTitle>{person?.personName ?? personName}</SheetTitle>
           <SheetDescription>Пояса, подтверждённые клубами федерации.</SheetDescription>
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 space-y-5 overflow-y-auto">
           {error ? (
             <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
@@ -69,6 +69,23 @@ export function RegistryPersonSheet({
                 </li>
               ))}
             </ol>
+          )}
+          {person && person.podiums.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="text-sm font-medium">Турниры</h3>
+              <ol className="divide-y divide-border rounded-lg border border-border">
+                {person.podiums.map((p, i) => (
+                  <li key={`${p.tournamentTitle}-${p.divisionName}-${i}`} className="flex items-start gap-3 px-3 py-2.5 text-sm">
+                    <span className="w-16 shrink-0 font-medium">{p.place} место</span>
+                    <div className="min-w-0 flex-1">
+                      <div>{p.tournamentTitle}</div>
+                      <div className="text-xs text-muted-foreground">{p.divisionName}</div>
+                    </div>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatDate(p.date)}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
           )}
         </div>
       </SheetContent>

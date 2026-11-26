@@ -16,7 +16,8 @@ export const findDemoWorkspace = (prisma: Pick<PrismaService, 'workspace'>, club
 // platform admin, owning and belonging to nothing but that demo club (an
 // ACADEMY account never opens with the code once it joins «Ритм», and the
 // other way round) and on the staff of no organization but a demo one (the
-// demo federation's administrator). Anything else answers like a wrong code.
+// demo federation's administrator and tournament secretary). Anything else
+// answers like a wrong code.
 export const isDemoOnlyAccount = async (
     prisma: DemoPrisma,
     user: { id: string; isSuperAdmin: boolean },

@@ -6,17 +6,23 @@ import {
     ORG_SHARING_CONSENT_VERSION,
     orgConsentGrantedAt,
     orgSharingConsentText,
+    TOURNAMENT_CONSENT_MIN_VERSION,
     withdrawOrgConsent,
 } from './consent'
 
 const ORG = 'org-1'
 
+// A record without `version` is at the current edition.
 const prismaWith = (
-    records: Array<{ userId: string; dependentId: string | null }>,
+    records: Array<{ userId: string; dependentId: string | null; version?: string }>,
     guardianships: Array<{ guardianId: string; dependentId: string }> = [],
 ) => ({
     consentRecord: {
-        findMany: jest.fn().mockResolvedValue(records),
+        findMany: jest
+            .fn()
+            .mockResolvedValue(
+                records.map((r) => ({ version: ORG_SHARING_CONSENT_VERSION, ...r })),
+            ),
         findFirst: jest.fn().mockResolvedValue({ acceptedAt: new Date('2026-11-20T10:00:00Z') }),
         create: jest.fn().mockResolvedValue({ id: 'c1' }),
         updateMany: jest.fn().mockResolvedValue({ count: 2 }),
@@ -122,7 +128,7 @@ describe('org sharing consent', () => {
         })
     })
 
-    it('does not record twice', async () => {
+    it('does not record twice at the current edition', async () => {
         const prisma = prismaWith([{ userId: 'adult', dependentId: null }])
         await grantOrgConsent(prisma as never, {
             organizationId: ORG,
@@ -132,6 +138,58 @@ describe('org sharing consent', () => {
             userAgent: null,
         })
         expect(prisma.consentRecord.create).not.toHaveBeenCalled()
+    })
+
+    it('re-grants over an older edition with a new record (the old one stays)', async () => {
+        const prisma = prismaWith([
+            { userId: 'adult', dependentId: null, version: '2026-11-26.2' },
+        ])
+        await grantOrgConsent(prisma as never, {
+            organizationId: ORG,
+            personId: 'adult',
+            guardianId: null,
+            ip: null,
+            userAgent: null,
+        })
+        expect(prisma.consentRecord.create.mock.calls[0][0].data).toMatchObject({
+            userId: 'adult',
+            version: '2026-11-27.1',
+        })
+        expect(prisma.consentRecord.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('minVersion: an older edition still counts for the registry, not for tournaments', async () => {
+        const prisma = prismaWith([
+            { userId: 'old', dependentId: null, version: '2026-11-26.2' },
+            { userId: 'new', dependentId: null, version: '2026-11-27.1' },
+        ])
+        expect(TOURNAMENT_CONSENT_MIN_VERSION).toBe('2026-11-27.1')
+        expect(await consentedPersonIds(prisma as never, ORG, ['old', 'new'])).toEqual(
+            new Set(['old', 'new']),
+        )
+        expect(
+            await consentedPersonIds(prisma as never, ORG, ['old', 'new'], {
+                minVersion: TOURNAMENT_CONSENT_MIN_VERSION,
+            }),
+        ).toEqual(new Set(['new']))
+        expect(
+            await hasOrgConsent(prisma as never, ORG, 'old', {
+                minVersion: TOURNAMENT_CONSENT_MIN_VERSION,
+            }),
+        ).toBe(false)
+    })
+
+    it("a guardian's older edition doesn't cover the child's tournament entry", async () => {
+        const prisma = prismaWith(
+            [{ userId: 'parent', dependentId: 'kid', version: '2026-11-26.2' }],
+            [{ guardianId: 'parent', dependentId: 'kid' }],
+        )
+        expect(await hasOrgConsent(prisma as never, ORG, 'kid')).toBe(true)
+        expect(
+            await hasOrgConsent(prisma as never, ORG, 'kid', {
+                minVersion: TOURNAMENT_CONSENT_MIN_VERSION,
+            }),
+        ).toBe(false)
     })
 
     it('withdraws every live record for the person, own and guardian ones', async () => {

@@ -11410,6 +11410,10 @@ export type ListClubTournamentAthletesOutputOutput = {
         registrationId: string | null;
         consentCurrent: boolean;
         profileBirthYear: number | null;
+        registryLevel: {
+            templateLevelId: string;
+            name: string;
+        } | null;
         entry: {
             id: string;
             userId: string;

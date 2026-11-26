@@ -41,7 +41,7 @@ const population = (club: DemoOrgClub, adults: number, kids: number): DemoOrgPer
 ]
 const PEOPLE = [...population(ACADEMY, 220, 60), ...population(BERKUT, 64, 25)]
 const build = (now: Date = NOW, people: readonly DemoOrgPerson[] = PEOPLE) =>
-    buildDemoOrganizationRows({ now, federationUserId: 'u-fed', clubs: { academy: ACADEMY, berkut: BERKUT }, people })
+    buildDemoOrganizationRows({ now, federationUserId: 'u-fed', secretaryUserId: 'u-sec', clubs: { academy: ACADEMY, berkut: BERKUT }, people })
 
 describe('buildDemoOrganizationRows', () => {
     const rows = build()
@@ -63,7 +63,7 @@ describe('buildDemoOrganizationRows', () => {
     })
 
     it('links only the clubs that exist', () => {
-        const only = buildDemoOrganizationRows({ now: NOW, federationUserId: 'u-fed', clubs: { academy: ACADEMY, berkut: null }, people: PEOPLE })
+        const only = buildDemoOrganizationRows({ now: NOW, federationUserId: 'u-fed', secretaryUserId: 'u-sec', clubs: { academy: ACADEMY, berkut: null }, people: PEOPLE })
         expect(only.links.map((l) => l.workspaceId)).toEqual(['w-academy'])
         expect(only.consents.every((c) => !String(c.dependentId ?? c.userId).startsWith('w-berkut'))).toBe(true)
         expect(only.registrations.every((r) => r.workspaceId === 'w-academy')).toBe(true)
@@ -118,11 +118,13 @@ describe('buildDemoOrganizationRows', () => {
         expect(rows.registrations.some((r) => r.bookedById === r.userId)).toBe(true)
     })
 
-    it('has a coaches\' seminar and a grading day, all three published', () => {
-        expect(rows.events.map((e) => [e.kind, e.audience])).toEqual([
-            ['COMPETITION', 'STAFF_AND_MEMBERS'],
-            ['SEMINAR', 'STAFF'],
-            ['GRADING', 'STAFF_AND_MEMBERS'],
+    it('has a coaches\' seminar, a grading day and the two cup stages, all published', () => {
+        expect(rows.events.map((e) => [e.kind, e.audience, e.title])).toEqual([
+            ['COMPETITION', 'STAFF_AND_MEMBERS', 'Открытый турнир Томской области'],
+            ['SEMINAR', 'STAFF', expect.any(String)],
+            ['GRADING', 'STAFF_AND_MEMBERS', expect.any(String)],
+            ['COMPETITION', 'STAFF_AND_MEMBERS', 'Кубок федерации, 1-й этап'],
+            ['COMPETITION', 'STAFF_AND_MEMBERS', 'Кубок федерации, 2-й этап'],
         ])
         const grading = rows.events.find((e) => e.kind === 'GRADING')!
         expect(Math.round(((grading.startAt as Date).getTime() - NOW.getTime()) / DAY)).toBeGreaterThanOrEqual(44)
@@ -153,7 +155,7 @@ describe('buildDemoOrganizationRows', () => {
     })
 
     it('writes the org side of the audit trail, with the clubs\' own decisions', () => {
-        expect(rows.auditEvents.every((e) => e.organizationId === DEMO_ORG_ID && e.action.startsWith('org.'))).toBe(true)
+        expect(rows.auditEvents.every((e) => e.organizationId === DEMO_ORG_ID && /^(org|tournament)\./.test(e.action))).toBe(true)
         expect(rows.auditEvents.filter((e) => e.action === 'org.acceptInvite').map((e) => [e.workspaceId, e.actorId])).toEqual([
             ['w-berkut', 'u-owner-b'],
             ['w-academy', 'u-owner-a'],
@@ -204,10 +206,30 @@ const MODELS = [
     'organizationAnnouncement',
     'consentRecord',
     'auditEvent',
+    'tournament',
+    'tournamentDivision',
+    'tournamentEntry',
+    'tournamentMatch',
+    'notificationDispatchLog',
 ] as const
-const txMock = (o: { org?: { id: string; isDemo: boolean } | null; account?: { id: string; isDemo: boolean } | null } = {}) => ({
+type Account = { id: string; isDemo: boolean } | null
+// The two staff addresses: the president's (`account`) and the secretary's
+// (`secretary`, by default a demo one whenever the president's exists).
+const txMock = (o: { org?: { id: string; isDemo: boolean } | null; account?: Account; secretary?: Account } = {}) => ({
     organization: model({ findUnique: jest.fn().mockResolvedValue(o.org ?? null) }),
-    user: model({ findUnique: jest.fn().mockResolvedValue(o.account ?? null) }),
+    user: model({
+        findUnique: jest.fn().mockImplementation(async ({ where }: { where: { email?: string } }) =>
+            where.email === 'federation@academy.demo'
+                ? (o.account ?? null)
+                : where.email === 'secretary@academy.demo'
+                  ? o.secretary !== undefined
+                      ? o.secretary
+                      : o.account
+                        ? { id: 'u-sec', isDemo: true }
+                        : null
+                  : null,
+        ),
+    }),
     ...(Object.fromEntries(MODELS.map((name) => [name, model()])) as Record<(typeof MODELS)[number], ModelMock>),
 })
 const writes = (tx: Record<string, ModelMock>) =>
@@ -230,6 +252,12 @@ describe('seedDemoOrganization', () => {
         expect(writes(tx)).toEqual([])
     })
 
+    it('never takes over the address of a real account at the secretary\'s address either', async () => {
+        const tx = txMock({ account: { id: 'u-fed', isDemo: true }, secretary: { id: 'u-real', isDemo: false } })
+        await expect(seedDemoOrganization(tx as never, INPUT)).resolves.toBe('blocked')
+        expect(writes(tx)).toEqual([])
+    })
+
     it('creates the federation with its administrator, then replaces every scripted row', async () => {
         const tx = txMock()
         await expect(seedDemoOrganization(tx as never, INPUT)).resolves.toBe('seeded')
@@ -240,9 +268,17 @@ describe('seedDemoOrganization', () => {
         expect(tx.user.create).toHaveBeenCalledWith({
             data: expect.objectContaining({ email: 'federation@academy.demo', isDemo: true, firstname: 'Николай', lastname: 'Белов' }),
         })
-        expect(tx.organizationMember.create).toHaveBeenCalledWith({
-            data: expect.objectContaining({ organizationId: DEMO_ORG_ID, role: 'ORG_ADMIN' }),
+        expect(tx.user.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({ email: 'secretary@academy.demo', isDemo: true, firstname: 'Ирина', lastname: 'Ковалёва' }),
         })
+        // The president administers, the tournament secretary is an org coach.
+        expect(tx.organizationMember.createMany).toHaveBeenCalledWith({
+            data: [
+                expect.objectContaining({ organizationId: DEMO_ORG_ID, role: 'ORG_ADMIN' }),
+                expect.objectContaining({ organizationId: DEMO_ORG_ID, role: 'ORG_COACH' }),
+            ],
+        })
+        expect(tx.consentRecord.create).toHaveBeenCalledTimes(2)
         expect(tx.consentRecord.create).toHaveBeenCalledWith({
             data: expect.objectContaining({ kind: 'PERSONAL_DATA', version: '2026-11-01' }),
         })
@@ -251,9 +287,18 @@ describe('seedDemoOrganization', () => {
         for (const m of ['organizationClub', 'organizationLadderTemplate', 'organizationEvent', 'organizationAnnouncement', 'consentRecord'] as const) {
             expect(tx[m].deleteMany.mock.invocationCallOrder[0]).toBeLessThan(tx[m].createMany.mock.invocationCallOrder[0])
         }
-        expect(tx.auditEvent.deleteMany).toHaveBeenCalledWith({ where: { organizationId: DEMO_ORG_ID, action: { startsWith: 'org.' } } })
-        // No demo club yet: no links, no people.
+        expect(tx.auditEvent.deleteMany).toHaveBeenCalledWith({
+            where: { organizationId: DEMO_ORG_ID, OR: [{ action: { startsWith: 'org.' } }, { action: { startsWith: 'tournament.' } }] },
+        })
+        // No demo club yet: no links, no people; the tournaments still go in
+        // after their events, the past pushes marked sent.
         expect(tx.organizationClub.createMany).toHaveBeenCalledWith({ data: [] })
+        expect(tx.organizationEvent.createMany.mock.invocationCallOrder[0]).toBeLessThan(tx.tournament.createMany.mock.invocationCallOrder[0])
+        expect(tx.tournament.createMany.mock.calls[0][0].data.map((t: { status: string }) => t.status)).toEqual(['FINISHED', 'RUNNING', 'SETUP'])
+        for (const [a, b] of [['tournament', 'tournamentDivision'], ['tournamentDivision', 'tournamentEntry'], ['tournamentEntry', 'tournamentMatch']] as const) {
+            expect(tx[a].createMany.mock.invocationCallOrder[0]).toBeLessThan(tx[b].createMany.mock.invocationCallOrder[0])
+        }
+        expect(tx.notificationDispatchLog.createMany).toHaveBeenCalledWith({ data: expect.any(Array), skipDuplicates: true })
     })
 
     it('is the same on a second run: the existing demo federation is updated, not duplicated', async () => {
@@ -265,7 +310,7 @@ describe('seedDemoOrganization', () => {
         expect(second.organization.create).not.toHaveBeenCalled()
         expect(second.user.create).not.toHaveBeenCalled()
         expect(second.organization.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: DEMO_ORG_ID } }))
-        for (const m of ['organizationEvent', 'organizationAnnouncement', 'organizationLadderTemplate', 'auditEvent'] as const) {
+        for (const m of ['organizationEvent', 'organizationAnnouncement', 'organizationLadderTemplate', 'auditEvent', 'tournament', 'tournamentDivision'] as const) {
             expect(JSON.stringify(second[m].createMany.mock.calls)).toBe(JSON.stringify(first[m].createMany.mock.calls))
         }
     })

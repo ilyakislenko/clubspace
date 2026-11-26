@@ -32,10 +32,12 @@ const raw = (o: Record<string, unknown> = {}) => ({
     ...o,
 })
 
+// A consent without `version` is at the current (tournament) edition.
 const prismaWith = (o: {
     links?: unknown[]
-    consents?: Array<{ userId: string; dependentId: string | null }>
+    consents?: Array<{ userId: string; dependentId: string | null; version?: string }>
     rows?: unknown[]
+    podiums?: unknown[]
 }) => ({
     organizationClub: {
         findMany: jest.fn().mockResolvedValue(
@@ -50,10 +52,32 @@ const prismaWith = (o: {
     consentRecord: {
         findMany: jest
             .fn()
-            .mockResolvedValue(o.consents ?? [{ userId: 'u-ivanov', dependentId: null }]),
+            .mockResolvedValue(
+                (o.consents ?? [{ userId: 'u-ivanov', dependentId: null }]).map((c) => ({
+                    version: '2026-11-27.1',
+                    ...c,
+                })),
+            ),
     },
     guardianship: { findMany: jest.fn().mockResolvedValue([]) },
     $queryRaw: jest.fn().mockResolvedValue(o.rows ?? [raw()]),
+    tournamentEntry: { findMany: jest.fn().mockResolvedValue(o.podiums ?? []) },
+})
+
+// One published podium row as personPodiums reads it.
+const podium = (o: Record<string, unknown> = {}) => ({
+    userId: 'u-ivanov',
+    place: 3,
+    division: { name: 'Мужчины · до 76 кг' },
+    tournament: {
+        event: {
+            id: 'ev-1',
+            title: 'Кубок федерации, 1-й этап',
+            startAt: new Date('2026-10-17T03:00:00Z'),
+            timezone: 'Asia/Tomsk',
+        },
+    },
+    ...o,
 })
 
 const query = { curPage: 1, perPage: 50 }
@@ -95,6 +119,7 @@ describe('organization registry', () => {
                 clubName: 'ACADEMY',
                 awardedAt: '2026-11-01',
                 templateLevelName: 'Синий',
+                podiumCount: 0,
             },
         ])
         expect(JSON.stringify(out)).not.toMatch(/u-ivanov|example\.com|7900|coach-1|2000-01-01/)
@@ -170,6 +195,56 @@ describe('organization registry', () => {
         expect(out.personName).toBe('Иван Иванов')
         expect(out.history.map((h) => h.levelName)).toEqual(['Синий пояс', 'Белый пояс'])
         expect(prisma.$queryRaw.mock.calls[0][0].sql).not.toContain('DISTINCT ON')
+    })
+
+    it('counts published podiums per row and lists them on the person, published only', async () => {
+        const prisma = prismaWith({ podiums: [podium()] })
+        const out = await loadRegistry(prisma as never, {
+            organizationId: ORG,
+            timezone: 'Asia/Tomsk',
+            secret: SECRET,
+            query,
+        })
+        expect(out.data[0].podiumCount).toBe(1)
+        expect(prisma.tournamentEntry.findMany.mock.calls[0][0].where).toEqual({
+            userId: { in: ['u-ivanov'] },
+            place: { not: null },
+            tournament: {
+                organizationId: ORG,
+                status: 'FINISHED',
+                resultsPublishedAt: { not: null },
+            },
+        })
+        const person = await loadRegistryPerson(prisma as never, {
+            organizationId: ORG,
+            secret: SECRET,
+            personKey: personKeyFor(SECRET, ORG, 'u-ivanov'),
+        })
+        expect(person.podiums).toEqual([
+            {
+                tournamentTitle: 'Кубок федерации, 1-й этап',
+                date: '2026-10-17',
+                divisionName: 'Мужчины · до 76 кг',
+                place: 3,
+            },
+        ])
+    })
+
+    it('shows no podium without the tournament edition of the consent', async () => {
+        const prisma = prismaWith({
+            consents: [{ userId: 'u-ivanov', dependentId: null, version: '2026-11-26.2' }],
+            podiums: [podium()],
+        })
+        const out = await loadRegistry(prisma as never, {
+            organizationId: ORG,
+            timezone: 'Asia/Tomsk',
+            secret: SECRET,
+            query,
+        })
+        // Still listed (the belt consent covers the registry) but no podium.
+        expect(out.data).toHaveLength(1)
+        expect(out.data[0].podiumCount).toBe(0)
+        expect(prisma.tournamentEntry.findMany).not.toHaveBeenCalled()
     })
 
     it('answers 404 for a malformed key, a withdrawn person or no visible belt', async () => {

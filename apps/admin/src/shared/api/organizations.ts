@@ -193,6 +193,9 @@ export const listOrgEvents = (p: { organizationId: string; includePast?: boolean
     params: { includePast: p.includePast },
   })
 
+export const getOrgEvent = (p: { organizationId: string; eventId: string }): Promise<OrgEvent> =>
+  getApiClient().request<OrgEvent>({ method: "get", url: `${events(p.organizationId)}/${p.eventId}` })
+
 export const createOrgEvent = (p: { organizationId: string; data: OrgEventInput }): Promise<OrgEvent> =>
   getApiClient().request<OrgEvent, OrgEventInput>({ method: "post", url: events(p.organizationId), data: p.data })
 

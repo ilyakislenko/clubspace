@@ -502,3 +502,40 @@ describe("payroll audit", () => {
     expect(rows({ fields: ["coachPayVisible"] })).toEqual(["Изменено: выплаты в приложении"])
   })
 })
+
+describe("federation tournament journal", () => {
+  const rows = (meta: Record<string, unknown>) =>
+    parseMetadata(meta, GRAPPLING).map((r) => (r.value ? `${r.label}: ${r.value}` : r.label))
+
+  it("labels every tournament action and its category", () => {
+    const meta = actionMetaFor(GRAPPLING)
+    for (const action of ["tournament.matchResult", "tournament.matchUndo", "tournament.weighIn", "tournament.entryConfirm"]) {
+      expect(meta[action]?.label).toBeTruthy()
+    }
+    expect(ACTION_CATEGORY_LABELS.tournament).toBe("Турниры")
+    expect(targetTypeLabel("tournamentMatch")).toBe("Схватка")
+  })
+
+  it("words a result, an undo and a phase change without ids, names or weights", () => {
+    const id = "3f2a9c1e-1111-4111-8111-111111111111"
+    expect(rows({ tournamentId: id, divisionName: "до 76 кг", round: 2, position: 1, method: "POINTS" })).toEqual([
+      "Категория: до 76 кг",
+      "Круг: 2",
+      "Способ победы: по очкам",
+    ])
+    expect(rows({ previous: { winnerEntryId: id, method: "DECISION", scoreA: 8, scoreB: 2 } })).toEqual([
+      "Отменённый результат: решение судей 8:2",
+    ])
+    expect(rows({ fromStatus: "WEIGH_IN", toStatus: "RUNNING", withdrawnCount: 3 })).toEqual([
+      "Статус до: взвешивание",
+      "Статус после: идёт",
+      "Сняты как не взвешенные: 3",
+    ])
+    expect(rows({ fromDivisionName: "до 76 кг", toDivisionName: "до 82 кг" })).toEqual([
+      "Из категории: до 76 кг",
+      "В категорию: до 82 кг",
+    ])
+    // A payment keeps its own method words.
+    expect(rows({ method: "CASH" })).toEqual(["Способ оплаты: наличные"])
+  })
+})

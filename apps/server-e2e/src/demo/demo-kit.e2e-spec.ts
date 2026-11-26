@@ -1,4 +1,10 @@
 import { environment } from '../../../server/src/environments/environment'
+import {
+    DEMO_STUDENT_CUP_DIVISION,
+    DEMO_STUDENT_MAT,
+    demoDivisionId,
+    demoTournamentEventId,
+} from '../../../server/src/domains/demo/demo-tournaments'
 import { addOrgStaff, createOrganization } from '../organizations/org-fixtures'
 import { clearResendCooldown, signIn, type Actor } from '../support/actors'
 import { addMember, createGroupWithSlot, createPlan, createUser, createWorkspace } from '../support/fixtures'
@@ -14,6 +20,9 @@ const PARENT = 'parent@academy.demo'
 const FEDERATION = 'federation@academy.demo'
 const FEDERATION_NAME = 'Федерация БЖЖ Томской области'
 const DEMO_ORG_KEY = 'tomsk-bjj-federation-demo'
+// The tournament secretary (an org coach), listed with ACADEMY too.
+const SECRETARY = 'secretary@academy.demo'
+const COACH = 'coach@academy.demo'
 // Two full generations per test; the acceptance bound (< 30 s each) is
 // asserted explicitly below.
 jest.setTimeout(180_000)
@@ -389,6 +398,97 @@ describe('demo kit', () => {
             )
         expect(rowOf(ids.academy)?.metrics).toMatchObject({ mrr: null })
         expect(rowOf(ids.berkut)?.metrics?.mrr).not.toBeNull()
+    }, 300_000)
+
+    // The federation's tournaments (docs/demo.md «Турниры»): running on 3
+    // mats, the 1st stage published, the open one taking entries — through
+    // the same routes the phones and the console use.
+    it('puts the federation\'s three tournaments back after a reset, each person seeing their own', async () => {
+        const admin = await signIn(ctx, PLATFORM_OWNER)
+        const academy = (await reset(admin, 'academy').expect(201)).body.workspaceId as string
+        await reset(admin, 'berkut').expect(201)
+        const org = await ctx.prisma.organization.findUniqueOrThrow({ where: { key: DEMO_ORG_KEY }, select: { id: true } })
+        const tournaments = await ctx.prisma.tournament.findMany({
+            where: { organizationId: org.id },
+            select: { id: true, status: true, matCount: true, event: { select: { title: true } } },
+            orderBy: { createdAt: 'asc' },
+        })
+        expect(tournaments.map((t) => [t.event.title, t.status])).toEqual([
+            ['Кубок федерации, 1-й этап', 'FINISHED'],
+            ['Кубок федерации, 2-й этап', 'RUNNING'],
+            ['Открытый турнир Томской области', 'SETUP'],
+        ])
+        const cupEvent = demoTournamentEventId('cup')
+        const bearer = (r: { body: { accessToken: string } }) => ['Authorization', `Bearer ${r.body.accessToken}`] as const
+
+        // student@: his division on mat 2, next but one; himself highlighted
+        // in the bracket, nobody's weight or birth year in it.
+        const student = await fixedCodeSignIn(STUDENT)
+        const cup = await ctx.http().get(`/workspaces/${academy}/org-events/${cupEvent}/tournament`).set(...bearer(student)).expect(200)
+        expect(cup.body).toMatchObject({ status: 'RUNNING', matCount: 3 })
+        expect(cup.body.myEntry).toMatchObject({
+            status: 'CONFIRMED',
+            divisionId: demoDivisionId('cup', DEMO_STUDENT_CUP_DIVISION),
+            bracketAvailable: true,
+            nextMatch: { mat: DEMO_STUDENT_MAT, ahead: 1 },
+        })
+        expect(cup.body.myEntry.nextMatch.opponent).not.toBeNull()
+        const events = await ctx.http().get(`/workspaces/${academy}/org-events`).set(...bearer(student)).expect(200)
+        expect(events.body.data.find((e: { id: string }) => e.id === cupEvent)).toMatchObject({
+            tournament: { status: 'RUNNING' },
+            myEntryState: { state: 'CONFIRMED', mat: DEMO_STUDENT_MAT, ahead: 1 },
+        })
+        const bracket = await ctx
+            .http()
+            .get(`/workspaces/${academy}/org-events/${cupEvent}/tournament/divisions/${demoDivisionId('cup', DEMO_STUDENT_CUP_DIVISION)}/bracket`)
+            .set(...bearer(student))
+            .expect(200)
+        const sides = (bracket.body.matches as { entryA: { isMe: boolean } | null; entryB: { isMe: boolean } | null }[]).flatMap((m) => [m.entryA, m.entryB])
+        expect(sides.some((p) => p?.isMe)).toBe(true)
+        expect(JSON.stringify(bracket.body)).not.toMatch(/eight|birthYear|userId/)
+        // The 1st stage's 3rd place is in «Мои пояса».
+        const mine = await ctx.http().get(`/workspaces/${academy}/me/organizations`).set(...bearer(student)).expect(200)
+        expect(mine.body.data[0].podiums).toEqual([expect.objectContaining({ tournamentTitle: 'Кубок федерации, 1-й этап', place: 3 })])
+
+        // parent@ acting for Миша: his entry at the running cup, his 2nd
+        // place at the 1st stage.
+        const parent = await fixedCodeSignIn(PARENT)
+        const misha = { id: (await ctx.prisma.guardianship.findFirstOrThrow({ where: { guardianId: parent.body.userId, dependent: { firstname: 'Миша' } }, select: { dependentId: true } })).dependentId }
+        const forMisha = await ctx
+            .http()
+            .get(`/workspaces/${academy}/org-events/${cupEvent}/tournament`)
+            .set(...bearer(parent))
+            .set('X-Act-As', misha.id)
+            .expect(200)
+        expect(forMisha.body.myEntry).toMatchObject({ status: 'CONFIRMED', userId: misha.id })
+        const mishaOrgs = await ctx.http().get(`/workspaces/${academy}/me/organizations`).set(...bearer(parent)).set('X-Act-As', misha.id).expect(200)
+        expect(mishaOrgs.body.data[0].podiums).toEqual([expect.objectContaining({ place: 2 })])
+
+        // coach@: three entries wait for him at the open tournament.
+        const coach = await fixedCodeSignIn(COACH)
+        const openEvent = (await ctx.prisma.tournament.findFirstOrThrow({ where: { organizationId: org.id, status: 'SETUP' }, select: { eventId: true } })).eventId
+        const athletes = await ctx
+            .http()
+            .get(`/workspaces/${academy}/org-events/${openEvent}/tournament/athletes`)
+            .set(...bearer(coach))
+            .expect(200)
+        expect(athletes.body.toConfirmCount).toBe(3)
+
+        // The tournament secretary signs in with the code and is an org
+        // coach of the demo federation.
+        const secretary = await fixedCodeSignIn(SECRETARY)
+        expect(secretary.status).toBe(201)
+        const orgs = await ctx.http().get('/orgs/mine').set(...bearer(secretary)).expect(200)
+        expect(orgs.body.data).toEqual([expect.objectContaining({ name: FEDERATION_NAME, role: 'ORG_COACH' })])
+
+        // Another reset puts the same tournaments back, nothing doubled.
+        const counts = async () => ({
+            entries: await ctx.prisma.tournamentEntry.count({ where: { tournament: { organizationId: org.id } } }),
+            matches: await ctx.prisma.tournamentMatch.count({ where: { division: { tournament: { organizationId: org.id } } } }),
+        })
+        const first = await counts()
+        await reset(admin, 'ritm').expect(201)
+        expect(await counts()).toEqual(first)
     }, 300_000)
 
     it('signs demo accounts in with the fixed code only in demo mode', async () => {

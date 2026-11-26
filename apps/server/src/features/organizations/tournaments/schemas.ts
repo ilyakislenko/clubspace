@@ -1,5 +1,15 @@
 import { z } from 'zod'
 
+import { localDateInTz } from '../../../features/attendance/attendance-utils'
+import { gramsToKg } from '../../../domains/tournaments/divisions'
+import type {
+    BracketView,
+    DivisionView,
+    EntryView,
+    TournamentCounts,
+    TournamentRow,
+} from '../../../domains/tournaments/tournament-read'
+
 // Federation tournaments, org console side (design
 // docs/design/2026-11-27-tournaments.md §5.1). Weights travel as kg with one
 // decimal; the database keeps grams.
@@ -244,4 +254,133 @@ export const TournamentResultsOutputSchema = z.object({
             podium: z.array(TournamentPodiumRowSchema),
         }),
     ),
+})
+
+const kg = (grams: number | null): number | null => (grams === null ? null : gramsToKg(grams))
+
+export const serializeOrgTournament = (
+    t: TournamentRow,
+    counts: TournamentCounts,
+): OrgTournamentOutput => ({
+    id: t.id,
+    organizationId: t.organizationId,
+    eventId: t.eventId,
+    event: {
+        title: t.event.title,
+        startAt: t.event.startAt.toISOString(),
+        endAt: t.event.endAt?.toISOString() ?? null,
+        timezone: t.event.timezone,
+        place: t.event.place,
+        localDate: localDateInTz(t.event.startAt, t.event.timezone),
+    },
+    status: t.status,
+    matCount: t.matCount,
+    resultsPublishedAt: t.resultsPublishedAt?.toISOString() ?? null,
+    counts,
+    createdAt: t.createdAt.toISOString(),
+    updatedAt: t.updatedAt.toISOString(),
+})
+
+export const serializeTournamentDivision = (d: DivisionView): TournamentDivisionOutput => ({
+    id: d.id,
+    name: d.name,
+    sortOrder: d.sortOrder,
+    sex: d.sex,
+    ageMin: d.ageMin,
+    ageMax: d.ageMax,
+    templateId: d.templateId,
+    levelOrderFrom: d.levelOrderFrom,
+    levelOrderTo: d.levelOrderTo,
+    levelLabel: d.levelLabel,
+    weightMinKg: kg(d.weightMinG),
+    weightMaxKg: kg(d.weightMaxG),
+    mat: d.mat,
+    matOrder: d.matOrder,
+    drawNo: d.drawNo,
+    drawnAt: d.drawnAt?.toISOString() ?? null,
+    finishedAt: d.finishedAt?.toISOString() ?? null,
+    entryCount: d.entryCount,
+    hasResults: d.hasResults,
+    state: d.finishedAt
+        ? 'FINISHED'
+        : d.hasResults
+          ? 'RUNNING'
+          : d.drawnAt
+            ? 'DRAWN'
+            : 'NOT_DRAWN',
+    updatedAt: d.updatedAt.toISOString(),
+})
+
+// The org's view of one entry: weights and birth year always (§2.3), the
+// name and club only for a visible person.
+export const serializeTournamentEntryRow = (
+    e: EntryView,
+    division: { name: string } | undefined,
+    fits: boolean | null,
+): TournamentEntryRow => ({
+    id: e.id,
+    hidden: !e.visible,
+    personName: e.visible ? e.personName : null,
+    clubId: e.visible ? e.workspaceId : null,
+    clubName: e.visible ? e.clubName : null,
+    status: e.status,
+    sex: e.sex,
+    birthYear: e.birthYear,
+    declaredWeightKg: kg(e.declaredWeightG),
+    weighedWeightKg: kg(e.weighedWeightG),
+    weighedAt: e.weighedAt?.toISOString() ?? null,
+    divisionId: e.divisionId,
+    divisionName: division?.name ?? null,
+    levelName: e.levelName,
+    levelPickedByCoach: e.levelSetById !== null,
+    fits,
+    withdrawnReason: e.withdrawnReason,
+    place: e.place,
+    updatedAt: e.updatedAt.toISOString(),
+})
+
+export const serializeTournamentCompetitor = (
+    e: EntryView,
+): z.infer<typeof TournamentCompetitorSchema> => ({
+    entryId: e.id,
+    hidden: !e.visible,
+    personName: e.visible ? e.personName : null,
+    clubName: e.visible ? e.clubName : null,
+    place: e.place,
+})
+
+export const serializeTournamentMatch = (
+    m: BracketView['matches'][number],
+    entries: Map<string, EntryView>,
+): TournamentMatchOutput => {
+    const side = (id: string | null) => {
+        const e = id ? entries.get(id) : undefined
+        return e ? serializeTournamentCompetitor(e) : null
+    }
+    return {
+        id: m.id,
+        divisionId: m.divisionId,
+        round: m.round,
+        position: m.position,
+        isBye: m.isBye,
+        entryA: side(m.entryAId),
+        entryB: side(m.entryBId),
+        winnerEntryId: m.winnerEntryId,
+        method: m.method,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        note: m.note,
+        decidedAt: m.decidedAt?.toISOString() ?? null,
+        ready: m.ready,
+        nextMatchId: m.nextMatchId,
+        updatedAt: m.updatedAt.toISOString(),
+    }
+}
+
+export const serializeTournamentBracket = (b: BracketView): TournamentBracketOutput => ({
+    division: serializeTournamentDivision(b.division),
+    size: b.size,
+    rounds: b.rounds,
+    matches: b.matches.map((m) => serializeTournamentMatch(m, b.entries)),
+    entries: b.waiting.map(serializeTournamentCompetitor),
 })

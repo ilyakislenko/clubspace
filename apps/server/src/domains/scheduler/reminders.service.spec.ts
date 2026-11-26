@@ -77,6 +77,9 @@ const buildPrisma = (
         claimedAlready: (kind: string, refId: string) => boolean
         orgAnnouncements: unknown[]
         orgRegistrations: unknown[]
+        // Tournament entrants by the phase the minute job asks for.
+        tournamentEntries: { RUNNING?: unknown[]; FINISHED?: unknown[] }
+        weightsPurged: number
     }> = {},
 ) => {
     const slots = o.slots ?? []
@@ -161,6 +164,13 @@ const buildPrisma = (
         },
         organizationEventRegistration: {
             findMany: jest.fn().mockResolvedValue(o.orgRegistrations ?? []),
+        },
+        tournamentEntry: {
+            findMany: jest.fn(
+                async ({ where }: { where: { tournament: { status: 'RUNNING' | 'FINISHED' } } }) =>
+                    o.tournamentEntries?.[where.tournament.status] ?? [],
+            ),
+            updateMany: jest.fn().mockResolvedValue({ count: o.weightsPurged ?? 0 }),
         },
     }
 }
@@ -783,5 +793,36 @@ describe('RemindersService federation fan-outs', () => {
         expect(
             prisma.organizationEventRegistration.findMany.mock.calls[0][0].where,
         ).toMatchObject({ status: 'BOOKED', event: { publishedAt: { not: null } } })
+    })
+
+    it('sends tournament pushes and reports them with the purged weights', async () => {
+        const entrant = (id: string, place: number | null) => ({
+            id,
+            userId: `u-${id}`,
+            workspaceId: 'w1',
+            place,
+            workspace: { timezone: 'Europe/Moscow' },
+            division: { name: 'Мужчины · до 76 кг', mat: 2, drawNo: 1 },
+            tournament: {
+                id: 't1',
+                organizationId: 'org1',
+                eventId: 'e1',
+                event: { title: 'Кубок федерации' },
+            },
+        })
+        const prisma = buildPrisma({
+            tournamentEntries: { RUNNING: [entrant('a', null)], FINISHED: [entrant('b', 2)] },
+            weightsPurged: 4,
+        })
+        const { svc, rows } = build(prisma)
+
+        const summary = await svc.run(baseNow)
+
+        expect(summary.tournamentPushesSent).toBe(2)
+        expect(summary.tournamentWeightsPurged).toBe(4)
+        expect(rows.map((r) => [r.userId, r.metadata?.kind, r.message])).toEqual([
+            ['u-a', 'tournament.bracket_ready', 'Мужчины · до 76 кг, ковёр 2'],
+            ['u-b', 'tournament.results_published', '2 место'],
+        ])
     })
 })

@@ -115,6 +115,9 @@ type RawRow = {
     levelColor: string | null
     ladderName: string
     templateLevelName: string | null
+    templateLevelId: string | null
+    templateLevelOrder: number | null
+    templateId: string | null
     total: number
 }
 
@@ -153,6 +156,8 @@ const promotionsSql = (
            u.firstname, u.lastname,
            lv.name AS "levelName", lv.color AS "levelColor",
            rl.name AS "ladderName", tl.name AS "templateLevelName",
+           tl.id AS "templateLevelId", tl."order" AS "templateLevelOrder",
+           tl."templateId" AS "templateId",
            count(*) OVER ()::int AS total
     FROM promo pr
     JOIN "User" u ON u.id = pr."userId"
@@ -387,6 +392,49 @@ export const registryBeltsFor = async (
             levelColor: r.levelColor,
             stripes: r.stripes,
             ladderName: r.ladderName,
+        })
+    }
+    return result
+}
+
+export type RegistryLevel = {
+    templateLevelId: string
+    templateId: string
+    order: number
+    name: string
+}
+
+// The newest standard level the registry shows for each of `userIds` (a
+// belt on a ladder copied from this org's standard, whose level maps to a
+// standard level): what a tournament entry takes at confirmation.
+export const registryLevelsFor = async (
+    prisma: RegistryClient,
+    organizationId: string,
+    userIds: string[],
+): Promise<Map<string, RegistryLevel>> => {
+    const result = new Map<string, RegistryLevel>()
+    if (userIds.length === 0) return result
+    const clubs = await registryClubs(prisma, organizationId)
+    if (clubs.length === 0) return result
+    const personIds = [...(await consentedPersonIds(prisma, organizationId, userIds))]
+    if (personIds.length === 0) return result
+    const rows = await prisma.$queryRaw<RawRow[]>(
+        promotionsSql(
+            { organizationId, clubIds: clubs.map((c) => c.workspaceId), personIds },
+            {
+                latest: true,
+                where: [Prisma.sql`tl.id IS NOT NULL`],
+                orderBy: Prisma.sql`pr."awardedAt" DESC, pr.id DESC`,
+            },
+        ),
+    )
+    for (const r of rows) {
+        if (result.has(r.userId) || !r.templateLevelId || !r.templateId) continue
+        result.set(r.userId, {
+            templateLevelId: r.templateLevelId,
+            templateId: r.templateId,
+            order: r.templateLevelOrder ?? 0,
+            name: r.templateLevelName ?? r.levelName,
         })
     }
     return result

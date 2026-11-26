@@ -691,6 +691,119 @@ Also `notification-route.spec.ts` (three kinds).
 18. **Demo** gains a running and a finished tournament plus `secretary@academy.demo`; the running one is anchored to
     `now − 2 h` so its timeline is always coherent.
 
+**Server, S1 (implementation):**
+- **Start withdraws DECLARED as well as CONFIRMED entries without a weight** (implementation): the weigher confirms at
+  the scale, so a still-DECLARED entry was never weighed; both become WITHDRAWN «Не взвешен».
+- **Changing who is in a drawn division drops its bracket while it has no results** (implementation): a move, a
+  withdrawal or a first weigh-in into a drawn division clears its matches (`drawnAt` null, a new draw follows — the
+  start redraws undrawn divisions); with results it is 409 `DIVISION_HAS_RESULTS`. Withdrawal is therefore allowed
+  until the first result, not only before the draw.
+- **Weigh-in only in WEIGH_IN** (implementation; 400 otherwise). An entry without a division gets the one that fits at
+  the scale; `fits` on the answer is the weight check only (the level was settled at confirmation).
+- **A decided match with a different result is 409 `STALE_UPDATE` even without `expectedUpdatedAt`** (implementation):
+  changing a result goes through undo. Identical retries (winner, method, scores) answer 200.
+- **Undo of a bye is refused** (400): byes change only with a redraw.
+- **Coach level picker**: confirmation needs a level only when some division is defined on a standard; without one
+  and without a registry level it is 400 `TOURNAMENT_LEVEL_REQUIRED`. Club athletes rows carry `registryLevel`.
+  The registry level comes from the newest registry belt whose club level maps to a standard level.
+- **Kids' names**: generated division names say «Мальчики / Девочки» when the age band ends under 18.
+- **Registry podiums need the tournament edition of the consent** (results show names); a person on an older edition
+  stays in the registry without the «призёр» mark. Own podiums in «Мои пояса» show regardless of consent.
+- **Fewer mats unassign the dropped mats' divisions** («Ковёр не назначен»), results stay.
+- **A self-declaration keeps an existing confirmation when weight, sex and birth year are unchanged**; any change resets
+  it to DECLARED with the division cleared.
+- **A conflicting match result says what happened** (implementation): the 409 `STALE_UPDATE` for a match already
+  decided with another result carries «Результат уже записан с другого планшета» and the stored result in `metadata`
+  (`winnerEntryId`, `method`, `scoreA`, `scoreB`, `decidedAt`). A stale `expectedUpdatedAt` on an undecided match keeps
+  the generic stale message (nothing was recorded).
+- **A coach confirms only while the event still reaches the club** (implementation): a club that left the federation
+  gets 404 on «Подтвердить», as on every other club tournament route.
+- **Every result takes the tournament row lock as well as the division's** (implementation), so a result can't
+  interleave with «Опубликовать итоги» or the start; results on different mats queue for milliseconds.
+- **«Мои спортсмены» lists booked people only** (implementation): `listClubTournamentAthletes` returns the people booked
+  on the event through the club (a coach: those of their own groups). An entry needs the booking, and the phone polls the
+  list while the tournament runs, so a whole club of «не записан» rows was noise.
+- **Publishing counts drawable entrants only** (implementation): an unweighed entry returned to the tournament after
+  the start can never be drawn, so it doesn't make its undrawn division «не закончена».
+
+**Admin console, S2 (implementation):**
+- **No «⋯» on the tournament header** (implementation). By status it would hold one or two items (the
+  `ui-slop-detector` guard: a 1–2 item «⋯» is worse than showing them). The step back is a quiet outline button beside
+  the primary: «Вернуть приём заявок» (WEIGH_IN), «Снять публикацию» (FINISHED, admin). «Ковров: N» is the admin's
+  dotted «3 ковра» in the date line, opening a small dialog (`expectedUpdatedAt`). The division page keeps its «⋯»
+  (up to three items: «Изменить категорию», «Пережеребить», «Удалить»).
+- **«Категории» header actions are buttons, not a 2-item «⋯»** (implementation): «Скопировать из турнира» (outline,
+  only when the federation has another tournament) and «Распределить по коврам» (ghost). «Добавить категории» is filled
+  only while the list is empty; once divisions exist the page's phase button is the one filled button. Likewise
+  «Начать взвешивание» stays outline while there are no divisions.
+- **`MatchResultSheet` and `WeighInSheet` put the rare action as a quiet button** (implementation): «Отменить
+  результат» (outline, destructive text) on a decided match and «Снять с турнира» / «Вернуть в турнир» (ghost) at the
+  bottom of the weigh-in sheet, instead of a one-item «⋯». After a weigh-in that misses the division, «Перевести в
+  «до 82 кг»» becomes the filled button and «Записать вес» turns outline.
+- **The result toast reuses the calendar's `UndoToast`** (implementation; 15 s, not 10 s), so the admin keeps one toast.
+  A refused toast undo (the next match is already decided) replaces it with the server's message.
+- **STALE_UPDATE on a result** re-reads the division and shows «Записано: Победа: … · …» under `<StaleUpdateNotice>`;
+  «Обновить» opens that match read-only (implementation).
+- **Undo confirm wording** (implementation): «Выход в полуфинал тоже отменится (Иванов).» — names are not declined
+  (a genitive «Иванова» can't be built reliably); after a final: «Места в категории тоже снимутся.»
+- **`matchFinishLabel(type)` is a standalone export of `libs/ui-kit/brand/vocabulary.ts`, not a `ClubVocabulary` field**
+  (implementation): GRAPPLING and FITNESS share one vocabulary object and the server mirror spec pins the object, so a
+  grappling-only word lives beside it. «Пояс»/«Уровень» comes from the org type the same way (`levelWord`).
+- **The org journal words a match method neutrally** («досрочная победа»; it has no discipline) and labels `method`
+  «Способ победы» by value, since payments use the same key (implementation).
+- **Admin smoke** (implementation): `ORG_MATRIX` rows gain `blocked` and `pages` (routes outside the sidebar with
+  `expect` / `absent` words); the club-owner check is its own test and also opens a tournament page by URL.
+- **Demo secretary account lives in `demo-accounts.ts`** (implementation), next to `DEMO_FEDERATION_ACCOUNT` (that is
+  where the administrator actually is, not `demo-clubs.ts`), and is listed with ACADEMY's accounts in `demo-clubs.ts`.
+  The seed refuses (`blocked`) when the address belongs to a real account, as for the administrator.
+- **Demo divisions: 9 per tournament** (implementation): adult men «Белый» and «Синий – Чёрный» × 3 weights, women
+  in open weight, children 7–9 and 10–13 in open weight, mixed sex. The demo clubs have few children with a guardian's
+  consent, so weight classes for children would leave most of them alone. The cup and the open tournament copy the
+  1st stage's set (`tournament.divisionsCopy`). The cup's mats are longest-first with student@'s division pinned
+  second on mat 2; the 1st stage's are longest-first on 2 mats.
+- **Demo facts the database doesn't hold** (implementation): sex is read from the Russian surname/first name
+  (`sexFromName`; there is no sex on `User`), birth year from `dateOfBirth`, the level from the latest promotion on a
+  ladder linked to a federation standard. Weights are a stable per-person draw ± a little per tournament.
+- **The running cup is simulated, not hand-written** (implementation): every mat decides its `matQueue` head 7 min
+  apart from the start. Mats 1 and 3 stop mid-way through their second division. Mat 2 stops at the first moment
+  student@'s match is ready with exactly one match ahead after his division began. The script's outcomes are forced:
+  student@ loses the 1st stage's semifinal on points (3rd), Миша its final (2nd), both win every decided cup match.
+  Walkover/DQ happen only before the semifinal and never to them. Pinned by `demo-tournaments.spec.ts` (14 days ×
+  5 hours) and by the sweep spec over the generated clubs (14 days × 3 hours).
+- **A reset never pushes** (implementation): the seed pre-claims `tournament.bracket_ready` `<entryId>:1` for every
+  drawn cup entry and `tournament.results_published` for the 1st stage's entries in `notificationDispatchLog`
+  (`skipDuplicates`). Seeded journal rows use the live metadata shapes (`statusChange` with
+  `withdrawnCount`/`drawnCount`, `entryMove` with both division names, `matchResult` with round and position).
+- **Demo open tournament** (implementation): the 3 waiting entries are ACADEMY adults (self-booked first), declared by
+  themselves; coach@ (head coach, whole-club scope) sees «Ждут подтверждения: 3». The confirmations seeded for the
+  other 12 are by the club's hub coach (bjj@ / Беркут's coach). Club-side `entryDeclare`/`entryConfirm` journal rows
+  are not seeded (they'd flood the clubs' journals).
+- **Mobile Events card** (implementation): a competition with a tournament makes the whole card the tap target with
+  one accent state line + chevron; the registration buttons inside keep working. The line shows the full division
+  name, since «до 82 кг» alone is ambiguous between belts.
+- **Mobile confirm sheet reads `registryLevel`** (implementation; S1 added it to the athletes row): «Пояс: Синий (из
+  реестра федерации)» or the level picker up front. That's better than discovering 400 `TOURNAMENT_LEVEL_REQUIRED`
+  after the tap.
+- **Mobile consent re-confirmation** (implementation): the entry sheet's 409 `ORG_CONSENT_REQUIRED` (or
+  `consentCurrent: false` up front) closes the sheet and opens `OrgConsentSheet` with the current text from
+  `my-orgs:<ws>`. «Разрешить и продолжить» re-grants and reopens the entry sheet, so a sheet never opens a sheet. A coach
+  declaring for a student gets «Ученик должен обновить согласие в приложении».
+- **Mobile web paths** `clubs/:workspaceId/tournaments/:eventId` (+ `/divisions/:divisionId`, `/results`)
+  (implementation; `linking.ts` is required by the typed route table). Tournament pushes without `eventId` fall back
+  to «События».
+- **The event and division titles appear once** (implementation): the tournament screen's header carries the event
+  title and the body opens with «Миша · Идёт · 3 ковра», naming the child when a guardian is acting for one. The
+  bracket's header says «Сетка» and the division name wraps in the body, because a long name such as «Мужчины · от
+  18 лет · Синий – Чёрный · до 76 кг» would be cut off in the header. The routes take no `title` param.
+- **An empty bracket slot names its feeder match** (implementation): «победитель схватки Ильин — Афанасьев», using
+  `bracket.ts`'s advancement ((r, p) → (r + 1, ⌈p/2⌉), odd positions on side A). It shows «—» only while the feeder
+  match is itself still waiting for someone.
+- **Gender-neutral entry states** (implementation): «Заявка снята: Не взвешен» instead of «Снят с турнира», and
+  «выбыл» / «выбыла» follow the entry's `sex`.
+- **A «Мои пояса» podium line opens that tournament's results** (implementation): once a tournament is over it drops
+  out of «События». Without this the published results could be reached only through the `results_published` push.
+  The line is a row with a chevron and no extra button.
+
 ## 14. Implementation slices
 
 Contract first. S1 lands phase A on `feat/tournaments` early; S2 and S3 then build against the generated types while

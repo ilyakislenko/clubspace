@@ -11,6 +11,10 @@ import { getApiClient } from "./client"
 export type MyClubOrganization =
   ApiTypes.ListMyClubOrganizationsOutputOutput["data"][number]
 export type ClubOrgEvent = ApiTypes.ListClubOrgEventsOutputOutput["data"][number]
+// A COMPETITION event's tournament and the viewer's entry line
+// (docs/design/2026-11-27-tournaments.md §8).
+export type ClubOrgEventEntryState = NonNullable<ClubOrgEvent["myEntryState"]>
+export type MyTournamentPodium = MyClubOrganization["podiums"][number]
 export type OrgEventRegistrationRef = ApiTypes.OrgEventRegistrationRefOutputOutput
 export type OrgEventStudent =
   ApiTypes.ListOrgEventStudentsOutputOutput["data"][number]

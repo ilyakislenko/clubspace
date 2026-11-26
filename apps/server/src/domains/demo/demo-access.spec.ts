@@ -61,10 +61,18 @@ describe('isDemoOnlyAccount', () => {
         },
     )
 
-    it('opens the demo federation administrator, listed with ACADEMY', async () => {
-        const prisma = build({ email: 'federation@academy.demo' })
-        await expect(isDemoOnlyAccount(prisma as never, user)).resolves.toBe(true)
-        expect(prisma.workspace.findFirst.mock.calls[0][0].where).toEqual({ key: 'academy-demo', isDemo: true })
+    it.each([['federation@academy.demo'], ['secretary@academy.demo']])(
+        'opens the demo federation staff account %s, listed with ACADEMY',
+        async (email) => {
+            const prisma = build({ email })
+            await expect(isDemoOnlyAccount(prisma as never, user)).resolves.toBe(true)
+            expect(prisma.workspace.findFirst.mock.calls[0][0].where).toEqual({ key: 'academy-demo', isDemo: true })
+        },
+    )
+
+    it('refuses the tournament secretary once she is on the staff of a real federation', async () => {
+        const prisma = build({ email: 'secretary@academy.demo', realOrgStaff: 1 })
+        await expect(isDemoOnlyAccount(prisma as never, user)).resolves.toBe(false)
     })
 
     it.each([
