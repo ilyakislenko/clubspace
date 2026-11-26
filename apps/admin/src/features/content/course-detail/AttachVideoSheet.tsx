@@ -178,7 +178,6 @@ export function AttachVideoSheet({
                 </span>
                 <div className="h-10 w-16 shrink-0 overflow-hidden rounded bg-muted">
                   {video.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={video.thumbnailUrl}
                       alt={video.title}

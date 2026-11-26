@@ -47,6 +47,31 @@
 - Демо: идущий «Кубок федерации, 2-й этап» на 3 коврах, прошедший 1-й этап с
   итогами, открытый турнир с заявками; вход секретаря `secretary@academy.demo`.
 
+### Качество тестов и линта
+- `apps/server-e2e` проходит `tsc` (`npx tsc -p apps/server-e2e/tsconfig.json
+  --noEmit`): tsconfig повторяет настройки сервера (nodenext, декораторы,
+  rootDir), фикстуры отдают пользователя с непустым e-mail. Проект добавлен в
+  typecheck `npm run verify` и CI.
+- Jest-воркеры больше не падают с `SIGSEGV`: это баг V8 13.6 в Node 24
+  (nodejs/node#62393), `jest.preset.js` запускает воркеры с `--no-sparkplug`.
+- Jest во всех проектах: не больше 4 воркеров (было по ядру минус один — 13
+  на 14-ядерном Mac) и `workerIdleMemoryLimit: '1GB'`, в server e2e тоже
+  1GB вместо 2GB; полный server unit по-прежнему ~1–1,5 мин.
+- Предупреждение `pg` «client is already executing a query» в server e2e
+  идёт из Prisma (prisma/orm#29407), описано в `TESTS.md`.
+- `ScheduleCalendar.spec.tsx` ищет элементы без перебора ~400 кнопок сетки,
+  таймаут 30 с убран.
+- Убраны все неиспользуемые `eslint-disable`; `no-unused-vars` не ругается
+  на поле, отброшенное через rest, `no-fallthrough` — на пустые `case` с
+  комментарием.
+- Сервер: работа, которую запрос запускает без ожидания (отметка
+  `lastSeenAt`, журнал входа платформы, пуши после отметки, запись кэша
+  обзвона), идёт через `PrismaService.background`; при остановке приложение
+  ждёт её до отключения от базы. Раньше она переживала `app.close()`,
+  заново открывала пул Prisma и в e2e падала в следующем spec-файле.
+- Уведомление удалённому пользователю пропускается, а не падает с
+  нарушением внешнего ключа (`notifyUser`, `writeMany`).
+
 ### Зависимости
 - Минорные и патч-обновления npm (Dependabot #507): Expo SDK 58 (патчи),
   Radix, React Navigation, AWS SDK, `@nestjs/throttler`, Scalar, date-fns,

@@ -279,7 +279,6 @@ export function PlaylistFormSheet({
                 className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-transparent file:px-3 file:py-1.5 file:text-sm hover:file:bg-muted"
               />
               {thumbnailPreview && (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={thumbnailPreview}
                   alt="Превью"

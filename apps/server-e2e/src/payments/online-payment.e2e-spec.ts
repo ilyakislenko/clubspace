@@ -73,7 +73,7 @@ describe('online payment of an abonement', () => {
             .set(...s.memberActor.auth)
             .send({ planId: s.plan.id })
 
-    const yookassaWebhook = (workspaceId: string, body: unknown) =>
+    const yookassaWebhook = (workspaceId: string, body: object) =>
         ctx.http().post(`/payments/webhooks/yookassa/${workspaceId}`).send(body)
 
     const stripeWebhook = (

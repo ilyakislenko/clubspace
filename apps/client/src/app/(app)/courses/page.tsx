@@ -121,7 +121,6 @@ export default function CoursesPage() {
             >
               <div className="aspect-video w-full overflow-hidden bg-muted">
                 {course.thumbnailUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={course.thumbnailUrl}
                     alt={course.title}

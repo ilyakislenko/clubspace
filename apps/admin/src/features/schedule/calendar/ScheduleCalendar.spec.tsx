@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 jest.mock("../../../shared/api/schedule", () => ({
   getSchedule: jest.fn(),
@@ -98,9 +98,21 @@ beforeEach(() => {
   scopeMock.mockReturnValue(adminScope)
 })
 
+// The week grid renders ~400 empty-cell buttons (tabIndex -1, one per quarter
+// hour). A page-wide `ByRole("button", { name })` checks visibility and
+// computes the accessible name of every one of them — 30–120 ms per call in
+// jsdom — and `findBy*` re-runs it on every DOM mutation and every 50 ms until
+// it matches. Under a parallel full run that compounded into 5–25 s per case.
+// So: find class blocks by their aria-label on the block element only, and
+// query dialog/toast/toggle buttons inside their own container.
+const findClass = (name: RegExp) => screen.findByLabelText(name, { selector: "[data-calendar-block]" })
+const dialogButton = async (name: string) => within(await screen.findByRole("dialog")).getByRole("button", { name })
+const dayLayoutButton = (name: RegExp) =>
+  within(screen.getByRole("group", { name: "Раскладка дня" })).getByRole("button", { name })
+
 // Drag the 19:00 Wednesday class to Thursday 20:15 (grid starts at 8:00).
 const dragClass = async () => {
-  const block = await screen.findByRole("button", { name: /Группа g1, 19:00–20:30/ })
+  const block = await findClass(/Группа g1, 19:00–20:30/)
   fireEvent(block, ptr("pointerdown", 250, 670 * 1.6))
   act(() => {
     window.dispatchEvent(ptr("pointermove", 350, 742 * 1.6))
@@ -111,13 +123,9 @@ const dragClass = async () => {
 }
 
 describe("ScheduleCalendar", () => {
-  // Each case renders the whole week grid and drags through it; under a
-  // parallel full run that took 5–25 s and tripped jest's 5 s default.
-  jest.setTimeout(30_000)
-
   it("loads the week from the deep link and shows the classes", async () => {
     render(<ScheduleCalendar workspaceId="w1" />)
-    await screen.findByRole("button", { name: /Группа g1, 19:00–20:30/ })
+    await findClass(/Группа g1, 19:00–20:30/)
     expect(scheduleMock).toHaveBeenCalledWith({ workspaceId: "w1", from: "2026-11-02", to: "2026-11-08" })
     expect(screen.getByText("2–8 ноября 2026")).toBeTruthy()
     expect(screen.getByText(/1 тренировка/)).toBeTruthy()
@@ -128,7 +136,7 @@ describe("ScheduleCalendar", () => {
     render(<ScheduleCalendar workspaceId="w1" />)
     await dragClass()
     expect(await screen.findByText("Перенести тренировку")).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: "Только эту тренировку" }))
+    fireEvent.click(await dialogButton("Только эту тренировку"))
     await waitFor(() =>
       expect(moveMock).toHaveBeenCalledWith({
         workspaceId: "w1",
@@ -138,7 +146,7 @@ describe("ScheduleCalendar", () => {
         data: { newDate: "2026-11-05", startTime: "20:15", durationMin: 90, notify: true },
       }),
     )
-    fireEvent.click(await screen.findByRole("button", { name: "Отменить" }))
+    fireEvent.click(within(await screen.findByRole("status")).getByRole("button", { name: "Отменить" }))
     await waitFor(() =>
       expect(moveMock).toHaveBeenLastCalledWith({
         workspaceId: "w1",
@@ -158,7 +166,7 @@ describe("ScheduleCalendar", () => {
     })
     render(<ScheduleCalendar workspaceId="w1" />)
     await dragClass()
-    fireEvent.click(await screen.findByRole("button", { name: "Это и все следующие" }))
+    fireEvent.click(await dialogButton("Это и все следующие"))
     await waitFor(() =>
       expect(splitMock).toHaveBeenCalledWith({
         workspaceId: "w1",
@@ -174,14 +182,14 @@ describe("ScheduleCalendar", () => {
     moveMock.mockRejectedValue(new Error("boom"))
     render(<ScheduleCalendar workspaceId="w1" />)
     await dragClass()
-    fireEvent.click(await screen.findByRole("button", { name: "Только эту тренировку" }))
+    fireEvent.click(await dialogButton("Только эту тренировку"))
     expect(await screen.findByText(/boom|Не удалось перенести/)).toBeTruthy()
   })
 
   it("lets a plain coach edit the classes of the group they coach", async () => {
     scopeMock.mockReturnValue({ ...adminScope, isSportLead: false, canManageDirection: () => false })
     render(<ScheduleCalendar workspaceId="w1" />)
-    await screen.findByRole("button", { name: /Группа g1/ })
+    await findClass(/Группа g1/)
     await waitFor(() => expect(document.querySelector("[data-resize-handle]")).not.toBeNull())
     expect(document.querySelector("[data-calendar-cell]")).not.toBeNull()
   })
@@ -196,7 +204,7 @@ describe("ScheduleCalendar", () => {
       canManageDirection: (id: string) => id === "d2",
     })
     render(<ScheduleCalendar workspaceId="w1" />)
-    await screen.findByRole("button", { name: /Группа g1/ })
+    await findClass(/Группа g1/)
     await waitFor(() => expect(fetchMe).toHaveBeenCalled())
     expect(document.querySelector("[data-calendar-cell]")).toBeNull()
     expect(document.querySelector("[data-resize-handle]")).toBeNull()
@@ -204,7 +212,7 @@ describe("ScheduleCalendar", () => {
 
   it("switches views", async () => {
     render(<ScheduleCalendar workspaceId="w1" />)
-    await screen.findByRole("button", { name: /Группа g1/ })
+    await findClass(/Группа g1/)
     fireEvent.click(screen.getByRole("tab", { name: /Месяц/ }))
     await waitFor(() => expect(scheduleMock).toHaveBeenLastCalledWith({ workspaceId: "w1", from: "2026-10-26", to: "2026-12-06" }))
     fireEvent.click(screen.getByRole("tab", { name: /Список/ }))
@@ -233,30 +241,30 @@ describe("ScheduleCalendar", () => {
 
     it("opens hall by hall and offers only the hall's groups in its empty cell", async () => {
       render(<ScheduleCalendar workspaceId="w1" />)
-      await screen.findByRole("button", { name: /Группа g1, 19:00–20:30/ })
+      await findClass(/Группа g1, 19:00–20:30/)
       await waitFor(() => expect(hallNames()).toEqual(["Зал gym1", "Зал gym2"]))
-      expect(screen.getByRole("button", { name: /По залам/ }).getAttribute("aria-pressed")).toBe("true")
-      fireEvent.click(screen.getByRole("button", { name: "Новая тренировка 18:45, Зал gym2" }))
+      expect(dayLayoutButton(/По залам/).getAttribute("aria-pressed")).toBe("true")
+      fireEvent.click(screen.getByLabelText("Новая тренировка 18:45, Зал gym2", { selector: "[data-calendar-cell]" }))
       expect(await screen.findByText(/Зал: Зал gym2/)).toBeTruthy()
     })
 
     it("switches to one shared column and remembers it", async () => {
       const { unmount } = render(<ScheduleCalendar workspaceId="w1" />)
-      await screen.findByRole("button", { name: /Группа g1/ })
-      fireEvent.click(screen.getByRole("button", { name: /Общая/ }))
+      await findClass(/Группа g1/)
+      fireEvent.click(dayLayoutButton(/Общая/))
       await waitFor(() => expect(hallNames()).toEqual([]))
       expect(JSON.parse(window.localStorage.getItem("clubspace:schedule-calendar") ?? "{}")).toMatchObject({ dayLayout: "combined" })
       unmount()
       render(<ScheduleCalendar workspaceId="w1" />)
-      await screen.findByRole("button", { name: /Группа g1/ })
-      expect(screen.getByRole("button", { name: /Общая/ }).getAttribute("aria-pressed")).toBe("true")
+      await findClass(/Группа g1/)
+      expect(dayLayoutButton(/Общая/).getAttribute("aria-pressed")).toBe("true")
       expect(hallNames()).toEqual([])
     })
 
     it("is not offered in the week", async () => {
       window.history.replaceState(null, "", "/workspace/w1/schedule?view=week&date=2026-11-04")
       render(<ScheduleCalendar workspaceId="w1" />)
-      await screen.findByRole("button", { name: /Группа g1/ })
+      await findClass(/Группа g1/)
       expect(screen.queryByRole("group", { name: "Раскладка дня" })).toBeNull()
       expect(hallNames()).toEqual([])
     })

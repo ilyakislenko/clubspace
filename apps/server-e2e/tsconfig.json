@@ -4,11 +4,27 @@
     "outDir": "out-tsc/@clubspace/server-e2e",
     "esModuleInterop": true,
     "noUnusedLocals": false,
-    "noImplicitAny": false
+    // The specs import server sources directly (services, enums, environment),
+    // so they must compile under the server's own settings: nodenext
+    // resolution for the generated Prisma client, legacy decorators for the
+    // NestJS classes they pull in, and a rootDir that covers apps/server.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "rootDir": "../..",
+    "types": ["node", "jest"],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "target": "es2021"
   },
   "include": [
-    "jest.config.ts",
-    "src/**/*.ts"
+    "jest.config.cts",
+    "src/**/*.ts",
+    "../server/src/**/*.ts",
+    "../../libs/sport-glossary/src/**/*.ts"
+  ],
+  "exclude": [
+    "../server/src/**/*.spec.ts",
+    "../server/src/**/*.test.ts"
   ],
   "references": []
 }

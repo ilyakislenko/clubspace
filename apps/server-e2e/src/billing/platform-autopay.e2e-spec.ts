@@ -132,7 +132,7 @@ describe('platform autopay', () => {
     const club = async (name = 'Клуб «Автоплатёж»'): Promise<Club> => {
         const { workspace, owner } = await createWorkspace(ctx, { name })
         const actor = await signIn(ctx, owner.email)
-        return { workspace, owner, actor }
+        return { workspace, owner: { id: owner.id, email: actor.email }, actor }
     }
 
     // The club's billing row in a given state (the console path is covered

@@ -3,6 +3,8 @@ import { Reflector } from '@nestjs/core'
 
 jest.mock('../../infrastructure/prisma', () => ({ PrismaService: class {} }))
 
+import { BackgroundTasks } from '../../infrastructure/prisma/background-tasks'
+
 import { AllowExpiredAccess } from '../decorators/allow-expired-access.decorator'
 import { AllowSuspendedWorkspace } from '../decorators/allow-suspended-workspace.decorator'
 import {
@@ -29,6 +31,7 @@ const build = (opts: {
     billingStatus?: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED'
 }) => {
     const prisma = {
+        background: new BackgroundTasks(jest.fn()),
         workspace: {
             findUnique: jest
                 .fn()

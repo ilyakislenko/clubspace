@@ -19,7 +19,6 @@ export function ClubLogo({
   if (logoUrl) {
     return (
       // A signed, expiring storage URL: next/image would cache it past expiry.
-      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={logoUrl}
         alt=""

@@ -56,7 +56,6 @@ export function BirthdaysToday({ workspaceId }: { workspaceId: string }) {
               className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted/60"
             >
               {m.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={m.photoUrl} alt="" className="size-8 shrink-0 rounded-full object-cover" />
               ) : (
                 <span

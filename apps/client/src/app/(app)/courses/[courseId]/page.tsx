@@ -156,7 +156,6 @@ export default function CoursePage() {
                 >
                   <div className="flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
                     {video.thumbnailUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={video.thumbnailUrl}
                         alt={video.title}

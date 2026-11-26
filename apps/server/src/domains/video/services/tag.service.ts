@@ -81,7 +81,7 @@ export class TagService {
             await this.prisma.tagEntity.delete({
                 where: { id: payload.tagId },
             })
-        } catch (error) {
+        } catch {
             throw new BadRequestError({
                 message: 'Тег нельзя удалить — он привязан к видео',
             })

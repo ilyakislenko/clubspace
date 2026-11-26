@@ -114,8 +114,10 @@ const flushTestRedis = async () => {
         )
     }
 
-    const IORedis = (await import('ioredis')).default
-    const redis = new IORedis({
+    // The named export: under nodenext resolution `.default` of the dynamic
+    // import is the CommonJS module object, not the class.
+    const { Redis } = await import('ioredis')
+    const redis = new Redis({
         host: process.env.REDIS_HOST ?? 'localhost',
         port: Number(process.env.REDIS_PORT ?? 6379),
         db,

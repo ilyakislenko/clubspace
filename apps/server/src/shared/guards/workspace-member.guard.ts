@@ -57,12 +57,15 @@ export class WorkspaceMemberGuard implements CanActivate {
         if (user.isSuperAdmin) {
             // Not awaited: the journal entry (written only when the admin has
             // no club role here, once an hour) must not slow the request.
-            void this.platformAccess.noteAccess({
-                userId: user.userId,
-                workspaceId,
-                method: request.method,
-                route: request.route?.path,
-            })
+            // Tracked, so shutdown waits for it.
+            this.prisma.background.run(() =>
+                this.platformAccess.noteAccess({
+                    userId: user.userId,
+                    workspaceId,
+                    method: request.method,
+                    route: request.route?.path,
+                }),
+            )
             return true
         }
 
@@ -138,9 +141,11 @@ export class WorkspaceMemberGuard implements CanActivate {
         ) {
             return
         }
-        void this.prisma.workspaceMember
-            .update({ where: { id: membership.id }, data: { lastSeenAt: now } })
-            .catch(() => undefined)
+        this.prisma.background.run(() =>
+            this.prisma.workspaceMember
+                .update({ where: { id: membership.id }, data: { lastSeenAt: now } })
+                .catch(() => undefined),
+        )
     }
 
     // A suspended or switched-off club is closed to everyone in it, owner

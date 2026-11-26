@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 
 import {
     MemberStatus,
@@ -23,6 +23,14 @@ const isP2002 = (e: unknown): boolean =>
     e !== null &&
     (e as { code?: string }).code === 'P2002'
 
+// Foreign-key violation: on a notification row that can only be its user —
+// the recipient was deleted between routing and the INSERT. Background
+// producers (a check-in follow-up, a scheduler job) race account deletion.
+const isP2003 = (e: unknown): boolean =>
+    typeof e === 'object' &&
+    e !== null &&
+    (e as { code?: string }).code === 'P2003'
+
 // One PUSH notification row to write; metadata always carries its kind.
 export type PushNotificationRow = {
     userId: string
@@ -41,6 +49,8 @@ export type PushNotificationRow = {
 // claim their own dedupe keys in bulk and call writeMany directly.
 @Injectable()
 export class NotificationProducerService {
+    private readonly logger = new Logger(NotificationProducerService.name)
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly realtime: RealtimeEmitter,
@@ -66,19 +76,7 @@ export class NotificationProducerService {
             routeToGuardians(unmuted, routes),
         )
         if (rows.length === 0) return 0
-        const created = await this.prisma.notification.createManyAndReturn({
-            data: rows.map((r) => ({
-                userId: r.userId,
-                type: NotificationTypeEnum.PUSH,
-                topic: r.topic,
-                message: r.message,
-                link: r.link ?? null,
-                metadata: r.metadata as Prisma.InputJsonValue,
-                seen: false,
-                sent: false,
-            })),
-            select: { id: true },
-        })
+        const created = await this.insertSkippingDeleted(rows)
         await this.push.enqueue(created.map((c) => c.id))
         const guardianIds = [
             ...new Set(
@@ -91,6 +89,44 @@ export class NotificationProducerService {
             this.realtime.invalidateUsers(guardianIds, ['notifications'])
         }
         return created.length
+    }
+
+    // A deleted recipient gets no notification instead of failing the whole
+    // batch: on a foreign-key violation, retry once with the users that still
+    // exist.
+    private async insertSkippingDeleted(
+        rows: PushNotificationRow[],
+    ): Promise<{ id: string }[]> {
+        const insert = (batch: PushNotificationRow[]) =>
+            this.prisma.notification.createManyAndReturn({
+                data: batch.map((r) => ({
+                    userId: r.userId,
+                    type: NotificationTypeEnum.PUSH,
+                    topic: r.topic,
+                    message: r.message,
+                    link: r.link ?? null,
+                    metadata: r.metadata as Prisma.InputJsonValue,
+                    seen: false,
+                    sent: false,
+                })),
+                select: { id: true },
+            })
+        try {
+            return await insert(rows)
+        } catch (e) {
+            if (!isP2003(e)) throw e
+        }
+        const alive = await this.prisma.user.findMany({
+            where: { id: { in: [...new Set(rows.map((r) => r.userId))] } },
+            select: { id: true },
+        })
+        const ids = new Set(alive.map((u) => u.id))
+        const kept = rows.filter((r) => ids.has(r.userId))
+        const kinds = [...new Set(rows.map((r) => r.metadata.kind))].join(', ')
+        this.logger.warn(
+            `skipped ${rows.length - kept.length} notification(s) (${kinds}) for deleted recipients`,
+        )
+        return kept.length > 0 ? insert(kept) : []
     }
 
     // The club-feature and per-user opt-out gates of notifyUser, on their own, so
@@ -161,19 +197,31 @@ export class NotificationProducerService {
                 routes,
             ),
         )
+        let written = 0
         for (const row of rows) {
-            const created = await this.prisma.notification.create({
-                data: {
-                    userId: row.userId,
-                    type: NotificationTypeEnum.PUSH,
-                    topic: row.topic,
-                    message: row.message,
-                    link: p.link ?? null,
-                    metadata: row.metadata as Prisma.InputJsonValue,
-                    seen: false,
-                    sent: false,
-                },
-            })
+            let created
+            try {
+                created = await this.prisma.notification.create({
+                    data: {
+                        userId: row.userId,
+                        type: NotificationTypeEnum.PUSH,
+                        topic: row.topic,
+                        message: row.message,
+                        link: p.link ?? null,
+                        metadata: row.metadata as Prisma.InputJsonValue,
+                        seen: false,
+                        sent: false,
+                    },
+                })
+            } catch (e) {
+                // The recipient was deleted after routing: nothing to notify.
+                if (isP2003(e)) {
+                    this.logger.warn(`skipped 1 notification (${p.kind}) for a deleted recipient`)
+                    continue
+                }
+                throw e
+            }
+            written++
             await this.push.enqueue([created.id])
             this.realtime.emitListDeltaUsers(
                 [row.userId],
@@ -191,7 +239,7 @@ export class NotificationProducerService {
                 },
             )
         }
-        return rows.length > 0
+        return written > 0
     }
 
     async notifyWorkspace(p: {
