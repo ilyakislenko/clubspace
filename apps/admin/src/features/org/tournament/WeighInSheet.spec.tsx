@@ -126,12 +126,23 @@ describe("WeighInSheet", () => {
   it("withdraws after a confirm", async () => {
     withdrawMock.mockResolvedValue(entry({ status: "WITHDRAWN" }))
     renderSheet(entry())
+    expect(screen.getByText("ACADEMY · мужской пол, 1998 г. р. · Белый · заявленный вес 76,0 кг")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Снять с турнира" }))
-    const dialog = await screen.findByRole("dialog", { name: "Снять Иванов Максим с турнира?" })
+    const dialog = await screen.findByRole("dialog", { name: "Снять участника с турнира?" })
+    expect(within(dialog).getByText(/^Иванов Максим не попадёт в сетку\. .* пока в категории нет результатов\.$/)).toBeTruthy()
     fireEvent.click(within(dialog).getByRole("button", { name: "Снять с турнира" }))
     await waitFor(() =>
       expect(withdrawMock).toHaveBeenCalledWith({ organizationId: "o1", tournamentId: "t1", entryId: "e1", withdrawn: true }),
     )
+    expect(await screen.findByText("Заявка снята.")).toBeTruthy()
     expect(await screen.findByRole("button", { name: "Вернуть в турнир" })).toBeTruthy()
+  })
+
+  it("never puts «Участник скрыт» inside the confirm sentence", async () => {
+    renderSheet(entry({ hidden: true, personName: null, clubName: null }))
+    fireEvent.click(screen.getByRole("button", { name: "Снять с турнира" }))
+    const dialog = await screen.findByRole("dialog", { name: "Снять участника с турнира?" })
+    expect(within(dialog).getByText(/^Участник не попадёт в сетку\./)).toBeTruthy()
+    expect(within(dialog).queryByText(/Участник скрыт/)).toBeNull()
   })
 })

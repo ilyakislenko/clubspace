@@ -31,7 +31,7 @@ import { FORM_LIMITS } from "../../../shared/lib/contract-limits"
 import { errorMessage } from "../../../shared/lib/error-message"
 import { useVocabulary } from "../../../shared/lib/vocabulary"
 import { confirmDialog } from "../../../shared/ui/confirm-dialog"
-import { SEX_LABEL, competitorName, formatKg, parseKg, weightLine } from "./tournament-view"
+import { competitorName, formatKg, parseKg, weightLine } from "./tournament-view"
 
 const L = FORM_LIMITS.weighIn
 
@@ -159,8 +159,9 @@ function WeighInBody({
   const setWithdrawn = async (next: boolean) => {
     if (next) {
       const ok = await confirmDialog({
-        title: `Снять ${competitorName(entry)} с турнира?`,
-        description: "Участник не попадёт в сетку. Вернуть можно, пока сетка категории не собрана.",
+        // A name isn't declined, and a hidden person has none: the title says «участника».
+        title: "Снять участника с турнира?",
+        description: `${entry.hidden ? "Участник" : competitorName(entry)} не попадёт в сетку. Если сетка категории уже собрана, её соберут заново. Вернуть можно, пока в категории нет результатов.`,
         confirmLabel: "Снять с турнира",
         destructive: true,
       })
@@ -179,9 +180,9 @@ function WeighInBody({
   const suggested = verdict?.suggestedDivisionId ? verdict : null
   const facts = [
     entry.clubName,
-    `${SEX_LABEL[entry.sex]}, ${entry.birthYear} г. р.`,
+    `${entry.sex === "MALE" ? "мужской" : "женский"} пол, ${entry.birthYear} г. р.`,
     entry.levelName,
-    entry.declaredWeightKg != null ? `заявлен ${formatKg(entry.declaredWeightKg)} кг` : null,
+    entry.declaredWeightKg != null ? `заявленный вес ${formatKg(entry.declaredWeightKg)} кг` : null,
   ].filter(Boolean)
 
   return (
@@ -194,7 +195,7 @@ function WeighInBody({
       <div className="flex flex-1 flex-col gap-5">
         {withdrawn && (
           <p className="text-sm text-muted-foreground">
-            Снят с турнира{entry.withdrawnReason ? `: ${entry.withdrawnReason}` : ""}.
+            Заявка снята{entry.withdrawnReason ? `: ${entry.withdrawnReason}` : ""}.
           </p>
         )}
         {entry.status === "DECLARED" && (

@@ -108,6 +108,13 @@ describe("MatchResultSheet", () => {
     pick("По очкам")
     fireEvent.change(screen.getByLabelText("Иванов Максим"), { target: { value: "2" } })
     expect(screen.getByText("Укажите счёт обоих")).toBeTruthy()
+    fireEvent.change(screen.getByLabelText("Петров Пётр"), { target: { value: "1" } })
+    expect(screen.getByText("При победе по очкам у победителя счёт больше")).toBeTruthy()
+    expect(save.disabled).toBe(true)
+    // A judges' decision may follow a tie or a lower score.
+    pick("Решение судей")
+    expect(screen.queryByText("При победе по очкам у победителя счёт больше")).toBeNull()
+    pick("По очкам")
     fireEvent.change(screen.getByLabelText("Петров Пётр"), { target: { value: "8" } })
     fireEvent.click(save)
     await waitFor(() => expect(onRecorded).toHaveBeenCalled())

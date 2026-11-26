@@ -139,12 +139,22 @@ function MatchResultBody({
   const sA = parseScore(scoreA)
   const sB = parseScore(scoreB)
   const scored = methodHasScore(method)
+  // A points win goes to the higher score (the server refuses it otherwise);
+  // a judges' decision may follow a tie.
+  const winnerScore = winner === a?.entryId ? sA : sB
+  const loserScore = winner === a?.entryId ? sB : sA
   const scoreError =
     scored && (sA === "bad" || sB === "bad")
       ? `Счёт — целое число от ${L.scoreA.min} до ${L.scoreA.max}`
       : scored && (sA === null) !== (sB === null)
         ? "Укажите счёт обоих"
-        : null
+        : method === "POINTS" &&
+            winner !== null &&
+            typeof winnerScore === "number" &&
+            typeof loserScore === "number" &&
+            winnerScore <= loserScore
+          ? "При победе по очкам у победителя счёт больше"
+          : null
   const ready = winner !== null && method !== null && scoreError === null
 
   const save = async () => {
