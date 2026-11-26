@@ -51,7 +51,7 @@ export default [
       '@typescript-eslint/no-unused-vars': ['warn', { ignoreRestSiblings: true }],
       // Grouped empty `case` labels with a comment between them cannot fall
       // through into code by mistake; only a case with statements can.
-      'no-fallthrough': ['warn', { allowEmptyCase: true }],
+      'no-fallthrough': ['error', { allowEmptyCase: true }],
     },
   },
 ];

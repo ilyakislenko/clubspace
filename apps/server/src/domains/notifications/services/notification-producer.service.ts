@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 
 import {
     MemberStatus,
@@ -49,6 +49,8 @@ export type PushNotificationRow = {
 // claim their own dedupe keys in bulk and call writeMany directly.
 @Injectable()
 export class NotificationProducerService {
+    private readonly logger = new Logger(NotificationProducerService.name)
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly realtime: RealtimeEmitter,
@@ -120,6 +122,10 @@ export class NotificationProducerService {
         })
         const ids = new Set(alive.map((u) => u.id))
         const kept = rows.filter((r) => ids.has(r.userId))
+        const kinds = [...new Set(rows.map((r) => r.metadata.kind))].join(', ')
+        this.logger.warn(
+            `skipped ${rows.length - kept.length} notification(s) (${kinds}) for deleted recipients`,
+        )
         return kept.length > 0 ? insert(kept) : []
     }
 
@@ -209,7 +215,10 @@ export class NotificationProducerService {
                 })
             } catch (e) {
                 // The recipient was deleted after routing: nothing to notify.
-                if (isP2003(e)) continue
+                if (isP2003(e)) {
+                    this.logger.warn(`skipped 1 notification (${p.kind}) for a deleted recipient`)
+                    continue
+                }
                 throw e
             }
             written++
