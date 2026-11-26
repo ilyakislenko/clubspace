@@ -228,7 +228,6 @@ export function ClubCodeSection({
           </div>
 
           {invite.qrPngDataUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={invite.qrPngDataUrl}
               alt="QR-код для вступления в клуб"

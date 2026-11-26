@@ -16,7 +16,7 @@
       const el = document.getElementById("boot-splash")
       if (el) el.style.background = saved
     }
-  } catch (e) {
+  } catch {
     /* storage disabled — fall back to the prefers-color-scheme CSS */
   }
   // Hand off to the app as soon as it renders its first node.

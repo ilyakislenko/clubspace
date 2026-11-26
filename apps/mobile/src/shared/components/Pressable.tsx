@@ -4,7 +4,6 @@ import {
   StyleSheet,
   type PressableProps,
   type StyleProp,
-  type View,
   type ViewStyle,
   type ViewInstance,
 } from "react-native"

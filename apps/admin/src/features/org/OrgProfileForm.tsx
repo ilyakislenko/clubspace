@@ -143,7 +143,6 @@ export function OrgProfileForm({ org, onSaved }: { org: Organization; onSaved: (
         <Label>Логотип</Label>
         <div className="flex flex-wrap items-center gap-3">
           {logoPreview && (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={logoPreview} alt="" className="size-12 rounded-md border border-border object-cover" />
           )}
           <input

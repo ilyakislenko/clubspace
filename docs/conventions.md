@@ -35,6 +35,8 @@ Exact commands are pinned on purpose. Use them verbatim.
   - admin: `npx tsc -p apps/admin/tsconfig.json --noEmit`
   - mobile: `npx tsc -p apps/mobile/tsconfig.app.json --noEmit`
     (⚠️ `tsconfig.json` in mobile is a **false-clean** — always use `tsconfig.app.json`).
+  - server e2e: `npx tsc -p apps/server-e2e/tsconfig.json --noEmit` (also checks the
+    server sources the specs import, under the server's own compiler options).
 - **Lockfile:** after any dependency change run `bash scripts/check-lockfile.sh`
   (also part of `npm run verify` when Docker is up). The images run the npm of
   `node:22` (npm 10); a lock written by npm 11 can miss entries it needs and every

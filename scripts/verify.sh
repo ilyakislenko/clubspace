@@ -103,6 +103,7 @@ typecheck() {
         "client apps/client tsconfig.json"
         "mobile apps/mobile tsconfig.app.json"
         "video-worker apps/video-worker tsconfig.app.json"
+        "server-e2e apps/server-e2e tsconfig.json"
     )
     for entry in "${projects[@]}"; do
         # shellcheck disable=SC2086
@@ -226,7 +227,7 @@ infra_reachable() {
 
 # --- run ---------------------------------------------------------------------
 run_step "prepare (prisma client + referenced libs)" prepare
-run_step "typecheck (5 projects)" typecheck
+run_step "typecheck (6 projects)" typecheck
 run_step "unit + UI tests (coverage-gated)" unit_tests
 run_step "contract (open-api / api types / theme css)" contract
 # Seconds, and it catches a lock the Docker images can't `npm ci` (written by

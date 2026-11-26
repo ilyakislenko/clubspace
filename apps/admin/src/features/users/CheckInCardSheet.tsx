@@ -83,7 +83,6 @@ export function CheckInCardSheet({
 
         {card ? (
           <div className="flex flex-col items-center gap-2 rounded-lg border border-border bg-white p-6 text-center text-zinc-900">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={card.qrPngDataUrl} alt={`QR-код карты: ${card.name}`} className="size-56" />
             <div className="text-lg font-semibold">{card.name}</div>
             <p className="text-sm text-zinc-600">{hint}</p>

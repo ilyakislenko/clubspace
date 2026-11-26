@@ -146,7 +146,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await clearAuthTokens()
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.warn("[auth] clearAuthTokens failed during sign-out", error)
       }
       ownerChecked.current = false
@@ -171,7 +170,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await cleanupOnSignOut({ wipeLocal: opts?.wipeLocal === true })
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.warn("[auth] local data wipe failed during sign-out", error)
       }
       setAuthed(false)

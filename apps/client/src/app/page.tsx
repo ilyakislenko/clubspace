@@ -384,7 +384,6 @@ export default async function LandingPage() {
           />
           <noscript>
             <div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`https://mc.yandex.ru/watch/${marketing.metrikaId}`}
                 style={{ position: "absolute", left: "-9999px" }}

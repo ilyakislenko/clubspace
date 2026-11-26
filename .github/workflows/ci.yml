@@ -122,6 +122,7 @@ jobs:
           - { name: client, path: apps/client, tsconfig: tsconfig.json }
           - { name: mobile, path: apps/mobile, tsconfig: tsconfig.app.json }
           - { name: video-worker, path: apps/video-worker, tsconfig: tsconfig.app.json }
+          - { name: server-e2e, path: apps/server-e2e, tsconfig: tsconfig.json }
     steps:
       - uses: actions/checkout@v7
         with:

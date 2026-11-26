@@ -135,6 +135,31 @@ trace упавших тестов — `test-output/admin-e2e/`. Исключен
 консоли, известные дефекты с 4xx) — только списком в `src/checks.ts`, у
 каждого причина; запись известного дефекта удаляется вместе с исправлением.
 
+## Известные шумы прогона (не наши дефекты)
+
+- **`DeprecationWarning: Calling client.query() when the client is already
+  executing a query`** в server e2e. Источник — Prisma, не наш код:
+  интерпретатор запросов Prisma 7 грузит связи (`include` с несколькими
+  отношениями, узлы `join`/`concat` в `runtime/client.js`) через `Promise.all`,
+  а внутри интерактивного `$transaction` все эти запросы идут в один
+  `pg`-клиент транзакции; `pg` ≥ 8.19 предупреждает, `pg@9` такое запретит.
+  Наш `pg` в `global-setup.ts` (создание базы, advisory-lock) выполняет запросы
+  строго последовательно. Апстрим:
+  [prisma/orm#29407](https://github.com/prisma/orm/issues/29407),
+  [prisma/orm#30925](https://github.com/prisma/orm/issues/30925), исправление —
+  [prisma/orm#29979](https://github.com/prisma/orm/pull/29979) (сериализация в
+  `@prisma/adapter-pg`, не вошло в 7.10.1). Сейчас результат корректный: `pg`
+  ставит запросы в очередь. Перед переходом на `pg@9` обновить Prisma до версии
+  с этим исправлением.
+- **Jest worker `signal=SIGSEGV`** (случайный suite, отдельно проходит) — баг
+  V8 13.6 в Node 24 (Sparkplug + GC, стек
+  `ClearStaleLeftTrimmedPointerVisitor::VisitRootPointers`):
+  [nodejs/node#62393](https://github.com/nodejs/node/issues/62393), бэкпорт
+  [nodejs/node#65753](https://github.com/nodejs/node/pull/65753). Обход —
+  `--no-sparkplug` для воркеров в `jest.preset.js`; убрать, когда Node будет с
+  исправлением. Если снова упадёт — смотреть
+  `~/Library/Logs/DiagnosticReports/node-*.ips`.
+
 ## Как добавить тест
 
 1. Кладёшь `*.spec.ts` рядом с тестируемым файлом.

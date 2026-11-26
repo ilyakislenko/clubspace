@@ -440,7 +440,6 @@ export function VideoList({ workspaceId }: Props) {
                   >
                     <div className="h-14 w-24 overflow-hidden rounded-md bg-muted">
                       {video.thumbnailUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={video.thumbnailUrl}
                           alt={video.title}

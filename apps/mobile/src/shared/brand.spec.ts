@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- the module must be
-   re-required after each doMock so it re-reads the mocked environment */
+// The module must be re-required after each doMock so it re-reads the mocked
+// environment.
 
 const loadBrand = (environment: Record<string, unknown>) => {
   jest.resetModules()

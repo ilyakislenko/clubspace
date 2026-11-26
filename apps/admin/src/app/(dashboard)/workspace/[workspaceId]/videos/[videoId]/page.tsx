@@ -731,7 +731,6 @@ export default function WorkspaceVideoWatchPage() {
               </div>
               <div className="aspect-video w-full overflow-hidden rounded-md border border-border bg-muted">
                 {video.thumbnailUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={video.thumbnailUrl}
                     alt={video.title}

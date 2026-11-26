@@ -82,7 +82,6 @@ const enqueueWrite = (key: string, op: () => Promise<void>): Promise<void> => {
     .catch(() => undefined)
     .then(op)
     .catch((error: unknown) => {
-      // eslint-disable-next-line no-console
       console.warn(
         `[token-store] SecureStore I/O failed for "${key}"`,
         error,
@@ -115,7 +114,6 @@ export const hydrateMobileTokenStore = async () => {
         const value = await readItem(key)
         MEMORY[key] = value
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.warn(
           `[token-store] token read failed for "${key}"`,
           error,

@@ -101,7 +101,6 @@ export default function WorkspaceSubscriptionsPage() {
     else if (isNew) openForm(null)
     // openForm only sets state; re-running on its identity would reopen the
     // panel after every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, plans])
 
   const toggleActive = async (p: Plan) => {

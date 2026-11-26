@@ -668,7 +668,6 @@ export function ClubProfileForm({ workspaceId }: { workspaceId: string }) {
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="flex items-center gap-3 p-4">
               {logoPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={logoPreview}
                   alt=""

@@ -28,7 +28,6 @@ export function CourseList({ workspaceId, playlists, loading }: Props) {
             className="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
           >
             {playlist.thumbnailUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={playlist.thumbnailUrl}
                 alt={playlist.title}

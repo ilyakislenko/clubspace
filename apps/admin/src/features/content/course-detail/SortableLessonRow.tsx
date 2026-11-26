@@ -97,7 +97,6 @@ export function SortableLessonRow({
       >
         <div className="h-12 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
           {video.thumbnailUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={video.thumbnailUrl}
               alt={video.title}

@@ -88,7 +88,7 @@ Metro inlines them at bundle time and they cannot be read at runtime.
 
 ## Tests and typecheck
 
-One command answers "is this safe to merge?" — typecheck (5 projects), unit and
+One command answers "is this safe to merge?" — typecheck (6 projects), unit and
 UI tests with coverage gates, and the generated-contract drift check:
 
 ```sh
@@ -156,6 +156,7 @@ check that's usually out of date:
 npx tsc -p apps/server/tsconfig.app.json --noEmit
 npx tsc -p apps/admin/tsconfig.json --noEmit
 npx tsc -p apps/mobile/tsconfig.app.json --noEmit
+npx tsc -p apps/server-e2e/tsconfig.json --noEmit
 ```
 
 **Mobile must use `tsconfig.app.json`.** Its plain `tsconfig.json` checks nothing

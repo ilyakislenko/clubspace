@@ -50,7 +50,6 @@ export const errorMessage = (
       // The member only sees "no internet", which also covers a wrong API URL,
       // a refused connection or a blocked cleartext request — keep the real
       // cause in the log (logcat ReactNativeJS / the browser console).
-      // eslint-disable-next-line no-console
       console.warn(
         `[api] ${String(api.code)} ${String(api.config?.method ?? "").toUpperCase()} ` +
           `${String(api.config?.baseURL ?? "")}${String(api.config?.url ?? "")}: ` +

@@ -125,7 +125,7 @@ describe('trial guards', () => {
     const club = async (name = 'Клуб на пробном'): Promise<Club> => {
         const { workspace, owner } = await createWorkspace(ctx, { name })
         const actor = await signIn(ctx, owner.email)
-        return { workspace, owner, actor }
+        return { workspace, owner: { id: owner.id, email: actor.email }, actor }
     }
 
     const setBilling = (workspaceId: string, data: Record<string, unknown>) =>

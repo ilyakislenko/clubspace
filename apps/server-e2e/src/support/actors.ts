@@ -22,12 +22,19 @@ export type Actor = {
  * Then it accepts the personal-data consent through the same screen-facing
  * endpoints the apps use, because every other route refuses an account
  * without it. Pass `acceptConsent: false` to stay in front of the gate.
+ *
+ * Takes the column as Prisma types it (phone-only and child accounts have no
+ * e-mail) and refuses such a user here, where the address is actually needed.
  */
 export const signIn = async (
     ctx: TestApp,
-    email: string,
+    userEmail: string | null,
     options: { workspaceKey?: string; acceptConsent?: boolean } = {},
 ): Promise<Actor> => {
+    if (userEmail === null) {
+        throw new Error('signIn: this user has no e-mail to receive a code at')
+    }
+    const email = userEmail
     await ctx
         .http()
         .post('/send-auth-code')

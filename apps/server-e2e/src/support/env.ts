@@ -45,6 +45,11 @@ const values: Record<string, string> = {
     // let the second request through under load).
     COMPLETE_CODE_TIMEOUT: '60000',
 
+    // Same reason: a developer's .env may already carry the next legal
+    // edition, while the specs assert the defaults from environment.ts.
+    PLATFORM_OFFER_VERSION: '2026-11-01',
+    PLATFORM_DPA_VERSION: '2026-11-01',
+
     // Parsed at boot into a nodemailer transport config. Nothing connects:
     // MailerService is replaced with a capturing stub in test-app.ts.
     SMTP_URL: 'smtp://user:pass@localhost:1025',

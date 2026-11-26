@@ -348,7 +348,7 @@ describe('ИИ-ассистент: чат в админке', () => {
     it('without AI_CHAT_API_KEY says «не настроено» and sends nothing', async () => {
         const c = await setup()
         await enable(c)
-        environment.ai.chat.apiKey = undefined
+        environment.ai.chat.apiKey = ''
         const state = await http().get(`/workspaces/${c.w}/ai-chat`).set(...c.ownerActor.auth).expect(200)
         expect(state.body).toMatchObject({ configured: false, model: null })
         const res = await ask(c.ownerActor, c.w, 'Кому позвонить сегодня?')

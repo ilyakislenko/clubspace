@@ -27,6 +27,7 @@ type Session = {
     rescheduledFrom: { sessionDate: string; startAt: string } | null
     rescheduledTo: { slotId: string; sessionDate: string; startAt: string } | null
     booking: { booked: number } | null
+    substitution: { status: string; substitute: { id: string } } | null
 }
 
 // The admin calendar drags: «Только это занятие» (one class to another date and

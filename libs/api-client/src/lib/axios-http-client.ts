@@ -188,7 +188,6 @@ export const createAxiosHttpClient = (
             return Promise.reject(error)
           }
           await config.tokenStore.clear()
-          // eslint-disable-next-line no-console
           console.warn(
             "[auth] refresh-token endpoint returned 401 — clearing tokens and signing out",
           )
@@ -199,7 +198,6 @@ export const createAxiosHttpClient = (
           return Promise.reject(error)
         }
         if (!cookieTransport && !config.tokenStore.getRefreshToken()) {
-          // eslint-disable-next-line no-console
           console.warn(
             "[auth] 401 on",
             originalRequest.url,

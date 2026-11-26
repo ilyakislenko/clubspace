@@ -475,7 +475,6 @@ export function VideoUploadSheet({
                       {videoThumbnailFile.name}
                     </p>
                     <div className="overflow-hidden rounded-md border border-border">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={videoThumbnailPreview}
                         alt="Preview"
