@@ -39,6 +39,15 @@
   от npm 11 не ставился в Docker (`npm ci`: «Missing: chokidar@4.0.3» под
   `overrides`), все образы падали на первом шаге. `scripts/check-lockfile.sh`
   проверяет lock npm-ом образа (`--fix` пересобирает), шаг в `npm run verify`.
+- Мажорные обновления Dependabot: bullmq 6 (#499; `/readyz` берёт Redis-клиент
+  через `queue.getBackend()`), Nx 24 со всеми `@nx/*` через `nx migrate`
+  (#500, #494, #496–#498; вместе с ним TypeScript 6.0.3, цели test/build
+  выводятся плагинами, сервер собирается через `NxAppWebpackPlugin`, webpack
+  закреплён на 5.107 из-за поломки бандла Prisma в 5.108+). Неиспользуемый
+  vitest удалён вместо обновления до 5 (#495). Контракт API не изменился.
+- Оставлены открытыми: `@nestjs/swagger` 12 (#501) — требует NestJS 12 (ESM),
+  `nestjs-zod` и `@shelfjs/*` его пока не поддерживают; TypeScript 7 (#493) —
+  нет JS API, на нём не работают typescript-eslint, плагины Nx и `next build`.
 
 ### Готовность к показу тренерам
 - Демо-клубы показывают каждую функцию: занятия «Ритма» каждый будний день,
