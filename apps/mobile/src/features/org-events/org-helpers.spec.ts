@@ -26,6 +26,8 @@ const org = (o: Partial<MyClubOrganization> = {}): MyClubOrganization => ({
   visibleInRegistry: false,
   registryLadderIds: [],
   eventsEnabled: true,
+  consentCurrent: false,
+  podiums: [],
   ...o,
 })
 

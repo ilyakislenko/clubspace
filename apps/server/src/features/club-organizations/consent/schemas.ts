@@ -1,12 +1,24 @@
 import { z } from 'zod'
 
 import {
+    hasOrgConsent,
     ORG_SHARING_CONSENT_VERSION,
     orgConsentGrantedAt,
     orgSharingConsentText,
 } from '../../../domains/organizations/consent'
 import { registryLadderIdsFor } from '../../../domains/organizations/registry'
+import { personPodiums } from '../../../domains/tournaments/tournament-read'
 import { PrismaService } from '../../../infrastructure/prisma'
+
+export const MyTournamentPodiumSchema = z.object({
+    eventId: z.string().uuid(),
+    tournamentTitle: z.string(),
+    // The event's local date.
+    date: z.iso.date(),
+    divisionName: z.string(),
+    place: z.number().int(),
+})
+export type MyTournamentPodium = z.infer<typeof MyTournamentPodiumSchema>
 
 // An organization this club is an ACTIVE member of, as one member (or a
 // guardian acting for a child) sees it.
@@ -28,13 +40,26 @@ export const MyClubOrganizationOutputSchema = z.object({
     registryLadderIds: z.array(z.string().uuid()),
     // The club lets the org's events into the app.
     eventsEnabled: z.boolean(),
+    // The live consent is at the current edition (covers tournaments,
+    // docs/design/2026-11-27-tournaments.md §2.4); false with consentGranted
+    // = «обновите согласие».
+    consentCurrent: z.boolean(),
+    // The person's published podiums in this org's tournaments («Мои пояса»:
+    // «2 место — Кубок федерации, 1-й этап · 12 окт»). Own data: shown
+    // regardless of the current consent.
+    podiums: z.array(MyTournamentPodiumSchema),
 })
 export type MyClubOrganizationOutput = z.infer<typeof MyClubOrganizationOutputSchema>
 
 export const serializeMyClubOrganization = (
     o: { id: string; name: string; city: string | null },
     link: { allowMemberEvents: boolean },
-    state: { grantedAt: Date | null; registryLadderIds: string[] },
+    state: {
+        grantedAt: Date | null
+        consentCurrent: boolean
+        registryLadderIds: string[]
+        podiums: MyTournamentPodium[]
+    },
     // A guardian acting for a child reads the child's wording.
     forChild: boolean,
 ): MyClubOrganizationOutput => ({
@@ -48,9 +73,12 @@ export const serializeMyClubOrganization = (
     visibleInRegistry: state.registryLadderIds.length > 0,
     registryLadderIds: state.registryLadderIds,
     eventsEnabled: link.allowMemberEvents,
+    consentCurrent: state.consentCurrent,
+    podiums: state.podiums,
 })
 
-// The person's consent and registry state for one org of this club, served.
+// The person's consent, registry state and published podiums for one org of
+// this club, served.
 export const loadMyClubOrganization = async (
     prisma: PrismaService,
     link: {
@@ -60,18 +88,31 @@ export const loadMyClubOrganization = async (
     p: { workspaceId: string; userId: string; forChild: boolean },
 ): Promise<MyClubOrganizationOutput> => {
     const organizationId = link.organization.id
-    const grantedAt = await orgConsentGrantedAt(prisma, organizationId, p.userId)
-    const registryLadderIds = grantedAt
-        ? await registryLadderIdsFor(prisma, {
-              organizationId,
-              workspaceId: p.workspaceId,
-              userId: p.userId,
-          })
-        : []
+    const [grantedAt, podiums] = await Promise.all([
+        orgConsentGrantedAt(prisma, organizationId, p.userId),
+        personPodiums(prisma, organizationId, [p.userId]),
+    ])
+    const [registryLadderIds, consentCurrent] = grantedAt
+        ? await Promise.all([
+              registryLadderIdsFor(prisma, {
+                  organizationId,
+                  workspaceId: p.workspaceId,
+                  userId: p.userId,
+              }),
+              hasOrgConsent(prisma, organizationId, p.userId, {
+                  minVersion: ORG_SHARING_CONSENT_VERSION,
+              }),
+          ])
+        : [[], false]
     return serializeMyClubOrganization(
         link.organization,
         link,
-        { grantedAt, registryLadderIds },
+        {
+            grantedAt,
+            consentCurrent,
+            registryLadderIds,
+            podiums: podiums.map(({ userId: _u, ...rest }) => rest),
+        },
         p.forChild,
     )
 }

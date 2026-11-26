@@ -10132,6 +10132,7 @@ export type SearchOrganizationRegistryOutputOutput = {
         clubName: string;
         awardedAt: string;
         templateLevelName: string | null;
+        podiumCount: number;
     }>;
     total: number;
     curPage: number;
@@ -10152,6 +10153,13 @@ export type GetOrganizationRegistryPersonOutputOutput = {
         clubName: string;
         awardedAt: string;
         templateLevelName: string | null;
+        podiumCount: number;
+    }>;
+    podiums: Array<{
+        tournamentTitle: string;
+        date: string;
+        divisionName: string;
+        place: number;
     }>;
 };
 
@@ -10178,6 +10186,10 @@ export type ListOrgEventsOutputOutput = {
         feeNote: string | null;
         publishedAt: string | null;
         bookedCount: number;
+        tournament: {
+            id: string;
+            status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+        } | null;
         createdAt: string;
         updatedAt: string;
     }>;
@@ -10223,6 +10235,10 @@ export type OrgEventOutputDtoOutput = {
     feeNote: string | null;
     publishedAt: string | null;
     bookedCount: number;
+    tournament: {
+        id: string;
+        status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+    } | null;
     createdAt: string;
     updatedAt: string;
 };
@@ -10249,6 +10265,10 @@ export type GetOrgEventOutputOutput = {
     feeNote: string | null;
     publishedAt: string | null;
     bookedCount: number;
+    tournament: {
+        id: string;
+        status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+    } | null;
     createdAt: string;
     updatedAt: string;
 };
@@ -10297,6 +10317,10 @@ export type UpdateOrgEventOutputOutput = {
     feeNote: string | null;
     publishedAt: string | null;
     bookedCount: number;
+    tournament: {
+        id: string;
+        status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+    } | null;
     createdAt: string;
     updatedAt: string;
 };
@@ -10538,6 +10562,14 @@ export type ListMyClubOrganizationsOutputOutput = {
         visibleInRegistry: boolean;
         registryLadderIds: Array<string>;
         eventsEnabled: boolean;
+        consentCurrent: boolean;
+        podiums: Array<{
+            eventId: string;
+            tournamentTitle: string;
+            date: string;
+            divisionName: string;
+            place: number;
+        }>;
     }>;
 };
 
@@ -10556,6 +10588,14 @@ export type SetMyOrganizationConsentOutputOutput = {
     visibleInRegistry: boolean;
     registryLadderIds: Array<string>;
     eventsEnabled: boolean;
+    consentCurrent: boolean;
+    podiums: Array<{
+        eventId: string;
+        tournamentTitle: string;
+        date: string;
+        divisionName: string;
+        place: number;
+    }>;
 };
 
 export type ListClubOrgEventsOutputOutput = {
@@ -10581,6 +10621,18 @@ export type ListClubOrgEventsOutputOutput = {
         myRegistration: {
             id: string;
             status: 'BOOKED' | 'CANCELLED';
+        } | null;
+        tournament: {
+            id: string;
+            status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+            toConfirmCount: number | null;
+        } | null;
+        myEntryState: {
+            state: 'NEEDS_WEIGHT' | 'AWAITING_COACH' | 'CONFIRMED' | 'WITHDRAWN';
+            divisionName: string | null;
+            mat: number | null;
+            ahead: number | null;
+            place: number | null;
         } | null;
     }>;
 };
@@ -10635,6 +10687,837 @@ export type ListAdoptableLadderTemplatesOutputOutput = {
             ladderId: string;
             ladderName: string;
             templateVersion: number;
+        }>;
+    }>;
+};
+
+export type CreateOrgTournamentInput = {
+    matCount?: number;
+};
+
+export type CreateOrgTournamentOutputOutput = {
+    id: string;
+    organizationId: string;
+    eventId: string;
+    event: {
+        title: string;
+        startAt: string;
+        endAt: string | null;
+        timezone: string;
+        place: string | null;
+        localDate: string;
+    };
+    status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+    matCount: number;
+    resultsPublishedAt: string | null;
+    counts: {
+        registrations: number;
+        declared: number;
+        confirmed: number;
+        withdrawn: number;
+        weighed: number;
+        unweighed: number;
+        unassigned: number;
+        divisions: number;
+        divisionsDrawn: number;
+        divisionsFinished: number;
+    };
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type GetOrgTournamentOutputOutput = {
+    id: string;
+    organizationId: string;
+    eventId: string;
+    event: {
+        title: string;
+        startAt: string;
+        endAt: string | null;
+        timezone: string;
+        place: string | null;
+        localDate: string;
+    };
+    status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+    matCount: number;
+    resultsPublishedAt: string | null;
+    counts: {
+        registrations: number;
+        declared: number;
+        confirmed: number;
+        withdrawn: number;
+        weighed: number;
+        unweighed: number;
+        unassigned: number;
+        divisions: number;
+        divisionsDrawn: number;
+        divisionsFinished: number;
+    };
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type UpdateOrgTournamentInput = {
+    matCount: number;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
+};
+
+export type UpdateOrgTournamentOutputOutput = {
+    id: string;
+    organizationId: string;
+    eventId: string;
+    event: {
+        title: string;
+        startAt: string;
+        endAt: string | null;
+        timezone: string;
+        place: string | null;
+        localDate: string;
+    };
+    status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+    matCount: number;
+    resultsPublishedAt: string | null;
+    counts: {
+        registrations: number;
+        declared: number;
+        confirmed: number;
+        withdrawn: number;
+        weighed: number;
+        unweighed: number;
+        unassigned: number;
+        divisions: number;
+        divisionsDrawn: number;
+        divisionsFinished: number;
+    };
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type SetOrgTournamentStatusInput = {
+    status: 'SETUP' | 'WEIGH_IN' | 'RUNNING';
+};
+
+export type SetOrgTournamentStatusOutputOutput = {
+    id: string;
+    organizationId: string;
+    eventId: string;
+    event: {
+        title: string;
+        startAt: string;
+        endAt: string | null;
+        timezone: string;
+        place: string | null;
+        localDate: string;
+    };
+    status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+    matCount: number;
+    resultsPublishedAt: string | null;
+    counts: {
+        registrations: number;
+        declared: number;
+        confirmed: number;
+        withdrawn: number;
+        weighed: number;
+        unweighed: number;
+        unassigned: number;
+        divisions: number;
+        divisionsDrawn: number;
+        divisionsFinished: number;
+    };
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type PublishOrgTournamentResultsInput = {
+    published: boolean;
+};
+
+export type PublishOrgTournamentResultsOutputOutput = {
+    id: string;
+    organizationId: string;
+    eventId: string;
+    event: {
+        title: string;
+        startAt: string;
+        endAt: string | null;
+        timezone: string;
+        place: string | null;
+        localDate: string;
+    };
+    status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+    matCount: number;
+    resultsPublishedAt: string | null;
+    counts: {
+        registrations: number;
+        declared: number;
+        confirmed: number;
+        withdrawn: number;
+        weighed: number;
+        unweighed: number;
+        unassigned: number;
+        divisions: number;
+        divisionsDrawn: number;
+        divisionsFinished: number;
+    };
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type TournamentDivisionListOutputOutput = {
+    data: Array<{
+        id: string;
+        name: string;
+        sortOrder: number;
+        sex: 'FEMALE' | 'MALE' | null;
+        ageMin: number | null;
+        ageMax: number | null;
+        templateId: string | null;
+        levelOrderFrom: number | null;
+        levelOrderTo: number | null;
+        levelLabel: string | null;
+        weightMinKg: number | null;
+        weightMaxKg: number | null;
+        mat: number | null;
+        matOrder: number | null;
+        drawNo: number;
+        drawnAt: string | null;
+        finishedAt: string | null;
+        entryCount: number;
+        hasResults: boolean;
+        state: 'NOT_DRAWN' | 'DRAWN' | 'RUNNING' | 'FINISHED';
+        updatedAt: string;
+    }>;
+};
+
+export type CreateTournamentDivisionsInput = {
+    rows: Array<{
+        name?: string;
+        sex?: 'FEMALE' | 'MALE' | null;
+        ageMin?: number | null;
+        ageMax?: number | null;
+        templateId?: string | null;
+        levelOrderFrom?: number | null;
+        levelOrderTo?: number | null;
+        weightMinKg?: number | null;
+        weightMaxKg?: number | null;
+    }>;
+};
+
+export type CopyTournamentDivisionsInput = {
+    fromTournamentId: string;
+};
+
+export type UpdateTournamentDivisionInput = {
+    name?: string;
+    sex?: 'FEMALE' | 'MALE' | null;
+    ageMin?: number | null;
+    ageMax?: number | null;
+    templateId?: string | null;
+    levelOrderFrom?: number | null;
+    levelOrderTo?: number | null;
+    weightMinKg?: number | null;
+    weightMaxKg?: number | null;
+    mat?: number | null;
+    matOrder?: number | null;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
+};
+
+export type UpdateTournamentDivisionOutputOutput = {
+    id: string;
+    name: string;
+    sortOrder: number;
+    sex: 'FEMALE' | 'MALE' | null;
+    ageMin: number | null;
+    ageMax: number | null;
+    templateId: string | null;
+    levelOrderFrom: number | null;
+    levelOrderTo: number | null;
+    levelLabel: string | null;
+    weightMinKg: number | null;
+    weightMaxKg: number | null;
+    mat: number | null;
+    matOrder: number | null;
+    drawNo: number;
+    drawnAt: string | null;
+    finishedAt: string | null;
+    entryCount: number;
+    hasResults: boolean;
+    state: 'NOT_DRAWN' | 'DRAWN' | 'RUNNING' | 'FINISHED';
+    updatedAt: string;
+};
+
+export type DeleteTournamentDivisionOutputOutput = {
+    status: 'deleted';
+};
+
+export type ListTournamentEntriesOutputOutput = {
+    data: Array<{
+        id: string;
+        hidden: boolean;
+        personName: string | null;
+        clubId: string | null;
+        clubName: string | null;
+        status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
+        sex: 'FEMALE' | 'MALE' | null;
+        birthYear: number | null;
+        declaredWeightKg: number | null;
+        weighedWeightKg: number | null;
+        weighedAt: string | null;
+        divisionId: string | null;
+        divisionName: string | null;
+        levelName: string | null;
+        levelPickedByCoach: boolean;
+        fits: boolean | null;
+        withdrawnReason: string | null;
+        place: number | null;
+        updatedAt: string;
+    }>;
+    total: number;
+    curPage: number;
+    perPage: number;
+};
+
+export type RecordTournamentWeighInInput = {
+    weighedKg: number;
+};
+
+export type RecordTournamentWeighInOutputOutput = {
+    entry: {
+        id: string;
+        hidden: boolean;
+        personName: string | null;
+        clubId: string | null;
+        clubName: string | null;
+        status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
+        sex: 'FEMALE' | 'MALE' | null;
+        birthYear: number | null;
+        declaredWeightKg: number | null;
+        weighedWeightKg: number | null;
+        weighedAt: string | null;
+        divisionId: string | null;
+        divisionName: string | null;
+        levelName: string | null;
+        levelPickedByCoach: boolean;
+        fits: boolean | null;
+        withdrawnReason: string | null;
+        place: number | null;
+        updatedAt: string;
+    };
+    fits: boolean;
+    suggestedDivisionId: string | null;
+    suggestedDivisionName: string | null;
+};
+
+export type MoveTournamentEntryInput = {
+    divisionId: string;
+};
+
+export type MoveTournamentEntryOutputOutput = {
+    id: string;
+    hidden: boolean;
+    personName: string | null;
+    clubId: string | null;
+    clubName: string | null;
+    status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
+    sex: 'FEMALE' | 'MALE' | null;
+    birthYear: number | null;
+    declaredWeightKg: number | null;
+    weighedWeightKg: number | null;
+    weighedAt: string | null;
+    divisionId: string | null;
+    divisionName: string | null;
+    levelName: string | null;
+    levelPickedByCoach: boolean;
+    fits: boolean | null;
+    withdrawnReason: string | null;
+    place: number | null;
+    updatedAt: string;
+};
+
+export type SetTournamentEntryWithdrawnInput = {
+    withdrawn: boolean;
+    reason?: string;
+};
+
+export type SetTournamentEntryWithdrawnOutputOutput = {
+    id: string;
+    hidden: boolean;
+    personName: string | null;
+    clubId: string | null;
+    clubName: string | null;
+    status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
+    sex: 'FEMALE' | 'MALE' | null;
+    birthYear: number | null;
+    declaredWeightKg: number | null;
+    weighedWeightKg: number | null;
+    weighedAt: string | null;
+    divisionId: string | null;
+    divisionName: string | null;
+    levelName: string | null;
+    levelPickedByCoach: boolean;
+    fits: boolean | null;
+    withdrawnReason: string | null;
+    place: number | null;
+    updatedAt: string;
+};
+
+export type TournamentBracketOutputOutput = {
+    division: {
+        id: string;
+        name: string;
+        sortOrder: number;
+        sex: 'FEMALE' | 'MALE' | null;
+        ageMin: number | null;
+        ageMax: number | null;
+        templateId: string | null;
+        levelOrderFrom: number | null;
+        levelOrderTo: number | null;
+        levelLabel: string | null;
+        weightMinKg: number | null;
+        weightMaxKg: number | null;
+        mat: number | null;
+        matOrder: number | null;
+        drawNo: number;
+        drawnAt: string | null;
+        finishedAt: string | null;
+        entryCount: number;
+        hasResults: boolean;
+        state: 'NOT_DRAWN' | 'DRAWN' | 'RUNNING' | 'FINISHED';
+        updatedAt: string;
+    };
+    size: number;
+    rounds: number;
+    matches: Array<{
+        id: string;
+        divisionId: string;
+        round: number;
+        position: number;
+        isBye: boolean;
+        entryA: {
+            entryId: string;
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+            place: number | null;
+        } | null;
+        entryB: {
+            entryId: string;
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+            place: number | null;
+        } | null;
+        winnerEntryId: string | null;
+        method: 'FINISH' | 'POINTS' | 'DECISION' | 'DISQUALIFICATION' | 'WALKOVER' | null;
+        scoreA: number | null;
+        scoreB: number | null;
+        note: string | null;
+        decidedAt: string | null;
+        ready: boolean;
+        nextMatchId: string | null;
+        updatedAt: string;
+    }>;
+    entries: Array<{
+        entryId: string;
+        hidden: boolean;
+        personName: string | null;
+        clubName: string | null;
+        place: number | null;
+    }>;
+};
+
+export type TournamentMatQueueOutputOutput = {
+    mat: number;
+    current: {
+        id: string;
+        divisionId: string;
+        round: number;
+        position: number;
+        isBye: boolean;
+        entryA: {
+            entryId: string;
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+            place: number | null;
+        } | null;
+        entryB: {
+            entryId: string;
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+            place: number | null;
+        } | null;
+        winnerEntryId: string | null;
+        method: 'FINISH' | 'POINTS' | 'DECISION' | 'DISQUALIFICATION' | 'WALKOVER' | null;
+        scoreA: number | null;
+        scoreB: number | null;
+        note: string | null;
+        decidedAt: string | null;
+        ready: boolean;
+        nextMatchId: string | null;
+        updatedAt: string;
+        divisionName: string;
+    } | null;
+    next: Array<{
+        id: string;
+        divisionId: string;
+        round: number;
+        position: number;
+        isBye: boolean;
+        entryA: {
+            entryId: string;
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+            place: number | null;
+        } | null;
+        entryB: {
+            entryId: string;
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+            place: number | null;
+        } | null;
+        winnerEntryId: string | null;
+        method: 'FINISH' | 'POINTS' | 'DECISION' | 'DISQUALIFICATION' | 'WALKOVER' | null;
+        scoreA: number | null;
+        scoreB: number | null;
+        note: string | null;
+        decidedAt: string | null;
+        ready: boolean;
+        nextMatchId: string | null;
+        updatedAt: string;
+        divisionName: string;
+    }>;
+    unassignedDivisions: number;
+};
+
+export type RecordTournamentMatchResultInput = {
+    winnerEntryId: string;
+    method: 'FINISH' | 'POINTS' | 'DECISION' | 'DISQUALIFICATION' | 'WALKOVER';
+    scoreA?: number | null;
+    scoreB?: number | null;
+    note?: string | null;
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
+};
+
+export type UndoTournamentMatchResultInput = {
+    /**
+     * The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE
+     */
+    expectedUpdatedAt?: string;
+};
+
+export type TournamentResultsOutputOutput = {
+    status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+    resultsPublishedAt: string | null;
+    divisions: Array<{
+        divisionId: string;
+        name: string;
+        drawn: boolean;
+        finished: boolean;
+        podium: Array<{
+            place: number;
+            entryId: string;
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+        }>;
+    }>;
+};
+
+export type GetClubTournamentOutputOutput = {
+    id: string;
+    eventId: string;
+    organizationId: string;
+    organizationName: string;
+    eventTitle: string;
+    status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED';
+    matCount: number;
+    resultsPublishedAt: string | null;
+    myRegistrationId: string | null;
+    myEntry: {
+        id: string;
+        userId: string;
+        status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
+        sex: 'FEMALE' | 'MALE';
+        birthYear: number;
+        declaredWeightKg: number | null;
+        weighedWeightKg: number | null;
+        divisionId: string | null;
+        divisionName: string | null;
+        levelName: string | null;
+        withdrawnReason: string | null;
+        place: number | null;
+        bracketAvailable: boolean;
+        nextMatch: {
+            mat: number | null;
+            ahead: number | null;
+            opponent: {
+                hidden: boolean;
+                personName: string | null;
+                clubName: string | null;
+                isMe: boolean;
+                isMyClub: boolean;
+            } | null;
+            waitingFor: {
+                entryA: {
+                    hidden: boolean;
+                    personName: string | null;
+                    clubName: string | null;
+                    isMe: boolean;
+                    isMyClub: boolean;
+                } | null;
+                entryB: {
+                    hidden: boolean;
+                    personName: string | null;
+                    clubName: string | null;
+                    isMe: boolean;
+                    isMyClub: boolean;
+                } | null;
+            } | null;
+        } | null;
+        updatedAt: string;
+    } | null;
+    canDeclare: boolean;
+    profileBirthYear: number | null;
+    consentCurrent: boolean;
+    consentText: string;
+    consentVersion: string;
+    levels: Array<{
+        id: string;
+        name: string;
+        order: number;
+        templateId: string;
+        templateName: string;
+    }>;
+    toConfirmCount: number | null;
+};
+
+export type DeclareTournamentEntryInput = {
+    userId?: string;
+    declaredWeightKg: number;
+    sex: 'FEMALE' | 'MALE';
+    birthYear?: number;
+};
+
+export type DeclareTournamentEntryOutputOutput = {
+    id: string;
+    userId: string;
+    status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
+    sex: 'FEMALE' | 'MALE';
+    birthYear: number;
+    declaredWeightKg: number | null;
+    weighedWeightKg: number | null;
+    divisionId: string | null;
+    divisionName: string | null;
+    levelName: string | null;
+    withdrawnReason: string | null;
+    place: number | null;
+    bracketAvailable: boolean;
+    nextMatch: {
+        mat: number | null;
+        ahead: number | null;
+        opponent: {
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+            isMe: boolean;
+            isMyClub: boolean;
+        } | null;
+        waitingFor: {
+            entryA: {
+                hidden: boolean;
+                personName: string | null;
+                clubName: string | null;
+                isMe: boolean;
+                isMyClub: boolean;
+            } | null;
+            entryB: {
+                hidden: boolean;
+                personName: string | null;
+                clubName: string | null;
+                isMe: boolean;
+                isMyClub: boolean;
+            } | null;
+        } | null;
+    } | null;
+    updatedAt: string;
+};
+
+export type ConfirmTournamentEntryInput = {
+    templateLevelId?: string;
+};
+
+export type ConfirmTournamentEntryOutputOutput = {
+    id: string;
+    userId: string;
+    status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
+    sex: 'FEMALE' | 'MALE';
+    birthYear: number;
+    declaredWeightKg: number | null;
+    weighedWeightKg: number | null;
+    divisionId: string | null;
+    divisionName: string | null;
+    levelName: string | null;
+    withdrawnReason: string | null;
+    place: number | null;
+    bracketAvailable: boolean;
+    nextMatch: {
+        mat: number | null;
+        ahead: number | null;
+        opponent: {
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+            isMe: boolean;
+            isMyClub: boolean;
+        } | null;
+        waitingFor: {
+            entryA: {
+                hidden: boolean;
+                personName: string | null;
+                clubName: string | null;
+                isMe: boolean;
+                isMyClub: boolean;
+            } | null;
+            entryB: {
+                hidden: boolean;
+                personName: string | null;
+                clubName: string | null;
+                isMe: boolean;
+                isMyClub: boolean;
+            } | null;
+        } | null;
+    } | null;
+    updatedAt: string;
+};
+
+export type ListClubTournamentAthletesOutputOutput = {
+    data: Array<{
+        userId: string;
+        name: string;
+        registrationId: string | null;
+        consentCurrent: boolean;
+        profileBirthYear: number | null;
+        registryLevel: {
+            templateLevelId: string;
+            name: string;
+        } | null;
+        entry: {
+            id: string;
+            userId: string;
+            status: 'DECLARED' | 'CONFIRMED' | 'WITHDRAWN';
+            sex: 'FEMALE' | 'MALE';
+            birthYear: number;
+            declaredWeightKg: number | null;
+            weighedWeightKg: number | null;
+            divisionId: string | null;
+            divisionName: string | null;
+            levelName: string | null;
+            withdrawnReason: string | null;
+            place: number | null;
+            bracketAvailable: boolean;
+            nextMatch: {
+                mat: number | null;
+                ahead: number | null;
+                opponent: {
+                    hidden: boolean;
+                    personName: string | null;
+                    clubName: string | null;
+                    isMe: boolean;
+                    isMyClub: boolean;
+                } | null;
+                waitingFor: {
+                    entryA: {
+                        hidden: boolean;
+                        personName: string | null;
+                        clubName: string | null;
+                        isMe: boolean;
+                        isMyClub: boolean;
+                    } | null;
+                    entryB: {
+                        hidden: boolean;
+                        personName: string | null;
+                        clubName: string | null;
+                        isMe: boolean;
+                        isMyClub: boolean;
+                    } | null;
+                } | null;
+            } | null;
+            updatedAt: string;
+        } | null;
+    }>;
+    toConfirmCount: number;
+};
+
+export type GetClubTournamentBracketOutputOutput = {
+    division: {
+        id: string;
+        name: string;
+        mat: number | null;
+        drawnAt: string | null;
+        finishedAt: string | null;
+    };
+    size: number;
+    rounds: number;
+    matches: Array<{
+        id: string;
+        round: number;
+        position: number;
+        isBye: boolean;
+        entryA: {
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+            isMe: boolean;
+            isMyClub: boolean;
+        } | null;
+        entryB: {
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+            isMe: boolean;
+            isMyClub: boolean;
+        } | null;
+        winnerSide: 'A' | 'B' | null;
+        method: 'FINISH' | 'POINTS' | 'DECISION' | 'DISQUALIFICATION' | 'WALKOVER' | null;
+        scoreA: number | null;
+        scoreB: number | null;
+        decidedAt: string | null;
+    }>;
+    soloWinner: {
+        hidden: boolean;
+        personName: string | null;
+        clubName: string | null;
+        isMe: boolean;
+        isMyClub: boolean;
+        place: number;
+    } | null;
+};
+
+export type GetClubTournamentResultsOutputOutput = {
+    resultsPublishedAt: string;
+    divisions: Array<{
+        divisionId: string;
+        name: string;
+        podium: Array<{
+            hidden: boolean;
+            personName: string | null;
+            clubName: string | null;
+            isMe: boolean;
+            isMyClub: boolean;
+            place: number;
         }>;
     }>;
 };
@@ -18042,6 +18925,455 @@ export type ListAdoptableLadderTemplatesResponses = {
 };
 
 export type ListAdoptableLadderTemplatesResponse = ListAdoptableLadderTemplatesResponses[keyof ListAdoptableLadderTemplatesResponses];
+
+export type CreateOrgTournamentData = {
+    body: CreateOrgTournamentInput;
+    path: {
+        organizationId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/events/{eventId}/tournament';
+};
+
+export type CreateOrgTournamentResponses = {
+    default: CreateOrgTournamentOutputOutput;
+};
+
+export type CreateOrgTournamentResponse = CreateOrgTournamentResponses[keyof CreateOrgTournamentResponses];
+
+export type GetOrgTournamentData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}';
+};
+
+export type GetOrgTournamentResponses = {
+    default: GetOrgTournamentOutputOutput;
+};
+
+export type GetOrgTournamentResponse = GetOrgTournamentResponses[keyof GetOrgTournamentResponses];
+
+export type UpdateOrgTournamentData = {
+    body: UpdateOrgTournamentInput;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}';
+};
+
+export type UpdateOrgTournamentResponses = {
+    default: UpdateOrgTournamentOutputOutput;
+};
+
+export type UpdateOrgTournamentResponse = UpdateOrgTournamentResponses[keyof UpdateOrgTournamentResponses];
+
+export type SetOrgTournamentStatusData = {
+    body: SetOrgTournamentStatusInput;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/status';
+};
+
+export type SetOrgTournamentStatusResponses = {
+    default: SetOrgTournamentStatusOutputOutput;
+};
+
+export type SetOrgTournamentStatusResponse = SetOrgTournamentStatusResponses[keyof SetOrgTournamentStatusResponses];
+
+export type PublishOrgTournamentResultsData = {
+    body: PublishOrgTournamentResultsInput;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/publication';
+};
+
+export type PublishOrgTournamentResultsResponses = {
+    default: PublishOrgTournamentResultsOutputOutput;
+};
+
+export type PublishOrgTournamentResultsResponse = PublishOrgTournamentResultsResponses[keyof PublishOrgTournamentResultsResponses];
+
+export type ListTournamentDivisionsData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/divisions';
+};
+
+export type ListTournamentDivisionsResponses = {
+    default: TournamentDivisionListOutputOutput;
+};
+
+export type ListTournamentDivisionsResponse = ListTournamentDivisionsResponses[keyof ListTournamentDivisionsResponses];
+
+export type CreateTournamentDivisionsData = {
+    body: CreateTournamentDivisionsInput;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/divisions';
+};
+
+export type CreateTournamentDivisionsResponses = {
+    default: TournamentDivisionListOutputOutput;
+};
+
+export type CreateTournamentDivisionsResponse = CreateTournamentDivisionsResponses[keyof CreateTournamentDivisionsResponses];
+
+export type CopyTournamentDivisionsData = {
+    body: CopyTournamentDivisionsInput;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/divisions/copy';
+};
+
+export type CopyTournamentDivisionsResponses = {
+    default: TournamentDivisionListOutputOutput;
+};
+
+export type CopyTournamentDivisionsResponse = CopyTournamentDivisionsResponses[keyof CopyTournamentDivisionsResponses];
+
+export type DeleteTournamentDivisionData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+        divisionId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/divisions/{divisionId}';
+};
+
+export type DeleteTournamentDivisionResponses = {
+    default: DeleteTournamentDivisionOutputOutput;
+};
+
+export type DeleteTournamentDivisionResponse = DeleteTournamentDivisionResponses[keyof DeleteTournamentDivisionResponses];
+
+export type UpdateTournamentDivisionData = {
+    body: UpdateTournamentDivisionInput;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+        divisionId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/divisions/{divisionId}';
+};
+
+export type UpdateTournamentDivisionResponses = {
+    default: UpdateTournamentDivisionOutputOutput;
+};
+
+export type UpdateTournamentDivisionResponse = UpdateTournamentDivisionResponses[keyof UpdateTournamentDivisionResponses];
+
+export type AssignTournamentMatsData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/mats/assign';
+};
+
+export type AssignTournamentMatsResponses = {
+    default: TournamentDivisionListOutputOutput;
+};
+
+export type AssignTournamentMatsResponse = AssignTournamentMatsResponses[keyof AssignTournamentMatsResponses];
+
+export type ListTournamentEntriesData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+    };
+    query?: {
+        q?: string;
+        divisionId?: string;
+        filter?: 'all' | 'unweighed' | 'offWeight' | 'unassigned' | 'withdrawn' | 'declared';
+        curPage?: number;
+        perPage?: number;
+    };
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/entries';
+};
+
+export type ListTournamentEntriesResponses = {
+    default: ListTournamentEntriesOutputOutput;
+};
+
+export type ListTournamentEntriesResponse = ListTournamentEntriesResponses[keyof ListTournamentEntriesResponses];
+
+export type RecordTournamentWeighInData = {
+    body: RecordTournamentWeighInInput;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+        entryId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/entries/{entryId}/weigh-in';
+};
+
+export type RecordTournamentWeighInResponses = {
+    default: RecordTournamentWeighInOutputOutput;
+};
+
+export type RecordTournamentWeighInResponse = RecordTournamentWeighInResponses[keyof RecordTournamentWeighInResponses];
+
+export type MoveTournamentEntryData = {
+    body: MoveTournamentEntryInput;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+        entryId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/entries/{entryId}/move';
+};
+
+export type MoveTournamentEntryResponses = {
+    default: MoveTournamentEntryOutputOutput;
+};
+
+export type MoveTournamentEntryResponse = MoveTournamentEntryResponses[keyof MoveTournamentEntryResponses];
+
+export type SetTournamentEntryWithdrawnData = {
+    body: SetTournamentEntryWithdrawnInput;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+        entryId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/entries/{entryId}/withdrawal';
+};
+
+export type SetTournamentEntryWithdrawnResponses = {
+    default: SetTournamentEntryWithdrawnOutputOutput;
+};
+
+export type SetTournamentEntryWithdrawnResponse = SetTournamentEntryWithdrawnResponses[keyof SetTournamentEntryWithdrawnResponses];
+
+export type DrawTournamentDivisionData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+        divisionId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/divisions/{divisionId}/draw';
+};
+
+export type DrawTournamentDivisionResponses = {
+    default: TournamentBracketOutputOutput;
+};
+
+export type DrawTournamentDivisionResponse = DrawTournamentDivisionResponses[keyof DrawTournamentDivisionResponses];
+
+export type GetTournamentBracketData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+        divisionId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/divisions/{divisionId}/bracket';
+};
+
+export type GetTournamentBracketResponses = {
+    default: TournamentBracketOutputOutput;
+};
+
+export type GetTournamentBracketResponse = GetTournamentBracketResponses[keyof GetTournamentBracketResponses];
+
+export type GetTournamentMatQueueData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+        mat: number;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/mats/{mat}/queue';
+};
+
+export type GetTournamentMatQueueResponses = {
+    default: TournamentMatQueueOutputOutput;
+};
+
+export type GetTournamentMatQueueResponse = GetTournamentMatQueueResponses[keyof GetTournamentMatQueueResponses];
+
+export type RecordTournamentMatchResultData = {
+    body: RecordTournamentMatchResultInput;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+        matchId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/matches/{matchId}/result';
+};
+
+export type RecordTournamentMatchResultResponses = {
+    default: TournamentBracketOutputOutput;
+};
+
+export type RecordTournamentMatchResultResponse = RecordTournamentMatchResultResponses[keyof RecordTournamentMatchResultResponses];
+
+export type UndoTournamentMatchResultData = {
+    body: UndoTournamentMatchResultInput;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+        matchId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/matches/{matchId}/undo';
+};
+
+export type UndoTournamentMatchResultResponses = {
+    default: TournamentBracketOutputOutput;
+};
+
+export type UndoTournamentMatchResultResponse = UndoTournamentMatchResultResponses[keyof UndoTournamentMatchResultResponses];
+
+export type GetTournamentResultsData = {
+    body?: never;
+    path: {
+        organizationId: string;
+        tournamentId: string;
+    };
+    query?: never;
+    url: '/orgs/{organizationId}/tournaments/{tournamentId}/results';
+};
+
+export type GetTournamentResultsResponses = {
+    default: TournamentResultsOutputOutput;
+};
+
+export type GetTournamentResultsResponse = GetTournamentResultsResponses[keyof GetTournamentResultsResponses];
+
+export type GetClubTournamentData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/org-events/{eventId}/tournament';
+};
+
+export type GetClubTournamentResponses = {
+    default: GetClubTournamentOutputOutput;
+};
+
+export type GetClubTournamentResponse = GetClubTournamentResponses[keyof GetClubTournamentResponses];
+
+export type DeclareTournamentEntryData = {
+    body: DeclareTournamentEntryInput;
+    path: {
+        workspaceId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/org-events/{eventId}/tournament/entry';
+};
+
+export type DeclareTournamentEntryResponses = {
+    default: DeclareTournamentEntryOutputOutput;
+};
+
+export type DeclareTournamentEntryResponse = DeclareTournamentEntryResponses[keyof DeclareTournamentEntryResponses];
+
+export type ConfirmTournamentEntryData = {
+    body: ConfirmTournamentEntryInput;
+    path: {
+        workspaceId: string;
+        entryId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/tournament-entries/{entryId}/confirm';
+};
+
+export type ConfirmTournamentEntryResponses = {
+    default: ConfirmTournamentEntryOutputOutput;
+};
+
+export type ConfirmTournamentEntryResponse = ConfirmTournamentEntryResponses[keyof ConfirmTournamentEntryResponses];
+
+export type ListClubTournamentAthletesData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/org-events/{eventId}/tournament/athletes';
+};
+
+export type ListClubTournamentAthletesResponses = {
+    default: ListClubTournamentAthletesOutputOutput;
+};
+
+export type ListClubTournamentAthletesResponse = ListClubTournamentAthletesResponses[keyof ListClubTournamentAthletesResponses];
+
+export type GetClubTournamentBracketData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        eventId: string;
+        divisionId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/org-events/{eventId}/tournament/divisions/{divisionId}/bracket';
+};
+
+export type GetClubTournamentBracketResponses = {
+    default: GetClubTournamentBracketOutputOutput;
+};
+
+export type GetClubTournamentBracketResponse = GetClubTournamentBracketResponses[keyof GetClubTournamentBracketResponses];
+
+export type GetClubTournamentResultsData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+        eventId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/org-events/{eventId}/tournament/results';
+};
+
+export type GetClubTournamentResultsResponses = {
+    default: GetClubTournamentResultsOutputOutput;
+};
+
+export type GetClubTournamentResultsResponse = GetClubTournamentResultsResponses[keyof GetClubTournamentResultsResponses];
 
 export type GetPublicTrialFormData = {
     body?: never;

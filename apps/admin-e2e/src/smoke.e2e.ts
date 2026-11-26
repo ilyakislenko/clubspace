@@ -11,7 +11,7 @@ import {
   type HttpContext,
 } from './checks'
 import { env } from './env'
-import { LEGACY_REDIRECTS, ORG_MATRIX, ORG_OUTSIDER, ROLE_MATRIX } from './role-matrix'
+import { LEGACY_REDIRECTS, ORG_MATRIX, ORG_OUTSIDER, ROLE_MATRIX, type OrgPage } from './role-matrix'
 
 // Detail pages, opened with the first id of the list behind them. The list is
 // read with the role's own token, so the id is one the role can actually see;
@@ -333,11 +333,25 @@ for (const roleCase of ROLE_MATRIX) {
   })
 }
 
-// The federation console: a federation-only account lands on /org/<id> and
-// its sidebar offers exactly the matrix routes, each rendering clean; a club
-// owner gets the notice there and finds «Федерация» in the club's settings.
+// Visits a console page outside the sidebar and checks the words its role
+// must (and must not) be shown.
+const visitOrgPage = async (page: Page, watch: Watch, base: string, orgPage: OrgPage) => {
+  await visit(page, watch, base, orgPage.route)
+  const text = await page.locator('body').innerText()
+  for (const words of orgPage.expect ?? []) {
+    if (!text.includes(words)) watch.report('missing text', `«${words}»`)
+  }
+  for (const words of orgPage.absent ?? []) {
+    if (text.includes(words)) watch.report('offers what the role must not', `«${words}»`)
+  }
+}
+
+// The federation console: a federation account lands on /org/<id> and its
+// sidebar offers exactly the matrix routes, each rendering clean; the admin
+// sections it may not open show the notice; the tournament pages render with
+// the role's actions only.
 for (const orgCase of ORG_MATRIX) {
-  test(`federation (${orgCase.email}): lands on the console, every section renders clean`, async ({ page, browser }) => {
+  test(`federation (${orgCase.email}): lands on the console, every section renders clean`, async ({ page }) => {
     expect(env.demoLoginCode, 'DEMO_LOGIN_CODE (env or the repo .env)').toMatch(/^\d{6}$/)
     const watch = watchPage(page)
     const orgId = await signInThroughUi(page, orgCase.email, 'org')
@@ -349,23 +363,40 @@ for (const orgCase of ORG_MATRIX) {
     for (const route of orgCase.routes) {
       await test.step(`visit /org/…/${route}`, () => visit(page, watch, base, route))
     }
-    await test.step('settings ?tab=history', () => visit(page, watch, base, 'settings?tab=history'))
+    if (orgCase.routes.includes('settings')) {
+      await test.step('settings ?tab=history', () => visit(page, watch, base, 'settings?tab=history'))
+    }
+    for (const route of orgCase.blocked) {
+      await test.step(`blocked /org/…/${route}`, () => expectBlocked(page, watch, base, route))
+    }
+    for (const orgPage of orgCase.pages) {
+      await test.step(`visit /org/…/${orgPage.route}`, () => visitOrgPage(page, watch, base, orgPage))
+    }
     expect(watch.problems.map((p) => `${p.route} — ${p.kind}: ${p.detail}`)).toEqual([])
-
-    // The club owner of a member club (own session): not on the federation's team.
-    const context = await browser.newContext({ baseURL: env.baseUrl, viewport: { width: 1440, height: 900 } })
-    const ownerPage = await context.newPage()
-    const outsider = watchPage(ownerPage)
-    const workspaceId = await signInThroughUi(ownerPage, ORG_OUTSIDER.email)
-    // Quiet first: requests the landing page still has in flight when the next
-    // goto cancels them never report back, so the in-flight count would stick.
-    outsider.at('(landing)')
-    for (const loader of await settle(ownerPage, outsider)) outsider.report('stuck loader', loader)
-    await test.step('club owner on /org/<id>', () => expectBlocked(ownerPage, outsider, '/org', orgId))
-    await test.step('club owner on «Настройки → Федерация»', () =>
-      visit(ownerPage, outsider, `/workspace/${workspaceId}`, ORG_OUTSIDER.federationSettings),
-    )
-    await context.close()
-    expect(outsider.problems.map((p) => `${p.route} — ${p.kind}: ${p.detail}`)).toEqual([])
   })
 }
+
+// The club owner of a member club: not on the federation's team. The console
+// and a tournament page by URL show the notice; the club's own settings offer
+// «Федерация».
+test(`club owner (${ORG_OUTSIDER.email}): the federation console is closed to it`, async ({ page, request }) => {
+  expect(env.demoLoginCode, 'DEMO_LOGIN_CODE (env or the repo .env)').toMatch(/^\d{6}$/)
+  const fedToken = await apiToken(request, ORG_MATRIX[0].email)
+  const mine = await request.get(`${env.apiUrl}/orgs/mine`, { headers: { authorization: `Bearer ${fedToken}` } })
+  expect(mine.ok(), `GET /orgs/mine: HTTP ${mine.status()}`).toBe(true)
+  const orgId: string = (await mine.json()).data[0].id
+  const outsider = watchPage(page)
+  const workspaceId = await signInThroughUi(page, ORG_OUTSIDER.email)
+  // Quiet first: requests the landing page still has in flight when the next
+  // goto cancels them never report back, so the in-flight count would stick.
+  outsider.at('(landing)')
+  for (const loader of await settle(page, outsider)) outsider.report('stuck loader', loader)
+  await test.step('club owner on /org/<id>', () => expectBlocked(page, outsider, '/org', orgId))
+  await test.step('club owner on a tournament page', () =>
+    expectBlocked(page, outsider, `/org/${orgId}`, ORG_OUTSIDER.tournament),
+  )
+  await test.step('club owner on «Настройки → Федерация»', () =>
+    visit(page, outsider, `/workspace/${workspaceId}`, ORG_OUTSIDER.federationSettings),
+  )
+  expect(outsider.problems.map((p) => `${p.route} — ${p.kind}: ${p.detail}`)).toEqual([])
+})

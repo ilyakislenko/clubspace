@@ -10,6 +10,11 @@ import {
   UpdateOrgLadderTemplateInputSchema,
   UpdateOrgLadderTemplateLevelInputSchema,
   UpdateOrganizationInputDtoSchema,
+  CreateTournamentDivisionsInputSchema,
+  RecordTournamentMatchResultInputSchema,
+  RecordTournamentWeighInInputSchema,
+  UpdateOrgTournamentInputSchema,
+  UpdateTournamentDivisionInputSchema,
   ApproveSubscriptionFreezeRequestInputSchema,
   AskAiChatInputSchema,
   AddPayrollAdjustmentInputSchema,
@@ -174,6 +179,8 @@ const ORG_ANNOUNCEMENT = [CreateOrgAnnouncementInputSchema, UpdateOrgAnnouncemen
 const ORG_EVENT = [CreateOrgEventInputSchema, UpdateOrgEventInputSchema] as const
 const ORG_TEMPLATE = [CreateOrgLadderTemplateInputSchema, UpdateOrgLadderTemplateInputSchema] as const
 const TEMPLATE_LEVEL = [CreateOrgLadderTemplateLevelInputSchema, UpdateOrgLadderTemplateLevelInputSchema] as const
+// «Добавить категории» (one row per weight) and «Изменить категорию».
+const DIVISION = [CreateTournamentDivisionsInputSchema.properties.rows.items, UpdateTournamentDivisionInputSchema] as const
 
 export const FORM_LIMITS = {
   plan: {
@@ -406,5 +413,27 @@ export const FORM_LIMITS = {
     name: text([CreatePlatformOrganizationInputDtoSchema] as const, "name"),
     key: text([CreatePlatformOrganizationInputDtoSchema] as const, "key"),
     city: text([CreatePlatformOrganizationInputDtoSchema] as const, "city"),
+  },
+  // Federation tournaments (docs/design/2026-11-27-tournaments.md §3 limits).
+  // Weights are kg with one decimal: the bound is whole kg, the 0,1 step is a
+  // refine the contract can't carry (WeightKgSchema), so the forms check it.
+  tournament: {
+    matCount: int([UpdateOrgTournamentInputSchema] as const, "matCount"),
+  },
+  division: {
+    name: text(DIVISION, "name"),
+    ageMin: int(DIVISION, "ageMin"),
+    ageMax: int(DIVISION, "ageMax"),
+    weightMinKg: int(DIVISION, "weightMinKg"),
+    weightMaxKg: int(DIVISION, "weightMaxKg"),
+    rows: items([CreateTournamentDivisionsInputSchema] as const, "rows"),
+  },
+  weighIn: {
+    weighedKg: int([RecordTournamentWeighInInputSchema] as const, "weighedKg"),
+  },
+  matchResult: {
+    scoreA: int([RecordTournamentMatchResultInputSchema] as const, "scoreA"),
+    scoreB: int([RecordTournamentMatchResultInputSchema] as const, "scoreB"),
+    note: text([RecordTournamentMatchResultInputSchema] as const, "note"),
   },
 } as const satisfies Record<string, Record<string, ContractLimit>>

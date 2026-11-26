@@ -33,6 +33,10 @@ import {
   ArchiveRestore,
   MessageSquare,
   MessageSquareX,
+  ArrowLeftRight,
+  Scale,
+  Shuffle,
+  Trophy,
 } from "lucide-react"
 
 import {
@@ -716,6 +720,27 @@ export const actionMetaFor = (
   "org.updateSharing": { label: "Изменено, что видит федерация", icon: ShieldCheck, tone: "amber" },
   "org.leave": { label: "Клуб вышел из федерации", icon: Building2, tone: "red" },
   "ladder.fromTemplate": { label: "Лестница создана по стандарту федерации", icon: Layers, tone: "green" },
+  // Federation tournaments: the org console's tournament day and the clubs'
+  // entries (metadata: ids, division name, round, method — never names or
+  // weights).
+  "tournament.create": { label: "Турнир заведён", icon: Trophy, tone: "green" },
+  "tournament.update": { label: "Турнир изменён", icon: Pencil, tone: "indigo" },
+  "tournament.statusChange": { label: "Этап турнира изменён", icon: RefreshCw, tone: "indigo" },
+  "tournament.publish": { label: "Итоги турнира опубликованы", icon: Trophy, tone: "green" },
+  "tournament.unpublish": { label: "Публикация итогов снята", icon: Trophy, tone: "amber" },
+  "tournament.divisionsCreate": { label: "Категории турнира добавлены", icon: Layers, tone: "green" },
+  "tournament.divisionsCopy": { label: "Категории скопированы из турнира", icon: Layers, tone: "green" },
+  "tournament.divisionUpdate": { label: "Категория турнира изменена", icon: Pencil, tone: "indigo" },
+  "tournament.divisionDelete": { label: "Категория турнира удалена", icon: Trash2, tone: "red" },
+  "tournament.matsAssign": { label: "Категории распределены по коврам", icon: Layers, tone: "indigo" },
+  "tournament.weighIn": { label: "Вес записан на взвешивании", icon: Scale, tone: "blue" },
+  "tournament.entryMove": { label: "Участник переведён в другую категорию", icon: ArrowLeftRight, tone: "indigo" },
+  "tournament.entryWithdraw": { label: "Участник снят с турнира", icon: UserMinus, tone: "amber" },
+  "tournament.draw": { label: "Жеребьёвка категории", icon: Shuffle, tone: "blue" },
+  "tournament.matchResult": { label: "Результат схватки записан", icon: Trophy, tone: "green" },
+  "tournament.matchUndo": { label: "Результат схватки отменён", icon: RotateCcw, tone: "amber" },
+  "tournament.entryDeclare": { label: "Заявка на турнир подана", icon: UserPlus, tone: "blue" },
+  "tournament.entryConfirm": { label: "Заявка на турнир подтверждена", icon: ShieldCheck, tone: "green" },
 })
 
 export const TONE_CLASS: Record<ActionMeta["tone"], string> = {
@@ -747,6 +772,10 @@ export const TARGET_LABEL: Record<string, string> = {
   organizationAnnouncement: "Объявление федерации",
   organizationEvent: "Событие федерации",
   organizationTemplate: "Стандарт лестницы",
+  tournament: "Турнир",
+  tournamentDivision: "Категория турнира",
+  tournamentEntry: "Участник турнира",
+  tournamentMatch: "Схватка",
   rankLadder: "Лестница поясов",
 }
 
@@ -899,6 +928,16 @@ export const META_KEY_LABEL: Record<string, string> = {
   // The payments journal's filters (export.payments); `markedById` and
   // `directionId` stay ids on the server, so they are left out.
   method: "Способ оплаты",
+  // Federation tournaments (tournament.*): the division, the round, a move's
+  // two divisions, how many the start withdrew. A match's `method` and the
+  // undone result (`previous`) are worded in parseMetadata.
+  divisionName: "Категория",
+  fromDivisionName: "Из категории",
+  toDivisionName: "В категорию",
+  round: "Круг",
+  matCount: "Ковров",
+  drawNo: "Жеребьёвка №",
+  withdrawnCount: "Сняты как не взвешенные",
   kind: "Показывать",
   q: "Поиск",
   discounted: "Со скидкой",
@@ -1079,6 +1118,17 @@ const FIELD_LABEL: Record<string, string> = {
   childAge: "возраст ребёнка",
   directionId: "направление",
   staffNote: "заметка",
+  // A tournament or a division edit (tournament.update / divisionUpdate).
+  matCount: "ковры",
+  mat: "ковёр",
+  sex: "пол",
+  ageMin: "возраст",
+  ageMax: "возраст",
+  templateId: "стандарт",
+  levelOrderFrom: "уровень",
+  levelOrderTo: "уровень",
+  weightMinKg: "вес",
+  weightMaxKg: "вес",
 }
 
 // Course edits naming a video or a chapter. The server resolves most of them
@@ -1104,6 +1154,34 @@ const LEAD_STATUS_WORD: Record<string, string> = {
   TRIAL_BOOKED: "записан на пробное",
   CAME: "пришёл",
   LOST: "отказ",
+}
+
+// A tournament's phase (tournament.statusChange `fromStatus` / `toStatus`).
+const TOURNAMENT_STATUS_WORD: Record<string, string> = {
+  SETUP: "приём заявок",
+  WEIGH_IN: "взвешивание",
+  RUNNING: "идёт",
+  FINISHED: "итоги опубликованы",
+}
+
+// How a tournament match was won (tournament.matchResult / matchUndo); the
+// org journal has no discipline, so the finish keeps its neutral word.
+const MATCH_METHOD_WORD: Record<string, string> = {
+  FINISH: "досрочная победа",
+  POINTS: "по очкам",
+  DECISION: "решение судей",
+  DISQUALIFICATION: "дисквалификация",
+  WALKOVER: "неявка",
+}
+
+// The result an undo took back: «по очкам 8:2».
+const previousResultValue = (raw: unknown): string | null => {
+  if (!raw || typeof raw !== "object" || !("method" in raw) || typeof raw.method !== "string") return null
+  const method = MATCH_METHOD_WORD[raw.method]
+  if (!method) return null
+  const a = "scoreA" in raw ? raw.scoreA : null
+  const b = "scoreB" in raw ? raw.scoreB : null
+  return typeof a === "number" && typeof b === "number" ? `${method} ${a}:${b}` : method
 }
 
 const ENUM_LABEL: Record<string, Record<string, string>> = {
@@ -1171,8 +1249,8 @@ const ENUM_LABEL: Record<string, Record<string, string>> = {
   },
   // Trial requests (lead.* events).
   leadSource: { PUBLIC_PAGE: "страница клуба", QR: "QR-плакат", MANUAL: "вручную" },
-  fromStatus: LEAD_STATUS_WORD,
-  toStatus: LEAD_STATUS_WORD,
+  fromStatus: { ...LEAD_STATUS_WORD, ...TOURNAMENT_STATUS_WORD },
+  toStatus: { ...LEAD_STATUS_WORD, ...TOURNAMENT_STATUS_WORD },
   lostReason: {
     NO_ANSWER: "не дозвонились",
     CHANGED_MIND: "передумал",
@@ -1351,6 +1429,14 @@ export const parseMetadata = (
     }
     // The role name already says it; the resolved role id would repeat it.
     if (key === "toRoleId" && "toRoleName" in metadata) return []
+    // A match result's method shares the key with a payment's.
+    if (key === "method" && typeof raw === "string" && MATCH_METHOD_WORD[raw]) {
+      return [{ key, label: "Способ победы", value: MATCH_METHOD_WORD[raw] }]
+    }
+    if (key === "previous") {
+      const value = previousResultValue(raw)
+      return value ? [{ key, label: "Отменённый результат", value }] : []
+    }
     const label =
       key === "coachId"
         ? cap(vocabulary.coach.nom)
@@ -1410,6 +1496,7 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   ai: "ИИ-ассистент",
   message: "Сообщения",
   org: "Федерация",
+  tournament: "Турниры",
   ladder: "Пояса",
 }
 

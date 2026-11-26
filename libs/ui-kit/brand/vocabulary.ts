@@ -251,3 +251,12 @@ export const countForm = (
   noun: Noun,
   pluralRu: (n: number, one: string, few: string, many: string) => string,
 ): string => pluralRu(n, noun.nom, noun.gen, noun.genPl)
+
+/**
+ * The early-win method of a tournament match in the discipline's words:
+ * «Болевой/удушающий» in grappling, «Досрочная победа» elsewhere. A function of
+ * the type rather than a `ClubVocabulary` field: grappling and fitness share
+ * one vocabulary (and the server mirror), the finish word is grappling's own.
+ */
+export const matchFinishLabel = (type: string | null | undefined): string =>
+  (type ?? "").toUpperCase() === "GRAPPLING" ? "Болевой/удушающий" : "Досрочная победа"

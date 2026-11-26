@@ -7,7 +7,7 @@ import {
 } from '../../../domains/organizations/org-access'
 import { bookedCounts } from '../../../domains/organizations/org-events'
 import { PrismaService } from '../../../infrastructure/prisma'
-import { NotFoundError } from '../../../shared/errors/shared.errors'
+import { BadRequestError, NotFoundError } from '../../../shared/errors/shared.errors'
 import { claimUnchanged } from '../../../shared/utils/optimistic-concurrency'
 import {
     assertEventTimes,
@@ -41,9 +41,16 @@ export class UpdateOrgEventHandler
         })
         const current = await this.prisma.organizationEvent.findFirst({
             where: { id: f.eventId, organizationId: f.organizationId },
+            include: { tournament: { select: { id: true } } },
         })
         if (!current) throw new NotFoundError({ message: 'Событие не найдено' })
         const p = f.payload
+        // A tournament lives on a COMPETITION event only.
+        if (p.kind !== undefined && p.kind !== 'COMPETITION' && current.tournament) {
+            throw new BadRequestError({
+                message: 'На событии проводится турнир — тип «Соревнование» не изменить',
+            })
+        }
         const tz = p.timezone ?? current.timezone
         assertValidTimezone(tz)
         const startAt =

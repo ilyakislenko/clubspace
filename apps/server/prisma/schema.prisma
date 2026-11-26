@@ -304,6 +304,8 @@ model Workspace {
   organizationLinks          OrganizationClub[]
   hostedOrganizationEvents   OrganizationEvent[]             @relation("OrganizationEventHost")
   organizationEventRegistrations OrganizationEventRegistration[]
+  // Federation tournaments (docs/design/2026-11-27-tournaments.md).
+  tournamentEntries          TournamentEntry[]
 
   @@index([isListed])
 }
@@ -451,6 +453,9 @@ model User {
   organizationAnnouncements  OrganizationAnnouncement[]     @relation("OrganizationAnnouncementAuthor")
   organizationEventsCreated  OrganizationEvent[]            @relation("OrganizationEventCreatedBy")
   organizationEventRegistrations OrganizationEventRegistration[]
+  // Federation tournaments: this person's entries, tournaments set up.
+  tournamentEntries          TournamentEntry[]
+  tournamentsCreated         Tournament[]                   @relation("TournamentCreatedBy")
 
   @@index([isSuperAdmin])
 }
@@ -4303,6 +4308,7 @@ model Organization {
   announcements  OrganizationAnnouncement[]
   ladderTemplates OrganizationLadderTemplate[]
   events         OrganizationEvent[]
+  tournaments    Tournament[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4439,6 +4445,7 @@ model OrganizationEvent {
   createdBy      User?                 @relation("OrganizationEventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   registrations OrganizationEventRegistration[]
+  tournament    Tournament?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4459,10 +4466,186 @@ model OrganizationEventRegistration {
   status      OrgEventRegistrationStatus @default(BOOKED)
   bookedById  String?                    @db.Uuid
   cancelledAt DateTime?
+  tournamentEntry TournamentEntry?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([eventId, userId])
   @@index([workspaceId])
+}
+
+// ─── Federation tournaments (docs/design/2026-11-27-tournaments.md) ────────
+// One individual single-elimination tournament per COMPETITION org event.
+// Divisions are per-tournament config rows (no global weight/age/belt
+// enums); weights are grams. Sport-agnostic: method labels come from the
+// org-type vocabulary.
+
+enum TournamentStatus {
+  SETUP
+  WEIGH_IN
+  RUNNING
+  FINISHED
+}
+
+enum CompetitorSex {
+  FEMALE
+  MALE
+}
+
+enum TournamentEntryStatus {
+  DECLARED
+  CONFIRMED
+  WITHDRAWN
+}
+
+enum MatchWinMethod {
+  FINISH
+  POINTS
+  DECISION
+  DISQUALIFICATION
+  WALKOVER
+}
+
+model Tournament {
+  id                 String            @id @default(uuid()) @db.Uuid
+  // Denormalized for org-scoped reads.
+  organizationId     String            @db.Uuid
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId            String            @unique @db.Uuid
+  event              OrganizationEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status             TournamentStatus  @default(SETUP)
+  matCount           Int               @default(1)
+  // Set = FINISHED («итоги опубликованы»); the weight retention counts from it.
+  resultsPublishedAt DateTime?
+  createdById        String?           @db.Uuid
+  createdBy          User?             @relation("TournamentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  divisions TournamentDivision[]
+  entries   TournamentEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([resultsPublishedAt])
+}
+
+model TournamentDivision {
+  id             String         @id @default(uuid()) @db.Uuid
+  tournamentId   String         @db.Uuid
+  tournament     Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  // Generated from the criteria, editable.
+  name           String         @db.VarChar(120)
+  sortOrder      Int
+  // null = mixed.
+  sex            CompetitorSex?
+  // Inclusive; age = the event's local year − birth year.
+  ageMin         Int?
+  ageMax         Int?
+  // Org ladder template (a plain id: survives template edits).
+  templateId     String?        @db.Uuid
+  // Inclusive range of OrganizationLadderTemplateLevel.order.
+  levelOrderFrom Int?
+  levelOrderTo   Int?
+  // Snapshot «Синий – коричневый» for display.
+  levelLabel     String?        @db.VarChar(120)
+  // Exclusive; null = no lower bound.
+  weightMinG     Int?
+  // Inclusive; both null = open weight («абсолютная»).
+  weightMaxG     Int?
+  mat            Int?
+  // Queue order on that mat.
+  matOrder       Int?
+  // +1 per draw; part of the seeding salt.
+  drawNo         Int            @default(0)
+  drawnAt        DateTime?
+  // Places final.
+  finishedAt     DateTime?
+
+  entries TournamentEntry[]
+  matches TournamentMatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tournamentId, sortOrder])
+}
+
+model TournamentEntry {
+  id              String                        @id @default(uuid()) @db.Uuid
+  tournamentId    String                        @db.Uuid
+  tournament      Tournament                    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  registrationId  String                        @unique @db.Uuid
+  registration    OrganizationEventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  // The athlete (a child, not the guardian).
+  userId          String                        @db.Uuid
+  user            User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The club of the registration.
+  workspaceId     String                        @db.Uuid
+  workspace       Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  divisionId      String?                       @db.Uuid
+  division        TournamentDivision?           @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  status          TournamentEntryStatus         @default(DECLARED)
+  sex             CompetitorSex
+  birthYear       Int
+  // Required on write; null only after the 30-day retention.
+  declaredWeightG Int?
+  declaredById    String?                       @db.Uuid
+  // Snapshot at confirmation.
+  templateLevelId String?                       @db.Uuid
+  levelName       String?                       @db.VarChar(255)
+  // null = taken from the registry; set = the coach picked it.
+  levelSetById    String?                       @db.Uuid
+  confirmedById   String?                       @db.Uuid
+  confirmedAt     DateTime?
+  weighedWeightG  Int?
+  weighedAt       DateTime?
+  weighedById     String?                       @db.Uuid
+  withdrawnReason String?                       @db.VarChar(120)
+  // 1 | 2 | 3 once the division is finished.
+  place           Int?
+
+  matchesAsA TournamentMatch[] @relation("MatchEntryA")
+  matchesAsB TournamentMatch[] @relation("MatchEntryB")
+  matchesWon TournamentMatch[] @relation("MatchWinner")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId, divisionId])
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+model TournamentMatch {
+  id            String             @id @default(uuid()) @db.Uuid
+  divisionId    String             @db.Uuid
+  division      TournamentDivision @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  // Denormalized (mat queue, polling reads).
+  tournamentId  String             @db.Uuid
+  // Round 1 = first; position 1..bracketSize/2^round.
+  round         Int
+  position      Int
+  entryAId      String?            @db.Uuid
+  entryA        TournamentEntry?   @relation("MatchEntryA", fields: [entryAId], references: [id], onDelete: SetNull)
+  entryBId      String?            @db.Uuid
+  entryB        TournamentEntry?   @relation("MatchEntryB", fields: [entryBId], references: [id], onDelete: SetNull)
+  // Round 1 with one athlete: decided at the draw, never queued.
+  isBye         Boolean            @default(false)
+  winnerEntryId String?            @db.Uuid
+  winner        TournamentEntry?   @relation("MatchWinner", fields: [winnerEntryId], references: [id], onDelete: SetNull)
+  method        MatchWinMethod?
+  scoreA        Int?
+  scoreB        Int?
+  note          String?            @db.VarChar(120)
+  decidedAt     DateTime?
+  decidedById   String?            @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([divisionId, round, position])
+  @@index([tournamentId, decidedAt])
 }

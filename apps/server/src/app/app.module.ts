@@ -588,6 +588,35 @@ import { ClubOrgEventsController } from '../features/club-organizations/events/c
 import { ListClubOrgEventsHandler } from '../features/club-organizations/events/list-club-org-events.handler'
 import { RegisterForOrgEventHandler } from '../features/club-organizations/events/register-for-org-event.handler'
 import { CancelOrgEventRegistrationHandler } from '../features/club-organizations/events/cancel-org-event-registration.handler'
+import { OrgTournamentsController } from '../features/organizations/tournaments/org-tournaments.controller'
+import { ClubTournamentsController } from '../features/club-organizations/tournaments/club-tournaments.controller'
+import { CreateOrgTournamentHandler } from '../features/organizations/tournaments/create-org-tournament.handler'
+import { GetOrgTournamentHandler } from '../features/organizations/tournaments/get-org-tournament.handler'
+import { UpdateOrgTournamentHandler } from '../features/organizations/tournaments/update-org-tournament.handler'
+import { SetOrgTournamentStatusHandler } from '../features/organizations/tournaments/set-org-tournament-status.handler'
+import { PublishOrgTournamentResultsHandler } from '../features/organizations/tournaments/publish-org-tournament-results.handler'
+import { ListTournamentDivisionsHandler } from '../features/organizations/tournaments/list-tournament-divisions.handler'
+import { CreateTournamentDivisionsHandler } from '../features/organizations/tournaments/create-tournament-divisions.handler'
+import { CopyTournamentDivisionsHandler } from '../features/organizations/tournaments/copy-tournament-divisions.handler'
+import { UpdateTournamentDivisionHandler } from '../features/organizations/tournaments/update-tournament-division.handler'
+import { DeleteTournamentDivisionHandler } from '../features/organizations/tournaments/delete-tournament-division.handler'
+import { AssignTournamentMatsHandler } from '../features/organizations/tournaments/assign-tournament-mats.handler'
+import { ListTournamentEntriesHandler } from '../features/organizations/tournaments/list-tournament-entries.handler'
+import { RecordTournamentWeighInHandler } from '../features/organizations/tournaments/record-tournament-weigh-in.handler'
+import { MoveTournamentEntryHandler } from '../features/organizations/tournaments/move-tournament-entry.handler'
+import { SetTournamentEntryWithdrawnHandler } from '../features/organizations/tournaments/set-tournament-entry-withdrawn.handler'
+import { DrawTournamentDivisionHandler } from '../features/organizations/tournaments/draw-tournament-division.handler'
+import { GetTournamentBracketHandler } from '../features/organizations/tournaments/get-tournament-bracket.handler'
+import { GetTournamentMatQueueHandler } from '../features/organizations/tournaments/get-tournament-mat-queue.handler'
+import { RecordTournamentMatchResultHandler } from '../features/organizations/tournaments/record-tournament-match-result.handler'
+import { UndoTournamentMatchResultHandler } from '../features/organizations/tournaments/undo-tournament-match-result.handler'
+import { GetTournamentResultsHandler } from '../features/organizations/tournaments/get-tournament-results.handler'
+import { GetClubTournamentHandler } from '../features/club-organizations/tournaments/get-club-tournament.handler'
+import { DeclareTournamentEntryHandler } from '../features/club-organizations/tournaments/declare-tournament-entry.handler'
+import { ConfirmTournamentEntryHandler } from '../features/club-organizations/tournaments/confirm-tournament-entry.handler'
+import { ListClubTournamentAthletesHandler } from '../features/club-organizations/tournaments/list-club-tournament-athletes.handler'
+import { GetClubTournamentBracketHandler } from '../features/club-organizations/tournaments/get-club-tournament-bracket.handler'
+import { GetClubTournamentResultsHandler } from '../features/club-organizations/tournaments/get-club-tournament-results.handler'
 import { ListOrgEventStudentsHandler } from '../features/club-organizations/events/list-org-event-students.handler'
 import { ClubLadderTemplatesController } from '../features/club-organizations/templates/club-ladder-templates.controller'
 import { ListAdoptableLadderTemplatesHandler } from '../features/club-organizations/templates/list-adoptable-ladder-templates.handler'
@@ -1029,6 +1058,8 @@ const controllers: ModuleMetadata['controllers'] = [
     MyClubOrganizationsController,
     ClubOrgEventsController,
     ClubLadderTemplatesController,
+    OrgTournamentsController,
+    ClubTournamentsController,
     PublicTrialRequestsController,
     MyPaymentsController,
     PaymentWebhooksController,
@@ -1467,6 +1498,33 @@ const handlers: ModuleMetadata['providers'] = [
     RegisterForOrgEventHandler,
     CancelOrgEventRegistrationHandler,
     ListOrgEventStudentsHandler,
+    CreateOrgTournamentHandler,
+    GetOrgTournamentHandler,
+    UpdateOrgTournamentHandler,
+    SetOrgTournamentStatusHandler,
+    PublishOrgTournamentResultsHandler,
+    ListTournamentDivisionsHandler,
+    CreateTournamentDivisionsHandler,
+    CopyTournamentDivisionsHandler,
+    UpdateTournamentDivisionHandler,
+    DeleteTournamentDivisionHandler,
+    AssignTournamentMatsHandler,
+    ListTournamentEntriesHandler,
+    RecordTournamentWeighInHandler,
+    MoveTournamentEntryHandler,
+    SetTournamentEntryWithdrawnHandler,
+    DrawTournamentDivisionHandler,
+    GetTournamentBracketHandler,
+    GetTournamentMatQueueHandler,
+    RecordTournamentMatchResultHandler,
+    UndoTournamentMatchResultHandler,
+    GetTournamentResultsHandler,
+    GetClubTournamentHandler,
+    DeclareTournamentEntryHandler,
+    ConfirmTournamentEntryHandler,
+    ListClubTournamentAthletesHandler,
+    GetClubTournamentBracketHandler,
+    GetClubTournamentResultsHandler,
     ListAdoptableLadderTemplatesHandler,
     CreateRankLadderFromTemplateHandler,
     GetTrialLinkHandler,

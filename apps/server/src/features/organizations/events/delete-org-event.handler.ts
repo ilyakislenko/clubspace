@@ -5,6 +5,7 @@ import {
     assertOrgStaff,
     OrgRbacService,
 } from '../../../domains/organizations/org-access'
+import { TournamentStartedError } from '../../../domains/tournaments/tournament-errors'
 import { PrismaService } from '../../../infrastructure/prisma'
 import { NotFoundError } from '../../../shared/errors/shared.errors'
 import {
@@ -12,7 +13,8 @@ import {
     DeleteOrgEventFeatureResponse,
 } from './delete-org-event.feature'
 
-// Registrations go with the event (cascade).
+// Registrations and a tournament still in setup or weigh-in go with the
+// event (cascade); a running or finished tournament keeps it (results).
 @Feature(DeleteOrgEventFeature)
 export class DeleteOrgEventHandler
     implements IFeatureHandler<DeleteOrgEventFeature, DeleteOrgEventFeatureResponse>
@@ -31,9 +33,11 @@ export class DeleteOrgEventHandler
         })
         const event = await this.prisma.organizationEvent.findFirst({
             where: { id: f.eventId, organizationId: f.organizationId },
-            select: { id: true, title: true },
+            select: { id: true, title: true, tournament: { select: { status: true } } },
         })
         if (!event) throw new NotFoundError({ message: 'Событие не найдено' })
+        const started = event.tournament?.status
+        if (started === 'RUNNING' || started === 'FINISHED') throw new TournamentStartedError()
         await this.prisma.organizationEvent.delete({ where: { id: event.id } })
         await this.audit.record({
             action: 'org.eventDelete',

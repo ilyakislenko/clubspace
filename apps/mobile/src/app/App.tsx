@@ -35,6 +35,9 @@ import { GymsScreen } from '../features/groups/GymsScreen';
 import { MyGroupsScreen } from '../features/groups/MyGroupsScreen';
 import { ClubAboutScreen } from '../features/club/ClubAboutScreen';
 import { EventsScreen } from '../features/schedule/EventsScreen';
+import { OrgTournamentScreen } from '../features/org-events/OrgTournamentScreen';
+import { TournamentBracketScreen } from '../features/org-events/TournamentBracketScreen';
+import { TournamentResultsScreen } from '../features/org-events/TournamentResultsScreen';
 import { SessionAttendanceScreen } from '../features/attendance/SessionAttendanceScreen';
 import { PersonalTrainingRequestScreen } from '../features/personal-training/PersonalTrainingRequestScreen';
 import { PersonalTrainingScreen } from '../features/personal-training/PersonalTrainingScreen';
@@ -372,6 +375,23 @@ function RootStack({ activeRoute }: { activeRoute?: string }) {
                   name="Events"
                   component={EventsScreen}
                   options={{ title: 'События' }}
+                />
+                <Stack.Screen
+                  name="OrgTournament"
+                  component={OrgTournamentScreen}
+                  options={({ route }) => ({
+                    title: route.params.title ?? 'Турнир',
+                  })}
+                />
+                <Stack.Screen
+                  name="TournamentBracket"
+                  component={TournamentBracketScreen}
+                  options={{ title: 'Сетка' }}
+                />
+                <Stack.Screen
+                  name="TournamentResults"
+                  component={TournamentResultsScreen}
+                  options={{ title: 'Итоги турнира' }}
                 />
                 <Stack.Screen
                   name="ClubAbout"

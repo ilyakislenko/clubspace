@@ -38,6 +38,9 @@ describe('isMuteExempt', () => {
         'message.broadcast',
         'org.announcement',
         'org_event.reminder',
+        'tournament.bracket_ready',
+        'tournament.match_soon',
+        'tournament.results_published',
         'constructor',
     ])('mutes %s', (kind) => {
         expect(isMuteExempt(kind)).toBe(false)

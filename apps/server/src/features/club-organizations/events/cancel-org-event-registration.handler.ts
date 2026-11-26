@@ -13,7 +13,9 @@ import {
 } from './cancel-org-event-registration.feature'
 
 // The person themself (a guardian for the child) or the coach who booked
-// them through this club gives the place back, until the event starts.
+// them through this club gives the place back, until the event starts. With
+// a tournament: only while it takes entries (SETUP; the entry goes too) —
+// after that 409 TOURNAMENT_LOCKED, changes go through the secretary.
 @Feature(CancelOrgEventRegistrationFeature)
 export class CancelOrgEventRegistrationHandler
     implements

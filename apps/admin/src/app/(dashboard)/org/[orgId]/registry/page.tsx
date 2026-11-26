@@ -196,7 +196,11 @@ export default function OrgRegistryPage() {
                 className="grid w-full grid-cols-1 gap-1 px-4 py-3 text-left text-sm hover:bg-muted/50 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center sm:gap-4"
                 onClick={() => setPerson({ key: row.personKey, name: row.personName })}
               >
-                <span className="truncate font-medium">{row.personName}</span>
+                <span className="flex min-w-0 items-baseline gap-2">
+                  <span className="truncate font-medium">{row.personName}</span>
+                  {/* Published tournament podiums (design §7): a quiet mark, the list is in the sheet. */}
+                  {row.podiumCount > 0 && <span className="shrink-0 text-xs text-muted-foreground">призёр</span>}
+                </span>
                 <span className="flex min-w-0 items-center gap-2">
                   <BeltDot color={row.levelColor} />
                   <span className="truncate">{beltText(row)}</span>

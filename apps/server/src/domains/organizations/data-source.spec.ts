@@ -26,8 +26,10 @@ const code = (file: string) =>
 
 const files = walk(ORG_FEATURES).filter((f) => f.endsWith('.ts') && !f.endsWith('.spec.ts'))
 
-// Prisma delegates (prisma.<model> / tx.<model>) the org side may touch.
-const ALLOWED = /^(organization\w*|user|auditEvent|consentRecord|\$transaction)$/
+// Prisma delegates (prisma.<model> / tx.<model>) the org side may touch:
+// its own tables (organization*, the tournaments it runs — design
+// docs/design/2026-11-27-tournaments.md §4.5), accounts, the journal.
+const ALLOWED = /^(organization\w*|tournament\w*|user|auditEvent|consentRecord|\$transaction)$/
 const DELEGATE = /\b(?:prisma|tx)\.([A-Za-z$]\w*)/g
 
 describe('org console data sources', () => {
@@ -50,6 +52,8 @@ describe('org console data sources', () => {
         const ALLOWED_DOMAINS = new Set([
             'organizations',
             'metrics',
+            // Tournament readers apply the §2.3 visibility rules.
+            'tournaments',
             // Not club data: the journal, logo signing/upload rules, delivery.
             'audit',
             'workspace',

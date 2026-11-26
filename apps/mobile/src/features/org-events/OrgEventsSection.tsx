@@ -1,6 +1,7 @@
+import { useNavigation } from "@react-navigation/native"
 import React, { useCallback, useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
-
+import type { AppNavigation } from "../../app/navigation"
 import { showAlert } from "../../shared/alert"
 import {
   cancelOrgEventRegistration,
@@ -11,7 +12,9 @@ import {
   type MyClubOrganization,
 } from "../../shared/api/organizations"
 import { useAuth } from "../../shared/auth-context"
+import { useVocabulary } from "../../shared/use-vocabulary"
 import { useCachedResource } from "../../shared/cache/useCachedResource"
+import { Chevron } from "../../shared/components/Chevron"
 import { Pressable } from "../../shared/components/Pressable"
 import { ResponsiveGrid } from "../../shared/components/ResponsiveGrid"
 import { useToast } from "../../shared/components/Toast"
@@ -31,21 +34,26 @@ import {
   orgEventWhen,
   orgEventWhere,
 } from "./org-helpers"
+import { eventTournamentLine } from "./tournament-helpers"
 
 /**
  * «События»: the federation's tournaments, seminars and grading days the club
  * lets into the app, above the club's own events. A member (a guardian for
  * the child) signs up here — the consent first, if not given yet; a coach
  * signs students up from a picker. Loads itself and renders nothing without
- * federation events (or with federations off on the server).
+ * federation events (or with federations off on the server). A competition
+ * the federation runs in ClubSpace carries one line about the person's entry
+ * (a coach: entries waiting for them) and opens its tournament screen.
  */
 export function OrgEventsSection({ workspaceId }: { workspaceId: string }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
+  const navigation = useNavigation<AppNavigation>()
   const { workspace, actingAs } = useAuth()
   const { showToast } = useToast()
   const staff = isStaffWorkspace(workspace)
   const forChild = actingAs !== null
+  const vocabulary = useVocabulary()
   const events = useCachedResource<ClubOrgEvent[]>(
     `org-events:${workspaceId}`,
     useCallback(async () => await listClubOrgEvents({ workspaceId }), [workspaceId]),
@@ -117,8 +125,18 @@ export function OrgEventsSection({ workspaceId }: { workspaceId: string }) {
           const where = orgEventWhere(event)
           const places = orgEventPlacesLine(event, staff)
           const busy = busyId === event.id
+          const tournamentLine = eventTournamentLine(event, staff, vocabulary.coach)
+          const openTournament = event.tournament
+            ? () => navigation.navigate("OrgTournament", { workspaceId, eventId: event.id, title: event.title })
+            : undefined
           return (
-            <View key={event.id} style={styles.card}>
+            <Pressable
+              key={event.id}
+              onPress={openTournament}
+              disabled={!openTournament}
+              accessibilityRole={openTournament ? "button" : undefined}
+              style={styles.card}
+            >
               <Text style={styles.cardTitle}>{event.title}</Text>
               <Text style={styles.when}>{orgEventWhen(event.startAt, event.endAt, event.timezone)}</Text>
               {where && (
@@ -133,6 +151,14 @@ export function OrgEventsSection({ workspaceId }: { workspaceId: string }) {
               )}
               {(event.feeNote || places) && (
                 <Text style={styles.meta}>{[event.feeNote, places].filter(Boolean).join(" · ")}</Text>
+              )}
+              {event.tournament && (
+                <View style={styles.tournamentLine}>
+                  <Text style={styles.tournamentText} numberOfLines={1}>
+                    {tournamentLine ?? "Турнир"}
+                  </Text>
+                  <Chevron />
+                </View>
               )}
               {action.kind === "booked" && (
                 <>
@@ -177,7 +203,7 @@ export function OrgEventsSection({ workspaceId }: { workspaceId: string }) {
                   <Text style={styles.secondaryText}>Записать учеников</Text>
                 </Pressable>
               )}
-            </View>
+            </Pressable>
           )
         })}
       </ResponsiveGrid>
@@ -229,6 +255,8 @@ const makeStyles = (theme: Theme) =>
     description: { fontSize: 13, color: theme.colors.text, marginTop: theme.spacing(1) },
     meta: { fontSize: 13, fontWeight: "600", color: theme.colors.text, marginTop: theme.spacing(1) },
     booked: { fontSize: 13, color: theme.colors.success, marginTop: theme.spacing(1) },
+    tournamentLine: { flexDirection: "row", alignItems: "center", gap: theme.spacing(2), marginTop: theme.spacing(1) },
+    tournamentText: { flex: 1, ...theme.typography.bodyStrong, color: theme.colors.accent },
     caption: { fontSize: 12, color: theme.colors.muted, textAlign: "center" },
     button: {
       marginTop: theme.spacing(2),

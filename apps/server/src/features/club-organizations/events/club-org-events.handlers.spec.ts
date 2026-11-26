@@ -47,6 +47,8 @@ const makePrisma = (o: {
     member?: unknown
     ownerId?: string
     registration?: unknown
+    tournament?: { id: string; eventId: string; status: string } | null
+    entries?: unknown[]
 } = {}) => {
     const prisma = {
         workspace: { findUnique: jest.fn().mockResolvedValue({ ownerId: o.ownerId ?? 'owner' }) },
@@ -76,6 +78,17 @@ const makePrisma = (o: {
             })),
             update: jest.fn(async ({ data }) => ({ id: 'r1', ...data })),
         },
+        tournament: {
+            findMany: jest.fn().mockResolvedValue(o.tournament ? [o.tournament] : []),
+            findUnique: jest.fn().mockResolvedValue(o.tournament ?? null),
+        },
+        tournamentEntry: {
+            findMany: jest.fn().mockResolvedValue(o.entries ?? []),
+            groupBy: jest.fn().mockResolvedValue([]),
+            deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        tournamentDivision: { findMany: jest.fn().mockResolvedValue([]) },
+        tournamentMatch: { findMany: jest.fn().mockResolvedValue([]) },
         $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
     }
     return prisma
@@ -92,6 +105,7 @@ const makeRbac = (o: { coach?: boolean; ownStudent?: boolean } = {}) => ({
         }
     }),
     canWriteAllGroups: jest.fn().mockReturnValue(false),
+    ownGroupMemberIds: jest.fn().mockResolvedValue(['stu']),
 })
 
 const services = () => ({
@@ -260,8 +274,13 @@ describe('registerForOrgEvent', () => {
 })
 
 describe('cancelOrgEventRegistration', () => {
-    const run = (registration: unknown, invoker: string) => {
-        const prisma = makePrisma({ registration })
+    const run = (
+        registration: unknown,
+        invoker: string,
+        tournament: { id: string; eventId: string; status: string } | null = null,
+    ) => {
+        const prisma = makePrisma({ registration, tournament })
+        if (tournament) prisma.$queryRaw.mockResolvedValue([{ status: tournament.status }])
         const s = services()
         return {
             prisma,
@@ -296,6 +315,21 @@ describe('cancelOrgEventRegistration', () => {
             run(reg({ event: { id: 'e1', startAt: new Date(Date.now() - 1000) } }), 'stu').result,
         ).rejects.toBeInstanceOf(BadRequestError)
     })
+
+    it('takes the SETUP entry with the registration and refuses once weigh-in started', async () => {
+        const setup = run(reg(), 'stu', { id: 't1', eventId: 'e1', status: 'SETUP' })
+        await expect(setup.result).resolves.toMatchObject({ status: 'CANCELLED' })
+        expect(setup.prisma.tournamentEntry.deleteMany).toHaveBeenCalledWith({
+            where: { registrationId: 'r1' },
+        })
+        const locked = run(reg(), 'stu', { id: 't1', eventId: 'e1', status: 'WEIGH_IN' })
+        await expect(locked.result).rejects.toMatchObject({
+            code: 'TOURNAMENT_LOCKED',
+            statusCode: 409,
+        })
+        expect(locked.prisma.organizationEventRegistration.update).not.toHaveBeenCalled()
+        expect(locked.prisma.tournamentEntry.deleteMany).not.toHaveBeenCalled()
+    })
 })
 
 describe('listClubOrgEvents', () => {
@@ -304,7 +338,7 @@ describe('listClubOrgEvents', () => {
         prisma.organizationEventRegistration.findMany.mockResolvedValue([
             { id: 'r9', eventId: 'e1', status: 'BOOKED' },
         ])
-        const out = await new ListClubOrgEventsHandler(prisma as never).execute(
+        const out = await new ListClubOrgEventsHandler(prisma as never, makeRbac() as never).execute(
             new ListClubOrgEventsFeature(W, 'stu', 'user'),
         )
         expect(out.data[0]).toMatchObject({
@@ -315,6 +349,48 @@ describe('listClubOrgEvents', () => {
             registrationState: 'FULL',
             feeNote: 'Взнос 1 500 ₽ на месте',
             myRegistration: { id: 'r9', status: 'BOOKED' },
+            tournament: null,
+            myEntryState: null,
+        })
+    })
+
+    it('adds the tournament line: «Укажите вес» for a booked member without an entry', async () => {
+        const prisma = makePrisma({ tournament: { id: 't1', eventId: 'e1', status: 'SETUP' } })
+        prisma.organizationEventRegistration.findMany.mockResolvedValue([
+            { id: 'r9', eventId: 'e1', status: 'BOOKED', workspaceId: W },
+        ])
+        const rbac = makeRbac()
+        const out = await new ListClubOrgEventsHandler(prisma as never, rbac as never).execute(
+            new ListClubOrgEventsFeature(W, 'stu', 'user'),
+        )
+        expect(out.data[0].tournament).toEqual({ id: 't1', status: 'SETUP', toConfirmCount: null })
+        expect(out.data[0].myEntryState).toMatchObject({ state: 'NEEDS_WEIGHT' })
+        // A member is no coach: no scope asked, no count.
+        expect(rbac.resolveCoachScope).not.toHaveBeenCalled()
+    })
+
+    it('shows the entry state, and the own-scope count to the club staff', async () => {
+        const prisma = makePrisma({
+            tournament: { id: 't1', eventId: 'e1', status: 'SETUP' },
+            entries: [
+                { id: 'en1', tournamentId: 't1', status: 'DECLARED', place: null, division: null },
+            ],
+        })
+        prisma.organizationEventRegistration.findMany.mockResolvedValue([
+            { id: 'r9', eventId: 'e1', status: 'BOOKED', workspaceId: W },
+        ])
+        prisma.tournamentEntry.groupBy.mockResolvedValue([{ tournamentId: 't1', _count: { _all: 3 } }])
+        const rbac = makeRbac()
+        const out = await new ListClubOrgEventsHandler(prisma as never, rbac as never).execute(
+            new ListClubOrgEventsFeature(W, 'coach', 'coach'),
+        )
+        expect(out.data[0].tournament).toEqual({ id: 't1', status: 'SETUP', toConfirmCount: 3 })
+        expect(out.data[0].myEntryState).toMatchObject({ state: 'AWAITING_COACH' })
+        // Own students only (coach scope).
+        expect(prisma.tournamentEntry.groupBy.mock.calls[0][0].where).toMatchObject({
+            workspaceId: W,
+            status: 'DECLARED',
+            userId: { in: ['stu'] },
         })
     })
 
@@ -325,7 +401,7 @@ describe('listClubOrgEvents', () => {
             eventRow({ id: 'e2', registrationOpen: false }),
         ])
         prisma.organizationEventRegistration.groupBy.mockResolvedValue([])
-        const out = await new ListClubOrgEventsHandler(prisma as never).execute(
+        const out = await new ListClubOrgEventsHandler(prisma as never, makeRbac() as never).execute(
             new ListClubOrgEventsFeature(W, 'owner', null),
         )
         expect(out.data.map((e) => e.registrationState)).toEqual(['OPEN', 'CLOSED'])

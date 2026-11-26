@@ -19,6 +19,7 @@ import {
     OrgConsentRequiredError,
 } from './consent'
 import { type RegistryBelt, registryBeltsFor } from './registry'
+import { releaseRegistrationEntryIn } from '../tournaments/tournament-store'
 
 type Tx = PrismaTransactionClientType
 
@@ -131,6 +132,8 @@ export const bookOrgEvent = async (
     })
 }
 
+// With a tournament on the event, its entry goes in the same transaction
+// (SETUP only; afterwards 409 TOURNAMENT_LOCKED).
 export const cancelOrgEventBooking = async (
     prisma: PrismaService,
     p: { registrationId: string; now: Date },
@@ -139,8 +142,12 @@ export const cancelOrgEventBooking = async (
         const current = await tx.organizationEventRegistration.findUniqueOrThrow({
             where: { id: p.registrationId },
         })
-        await lockEvent(tx, current.eventId)
         if (current.status === 'CANCELLED') return current
+        await releaseRegistrationEntryIn(tx, {
+            eventId: current.eventId,
+            registrationId: current.id,
+        })
+        await lockEvent(tx, current.eventId)
         return tx.organizationEventRegistration.update({
             where: { id: current.id },
             data: { status: 'CANCELLED', cancelledAt: p.now },

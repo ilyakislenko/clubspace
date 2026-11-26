@@ -6,9 +6,10 @@ import { studentWhere } from '../metrics/students'
 import { ORG_SHARING_CONSENT_VERSION } from '../organizations/consent'
 import { addDaysYmd } from '../subscriptions/freeze-dates'
 import { BERKUT_ACCOUNTS } from './berkut-demo.accounts'
-import { DEMO_FEDERATION_ACCOUNT, DEMO_PARENT_CHILDREN, demoAccount } from './demo-accounts'
+import { DEMO_FEDERATION_ACCOUNT, DEMO_FEDERATION_SECRETARY_ACCOUNT, DEMO_PARENT_CHILDREN, demoAccount } from './demo-accounts'
 import { findDemoWorkspace } from './demo-access'
 import { demoUuid } from './demo-club.plan'
+import { buildDemoTournamentRows, type DemoTournamentPerson, type DemoTournamentRows, sexFromName } from './demo-tournaments'
 
 // The demo federation (docs/demo.md «Федерация», design
 // docs/design/2026-11-26-federation-hub-mvp.md §7): «Федерация БЖЖ Томской
@@ -29,6 +30,7 @@ export const DEMO_ORG_NAME = 'Федерация БЖЖ Томской обла�
 export const DEMO_ORG_ID = demoUuid('org:tomsk-bjj-federation')
 const DEMO_ORG_TIMEZONE = 'Asia/Tomsk'
 const FEDERATION_USER_ID = demoUuid('org:account:federation')
+const SECRETARY_USER_ID = demoUuid('org:account:secretary')
 // When each club joined; «Беркут» copied the standards right after
 // (berkut-demo.plan.ts).
 export const DEMO_ORG_JOINED_DAYS_AGO = { academy: 160, berkut: 200 } as const
@@ -120,6 +122,9 @@ export type DemoOrgPerson = {
     competes: boolean
     // The fixed people of the demo script decide for themselves (below).
     consent?: boolean
+    // What a tournament entry needs (demo-tournaments.ts); without it the
+    // person is never entered.
+    tournament?: Pick<DemoTournamentPerson, 'sex' | 'birthYear' | 'level' | 'role'>
 }
 
 export type DemoOrgRows = {
@@ -131,11 +136,12 @@ export type DemoOrgRows = {
     registrations: Prisma.OrganizationEventRegistrationCreateManyInput[]
     announcements: Prisma.OrganizationAnnouncementCreateManyInput[]
     auditEvents: Prisma.AuditEventCreateManyInput[]
-}
+} & Pick<DemoTournamentRows, 'tournaments' | 'divisions' | 'entries' | 'matches' | 'dispatchClaims'>
 
 export const buildDemoOrganizationRows = (input: {
     now: Date
     federationUserId: string
+    secretaryUserId: string
     clubs: { academy: DemoOrgClub | null; berkut: DemoOrgClub | null }
     people: readonly DemoOrgPerson[]
 }): DemoOrgRows => {
@@ -156,6 +162,11 @@ export const buildDemoOrganizationRows = (input: {
         registrations: [],
         announcements: [],
         auditEvents: [],
+        tournaments: [],
+        divisions: [],
+        entries: [],
+        matches: [],
+        dispatchClaims: [],
     }
     const audit = (
         action: string,
@@ -346,6 +357,43 @@ export const buildDemoOrganizationRows = (input: {
         },
     )
 
+    // ---- tournaments (demo-tournaments.ts) -------------------------------------
+    const openEvent = rows.events.find((e) => e.id === tournamentId)!
+    const t = buildDemoTournamentRows({
+        now,
+        timezone: tz,
+        organizationId: orgId,
+        federation: fed,
+        secretary: { id: input.secretaryUserId, email: DEMO_FEDERATION_SECRETARY_ACCOUNT.email },
+        clubs,
+        people: consenting.flatMap((p) => (p.tournament ? [{ ...p, ...p.tournament }] : [])),
+        templates: DEMO_ORG_TEMPLATES.map((tpl) => ({
+            key: tpl.key,
+            id: demoOrgTemplateId(tpl.key),
+            levels: tpl.levels.map((lv, order) => ({ id: demoOrgTemplateLevelId(tpl.key, order), order, name: lv.name })),
+        })),
+        open: {
+            eventId: tournamentId,
+            startAt: openEvent.startAt as Date,
+            createdAt: openEvent.createdAt as Date,
+            registrations: rows.registrations.map((r) => ({
+                id: r.id as string,
+                userId: r.userId,
+                workspaceId: r.workspaceId,
+                bookedById: r.bookedById ?? null,
+                createdAt: r.createdAt as Date,
+            })),
+        },
+    })
+    rows.events.push(...t.events)
+    rows.registrations.push(...t.registrations)
+    rows.auditEvents.push(...t.auditEvents)
+    rows.tournaments = t.tournaments
+    rows.divisions = t.divisions
+    rows.entries = t.entries
+    rows.matches = t.matches
+    rows.dispatchClaims = t.dispatchClaims
+
     // ---- announcements -------------------------------------------------------
     const ruDate = (ymd: string) =>
         new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${ymd}T12:00:00Z`))
@@ -402,19 +450,31 @@ export const seedDemoOrganization = async (
         select: { id: true, isDemo: true },
     })
     if (account && !account.isDemo) return 'blocked'
+    const secretaryAccount = await tx.user.findUnique({
+        where: { email: DEMO_FEDERATION_SECRETARY_ACCOUNT.email },
+        select: { id: true, isDemo: true },
+    })
+    if (secretaryAccount && !secretaryAccount.isDemo) return 'blocked'
 
     // ---- the organization and its administrator --------------------------------
     const federationUserId = account?.id ?? FEDERATION_USER_ID
-    const profile = {
-        firstname: DEMO_FEDERATION_ACCOUNT.firstname,
-        lastname: DEMO_FEDERATION_ACCOUNT.lastname,
-        description: DEMO_FEDERATION_ACCOUNT.roleLabel,
-        status: 'ACTIVE' as const,
-        isDemo: true,
-        personalDataConsentVersion: input.personalDataConsentVersion,
+    const secretaryUserId = secretaryAccount?.id ?? SECRETARY_USER_ID
+    const staff = [
+        { acc: DEMO_FEDERATION_ACCOUNT, row: account, id: federationUserId },
+        { acc: DEMO_FEDERATION_SECRETARY_ACCOUNT, row: secretaryAccount, id: secretaryUserId },
+    ]
+    for (const s of staff) {
+        const profile = {
+            firstname: s.acc.firstname,
+            lastname: s.acc.lastname,
+            description: s.acc.roleLabel,
+            status: 'ACTIVE' as const,
+            isDemo: true,
+            personalDataConsentVersion: input.personalDataConsentVersion,
+        }
+        if (s.row) await tx.user.update({ where: { id: s.row.id }, data: profile })
+        else await tx.user.create({ data: { id: s.id, email: s.acc.email, language: 'RU', ...profile } })
     }
-    if (account) await tx.user.update({ where: { id: account.id }, data: profile })
-    else await tx.user.create({ data: { id: federationUserId, email: DEMO_FEDERATION_ACCOUNT.email, language: 'RU', ...profile } })
     const orgData = {
         name: DEMO_ORG_NAME,
         type: 'GRAPPLING' as const,
@@ -435,8 +495,12 @@ export const seedDemoOrganization = async (
         await tx.organization.create({ data: { id: DEMO_ORG_ID, key: DEMO_ORG_KEY, ...orgData } })
     }
     await tx.organizationMember.deleteMany({ where: { organizationId: DEMO_ORG_ID } })
-    await tx.organizationMember.create({
-        data: { organizationId: DEMO_ORG_ID, userId: federationUserId, role: 'ORG_ADMIN' },
+    await tx.organizationMember.createMany({
+        data: [
+            { organizationId: DEMO_ORG_ID, userId: federationUserId, role: 'ORG_ADMIN' },
+            // The tournament secretary runs the day, the president publishes.
+            { organizationId: DEMO_ORG_ID, userId: secretaryUserId, role: 'ORG_COACH' },
+        ],
     })
 
     // ---- the clubs and their people ------------------------------------------
@@ -459,7 +523,7 @@ export const seedDemoOrganization = async (
         if (!club) continue
         const students = await tx.workspaceMember.findMany({
             where: studentWhere(club.id, club.ownerId),
-            select: { userId: true, user: { select: { dateOfBirth: true } } },
+            select: { userId: true, user: { select: { dateOfBirth: true, firstname: true, lastname: true } } },
         })
         const ids = students.map((s) => s.userId)
         const guardians = await tx.guardianship.findMany({
@@ -469,29 +533,47 @@ export const seedDemoOrganization = async (
         })
         const guardianOf = new Map<string, string>()
         for (const g of guardians) if (!guardianOf.has(g.dependentId)) guardianOf.set(g.dependentId, g.guardianId)
-        const competing = new Set(
-            (
-                await tx.rankPromotion.findMany({
-                    where: {
-                        workspaceId: club.id,
-                        ...(club === academy
-                            ? { ladderId: { in: ACADEMY_TOURNAMENT_LADDERS.map((k) => demoUuid(`ladder:${k}`)) } }
-                            : {}),
-                    },
-                    distinct: ['userId'],
-                    select: { userId: true },
-                })
-            ).map((r) => r.userId),
-        )
+        // Newest first: the first promotion on a standard is the registry belt.
+        const promotions = await tx.rankPromotion.findMany({
+            where: {
+                workspaceId: club.id,
+                ...(club === academy
+                    ? { ladderId: { in: ACADEMY_TOURNAMENT_LADDERS.map((k) => demoUuid(`ladder:${k}`)) } }
+                    : {}),
+            },
+            select: { userId: true, ladderId: true, level: { select: { order: true } }, ladder: { select: { templateId: true } } },
+            orderBy: { awardedAt: 'desc' },
+        })
+        const competing = new Set(promotions.map((r) => r.userId))
+        // ACADEMY's ladders are linked further down (this same seed);
+        // «Беркут» copied the standards, its ladders carry the template.
+        const templateOf = (p: (typeof promotions)[number]): DemoOrgTemplateKey | null =>
+            ACADEMY_LINKED_LADDERS.find((l) => club === academy && demoUuid(`ladder:${l.ladder}`) === p.ladderId)?.template ??
+            DEMO_ORG_TEMPLATES.find((t) => demoOrgTemplateId(t.key) === p.ladder.templateId)?.key ??
+            null
         const adultBefore = new Date(now.getTime() - 18 * 365.25 * 24 * 60 * 60_000)
         for (const s of students) {
             const dob = s.user.dateOfBirth
+            const isChild = guardianOf.has(s.userId) || (!!dob && dob > adultBefore)
+            const own = promotions.filter((p) => p.userId === s.userId && templateOf(p))
+            const belt = own.find((p) => templateOf(p) === (isChild ? 'kids' : 'adults')) ?? own[0]
             people.push({
                 userId: s.userId,
                 workspaceId: club.id,
                 guardianId: guardianOf.get(s.userId) ?? null,
-                isChild: guardianOf.has(s.userId) || (!!dob && dob > adultBefore),
+                isChild,
                 competes: competing.has(s.userId),
+                // A child without a birth date has no age band: never entered.
+                tournament:
+                    dob || !isChild
+                        ? {
+                              sex: sexFromName(s.user.firstname, s.user.lastname),
+                              birthYear: dob
+                                  ? dob.getUTCFullYear()
+                                  : now.getUTCFullYear() - 20 - Math.floor(draw('birth-year', s.userId) * 20),
+                              level: belt ? { template: templateOf(belt)!, order: belt.level.order } : null,
+                          }
+                        : undefined,
             })
         }
     }
@@ -516,10 +598,15 @@ export const seedDemoOrganization = async (
         if (studentId) decided.set(studentId, true)
         if (parentId) decided.set(parentId, false)
         for (const c of children) decided.set(c.dependentId, c.dependent.firstname === DEMO_PARENT_CHILDREN[0].firstname)
-        for (const p of people) if (decided.has(p.userId)) p.consent = decided.get(p.userId)
+        const mishaId = children.find((c) => c.dependent.firstname === DEMO_PARENT_CHILDREN[0].firstname)?.dependentId
+        for (const p of people) {
+            if (decided.has(p.userId)) p.consent = decided.get(p.userId)
+            if (p.tournament && p.userId === studentId) p.tournament.role = 'student'
+            if (p.tournament && p.userId === mishaId) p.tournament.role = 'misha'
+        }
     }
 
-    const rows = buildDemoOrganizationRows({ now, federationUserId, clubs: { academy, berkut }, people })
+    const rows = buildDemoOrganizationRows({ now, federationUserId, secretaryUserId, clubs: { academy, berkut }, people })
 
     // ---- replace everything the script owns ------------------------------------
     await tx.organizationClub.deleteMany({ where: { organizationId: DEMO_ORG_ID } })
@@ -527,13 +614,17 @@ export const seedDemoOrganization = async (
     await tx.organizationEvent.deleteMany({ where: { organizationId: DEMO_ORG_ID } })
     await tx.organizationAnnouncement.deleteMany({ where: { organizationId: DEMO_ORG_ID } })
     await tx.consentRecord.deleteMany({ where: { organizationId: DEMO_ORG_ID } })
-    await tx.auditEvent.deleteMany({ where: { organizationId: DEMO_ORG_ID, action: { startsWith: 'org.' } } })
-    // The administrator signs in like any demo account: with the consent to
-    // the personal-data edition in force.
-    if (!(await tx.consentRecord.findFirst({ where: { userId: federationUserId, kind: 'PERSONAL_DATA' } }))) {
-        await tx.consentRecord.create({
-            data: { userId: federationUserId, kind: 'PERSONAL_DATA', version: input.personalDataConsentVersion, acceptedAt: now },
-        })
+    await tx.auditEvent.deleteMany({
+        where: { organizationId: DEMO_ORG_ID, OR: [{ action: { startsWith: 'org.' } }, { action: { startsWith: 'tournament.' } }] },
+    })
+    // The staff sign in like any demo account: with the consent to the
+    // personal-data edition in force.
+    for (const userId of [federationUserId, secretaryUserId]) {
+        if (!(await tx.consentRecord.findFirst({ where: { userId, kind: 'PERSONAL_DATA' } }))) {
+            await tx.consentRecord.create({
+                data: { userId, kind: 'PERSONAL_DATA', version: input.personalDataConsentVersion, acceptedAt: now },
+            })
+        }
     }
 
     await tx.organizationLadderTemplate.createMany({ data: rows.templates })
@@ -561,5 +652,13 @@ export const seedDemoOrganization = async (
     await tx.organizationEventRegistration.createMany({ data: rows.registrations })
     await tx.organizationAnnouncement.createMany({ data: rows.announcements })
     await tx.auditEvent.createMany({ data: rows.auditEvents })
+    // Events cascade the old tournaments away; the new ones go in order of
+    // their foreign keys.
+    await tx.tournament.createMany({ data: rows.tournaments })
+    await tx.tournamentDivision.createMany({ data: rows.divisions })
+    await tx.tournamentEntry.createMany({ data: rows.entries })
+    await tx.tournamentMatch.createMany({ data: rows.matches })
+    // The pushes of the seeded past («сетки готовы», «итоги») count as sent.
+    await tx.notificationDispatchLog.createMany({ data: rows.dispatchClaims, skipDuplicates: true })
     return 'seeded'
 }

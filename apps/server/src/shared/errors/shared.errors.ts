@@ -78,13 +78,17 @@ export class ConflictError extends DefaultError {
 // changed after the client read it, so its edit was refused rather than
 // silently overwriting someone else's. The code lets a form keep the draft and
 // offer to reload.
+// A caller that knows what won may say so and attach it (a match result
+// recorded from another tablet).
 export class StaleUpdateError extends DefaultError {
-    constructor() {
+    constructor(o: { message?: string; metadata?: Record<string, unknown> } = {}) {
         super({
             message:
+                o.message ??
                 'Данные изменил другой пользователь. Обновите страницу — ваши правки не сохранены.',
             code: 'STALE_UPDATE',
             statusCode: 409,
+            metadata: o.metadata,
         })
     }
 }

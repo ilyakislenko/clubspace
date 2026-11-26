@@ -1,6 +1,8 @@
 "use client"
 
-import { Download, Pencil } from "lucide-react"
+import { ChevronRight, Download, Pencil } from "lucide-react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@clubspace/ui-kit/ui"
@@ -14,6 +16,9 @@ import { errorMessage } from "../../shared/lib/error-message"
 import { pluralRu } from "../../shared/lib/plural-ru"
 import { confirmLeave } from "../../shared/lib/use-dirty-guard"
 import { useVocabulary } from "../../shared/lib/vocabulary"
+import { createOrgTournament, getOrgTournament, type OrgTournament } from "../../shared/api/tournaments"
+import { useOrg } from "./org-context"
+import { divisionsCount, entriesCount } from "./tournament/tournament-view"
 import { BeltDot } from "./BeltDot"
 import { OrgEventForm } from "./OrgEventForm"
 import {
@@ -165,6 +170,7 @@ function EventDetails({
           </ul>
         )}
         {event.description && <p className="whitespace-pre-wrap">{event.description}</p>}
+        {event.kind === "COMPETITION" && <TournamentRow organizationId={organizationId} event={event} />}
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-medium">{bookedText(event.bookedCount, event.capacity)}</h3>
@@ -217,5 +223,73 @@ function EventDetails({
         </section>
       </div>
     </>
+  )
+}
+
+// A competition's way into its tournament (design §7): one row «Турнир ·
+// 8 категорий · 52 участника ›», or for an admin «Провести турнир в ClubSpace».
+function TournamentRow({ organizationId, event }: { organizationId: string; event: OrgEvent }) {
+  const { isAdmin } = useOrg()
+  const router = useRouter()
+  const [tournament, setTournament] = useState<OrgTournament | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const tournamentId = event.tournament?.id ?? null
+  const href = `/org/${organizationId}/events/${event.id}/tournament`
+
+  useEffect(() => {
+    if (!tournamentId) return
+    let cancelled = false
+    getOrgTournament({ organizationId, tournamentId })
+      .then((t) => !cancelled && setTournament(t))
+      .catch(() => !cancelled && setTournament(null))
+    return () => {
+      cancelled = true
+    }
+  }, [organizationId, tournamentId])
+
+  if (!tournamentId) {
+    if (!isAdmin) return null
+    return (
+      <div className="space-y-2">
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true)
+            setError(null)
+            try {
+              await createOrgTournament({ organizationId, eventId: event.id })
+              router.push(href)
+            } catch (e) {
+              setError(errorMessage(e, "Не удалось завести турнир"))
+              setBusy(false)
+            }
+          }}
+        >
+          Провести турнир в ClubSpace
+        </Button>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+    )
+  }
+  const c = tournament?.counts
+  return (
+    <Link
+      href={href}
+      className="flex min-h-12 items-center gap-3 rounded-lg border border-border px-3 py-2.5 hover:bg-muted/40"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="font-medium">Турнир</span>
+        {c && (
+          <span className="text-muted-foreground">
+            {" · "}
+            {divisionsCount(c.divisions)} · {entriesCount(c.declared + c.confirmed)}
+          </span>
+        )}
+      </span>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+    </Link>
   )
 }

@@ -9,6 +9,7 @@ import {
     DEMO_CLUB_KEY,
     DEMO_CLUB_NAME,
     DEMO_FEDERATION_ACCOUNT,
+    DEMO_FEDERATION_SECRETARY_ACCOUNT,
     DEMO_PARENT_CHILDREN,
     type DemoAccount,
 } from './demo-accounts'
@@ -26,7 +27,8 @@ import {
 // isDemo, and the fixed demo code opens only its listed accounts, each
 // belonging to nothing but its own demo club. All turn on with the same
 // DEMO_MODE / DEMO_LOGIN_CODE; DEMO_WORKSPACE_KEY stays academy-demo
-// (resolveDemoMode). The federation's administrator is listed with ACADEMY.
+// (resolveDemoMode). The federation's administrator and tournament secretary
+// are listed with ACADEMY.
 export const DEMO_CLUB_IDS = ['academy', 'ritm', 'berkut'] as const
 export type DemoClubId = (typeof DEMO_CLUB_IDS)[number]
 
@@ -49,7 +51,7 @@ export const DEMO_CLUBS: Readonly<Record<DemoClubId, DemoClubIdentity>> = {
         key: DEMO_CLUB_KEY,
         name: DEMO_CLUB_NAME,
         timezone: 'Asia/Tomsk',
-        accounts: [...DEMO_ACCOUNTS, DEMO_FEDERATION_ACCOUNT],
+        accounts: [...DEMO_ACCOUNTS, DEMO_FEDERATION_ACCOUNT, DEMO_FEDERATION_SECRETARY_ACCOUNT],
         children: DEMO_PARENT_CHILDREN,
         childSummary: 'Расписание, посещения, пояс и абонемент ребёнка — у родителя в приложении',
     },

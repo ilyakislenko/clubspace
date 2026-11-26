@@ -169,6 +169,28 @@ export type AuditAction =
     // A club copied an org ladder template (design §3.3 `rankLadder.fromTemplate`;
     // the naming rule wants a lowercase entity).
     | 'ladder.fromTemplate'
+    // Federation tournaments (docs/design/2026-11-27-tournaments.md §5.4):
+    // org side organizationId only; entryDeclare / entryConfirm carry both
+    // ids. Metadata holds ids, division names, rounds and methods — never
+    // athlete names or weights.
+    | 'tournament.create'
+    | 'tournament.update'
+    | 'tournament.statusChange'
+    | 'tournament.publish'
+    | 'tournament.unpublish'
+    | 'tournament.divisionsCreate'
+    | 'tournament.divisionsCopy'
+    | 'tournament.divisionUpdate'
+    | 'tournament.divisionDelete'
+    | 'tournament.matsAssign'
+    | 'tournament.weighIn'
+    | 'tournament.entryMove'
+    | 'tournament.entryWithdraw'
+    | 'tournament.draw'
+    | 'tournament.matchResult'
+    | 'tournament.matchUndo'
+    | 'tournament.entryDeclare'
+    | 'tournament.entryConfirm'
     // These carry the affected club's workspaceId, so they land in that club's
     // journal too — an owner can see who created and handed over their club.
     | 'workspace.create'
@@ -260,6 +282,7 @@ export type AuditTargetType =
     | 'organizationAnnouncement'
     | 'organizationEvent'
     | 'organizationTemplate'
+    | 'tournament'
     | 'rankLadder'
 
 @Injectable()

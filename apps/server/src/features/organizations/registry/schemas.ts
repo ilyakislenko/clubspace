@@ -15,5 +15,17 @@ export const OrgRegistryRowSchema = z.object({
     awardedAt: z.iso.date(),
     // The federation standard level, when the club adopted the standard.
     templateLevelName: z.string().nullable(),
+    // Published tournament podiums of the person in this org («призёр»
+    // when > 0; docs/design/2026-11-27-tournaments.md §5.1).
+    podiumCount: z.number().int(),
 })
 export type OrgRegistryRow = z.infer<typeof OrgRegistryRowSchema>
+
+// One published podium («Турниры» in the person panel).
+export const OrgRegistryPodiumSchema = z.object({
+    tournamentTitle: z.string(),
+    // The event's local date.
+    date: z.iso.date(),
+    divisionName: z.string(),
+    place: z.number().int(),
+})

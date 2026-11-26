@@ -19,11 +19,16 @@ import { likePattern } from '../../features/search-videos/search-videos-utils'
 import { Prisma, type PrismaService } from '../../infrastructure/prisma'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { fullNameWithoutEmail } from '../../shared/utils/person-name'
-import { allConsentedPersonIds, consentedPersonIds } from './consent'
+import { type PersonPodium, personPodiums } from '../tournaments/tournament-read'
+import {
+    allConsentedPersonIds,
+    consentedPersonIds,
+    TOURNAMENT_CONSENT_MIN_VERSION,
+} from './consent'
 
 type RegistryClient = Pick<
     PrismaService,
-    'organizationClub' | 'consentRecord' | 'guardianship' | '$queryRaw'
+    'organizationClub' | 'consentRecord' | 'guardianship' | '$queryRaw' | 'tournamentEntry'
 >
 
 export const PERSON_KEY_RE = /^p_[0-9a-f]{20}$/
@@ -53,6 +58,28 @@ export type RegistryRow = {
     // The org template level the club's level was copied from, when the club
     // adopted this org's standard.
     templateLevelName: string | null
+    // Published tournament podiums the registry shows for the person.
+    podiumCount: number
+}
+
+// Podiums of published tournaments, for the people the registry lists who
+// also gave the tournament edition of the consent (results show names).
+// Withdrawing consent drops the person and the podiums with them.
+const registryPodiums = async (
+    prisma: RegistryClient,
+    organizationId: string,
+    userIds: string[],
+): Promise<PersonPodium[]> => {
+    const consented = await consentedPersonIds(prisma, organizationId, userIds, {
+        minVersion: TOURNAMENT_CONSENT_MIN_VERSION,
+    })
+    return personPodiums(prisma, organizationId, [...consented])
+}
+
+const countByUser = (podiums: PersonPodium[]): Map<string, number> => {
+    const out = new Map<string, number>()
+    for (const p of podiums) out.set(p.userId, (out.get(p.userId) ?? 0) + 1)
+    return out
 }
 
 type RegistryClub = { workspaceId: string; name: string; timezone: string }
@@ -88,6 +115,9 @@ type RawRow = {
     levelColor: string | null
     ladderName: string
     templateLevelName: string | null
+    templateLevelId: string | null
+    templateLevelOrder: number | null
+    templateId: string | null
     total: number
 }
 
@@ -126,6 +156,8 @@ const promotionsSql = (
            u.firstname, u.lastname,
            lv.name AS "levelName", lv.color AS "levelColor",
            rl.name AS "ladderName", tl.name AS "templateLevelName",
+           tl.id AS "templateLevelId", tl."order" AS "templateLevelOrder",
+           tl."templateId" AS "templateId",
            count(*) OVER ()::int AS total
     FROM promo pr
     JOIN "User" u ON u.id = pr."userId"
@@ -150,6 +182,7 @@ const toRow = (
     secret: string,
     organizationId: string,
     clubs: Map<string, RegistryClub>,
+    podiumCounts: Map<string, number>,
     r: RawRow,
 ): RegistryRow => {
     const club = clubs.get(r.workspaceId)!
@@ -164,6 +197,7 @@ const toRow = (
         clubName: club.name,
         awardedAt: localDateInTz(r.awardedAt, club.timezone),
         templateLevelName: r.templateLevelName,
+        podiumCount: podiumCounts.get(r.userId) ?? 0,
     }
 }
 
@@ -236,19 +270,28 @@ export const loadRegistry = async (
         ),
     )
     const byId = new Map(clubs.map((c) => [c.workspaceId, c]))
+    const podiumCounts = countByUser(
+        await registryPodiums(prisma, p.organizationId, [...new Set(rows.map((r) => r.userId))]),
+    )
     return {
-        data: rows.map((r) => toRow(p.secret, p.organizationId, byId, r)),
+        data: rows.map((r) => toRow(p.secret, p.organizationId, byId, podiumCounts, r)),
         total: rows[0]?.total ?? 0,
     }
 }
 
 // One person's full history in the registry (the row-tap panel), newest
-// first. Unknown key, withdrawn consent or no visible belt → 404, the same
-// answer for each, so a key reveals nothing once the person is gone.
+// first, with their published podiums. Unknown key, withdrawn consent or no
+// visible belt → 404, the same answer for each, so a key reveals nothing once
+// the person is gone.
 export const loadRegistryPerson = async (
     prisma: RegistryClient,
     p: { organizationId: string; secret: string; personKey: string },
-): Promise<{ personKey: string; personName: string; history: RegistryRow[] }> => {
+): Promise<{
+    personKey: string
+    personName: string
+    history: RegistryRow[]
+    podiums: Array<Omit<PersonPodium, 'userId' | 'eventId'>>
+}> => {
     const notFound = new NotFoundError({ message: 'Человек не найден в реестре' })
     if (!PERSON_KEY_RE.test(p.personKey)) throw notFound
     const clubs = await registryClubs(prisma, p.organizationId)
@@ -274,8 +317,21 @@ export const loadRegistryPerson = async (
     )
     if (rows.length === 0) throw notFound
     const byId = new Map(clubs.map((c) => [c.workspaceId, c]))
-    const history = rows.map((r) => toRow(p.secret, p.organizationId, byId, r))
-    return { personKey: p.personKey, personName: history[0].personName, history }
+    const podiums = await registryPodiums(prisma, p.organizationId, [userId])
+    const history = rows.map((r) =>
+        toRow(p.secret, p.organizationId, byId, countByUser(podiums), r),
+    )
+    return {
+        personKey: p.personKey,
+        personName: history[0].personName,
+        history,
+        podiums: podiums.map((x) => ({
+            tournamentTitle: x.tournamentTitle,
+            date: x.date,
+            divisionName: x.divisionName,
+            place: x.place,
+        })),
+    }
 }
 
 // The ladders of one club on which the org's registry shows this person right
@@ -336,6 +392,49 @@ export const registryBeltsFor = async (
             levelColor: r.levelColor,
             stripes: r.stripes,
             ladderName: r.ladderName,
+        })
+    }
+    return result
+}
+
+export type RegistryLevel = {
+    templateLevelId: string
+    templateId: string
+    order: number
+    name: string
+}
+
+// The newest standard level the registry shows for each of `userIds` (a
+// belt on a ladder copied from this org's standard, whose level maps to a
+// standard level): what a tournament entry takes at confirmation.
+export const registryLevelsFor = async (
+    prisma: RegistryClient,
+    organizationId: string,
+    userIds: string[],
+): Promise<Map<string, RegistryLevel>> => {
+    const result = new Map<string, RegistryLevel>()
+    if (userIds.length === 0) return result
+    const clubs = await registryClubs(prisma, organizationId)
+    if (clubs.length === 0) return result
+    const personIds = [...(await consentedPersonIds(prisma, organizationId, userIds))]
+    if (personIds.length === 0) return result
+    const rows = await prisma.$queryRaw<RawRow[]>(
+        promotionsSql(
+            { organizationId, clubIds: clubs.map((c) => c.workspaceId), personIds },
+            {
+                latest: true,
+                where: [Prisma.sql`tl.id IS NOT NULL`],
+                orderBy: Prisma.sql`pr."awardedAt" DESC, pr.id DESC`,
+            },
+        ),
+    )
+    for (const r of rows) {
+        if (result.has(r.userId) || !r.templateLevelId || !r.templateId) continue
+        result.set(r.userId, {
+            templateLevelId: r.templateLevelId,
+            templateId: r.templateId,
+            order: r.templateLevelOrder ?? 0,
+            name: r.templateLevelName ?? r.levelName,
         })
     }
     return result

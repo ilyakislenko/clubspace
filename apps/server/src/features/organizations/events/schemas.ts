@@ -43,6 +43,13 @@ export const OrgEventOutputSchema = z.object({
     // null = draft.
     publishedAt: z.iso.datetime().nullable(),
     bookedCount: z.number().int(),
+    // The tournament run on this COMPETITION event (docs/design/2026-11-27-tournaments.md).
+    tournament: z
+        .object({
+            id: z.string().uuid(),
+            status: z.enum(['SETUP', 'WEIGH_IN', 'RUNNING', 'FINISHED']),
+        })
+        .nullable(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
 })
@@ -50,6 +57,7 @@ export type OrgEventOutput = z.infer<typeof OrgEventOutputSchema>
 
 export const ORG_EVENT_INCLUDE = {
     hostWorkspace: { select: { id: true, name: true } },
+    tournament: { select: { id: true, status: true } },
 } as const
 
 export const serializeOrgEvent = (
@@ -73,6 +81,7 @@ export const serializeOrgEvent = (
         publishedAt: Date | null
         createdAt: Date
         updatedAt: Date
+        tournament: { id: string; status: 'SETUP' | 'WEIGH_IN' | 'RUNNING' | 'FINISHED' } | null
     },
     bookedCount: number,
 ): OrgEventOutput => ({
@@ -96,6 +105,7 @@ export const serializeOrgEvent = (
     feeNote: e.feeNote,
     publishedAt: e.publishedAt?.toISOString() ?? null,
     bookedCount,
+    tournament: e.tournament ? { id: e.tournament.id, status: e.tournament.status } : null,
     createdAt: e.createdAt.toISOString(),
     updatedAt: e.updatedAt.toISOString(),
 })

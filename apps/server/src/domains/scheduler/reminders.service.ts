@@ -38,6 +38,7 @@ import {
     dispatchOrgEventReminders,
 } from '../organizations/org-dispatch'
 import { RealtimeEmitter } from '../realtime/realtime-emitter.service'
+import { dispatchTournamentPushes } from '../tournaments/tournament-dispatch'
 import { claimDispatchMany } from './dispatch-claims'
 
 // Club messages delivered per minute run.
@@ -120,6 +121,8 @@ export class RemindersService {
         clubMessagesSent: number
         orgAnnouncementsNotified: number
         orgEventRemindersSent: number
+        tournamentPushesSent: number
+        tournamentWeightsPurged: number
     }> {
         const sessionsNotified = await this.dispatchSessionReminders(now)
         const eventsNotified = await this.dispatchEventReminders(now)
@@ -139,6 +142,9 @@ export class RemindersService {
             this.notifications,
             now,
         )
+        // Tournaments: «Сетки готовы» / «Итоги» (held through quiet hours) and
+        // the 30-day weight retention.
+        const tournaments = await dispatchTournamentPushes(this.prisma, this.notifications, now)
         return {
             sessionsNotified,
             eventsNotified,
@@ -147,6 +153,8 @@ export class RemindersService {
             clubMessagesSent,
             orgAnnouncementsNotified,
             orgEventRemindersSent,
+            tournamentPushesSent: tournaments.bracketReady + tournaments.resultsPublished,
+            tournamentWeightsPurged: tournaments.weightsPurged,
         }
     }
 

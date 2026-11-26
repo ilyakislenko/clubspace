@@ -22,6 +22,15 @@ const ALLOWED: Record<string, true> = {
   // Build-time brand presets of a branded app, shown before sign-in.
   "shared/brand.ts": true,
 }
+// Federation tournament screens number the mats the federation's way
+// («Ковёр 2»), as the org console and the tournament pushes do: «ковёр» is
+// allowed there, «тренер/тренировка» still is not.
+const MAT_ALLOWED: Record<string, true> = {
+  "features/org-events/OrgTournamentScreen.tsx": true,
+  "features/org-events/TournamentBracketScreen.tsx": true,
+  "features/org-events/tournament-helpers.ts": true,
+}
+const WORDS_WITHOUT_MAT = /тренир|тренер|(?<![а-яё])трен\./i
 
 const sourceFiles = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -32,7 +41,7 @@ const sourceFiles = (dir: string): string[] =>
 
 // The strings, template pieces and JSX text of one file whose text names a
 // class or a coach the academy's way.
-const offendingTexts = (fileName: string, code: string): string[] => {
+const offendingTexts = (fileName: string, code: string, words: RegExp = WORDS): string[] => {
   const source = ts.createSourceFile(
     fileName,
     code,
@@ -49,7 +58,7 @@ const offendingTexts = (fileName: string, code: string): string[] => {
         ts.isTemplateMiddle(node) ||
         ts.isTemplateTail(node) ||
         ts.isJsxText(node)) &&
-      WORDS.test(node.text)
+      words.test(node.text)
     ) {
       found.push(node.text.trim())
     }
@@ -65,7 +74,7 @@ describe("club vocabulary guard", () => {
       .map((file) => relative(SRC, file))
       .filter((file) => !ALLOWED[file])
       .flatMap((file) =>
-        offendingTexts(file, readFileSync(join(SRC, file), "utf8")).map(
+        offendingTexts(file, readFileSync(join(SRC, file), "utf8"), MAT_ALLOWED[file] ? WORDS_WITHOUT_MAT : WORDS).map(
           (text) => `${file}: «${text}»`,
         ),
       )
