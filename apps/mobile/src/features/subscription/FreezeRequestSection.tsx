@@ -245,6 +245,10 @@ export function FreezeRequestSection({
                 value={daysText}
                 onChangeText={setDaysText}
                 keyboardType="number-pad"
+                // iOS number pads have no return key: this bar's «Готово»
+                // closes the keyboard (RN's own label is the English «Done»).
+                returnKeyType="done"
+                inputAccessoryViewButtonLabel="Готово"
                 accessibilityLabel="Дней заморозки"
                 placeholderTextColor={theme.colors.muted}
                 style={styles.input}
