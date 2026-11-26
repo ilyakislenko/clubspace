@@ -1,24 +1,15 @@
 //@ts-check
-
- 
-const { composePlugins, withNx } = require('@nx/next');
-
+const { PHASE_DEVELOPMENT_SERVER } = require('next/constants');
 
 /**
- * @type {import('@nx/next/plugins/with-nx').WithNxOptions}
- **/
-const nextConfig = {
-  // Use this to set Nx-specific options
-  // See: https://nx.dev/recipes/next/next-config-setup
-  nx: {},
+ * @param {string} phase
+ * @returns {import('next').NextConfig}
+ */
+module.exports = (phase) => ({
   // Self-contained server output for a small production Docker image.
   output: 'standalone',
-};
-
-const plugins = [
-  // Add more Next.js plugins to this list if needed.
-  withNx,
-];
-
-module.exports = composePlugins(...plugins)(nextConfig);
-
+  // Builds land in the workspace dist/ (the Dockerfile copies them from
+  // there); `next dev` keeps `.next` in the app, where Turbopack expects it.
+  distDir:
+    phase === PHASE_DEVELOPMENT_SERVER ? '.next' : '../../dist/apps/client/.next',
+});

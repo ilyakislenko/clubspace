@@ -29,19 +29,15 @@
     "targets": {
       "types:generate": {
         "executor": "nx:run-commands",
-        "dependsOn": ["@clubspace/server:open-api:generate"],
+        "dependsOn": [
+          "@clubspace/server:open-api:generate"
+        ],
         "options": {
           "cwd": "{workspaceRoot}",
           "command": "openapi-ts -i open-api.json -p @hey-api/typescript -o libs/api-client/src/openapi && openapi-ts -f libs/api-client/openapi-ts.config.ts"
         }
-      },
-      "test": {
-        "executor": "@nx/jest:jest",
-        "options": {
-          "jestConfig": "libs/api-client/jest.config.cts",
-          "passWithNoTests": true
-        }
       }
-    }
+    },
+    "// targets": "to see all targets run: nx show project @clubspace/api-client --web"
   }
 }

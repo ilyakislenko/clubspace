@@ -17,7 +17,13 @@ export default [
         'error',
         {
           enforceBuildableLibDependency: true,
-          allow: ['^.*/eslint(\\.base)?\\.config\\.[cm]?[jt]s$'],
+          allow: [
+            '^.*/eslint(\\.base)?\\.config\\.[cm]?[jt]s$',
+            // Build configs (tailwind, metro) read shared workspace files that
+            // belong to no project; Nx 24 reports those as external resources.
+            '^\\.\\./\\.\\./libs/ui-kit/util/tailwind\\.config$',
+            '^\\.\\./\\.\\./tsconfig\\.base\\.json$',
+          ],
           depConstraints: [
             {
               sourceTag: '*',

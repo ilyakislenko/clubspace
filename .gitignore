@@ -139,3 +139,8 @@ docker-compose.override.yml
 
 # Playwright MCP browser-test artifacts
 .playwright-mcp/
+
+# Nx 24 local state
+.nx/polygraph
+.nx/self-healing
+.nx/migrate-runs
