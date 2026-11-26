@@ -557,9 +557,10 @@ installCrashReporting();
 // The navigator's scene background is transparent so the app-wide
 // ThemedBackground (a gradient for glass, a flat colour otherwise) shows
 // through; each screen still paints its own opaque background except glass.
-// `dark` follows the app's scheme: the native header takes its light/dark
-// style from it, and a fixed light one drew the iOS back button as a light
-// capsule with black text over the dark header.
+// `dark` follows the header the app paints: the native header takes its
+// light/dark style from it, and a fixed light one drew the iOS back button as
+// a light capsule with black text over a dark header — the dark scheme's, and
+// glass's purple one in both schemes.
 const navTheme = (dark: boolean) => ({
   ...DefaultTheme,
   dark,
@@ -567,8 +568,11 @@ const navTheme = (dark: boolean) => ({
 });
 
 function AppNavigation() {
-  const { scheme } = useTheme();
-  const theme = React.useMemo(() => navTheme(scheme === 'dark'), [scheme]);
+  const { scheme, key } = useTheme();
+  const theme = React.useMemo(
+    () => navTheme(scheme === 'dark' || key === 'glass'),
+    [scheme, key],
+  );
   // The desktop sidebar highlights the screen you're on. It renders alongside
   // the navigator rather than inside it, so it can't read navigation state via
   // a hook — the container reports the current route instead.

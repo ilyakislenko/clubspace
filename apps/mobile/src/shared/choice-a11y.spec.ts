@@ -11,15 +11,25 @@ const load = (os: string): typeof ChoiceA11y => {
 }
 
 describe("choiceA11y", () => {
-  it("iOS: a button with the selected trait, never radio/checkbox", () => {
+  it("iOS: a button with the selected trait, never radio/checkbox; a checkbox says its state", () => {
     const choiceA11y = load("ios")
     expect(choiceA11y("radio", true)).toEqual({
       accessibilityRole: "button",
       accessibilityState: { selected: true },
     })
+    expect(choiceA11y("radio", false)).toEqual({
+      accessibilityRole: "button",
+      accessibilityState: { selected: false },
+    })
     expect(choiceA11y("checkbox", false, { disabled: true })).toEqual({
       accessibilityRole: "button",
       accessibilityState: { disabled: true, selected: false },
+      accessibilityValue: { text: "не отмечено" },
+    })
+    expect(choiceA11y("checkbox", true)).toEqual({
+      accessibilityRole: "button",
+      accessibilityState: { selected: true },
+      accessibilityValue: { text: "отмечено" },
     })
   })
 
