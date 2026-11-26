@@ -473,7 +473,7 @@ export function CoachTodayCard({
   // others, but with a chevron: five filled «Отметить» in a column was a
   // button wall, and the filled one belongs to the class on now.
   const row = (c: CoachClassToday, finished = false) => {
-    const mark = canMarkClassNow(c, now)
+    const mark = !finished && canMarkClassNow(c, now)
     const live = isClassInProgress(c, now)
     // The gym alone: the city and address live on the class's own screen.
     const sub = [c.gymName, c.note].filter(Boolean).join(" · ")
@@ -500,7 +500,7 @@ export function CoachTodayCard({
             </Text>
           ) : null}
         </View>
-        {mark && !finished ? (
+        {mark ? (
           <View style={styles.markButton}>
             <Text style={styles.markButtonText}>Отметить</Text>
           </View>

@@ -1,3 +1,4 @@
+import { usePreventRemove } from "@react-navigation/native"
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import {
@@ -39,6 +40,7 @@ import {
   asFlag,
   asIdList,
   composeError,
+  hasDraft,
   isQuietHour,
   previewSentence,
   sendButtonLabel,
@@ -90,6 +92,25 @@ export function ComposeClubMessageScreen({ navigation, route }: Props) {
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  // Sent: leaving is the success path, not a lost draft.
+  const sentRef = useRef(false)
+
+  // Back (button, swipe, Android back) with text typed asks first: a typed
+  // message vanished without a word.
+  usePreventRemove(hasDraft(title, body), ({ data }) => {
+    if (sentRef.current) {
+      navigation.dispatch(data.action)
+      return
+    }
+    showAlert("Не отправлять сообщение?", "Набранный текст пропадёт.", [
+      { text: "Остаться", style: "cancel" },
+      {
+        text: "Не отправлять",
+        style: "destructive",
+        onPress: () => navigation.dispatch(data.action),
+      },
+    ])
+  })
 
   const memberKey = memberIds.join(",")
   const groupKey = groupIds.join(",")
@@ -155,6 +176,7 @@ export function ComposeClubMessageScreen({ navigation, route }: Props) {
       // member leaves the list on every surface.
       if (logContact) invalidateResource(AT_RISK_RESOURCE, workspaceId)
       showToast(sentToast(sent.status), "success")
+      sentRef.current = true
       navigation.goBack()
     } catch (e) {
       // The daily limits and the scope come back as a sentence: show it here.

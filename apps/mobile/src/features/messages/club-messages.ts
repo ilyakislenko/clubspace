@@ -142,6 +142,10 @@ export const sendButtonLabel = (deferred: boolean, urgent: boolean): string =>
 export const sentToast = (status: string): string =>
   status === "SCHEDULED" ? "Сообщение уйдёт в 09:00" : "Сообщение отправлено"
 
+/** Something typed that leaving the screen would throw away. */
+export const hasDraft = (title: string, body: string): boolean =>
+  title.trim() !== "" || body.trim() !== ""
+
 /** Why the form can't be sent yet, or null. */
 export const composeError = (
   title: string,

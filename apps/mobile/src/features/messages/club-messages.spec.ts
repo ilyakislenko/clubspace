@@ -3,6 +3,7 @@ import {
   asIdList,
   composeError,
   formatMessageDate,
+  hasDraft,
   isQuietHour,
   markReadInList,
   messageByline,
@@ -186,6 +187,13 @@ describe("sending", () => {
   it("tells sent from scheduled", () => {
     expect(sentToast("SENT")).toBe("Сообщение отправлено")
     expect(sentToast("SCHEDULED")).toBe("Сообщение уйдёт в 09:00")
+  })
+
+  it("counts typed text, not blanks, as a draft to keep", () => {
+    expect(hasDraft("", "")).toBe(false)
+    expect(hasDraft("  ", "\n")).toBe(false)
+    expect(hasDraft("Тема", "")).toBe(true)
+    expect(hasDraft("", "текст")).toBe(true)
   })
 
   it("asks for a title and a text within the limits", () => {
