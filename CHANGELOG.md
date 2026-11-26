@@ -5,6 +5,25 @@
 
 ## Unreleased
 
+### Мобильное приложение: исправления без магазина (OTA)
+- `expo-updates` (~58.0.22): при заданном `EAS_PROJECT_ID` приложение на
+  каждом холодном запуске проверяет `https://u.expo.dev/<проект>`, ждёт не
+  дольше 3 секунд и иначе применяет скачанное при следующем холодном запуске;
+  без `EAS_PROJECT_ID` обновления выключены. `runtimeVersion` — `fingerprint`:
+  версия стоит на 1.0.0, а нативное изменение должно давать новую среду
+  выполнения. Каналы `eas.json`: `preview`, `production` (и `store`),
+  `branded` (в проекте клуба); `development` без канала, у `preview` явная
+  среда EAS `preview`.
+- `npm run update:ota -- <профиль> "<сообщение>"` (`scripts/eas-update.mjs`)
+  публикует `eas update --channel … --environment … --message …` с env
+  профиля из `eas.json` — голый `eas update` его не читает.
+- «Настройки» → «О приложении» → «Обновление»: id запущенного обновления или
+  «из сборки» — для поддержки. В PWA строки нет, `expo-updates` в веб-сборку
+  не попадает.
+- Проверка релиза предупреждает, что без `EAS_PROJECT_ID` сборка не получит
+  OTA. Как публиковать, что можно и нельзя выпускать OTA, откат —
+  `docs/store-distribution.md`, раздел 11.
+
 ### Зависимости
 - Минорные и патч-обновления npm (Dependabot #507): Expo SDK 58 (патчи),
   Radix, React Navigation, AWS SDK, `@nestjs/throttler`, Scalar, date-fns,

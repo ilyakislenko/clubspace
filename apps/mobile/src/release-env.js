@@ -94,11 +94,13 @@ function checkReleaseEnv({ profile, platform, env, fileExists, sameFile }) {
   }
 
   // Push: Expo issues push tokens per EAS project, and Android delivers them
-  // through FCM. Neither breaks the build, so they are warnings.
+  // through FCM. OTA updates are served per EAS project too. None of it breaks
+  // the build, so they are warnings.
   if (isMissing(env.EAS_PROJECT_ID)) {
     warnings.push(
       "EAS_PROJECT_ID is not set: extra.eas.projectId is missing, push tokens " +
-        "fall back to the worker's project id (set it for local builds too).",
+        "fall back to the worker's project id (set it for local builds too), " +
+        "and OTA updates are off — this build never receives an `eas update`.",
     )
   }
   const googleServices = (env.GOOGLE_SERVICES_FILE ?? "").trim()

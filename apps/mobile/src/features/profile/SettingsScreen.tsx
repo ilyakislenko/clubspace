@@ -27,6 +27,7 @@ import { useVocabulary } from "../../shared/use-vocabulary"
 import { isFeatureEnabled } from "../../shared/feature-flags"
 import { brand } from "../../shared/brand"
 import { useToast } from "../../shared/components/Toast"
+import { runningUpdateLabel } from "../../shared/app-update"
 import { Chevron } from "../../shared/components/Chevron"
 import { Switch } from "../../shared/components/Switch"
 import { environment } from "../../shared/env"
@@ -187,6 +188,7 @@ export function SettingsScreen(_props: Props) {
 
   const appVersion =
     Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "—"
+  const updateLabel = runningUpdateLabel()
 
   if (!prefs) {
     return <SafeAreaView style={styles.root} />
@@ -495,6 +497,17 @@ export function SettingsScreen(_props: Props) {
             label={brand.displayName}
             right={<Text style={styles.value}>версия {appVersion}</Text>}
           />
+          {updateLabel && (
+            // Support asks for it to tell whether an OTA fix has arrived.
+            <Row
+              label="Обновление"
+              right={
+                <Text style={styles.value} selectable>
+                  {updateLabel}
+                </Text>
+              }
+            />
+          )}
           <LinkRow
             label="Поддержка"
             onPress={() =>
