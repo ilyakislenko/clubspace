@@ -5,7 +5,11 @@ import { useAuth } from "../../shared/auth-context"
 import { Pressable } from "../../shared/components/Pressable"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
-import { dependentName, switchableDependents } from "./children-helpers"
+import {
+  dependentName,
+  switchableDependents,
+  switcherName,
+} from "./children-helpers"
 import { useProfileSwitch } from "./useProfileSwitch"
 
 /**
@@ -23,11 +27,23 @@ export function ProfileSwitcher() {
   if (children.length === 0 && !actingAs) return null
 
   const options = [
-    { id: null, key: "self", label: "Я" },
+    { id: null, key: "self", label: "Я", full: "" },
     ...(children.length > 0
-      ? children.map((d) => ({ id: d.id, key: d.id, label: dependentName(d) }))
+      ? children.map((d) => ({
+          id: d.id,
+          key: d.id,
+          label: switcherName(d, children),
+          full: dependentName(d),
+        }))
       : actingAs
-        ? [{ id: actingAs.id, key: actingAs.id, label: dependentName(actingAs) }]
+        ? [
+            {
+              id: actingAs.id,
+              key: actingAs.id,
+              label: switcherName(actingAs, [actingAs]),
+              full: dependentName(actingAs),
+            },
+          ]
         : []),
   ]
   const activeId = actingAs?.id ?? null
@@ -48,7 +64,7 @@ export function ProfileSwitcher() {
               accessibilityRole="radio"
               accessibilityState={{ selected: active, busy: loading }}
               accessibilityLabel={
-                o.id ? `Профиль ребёнка: ${o.label}` : "Мой профиль"
+                o.id ? `Профиль ребёнка: ${o.full}` : "Мой профиль"
               }
               style={[styles.chip, active && styles.chipActive]}
             >

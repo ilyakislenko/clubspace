@@ -25,6 +25,21 @@ export const dependentName = (d: {
 }): string =>
   [d.firstname, d.lastname].filter(Boolean).join(" ").trim() || "Ребёнок"
 
+/**
+ * A child in the «Чей профиль» switcher: the first name («Я · Миша · Аня»
+ * fits one row on a phone; full names wrapped onto two), the full name when
+ * a sibling has the same first name or there is none.
+ */
+export const switcherName = (
+  d: { firstname: string | null; lastname: string | null },
+  siblings: readonly { firstname: string | null }[],
+): string => {
+  const first = d.firstname?.trim()
+  if (!first) return dependentName(d)
+  const same = siblings.filter((s) => s.firstname?.trim() === first).length
+  return same > 1 ? dependentName(d) : first
+}
+
 /** Confirmed children: the only ones the guardian may act for. */
 export const switchableDependents = (list: MyDependent[]): MyDependent[] =>
   list.filter((d) => d.status === "ACTIVE")

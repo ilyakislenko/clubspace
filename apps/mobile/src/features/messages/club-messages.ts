@@ -77,7 +77,7 @@ export type PreviewCounts = {
 
 /**
  * The line under the form: «Получат 52 ученика (3 ребёнка — их родителям).
- * Push — 40, отключили сообщения — 4, без приложения — 8. Сейчас тихие часы:
+ * В приложении — 40, отключили сообщения — 4, без приложения — 8. Сейчас тихие часы:
  * уйдёт в 09:00.» Parts that are zero are left out. Quiet hours always end at
  * 09:00 club time (domains/notifications/quiet-hours.ts).
  */
@@ -91,8 +91,9 @@ export const previewSentence = (
     p.children > 0
       ? ` (${p.children} ${pluralRu(p.children, "ребёнок", "ребёнка", "детей")} — ${p.children === 1 ? "его" : "их"} родителям)`
       : ""
+  // «В приложении» (a push), not «Push»: the coach's words, not the channel's.
   const channels = [
-    `Push — ${p.withPush}`,
+    `в приложении — ${p.withPush}`,
     p.optedOut > 0 ? `отключили сообщения — ${p.optedOut}` : null,
     p.muted > 0 ? `выключили уведомления клуба — ${p.muted}` : null,
     p.capped > 0 ? `уже получили 3 рассылки сегодня — ${p.capped}` : null,
@@ -110,7 +111,8 @@ export const previewSentence = (
     p.deferredByQuietHours && !flags.urgent
       ? " Сейчас тихие часы: уйдёт в 09:00 по времени клуба."
       : ""
-  return `${n === 1 ? "Получит" : "Получат"} ${n} ${pluralRu(n, "ученик", "ученика", "учеников")}${kids}. ${channels}.${allowance}${quiet}`
+  const sentence = channels.charAt(0).toUpperCase() + channels.slice(1)
+  return `${n === 1 ? "Получит" : "Получат"} ${n} ${pluralRu(n, "ученик", "ученика", "учеников")}${kids}. ${sentence}.${allowance}${quiet}`
 }
 
 // Quiet hours on the club clock, the server's QUIET_START_HOUR / QUIET_END_HOUR

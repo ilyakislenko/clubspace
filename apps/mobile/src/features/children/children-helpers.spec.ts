@@ -7,6 +7,7 @@ import {
   pendingInvites,
   reconcileActingAs,
   switchableDependents,
+  switcherName,
   todayYmd,
 } from "./children-helpers"
 
@@ -43,6 +44,24 @@ describe("dependentName", () => {
       "Миша Иванов",
     )
     expect(dependentName({ firstname: null, lastname: null })).toBe("Ребёнок")
+  })
+})
+
+describe("switcherName", () => {
+  const misha = { firstname: "Миша", lastname: "Соколов" }
+  const anya = { firstname: "Аня", lastname: "Соколова" }
+
+  it("is the first name while it tells the children apart", () => {
+    expect(switcherName(misha, [misha, anya])).toBe("Миша")
+    expect(switcherName(anya, [misha, anya])).toBe("Аня")
+  })
+
+  it("is the full name for two children with one first name, or none", () => {
+    const otherMisha = { firstname: "Миша", lastname: "Петров" }
+    expect(switcherName(misha, [misha, otherMisha])).toBe("Миша Соколов")
+    expect(switcherName({ firstname: null, lastname: "Соколов" }, [misha])).toBe(
+      "Соколов",
+    )
   })
 })
 

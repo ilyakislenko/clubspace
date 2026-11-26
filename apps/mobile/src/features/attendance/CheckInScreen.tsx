@@ -3,6 +3,7 @@ import React, { useCallback, useState } from "react"
 import {
   ActivityIndicator,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -270,11 +271,16 @@ export function CheckInScreen({ navigation }: Props) {
               <TextInput
                 value={code}
                 onChangeText={(t) => setCode(t.toUpperCase())}
-                placeholder="Код (напр. ABC234)"
+                placeholder="ABC234"
                 placeholderTextColor={theme.colors.muted}
                 style={styles.input}
                 autoCapitalize="characters"
                 autoCorrect={false}
+                // The code is Latin: a Russian phone would open Cyrillic keys.
+                keyboardType={Platform.select({
+                  android: "visible-password",
+                  ios: "ascii-capable",
+                })}
                 returnKeyType="done"
                 onSubmitEditing={() => void submit()}
                 maxLength={12}
