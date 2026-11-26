@@ -2,7 +2,8 @@
 // profile, bundled with the env those builds were made with.
 //
 //   cd apps/mobile
-//   EAS_PROJECT_ID=<id> npm run update:ota -- production "Исправлено расписание"
+//   export EAS_PROJECT_ID=<id> GOOGLE_SERVICES_FILE=<local google-services.json>
+//   npm run update:ota -- production "Исправлено расписание"
 //   npm run update:ota -- production "…" --platform android --rollout-percentage 20
 //
 // Runs `eas update --channel <profile channel> --environment <profile
@@ -11,9 +12,9 @@
 // `eas login`. What can ship this way and how to roll back:
 // docs/store-distribution.md, «OTA-обновления».
 import { spawnSync } from "node:child_process"
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { createRequire } from "node:module"
-import { dirname, join } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..")
@@ -36,7 +37,9 @@ try {
   publish = resolveOtaPublish({
     easJson: JSON.parse(readFileSync(join(root, "eas.json"), "utf8")),
     profile,
+    args: extra,
     env: process.env,
+    fileExists: (path) => existsSync(resolve(root, path)),
   })
 } catch (error) {
   console.error(`[eas-update] ${error.message}`)

@@ -63,8 +63,11 @@ with no env at all; the release check refuses that for a real build.
   fingerprint, so a native change needs a new build. Channels come from
   `eas.json`. Publish with `npm run update:ota -- <profile> "<message>"`
   (`scripts/eas-update.mjs`, never bare `eas update`: it skips the profile's
-  env). Without `EAS_PROJECT_ID` updates are off. Settings → «О приложении»
-  shows the running update. Details: `docs/store-distribution.md`, section 11.
+  env). Android publishes need `GOOGLE_SERVICES_FILE`: a local copy of the
+  build's `google-services.json` (its content is fingerprinted). Without
+  `EAS_PROJECT_ID` updates are off. Settings → «О приложении» appends the
+  running update's short id to the version. Details:
+  `docs/store-distribution.md`, section 11.
 - Release check (`scripts/check-release-env.mjs`, rules in `src/release-env.js`):
   refuses placeholder URLs/contacts, a canonical build that is not the picker, a
   branded build without its own name, id, club key or artwork, or under a

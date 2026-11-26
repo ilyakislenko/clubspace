@@ -29,6 +29,33 @@ const isMissing = (value) =>
   (value ?? "").trim().length === 0 || value.startsWith("REPLACE_")
 
 /**
+ * The server and web URLs a release bundle is made with: https, not a
+ * placeholder. Shared with src/ota-publish.js, so an OTA update can't ship
+ * what the build guard refuses.
+ *
+ * @param {Record<string, string | undefined>} env
+ * @returns {string[]}
+ */
+function releaseUrlErrors(env) {
+  const errors = []
+  for (const name of ["EXPO_PUBLIC_API_URL", "EXPO_PUBLIC_WEB_URL"]) {
+    const value = env[name] ?? ""
+    let hostname = ""
+    try {
+      hostname = new URL(value).hostname
+    } catch {
+      /* falls through to the https check below */
+    }
+    if (!value.startsWith("https://") || hostname === "") {
+      errors.push(`${name} must be an https URL, got "${value}"`)
+    } else if (isPlaceholderHost(hostname)) {
+      errors.push(`${name} is a placeholder, got "${value}"`)
+    }
+  }
+  return errors
+}
+
+/**
  * @param {{
  *   profile: string | undefined,
  *   platform: string | undefined,
@@ -44,23 +71,9 @@ function checkReleaseEnv({ profile, platform, env, fileExists, sameFile }) {
   const branded = BRANDED_PROFILES.includes(profile)
   if (!branded && !CANONICAL_PROFILES.includes(profile)) return null
 
-  const errors = []
+  const errors = releaseUrlErrors(env)
   const warnings = []
 
-  for (const name of ["EXPO_PUBLIC_API_URL", "EXPO_PUBLIC_WEB_URL"]) {
-    const value = env[name] ?? ""
-    let hostname = ""
-    try {
-      hostname = new URL(value).hostname
-    } catch {
-      /* falls through to the https check below */
-    }
-    if (!value.startsWith("https://") || hostname === "") {
-      errors.push(`${name} must be an https URL, got "${value}"`)
-    } else if (isPlaceholderHost(hostname)) {
-      errors.push(`${name} is a placeholder, got "${value}"`)
-    }
-  }
   const required = ["EXPO_PUBLIC_BRAND", "EXPO_PUBLIC_SUPPORT_EMAIL"]
   if (branded) {
     required.push(
@@ -179,4 +192,9 @@ function checkBrandedIdentity(env, { errors, fileExists, sameFile }) {
   }
 }
 
-module.exports = { checkReleaseEnv, CANONICAL_PROFILES, BRANDED_PROFILES }
+module.exports = {
+  checkReleaseEnv,
+  releaseUrlErrors,
+  CANONICAL_PROFILES,
+  BRANDED_PROFILES,
+}

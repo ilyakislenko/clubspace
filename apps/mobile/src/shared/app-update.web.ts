@@ -3,4 +3,4 @@
  * PWA has no OTA updates — the deploy serves the new bundle and the service
  * worker picks it up — so there is no update id to show.
  */
-export const runningUpdateLabel = (): string | null => null
+export const runningUpdateId = (): string | null => null

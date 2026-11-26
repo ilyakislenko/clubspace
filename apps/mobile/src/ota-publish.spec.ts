@@ -3,39 +3,68 @@ import { join } from "node:path"
 
 type Env = Record<string, string | undefined>
 type EasJson = { build?: Record<string, Record<string, unknown>> }
-
-const { resolveBuildProfile, resolveOtaPublish } = require("./ota-publish") as {
-  resolveBuildProfile: (easJson: EasJson, name: string) => Record<string, unknown>
-  resolveOtaPublish: (input: { easJson: EasJson; profile: string; env: Env }) => {
-    channel: string
-    environment: string
-    env: Record<string, string>
-  }
+type PublishInput = {
+  easJson: EasJson
+  profile: string
+  args?: string[]
+  env: Env
+  fileExists?: (path: string) => boolean
 }
+
+const { platformOf, resolveBuildProfile, resolveOtaPublish } =
+  require("./ota-publish") as {
+    platformOf: (args: string[]) => string
+    resolveBuildProfile: (easJson: EasJson, name: string) => Record<string, unknown>
+    resolveOtaPublish: (input: Required<PublishInput>) => {
+      channel: string
+      environment: string
+      env: Record<string, string>
+    }
+  }
 
 const EAS_JSON: EasJson = JSON.parse(
   readFileSync(join(__dirname, "..", "eas.json"), "utf8"),
 )
 const PROJECT = { EAS_PROJECT_ID: "6f1c0d2e-0000-4000-8000-000000000000" }
+const FCM = { GOOGLE_SERVICES_FILE: "/secrets/google-services.json" }
+
+// The committed eas.json carries placeholders until set-mobile-target.sh
+// fills them in; this is it after that run.
+const TARGET_ENV = {
+  EXPO_PUBLIC_API_URL: "https://api.clubspace.ru",
+  EXPO_PUBLIC_WEB_URL: "https://app.clubspace.ru",
+  EXPO_PUBLIC_SUPPORT_EMAIL: "help@clubspace.ru",
+}
+const TARGETED: EasJson = {
+  build: {
+    ...EAS_JSON.build,
+    production: {
+      ...EAS_JSON.build?.production,
+      env: { ...(EAS_JSON.build?.production.env as Env), ...TARGET_ENV },
+    },
+  },
+}
+
+const publish = ({ args = [], fileExists = () => true, ...rest }: PublishInput) =>
+  resolveOtaPublish({ args, fileExists, ...rest })
 
 describe("eas.json channels", () => {
-  const channelOf = (profile: string) =>
-    resolveBuildProfile(EAS_JSON, profile).channel
-
-  it("gives development builds no channel: they take no OTA updates", () => {
-    expect(channelOf("development")).toBeUndefined()
-  })
-
-  it("publishes preview and the neutral app's release builds on their own channels", () => {
-    expect(channelOf("preview")).toBe("preview")
-    expect(channelOf("production")).toBe("production")
-    // The Play AAB is the same app as the APK: one update reaches both.
-    expect(channelOf("store")).toBe("production")
-  })
-
-  it("keeps a club's branded app on a channel of its own", () => {
-    expect(channelOf("branded")).toBe("branded")
-    expect(channelOf("branded-store")).toBe("branded")
+  it("puts every build profile on its channel: development none, the neutral app's builds together, branded apart", () => {
+    const channels = Object.fromEntries(
+      Object.keys(EAS_JSON.build ?? {}).map((profile) => [
+        profile,
+        resolveBuildProfile(EAS_JSON, profile).channel ?? null,
+      ]),
+    )
+    expect(channels).toEqual({
+      development: null,
+      preview: "preview",
+      production: "production",
+      // The Play AAB is the same app as the APK: one update reaches both.
+      store: "production",
+      branded: "branded",
+      "branded-store": "branded",
+    })
   })
 })
 
@@ -60,59 +89,142 @@ describe("resolveBuildProfile", () => {
   })
 })
 
+describe("platformOf", () => {
+  it("reads eas update's --platform / -p, all when absent", () => {
+    expect(platformOf([])).toBe("all")
+    expect(platformOf(["--rollout-percentage", "20"])).toBe("all")
+    expect(platformOf(["--platform", "ios"])).toBe("ios")
+    expect(platformOf(["--platform=android"])).toBe("android")
+    expect(platformOf(["-p", "ios"])).toBe("ios")
+    expect(platformOf(["-p=ios"])).toBe("ios")
+  })
+})
+
 describe("resolveOtaPublish", () => {
   it("targets the profile's channel and EAS environment", () => {
-    const out = resolveOtaPublish({ easJson: EAS_JSON, profile: "store", env: PROJECT })
+    const out = publish({ easJson: TARGETED, profile: "store", env: { ...PROJECT, ...FCM } })
     expect(out.channel).toBe("production")
     expect(out.environment).toBe("production")
-    const preview = resolveOtaPublish({ easJson: EAS_JSON, profile: "preview", env: PROJECT })
+    const preview = publish({ easJson: EAS_JSON, profile: "preview", env: PROJECT })
     expect(preview.environment).toBe("preview")
   })
 
   it("bundles with the profile's env, not the publisher's dev shell", () => {
-    const out = resolveOtaPublish({
-      easJson: EAS_JSON,
+    const out = publish({
+      easJson: TARGETED,
       profile: "production",
       env: {
         ...PROJECT,
+        ...FCM,
         PATH: "/usr/bin",
         EXPO_PUBLIC_API_URL: "http://localhost:3000",
         EXPO_PUBLIC_DEMO_LOGIN_CODE: "dev-only",
         APP_ASSETS_DIR: "branding/dev",
-        GOOGLE_SERVICES_FILE: "./google-services.dev.json",
         UNSET: undefined,
       },
     })
     expect(out.env).toEqual({
       ...PROJECT,
+      ...FCM,
       PATH: "/usr/bin",
-      ...(EAS_JSON.build?.production.env as Record<string, string>),
+      ...(TARGETED.build?.production.env as Record<string, string>),
     })
     expect(out.env.EXPO_PUBLIC_CLUB_PICKER).toBe("true")
   })
 
   it("leaves a branded app's identity to its EAS environment", () => {
-    const out = resolveOtaPublish({
+    const out = publish({
       easJson: EAS_JSON,
       profile: "branded",
-      env: { ...PROJECT, EXPO_PUBLIC_APP_NAME: "Чужой клуб" },
+      env: { ...PROJECT, ...FCM, EXPO_PUBLIC_APP_NAME: "Чужой клуб" },
     })
-    expect(out.env).toEqual({ ...PROJECT, EXPO_PUBLIC_CLUB_PICKER: "false" })
+    expect(out.env).toEqual({ ...PROJECT, ...FCM, EXPO_PUBLIC_CLUB_PICKER: "false" })
+  })
+
+  it("refuses the neutral app's release with placeholder or plain-http URLs, like the build guard", () => {
+    // The committed eas.json, before set-mobile-target.sh.
+    expect(() =>
+      publish({ easJson: EAS_JSON, profile: "production", env: { ...PROJECT, ...FCM } }),
+    ).toThrow(/EXPO_PUBLIC_API_URL is a placeholder.*EXPO_PUBLIC_WEB_URL must be an https URL/)
+    const http: EasJson = {
+      build: {
+        ...TARGETED.build,
+        production: {
+          ...TARGETED.build?.production,
+          env: {
+            ...(TARGETED.build?.production.env as Env),
+            EXPO_PUBLIC_API_URL: "http://192.168.1.46:3000",
+          },
+        },
+      },
+    }
+    expect(() =>
+      publish({ easJson: http, profile: "store", env: { ...PROJECT, ...FCM } }),
+    ).toThrow("EXPO_PUBLIC_API_URL must be an https URL")
+  })
+
+  describe("google-services.json (hashed into the Android fingerprint)", () => {
+    it("keeps the publisher's local copy and checks it exists", () => {
+      const seen: string[] = []
+      const out = publish({
+        easJson: TARGETED,
+        profile: "production",
+        env: { ...PROJECT, ...FCM },
+        fileExists: (path) => {
+          seen.push(path)
+          return true
+        },
+      })
+      expect(out.env.GOOGLE_SERVICES_FILE).toBe(FCM.GOOGLE_SERVICES_FILE)
+      expect(seen).toEqual([FCM.GOOGLE_SERVICES_FILE])
+
+      expect(() =>
+        publish({
+          easJson: EAS_JSON,
+          profile: "preview",
+          env: { ...PROJECT, ...FCM },
+          fileExists: () => false,
+        }),
+      ).toThrow("missing file")
+    })
+
+    it("is required for a release publish that includes Android", () => {
+      for (const args of [[], ["--platform", "android"], ["-p", "all"]]) {
+        expect(() =>
+          publish({ easJson: TARGETED, profile: "production", args, env: PROJECT }),
+        ).toThrow("GOOGLE_SERVICES_FILE is not set")
+        expect(() =>
+          publish({ easJson: EAS_JSON, profile: "branded-store", args, env: PROJECT }),
+        ).toThrow("GOOGLE_SERVICES_FILE is not set")
+      }
+    })
+
+    it("is not needed for an iOS-only publish or a preview build", () => {
+      expect(
+        publish({
+          easJson: TARGETED,
+          profile: "production",
+          args: ["--platform", "ios"],
+          env: PROJECT,
+        }).channel,
+      ).toBe("production")
+      expect(publish({ easJson: EAS_JSON, profile: "preview", env: PROJECT }).channel).toBe(
+        "preview",
+      )
+    })
   })
 
   it("refuses a profile without a channel and an unknown EAS project", () => {
     expect(() =>
-      resolveOtaPublish({ easJson: EAS_JSON, profile: "development", env: PROJECT }),
+      publish({ easJson: EAS_JSON, profile: "development", env: PROJECT }),
     ).toThrow("no channel")
     expect(() =>
-      resolveOtaPublish({ easJson: EAS_JSON, profile: "production", env: { EAS_PROJECT_ID: " " } }),
+      publish({ easJson: TARGETED, profile: "production", env: { EAS_PROJECT_ID: " " } }),
     ).toThrow("EAS_PROJECT_ID")
   })
 
   it("refuses a channel without an EAS environment", () => {
     const easJson = { build: { p: { channel: "p" } } }
-    expect(() => resolveOtaPublish({ easJson, profile: "p", env: PROJECT })).toThrow(
-      "environment",
-    )
+    expect(() => publish({ easJson, profile: "p", env: PROJECT })).toThrow("environment")
   })
 })

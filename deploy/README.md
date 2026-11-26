@@ -344,7 +344,8 @@ SQL
 - **Исправления без магазина (OTA).** Правка JS после показа доходит до
   установленных приложений за один-два перезапуска:
   `cd apps/mobile && npm run update:ota -- production "что исправлено"`
-  (нужны `eas login` и `EAS_PROJECT_ID`). Что так можно выпустить, а что
+  (нужны `eas login`, `EAS_PROJECT_ID` и локальная копия `google-services.json`
+  в `GOOGLE_SERVICES_FILE`). Что так можно выпустить, а что
   требует сборки, и как откатить — [docs/store-distribution.md, раздел 11](../docs/store-distribution.md#11-ota-обновления-eas-update).
 
 ### 10. Проверка «всё работает»

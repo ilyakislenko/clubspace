@@ -292,8 +292,25 @@ describe("resolveAppConfig — OTA updates (EAS Update)", () => {
   })
 
   it("sets no channel: eas.json does, outside the fingerprinted config", () => {
-    const out = resolveAppConfig({ ...BRANDED_ENV, EAS_PROJECT_ID: PROJECT_ID })
-    expect(out.updates?.requestHeaders).toBeUndefined()
+    for (const env of [CANONICAL_ENV, BRANDED_ENV]) {
+      for (const profile of [undefined, "preview", "production", "branded"]) {
+        const out = resolveAppConfig({
+          ...env,
+          EAS_PROJECT_ID: PROJECT_ID,
+          EAS_BUILD_PROFILE: profile,
+        })
+        expect(Object.keys(out.updates ?? {}).sort()).toEqual([
+          "checkAutomatically",
+          "fallbackToCacheTimeout",
+          "url",
+        ])
+        expect(JSON.stringify(out)).not.toContain("expo-channel-name")
+        // The config, and so the fingerprint, is the same for every profile.
+        expect(out).toEqual(
+          resolveAppConfig({ ...env, EAS_PROJECT_ID: PROJECT_ID }),
+        )
+      }
+    }
   })
 })
 
