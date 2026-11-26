@@ -35,6 +35,10 @@
 - `nestjs-zod` 5.6.0 сам переводит `type: [..., "null"]` в OpenAPI 3.0:
   патч `patches/nestjs-zod+5.5.0.patch`, точная версия и `patch-package`
   удалены, контракт не изменился.
+- `package-lock.json` пересобран npm 10 (из образа `node:22`): после #507 lock
+  от npm 11 не ставился в Docker (`npm ci`: «Missing: chokidar@4.0.3» под
+  `overrides`), все образы падали на первом шаге. `scripts/check-lockfile.sh`
+  проверяет lock npm-ом образа (`--fix` пересобирает), шаг в `npm run verify`.
 
 ### Готовность к показу тренерам
 - Демо-клубы показывают каждую функцию: занятия «Ритма» каждый будний день,
