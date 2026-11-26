@@ -588,6 +588,8 @@ import { ClubOrgEventsController } from '../features/club-organizations/events/c
 import { ListClubOrgEventsHandler } from '../features/club-organizations/events/list-club-org-events.handler'
 import { RegisterForOrgEventHandler } from '../features/club-organizations/events/register-for-org-event.handler'
 import { CancelOrgEventRegistrationHandler } from '../features/club-organizations/events/cancel-org-event-registration.handler'
+import { OrgTournamentsController } from '../features/organizations/tournaments/org-tournaments.controller'
+import { ClubTournamentsController } from '../features/club-organizations/tournaments/club-tournaments.controller'
 import { ListOrgEventStudentsHandler } from '../features/club-organizations/events/list-org-event-students.handler'
 import { ClubLadderTemplatesController } from '../features/club-organizations/templates/club-ladder-templates.controller'
 import { ListAdoptableLadderTemplatesHandler } from '../features/club-organizations/templates/list-adoptable-ladder-templates.handler'
@@ -1029,6 +1031,8 @@ const controllers: ModuleMetadata['controllers'] = [
     MyClubOrganizationsController,
     ClubOrgEventsController,
     ClubLadderTemplatesController,
+    OrgTournamentsController,
+    ClubTournamentsController,
     PublicTrialRequestsController,
     MyPaymentsController,
     PaymentWebhooksController,

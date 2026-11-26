@@ -8,6 +8,26 @@ export const ClubOrgEventRegistrationRefSchema = z.object({
     status: z.enum(['BOOKED', 'CANCELLED']),
 })
 
+export const ClubOrgEventTournamentSchema = z.object({
+    id: z.string().uuid(),
+    status: z.enum(['SETUP', 'WEIGH_IN', 'RUNNING', 'FINISHED']),
+    toConfirmCount: z.number().int().nullable(),
+})
+export type ClubOrgEventTournament = z.infer<typeof ClubOrgEventTournamentSchema>
+
+// NEEDS_WEIGHT «Укажите вес для заявки» (booked, SETUP, no entry yet) ·
+// AWAITING_COACH «Заявка у тренера» · CONFIRMED (division / mat / place) ·
+// WITHDRAWN.
+export const ClubOrgEventEntryStateSchema = z.object({
+    state: z.enum(['NEEDS_WEIGHT', 'AWAITING_COACH', 'CONFIRMED', 'WITHDRAWN']),
+    divisionName: z.string().nullable(),
+    // The next match: «Ковёр 2 · перед вами 2 схватки».
+    mat: z.number().int().nullable(),
+    ahead: z.number().int().nullable(),
+    place: z.number().int().nullable(),
+})
+export type ClubOrgEventEntryState = z.infer<typeof ClubOrgEventEntryStateSchema>
+
 export const ClubOrgEventOutputSchema = z.object({
     id: z.string().uuid(),
     organizationId: z.string().uuid(),
@@ -32,6 +52,12 @@ export const ClubOrgEventOutputSchema = z.object({
     feeNote: z.string().nullable(),
     // The viewer's own booking (a child's when a guardian acts for it).
     myRegistration: ClubOrgEventRegistrationRefSchema.nullable(),
+    // The tournament of a COMPETITION event (docs/design/2026-11-27-tournaments.md);
+    // `toConfirmCount` for the club's staff only («Ждут подтверждения: 3»).
+    tournament: ClubOrgEventTournamentSchema.nullable(),
+    // The viewer's (or the child's) entry line for the Events row; null
+    // without a tournament or a live booking.
+    myEntryState: ClubOrgEventEntryStateSchema.nullable(),
 })
 export type ClubOrgEventOutput = z.infer<typeof ClubOrgEventOutputSchema>
 
@@ -40,6 +66,8 @@ export const serializeClubOrgEvent = (
     bookedCount: number,
     mine: { id: string; status: 'BOOKED' | 'CANCELLED' } | null,
     now: Date,
+    tournament: ClubOrgEventTournament | null,
+    myEntryState: ClubOrgEventEntryState | null,
 ): ClubOrgEventOutput => ({
     id: e.id,
     organizationId: e.organizationId,
@@ -64,4 +92,6 @@ export const serializeClubOrgEvent = (
     registrationClosesAt: e.registrationClosesAt?.toISOString() ?? null,
     feeNote: e.feeNote,
     myRegistration: mine ? { id: mine.id, status: mine.status } : null,
+    tournament,
+    myEntryState,
 })

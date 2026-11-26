@@ -10,8 +10,15 @@ import type { Prisma, PrismaService } from '../../infrastructure/prisma'
 import { DefaultError } from '../../shared/errors/default.error'
 
 // Bump when either text below changes; a record keeps the edition it was
-// given for. .2: the guardian's wording for a child.
-export const ORG_SHARING_CONSENT_VERSION = '2026-11-26.2'
+// given for. .2: the guardian's wording for a child. 2026-11-27.1: tournaments
+// (birth year, sex and weight at the weigh-in; names in brackets and results
+// seen by the federation's clubs — docs/design/2026-11-27-tournaments.md §2.4).
+export const ORG_SHARING_CONSENT_VERSION = '2026-11-27.1'
+
+// The edition a tournament entry needs (and that shows a name in brackets).
+// Older editions still cover what they said: the registry and plain
+// registration.
+export const TOURNAMENT_CONSENT_MIN_VERSION = '2026-11-27.1'
 
 // `forChild`: a guardian acting for a child (X-Act-As) consents for the child
 // (the record carries dependentId), so the text names the child, not the signer.
@@ -22,26 +29,38 @@ export const orgSharingConsentText = (
     (forChild
         ? `Я разрешаю передавать федерации «${organizationName}» имя и фамилию ` +
           'моего ребёнка, его пояс (ступень), клуб, даты присвоения поясов и его ' +
-          'записи на события федерации. '
+          'записи на события федерации, а для турниров федерации — год рождения, ' +
+          'пол и вес ребёнка на взвешивании; его имя, клуб, категория и результаты ' +
+          'видны участникам и тренерам клубов федерации. '
         : `Я разрешаю передавать федерации «${organizationName}» моё имя и фамилию, ` +
           'пояс (ступень), клуб, даты присвоения поясов и мои записи на события ' +
-          'федерации. ') +
+          'федерации, а для турниров федерации — год рождения, пол и вес на ' +
+          'взвешивании; имя, клуб, категория и результаты видны участникам и ' +
+          'тренерам клубов федерации. ') +
     'Федерация не получает контакты, дату рождения и фото. ' +
     'Согласие можно отозвать в приложении в любой момент — после отзыва ' +
     'федерация перестаёт видеть эти данные сразу.'
 
-// Registering for an org event needs the athlete's consent; the app asks
-// first (`ORG_CONSENT_REQUIRED`).
+// Registering for an org event needs the athlete's consent, a tournament
+// entry the current edition; the app asks first (`ORG_CONSENT_REQUIRED`). A
+// coach can't consent for a student: the coach reads that the student must
+// update it.
 export class OrgConsentRequiredError extends DefaultError {
-    constructor() {
+    constructor(message = 'Сначала разрешите федерации видеть ваше имя, пояс и клуб') {
         super({
-            message:
-                'Сначала разрешите федерации видеть ваше имя, пояс и клуб',
+            message,
             code: 'ORG_CONSENT_REQUIRED',
             statusCode: 409,
         })
     }
 }
+
+// `minVersion`: only records of that edition or newer count. Editions are
+// date-prefixed, so a plain string comparison orders them.
+export type ConsentEditionFilter = { minVersion?: string }
+
+const atLeast = <R extends { version: string }>(records: R[], o: ConsentEditionFilter): R[] =>
+    o.minVersion ? records.filter((r) => r.version >= o.minVersion!) : records
 
 type ConsentClient = Pick<PrismaService, 'consentRecord' | 'guardianship'>
 
@@ -97,18 +116,19 @@ const resolveConsented = async (
     return result
 }
 
-// Which of `personIds` the org may see.
+// Which of `personIds` the org may see (at `minVersion` or newer when given).
 export const consentedPersonIds = async (
     prisma: ConsentClient,
     organizationId: string,
     personIds: string[],
+    o: ConsentEditionFilter = {},
 ): Promise<Set<string>> => {
     if (personIds.length === 0) return new Set()
     const records = await prisma.consentRecord.findMany({
         where: liveRecordsWhere(organizationId, personIds),
-        select: { userId: true, dependentId: true },
+        select: { userId: true, dependentId: true, version: true },
     })
-    return resolveConsented(prisma, records)
+    return resolveConsented(prisma, atLeast(records, o))
 }
 
 // Everyone the org may see (the registry's population).
@@ -127,8 +147,9 @@ export const hasOrgConsent = async (
     prisma: ConsentClient,
     organizationId: string,
     personId: string,
+    o: ConsentEditionFilter = {},
 ): Promise<boolean> =>
-    (await consentedPersonIds(prisma, organizationId, [personId])).has(personId)
+    (await consentedPersonIds(prisma, organizationId, [personId], o)).has(personId)
 
 // When the person's consent for this org was given (the latest live record
 // that counts), null when none.
@@ -150,8 +171,10 @@ export const orgConsentGrantedAt = async (
 const IP_MAX = 64
 const USER_AGENT_MAX = 512
 
-// Idempotent: a person who already consented gets no second record. Acting
-// as a child (`guardianId` set) records the guardian's consent for the child.
+// Idempotent: a person whose live consent is at the current edition gets no
+// second record; an older live edition is re-granted with a new record (the
+// old one stays as evidence). Acting as a child (`guardianId` set) records
+// the guardian's consent for the child.
 export const grantOrgConsent = async (
     prisma: ConsentClient,
     p: {
@@ -162,7 +185,13 @@ export const grantOrgConsent = async (
         userAgent: string | null
     },
 ): Promise<void> => {
-    if (await hasOrgConsent(prisma, p.organizationId, p.personId)) return
+    if (
+        await hasOrgConsent(prisma, p.organizationId, p.personId, {
+            minVersion: ORG_SHARING_CONSENT_VERSION,
+        })
+    ) {
+        return
+    }
     await prisma.consentRecord.create({
         data: {
             userId: p.guardianId ?? p.personId,

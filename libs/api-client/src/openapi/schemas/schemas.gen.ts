@@ -139,6 +139,382 @@ export const CreatePublicTrialRequestInputSchema = {
     ]
 } as const;
 
+export const ConfirmTournamentEntryInputSchema = {
+    type: 'object',
+    properties: {
+        templateLevelId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        }
+    }
+} as const;
+
+export const DeclareTournamentEntryInputSchema = {
+    type: 'object',
+    properties: {
+        userId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        declaredWeightKg: {
+            type: 'number',
+            minimum: 10,
+            maximum: 250
+        },
+        sex: {
+            type: 'string',
+            enum: [
+                'FEMALE',
+                'MALE'
+            ]
+        },
+        birthYear: {
+            type: 'integer',
+            minimum: 1930,
+            maximum: 2100
+        }
+    },
+    required: [
+        'declaredWeightKg',
+        'sex'
+    ]
+} as const;
+
+export const UndoTournamentMatchResultInputSchema = {
+    type: 'object',
+    properties: {
+        expectedUpdatedAt: {
+            description: 'The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE',
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    }
+} as const;
+
+export const RecordTournamentMatchResultInputSchema = {
+    type: 'object',
+    properties: {
+        winnerEntryId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        method: {
+            type: 'string',
+            enum: [
+                'FINISH',
+                'POINTS',
+                'DECISION',
+                'DISQUALIFICATION',
+                'WALKOVER'
+            ]
+        },
+        scoreA: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 999,
+            nullable: true
+        },
+        scoreB: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 999,
+            nullable: true
+        },
+        note: {
+            type: 'string',
+            maxLength: 120,
+            nullable: true
+        },
+        expectedUpdatedAt: {
+            description: 'The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE',
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    },
+    required: [
+        'winnerEntryId',
+        'method'
+    ]
+} as const;
+
+export const SetTournamentEntryWithdrawnInputSchema = {
+    type: 'object',
+    properties: {
+        withdrawn: {
+            type: 'boolean'
+        },
+        reason: {
+            type: 'string',
+            maxLength: 120
+        }
+    },
+    required: [
+        'withdrawn'
+    ]
+} as const;
+
+export const MoveTournamentEntryInputSchema = {
+    type: 'object',
+    properties: {
+        divisionId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        }
+    },
+    required: [
+        'divisionId'
+    ]
+} as const;
+
+export const RecordTournamentWeighInInputSchema = {
+    type: 'object',
+    properties: {
+        weighedKg: {
+            type: 'number',
+            minimum: 10,
+            maximum: 250
+        }
+    },
+    required: [
+        'weighedKg'
+    ]
+} as const;
+
+export const UpdateTournamentDivisionInputSchema = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 120
+        },
+        sex: {
+            type: 'string',
+            enum: [
+                'FEMALE',
+                'MALE',
+                null
+            ],
+            nullable: true
+        },
+        ageMin: {
+            type: 'integer',
+            minimum: 3,
+            maximum: 99,
+            nullable: true
+        },
+        ageMax: {
+            type: 'integer',
+            minimum: 3,
+            maximum: 99,
+            nullable: true
+        },
+        templateId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+            nullable: true
+        },
+        levelOrderFrom: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 1000,
+            nullable: true
+        },
+        levelOrderTo: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 1000,
+            nullable: true
+        },
+        weightMinKg: {
+            type: 'number',
+            minimum: 10,
+            maximum: 250,
+            nullable: true
+        },
+        weightMaxKg: {
+            type: 'number',
+            minimum: 10,
+            maximum: 250,
+            nullable: true
+        },
+        mat: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 12,
+            nullable: true
+        },
+        matOrder: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 1000,
+            nullable: true
+        },
+        expectedUpdatedAt: {
+            description: 'The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE',
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    }
+} as const;
+
+export const CopyTournamentDivisionsInputSchema = {
+    type: 'object',
+    properties: {
+        fromTournamentId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        }
+    },
+    required: [
+        'fromTournamentId'
+    ]
+} as const;
+
+export const CreateTournamentDivisionsInputSchema = {
+    type: 'object',
+    properties: {
+        rows: {
+            minItems: 1,
+            maxItems: 60,
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    name: {
+                        type: 'string',
+                        minLength: 1,
+                        maxLength: 120
+                    },
+                    sex: {
+                        type: 'string',
+                        enum: [
+                            'FEMALE',
+                            'MALE',
+                            null
+                        ],
+                        nullable: true
+                    },
+                    ageMin: {
+                        type: 'integer',
+                        minimum: 3,
+                        maximum: 99,
+                        nullable: true
+                    },
+                    ageMax: {
+                        type: 'integer',
+                        minimum: 3,
+                        maximum: 99,
+                        nullable: true
+                    },
+                    templateId: {
+                        type: 'string',
+                        format: 'uuid',
+                        pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+                        nullable: true
+                    },
+                    levelOrderFrom: {
+                        type: 'integer',
+                        minimum: 0,
+                        maximum: 1000,
+                        nullable: true
+                    },
+                    levelOrderTo: {
+                        type: 'integer',
+                        minimum: 0,
+                        maximum: 1000,
+                        nullable: true
+                    },
+                    weightMinKg: {
+                        type: 'number',
+                        minimum: 10,
+                        maximum: 250,
+                        nullable: true
+                    },
+                    weightMaxKg: {
+                        type: 'number',
+                        minimum: 10,
+                        maximum: 250,
+                        nullable: true
+                    }
+                }
+            }
+        }
+    },
+    required: [
+        'rows'
+    ]
+} as const;
+
+export const PublishOrgTournamentResultsInputSchema = {
+    type: 'object',
+    properties: {
+        published: {
+            type: 'boolean'
+        }
+    },
+    required: [
+        'published'
+    ]
+} as const;
+
+export const SetOrgTournamentStatusInputSchema = {
+    type: 'object',
+    properties: {
+        status: {
+            type: 'string',
+            enum: [
+                'SETUP',
+                'WEIGH_IN',
+                'RUNNING'
+            ]
+        }
+    },
+    required: [
+        'status'
+    ]
+} as const;
+
+export const UpdateOrgTournamentInputSchema = {
+    type: 'object',
+    properties: {
+        matCount: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 12
+        },
+        expectedUpdatedAt: {
+            description: 'The updatedAt the client last read; a newer row refuses the save with 409 STALE_UPDATE',
+            type: 'string',
+            format: 'date-time',
+            pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        }
+    },
+    required: [
+        'matCount'
+    ]
+} as const;
+
+export const CreateOrgTournamentInputSchema = {
+    type: 'object',
+    properties: {
+        matCount: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 12
+        }
+    }
+} as const;
+
 export const RegisterForOrgEventInputSchema = {
     type: 'object',
     properties: {
