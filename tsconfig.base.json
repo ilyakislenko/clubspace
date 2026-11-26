@@ -26,6 +26,10 @@
       "@clubspace/ui-kit/brand": ["libs/ui-kit/brand/index.ts"],
       "@clubspace/prisma-client": ["libs/prisma-client/src/index.ts"],
       "@clubspace/sport-glossary": ["libs/sport-glossary/src/index.ts"]
-    }
+    },
+    "noUncheckedSideEffectImports": false,
+    "types": ["*"],
+    "esModuleInterop": false,
+    "ignoreDeprecations": "6.0"
   }
 }

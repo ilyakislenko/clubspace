@@ -57,14 +57,6 @@
       }
     },
     {
-      "plugin": "@nx/vitest",
-      "options": {
-        "testTargetName": "test",
-        "ciTargetName": "test-ci",
-        "testMode": "watch"
-      }
-    },
-    {
       "plugin": "@nx/webpack/plugin",
       "options": {
         "buildTargetName": "build",
@@ -80,17 +72,48 @@
       "options": {
         "startTargetName": "start",
         "buildTargetName": "build",
-        "devTargetName": "dev",
+        "devTargetName": "serve",
         "serveStaticTargetName": "serve-static",
         "buildDepsTargetName": "build-deps",
         "watchDepsTargetName": "watch-deps"
       }
+    },
+    {
+      "plugin": "@nx/jest/plugin",
+      "options": {
+        "targetName": "test"
+      },
+      "include": [
+        "apps/admin/**/*",
+        "apps/client/**/*",
+        "apps/mobile/**/*",
+        "apps/server/**/*",
+        "apps/video-worker/**/*",
+        "libs/api-client/**/*"
+      ]
+    },
+    {
+      "plugin": "@nx/jest/plugin",
+      "options": {
+        "targetName": "e2e"
+      },
+      "include": ["apps/server-e2e/**/*"]
     }
   ],
   "targetDefaults": {
-    "test": {
-      "dependsOn": ["^build"]
-    },
+    "test": [
+      {
+        "dependsOn": ["^build"]
+      },
+      {
+        "filter": {
+          "plugin": "@nx/jest/plugin"
+        },
+        "options": {
+          "passWithNoTests": true
+        }
+      }
+    ],
     "@nx/esbuild:esbuild": {
       "cache": true,
       "dependsOn": ["^build"],
@@ -104,5 +127,11 @@
         "linter": "eslint"
       }
     }
+  },
+  "affected": {
+    "legacy": true
+  },
+  "sync": {
+    "disabledTaskSyncGenerators": ["@nx/js:typescript-sync"]
   }
 }

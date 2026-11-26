@@ -10,6 +10,7 @@ import {
 import type { Response } from 'express'
 import { SkipThrottle } from '@nestjs/throttler'
 import type { Queue } from 'bullmq'
+import type Redis from 'ioredis'
 
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -95,7 +96,14 @@ export class HealthController {
         }
 
         try {
-            const client = await this.queue.client
+            // BullMQ 6 hands out its ioredis connection behind a proxy typed
+            // with only the commands BullMQ itself runs. PING is not one of
+            // them, but the proxy forwards it to the underlying ioredis client.
+            const backend = this.queue.getBackend()
+            const client = (await backend.client) as unknown as Pick<
+                Redis,
+                'ping'
+            >
             const pong = await client.ping()
             if (pong !== 'PONG') {
                 allOk = false

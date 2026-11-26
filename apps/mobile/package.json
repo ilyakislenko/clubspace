@@ -64,14 +64,6 @@
     }
   },
   "nx": {
-    "targets": {
-      "test": {
-        "executor": "@nx/jest:jest",
-        "options": {
-          "jestConfig": "apps/mobile/jest.config.cjs",
-          "passWithNoTests": true
-        }
-      }
-    }
+    "// targets": "to see all targets run: nx show project @clubspace/mobile --web"
   }
 }

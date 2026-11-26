@@ -8,12 +8,11 @@
     ],
     "targets": {
       "e2e": {
-        "executor": "@nx/jest:jest",
         "options": {
-          "jestConfig": "apps/server-e2e/jest.config.cts",
           "passWithNoTests": false
         }
       }
-    }
+    },
+    "// targets": "to see all targets run: nx show project @clubspace/server-e2e --web"
   }
 }

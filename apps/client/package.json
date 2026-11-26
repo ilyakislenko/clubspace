@@ -9,50 +9,12 @@
   },
   "nx": {
     "targets": {
-      "serve": {
-        "executor": "@nx/next:server",
-        "defaultConfiguration": "development",
-        "options": {
-          "buildTarget": "@clubspace/client:build",
-          "dev": true
-        },
-        "configurations": {
-          "development": {
-            "buildTarget": "@clubspace/client:build:development",
-            "dev": true
-          },
-          "production": {
-            "buildTarget": "@clubspace/client:build:production",
-            "dev": false
-          }
-        }
-      },
       "build": {
-        "executor": "@nx/next:build",
         "dependsOn": [
           "^build"
-        ],
-        "outputs": [
-          "{options.outputPath}"
-        ],
-        "defaultConfiguration": "production",
-        "options": {
-          "outputPath": "{workspaceRoot}/dist/apps/client"
-        },
-        "configurations": {
-          "development": {
-            "outputPath": "{workspaceRoot}/dist/apps/client"
-          },
-          "production": {}
-        }
-      },
-      "test": {
-        "executor": "@nx/jest:jest",
-        "options": {
-          "jestConfig": "apps/client/jest.config.cts",
-          "passWithNoTests": true
-        }
+        ]
       }
-    }
+    },
+    "// targets": "to see all targets run: nx show project @clubspace/client --web"
   }
 }

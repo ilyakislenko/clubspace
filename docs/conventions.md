@@ -25,7 +25,11 @@ Exact commands are pinned on purpose. Use them verbatim.
   After editing the schema: `npx prisma validate …` then `npx prisma generate …`.
   Give new required columns a `@default(...)` so `db push` backfills cleanly.
 - **Tests:** `npx nx test @clubspace/server -- <path-substring>`.
-  **Do not** run bare `jest` (the `.cts` config fails under ts-node).
+  **Do not** run bare `jest` (the `.cts` config fails under ts-node; the inferred
+  nx target sets `TS_NODE_COMPILER_OPTIONS` for it). Nx 24 switches to the terse
+  `summary` output when an AI agent runs it — failed task logs are only in the
+  file it names; add `--output-style=stream` (or `NX_DEFAULT_OUTPUT_STYLE=stream`)
+  when a script greps nx output.
 - **Typecheck (the nx target hits a "workspace out of sync" gate — use tsc directly):**
   - server: `npx tsc -p apps/server/tsconfig.app.json --noEmit`
   - admin: `npx tsc -p apps/admin/tsconfig.json --noEmit`

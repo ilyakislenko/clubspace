@@ -38,11 +38,15 @@ const build = (opts: BuildOpts = {}) => {
             : jest.fn().mockResolvedValue([{ 1: 1 }]),
     }
     const queue = {
-        client: opts.redisFails
-            ? Promise.reject(new Error('redis down'))
-            : Promise.resolve({
-                  ping: jest.fn().mockResolvedValue(opts.redisPong ?? 'PONG'),
-              }),
+        getBackend: () => ({
+            client: opts.redisFails
+                ? Promise.reject(new Error('redis down'))
+                : Promise.resolve({
+                      ping: jest
+                          .fn()
+                          .mockResolvedValue(opts.redisPong ?? 'PONG'),
+                  }),
+        }),
         getWorkers: opts.workersFail
             ? jest.fn().mockRejectedValue(new Error('NOPERM client|list'))
             : jest
