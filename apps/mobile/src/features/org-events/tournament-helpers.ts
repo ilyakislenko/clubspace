@@ -1,6 +1,6 @@
 import type { Noun } from "@clubspace/ui-kit/brand"
 
-import type { ClubOrgEvent, MyTournamentPodium } from "../../shared/api/organizations"
+import type { ClubOrgEvent, MyClubOrganization } from "../../shared/api/organizations"
 import type {
   ClubTournament,
   ClubTournamentAthlete,
@@ -317,9 +317,17 @@ export const pendingSlotLabel = (
 
 // ---- «Мои пояса» --------------------------------------------------------------------
 
-// «2 место — Кубок федерации, 1-й этап · 12 октября», newest first; the
-// event opens its results.
-export const podiumLines = (podiums: readonly MyTournamentPodium[]): { eventId: string; line: string }[] =>
-  [...podiums]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .map((p) => ({ eventId: p.eventId, line: `${placeLabel(p.place)} — ${p.tournamentTitle} · ${formatRuDay(p.date)}` }))
+// «2 место — Кубок федерации, 1-й этап · 12 октября», newest first. `linked`:
+// the line opens the results, which the club shows its members only while it
+// allows the federation's events (`eventsEnabled`); otherwise plain text.
+export const podiumLines = (
+  orgs: readonly Pick<MyClubOrganization, "podiums" | "eventsEnabled">[],
+): { eventId: string; line: string; linked: boolean }[] =>
+  orgs
+    .flatMap((o) => o.podiums.map((p) => ({ p, linked: o.eventsEnabled })))
+    .sort((a, b) => b.p.date.localeCompare(a.p.date))
+    .map(({ p, linked }) => ({
+      eventId: p.eventId,
+      line: `${placeLabel(p.place)} — ${p.tournamentTitle} · ${formatRuDay(p.date)}`,
+      linked,
+    }))

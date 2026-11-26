@@ -117,21 +117,27 @@ export function MyRanksScreen() {
   // under the federation line of the belt the federation sees, else under
   // the first belt; own data, shown even after the consent was withdrawn.
   // A line opens that tournament's results — the athlete's way back to them
-  // once the event has left «События».
-  const podiums = podiumLines((orgs ?? []).flatMap((o) => o.podiums))
+  // once the event has left «События» — where the club shows them; else text.
+  const podiums = podiumLines(orgs ?? [])
   const podiumCardId =
     data?.current.find((p) => registryLine(workspace.name, p.ladderId, orgs ?? []))?.id ?? data?.current[0]?.id
-  const podiumRows = podiums.map((p) => (
-    <Pressable
-      key={p.eventId}
-      onPress={() => navigation.navigate("TournamentResults", { workspaceId: workspace.workspaceId, eventId: p.eventId })}
-      accessibilityRole="button"
-      style={styles.podiumRow}
-    >
-      <Text style={styles.podium}>{p.line}</Text>
-      <Chevron />
-    </Pressable>
-  ))
+  const podiumRows = podiums.map((p) =>
+    p.linked ? (
+      <Pressable
+        key={p.eventId}
+        onPress={() => navigation.navigate("TournamentResults", { workspaceId: workspace.workspaceId, eventId: p.eventId })}
+        accessibilityRole="button"
+        style={styles.podiumRow}
+      >
+        <Text style={[styles.podium, styles.podiumLink]}>{p.line}</Text>
+        <Chevron />
+      </Pressable>
+    ) : (
+      <Text key={p.eventId} style={styles.podium}>
+        {p.line}
+      </Text>
+    ),
+  )
 
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -279,7 +285,8 @@ const makeStyles = (theme: Theme) =>
     meta: { color: theme.colors.muted, fontSize: 13 },
     registry: { color: theme.colors.success, fontSize: 13 },
     podiumRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing(2), minHeight: 44 },
-    podium: { flex: 1, color: theme.colors.text, fontSize: 13 },
+    podium: { color: theme.colors.text, fontSize: 13 },
+    podiumLink: { flex: 1 },
     note: {
       color: theme.colors.textSecondary,
       fontSize: 13,

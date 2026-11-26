@@ -179,7 +179,8 @@ function PersonLine({
           </Text>
         )}
       </View>
-      {person.isMyClub && <View style={styles.dot} accessibilityLabel="Ваш клуб" />}
+      {/* A hidden person shows nothing about them, the club included. */}
+      {person.isMyClub && !person.hidden && <View style={styles.dot} accessibilityLabel="Ваш клуб" />}
     </View>
   )
 }

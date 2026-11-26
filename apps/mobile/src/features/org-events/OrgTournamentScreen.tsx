@@ -24,6 +24,7 @@ import { OfflineNotice } from "../../shared/components/OfflineNotice"
 import { Pressable } from "../../shared/components/Pressable"
 import { RefreshControl } from "../../shared/components/RefreshControl"
 import { useToast } from "../../shared/components/Toast"
+import { errorMessage } from "../../shared/error-message"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { isStaffWorkspace } from "../retention/retention-helpers"
@@ -112,9 +113,26 @@ export function OrgTournamentScreen({ route, navigation }: Props) {
     if (staff) athletes.refetch()
   }
   const org = orgs.data?.find((o) => o.organizationId === t?.organizationId) ?? null
+  // The consent sheet shows the federation's text from `my-orgs`. When that
+  // hasn't loaded (or failed), it is fetched now: the tap always ends in the
+  // sheet or a message, never in nothing.
+  const requestConsent = async () => {
+    if (org) {
+      setConsentOpen(true)
+      return
+    }
+    try {
+      const list = await listMyClubOrganizations({ workspaceId })
+      orgs.mutate(list)
+      if (list.some((o) => o.organizationId === t?.organizationId)) setConsentOpen(true)
+      else showToast("Федерация больше не связана с клубом — обновите экран", "error")
+    } catch (e) {
+      showToast(errorMessage(e, "Не удалось открыть согласие"), "error")
+    }
+  }
   // A member on an older consent edition re-confirms before declaring.
   const declare = () => {
-    if (t && !t.consentCurrent && org) setConsentOpen(true)
+    if (t && !t.consentCurrent) void requestConsent()
     else setEntrySheet({})
   }
   const openBracket = (divisionId: string) => navigation.navigate("TournamentBracket", { workspaceId, eventId, divisionId })
@@ -282,9 +300,7 @@ export function OrgTournamentScreen({ route, navigation }: Props) {
           initial={entrySheet.student ? null : entry}
           profileBirthYear={entrySheet.student ? entrySheet.student.profileBirthYear : t.profileBirthYear}
           onClosed={() => setEntrySheet(null)}
-          onConsentRequired={() => {
-            if (org) setConsentOpen(true)
-          }}
+          onConsentRequired={() => void requestConsent()}
           onSaved={(saved) => {
             showToast(
               entrySheet.student

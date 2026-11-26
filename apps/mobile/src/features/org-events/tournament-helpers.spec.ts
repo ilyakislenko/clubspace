@@ -348,15 +348,22 @@ describe("the bracket", () => {
 })
 
 describe("«Мои пояса»", () => {
-  it("lists podiums newest first, with place, tournament and date", () => {
+  it("lists podiums newest first, linked to the results only where the club shows federation events", () => {
+    const podium = (eventId: string, tournamentTitle: string, date: string, place: number) => ({
+      eventId,
+      tournamentTitle,
+      date,
+      divisionName: "x",
+      place,
+    })
     expect(
       podiumLines([
-        { eventId: "e1", tournamentTitle: "Кубок федерации, 1-й этап", date: "2026-10-18", divisionName: "x", place: 3 },
-        { eventId: "e2", tournamentTitle: "Открытый турнир", date: "2026-11-20", divisionName: "y", place: 1 },
+        { eventsEnabled: true, podiums: [podium("e1", "Кубок федерации, 1-й этап", "2026-10-18", 3)] },
+        { eventsEnabled: false, podiums: [podium("e2", "Открытый турнир", "2026-11-20", 1)] },
       ]),
     ).toEqual([
-      { eventId: "e2", line: "1 место — Открытый турнир · 20 ноября" },
-      { eventId: "e1", line: "3 место — Кубок федерации, 1-й этап · 18 октября" },
+      { eventId: "e2", line: "1 место — Открытый турнир · 20 ноября", linked: false },
+      { eventId: "e1", line: "3 место — Кубок федерации, 1-й этап · 18 октября", linked: true },
     ])
   })
 })
