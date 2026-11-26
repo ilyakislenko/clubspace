@@ -183,17 +183,21 @@ export function SignInScreen() {
           ) : (
             <View style={styles.form}>
               <View style={styles.emailRow}>
-                <Text style={styles.muted}>Отправлено на</Text>
-                {/* An address has no break points: iOS would split it mid-word. */}
-                <Text
-                  style={styles.emailText}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.75}
-                  ellipsizeMode="middle"
-                >
-                  {email}
-                </Text>
+                {/* Label over the address: side by side, a 390 pt iPhone cut
+                    even «coach@academy.demo» to «coach@a…emy.demo». */}
+                <View style={styles.emailBlock}>
+                  <Text style={styles.muted}>Отправлено на</Text>
+                  {/* An address has no break points: iOS would split it mid-word. */}
+                  <Text
+                    style={styles.emailText}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                    ellipsizeMode="middle"
+                  >
+                    {email}
+                  </Text>
+                </View>
                 <Pressable
                   onPress={() => {
                     setStep("email")
@@ -374,8 +378,8 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
   },
   muted: { color: theme.colors.muted, fontSize: 12 },
+  emailBlock: { flex: 1, gap: 2 },
   emailText: {
-    flex: 1,
     color: theme.colors.text,
     fontSize: 14,
     fontWeight: "600",

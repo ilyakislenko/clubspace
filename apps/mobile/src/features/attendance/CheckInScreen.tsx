@@ -1,12 +1,15 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack"
-import React, { useCallback, useState } from "react"
+import React, { useCallback, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  type ScrollViewInstance,
+  type ViewInstance,
 } from "react-native"
 import {
   CenteredColumn,
@@ -34,6 +37,7 @@ import {
   checkInCardView,
 } from "../../shared/check-in-card-store"
 import { useVocabulary } from "../../shared/use-vocabulary"
+import { useKeepFocusedInputVisible } from "../../shared/use-keep-focused-input-visible"
 import { errorMessage } from "../../shared/error-message"
 import { haptics } from "../../shared/haptics"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
@@ -60,6 +64,10 @@ export function CheckInScreen({ navigation }: Props) {
   const [code, setCode] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The code field and «Отметиться» under it stay above the keyboard together.
+  const scrollRef = useRef<ScrollViewInstance>(null)
+  const formRef = useRef<ViewInstance>(null)
+  const keyboardScroll = useKeepFocusedInputVisible(scrollRef, formRef)
   const [result, setResult] = useState<SelfCheckInResult | null>(null)
   // Set only while a member with several eligible abonements picks one.
   const [preview, setPreview] = useState<SelfCheckInPreview | null>(null)
@@ -235,6 +243,8 @@ export function CheckInScreen({ navigation }: Props) {
         // Padding on Android too: edge-to-edge doesn't resize for the keyboard.
         <KeyboardAvoidingContainer style={styles.flex}>
           <ScrollView
+            ref={scrollRef}
+            {...keyboardScroll}
             contentContainerStyle={styles.scroll}
             keyboardShouldPersistTaps="handled"
           >
@@ -265,16 +275,21 @@ export function CheckInScreen({ navigation }: Props) {
               )}
             </View>
 
-            <View style={styles.form}>
+            <View ref={formRef} style={styles.form} collapsable={false}>
               <Text style={styles.sectionTitle}>Или введите код занятия</Text>
               <TextInput
                 value={code}
                 onChangeText={(t) => setCode(t.toUpperCase())}
-                placeholder="Код (напр. ABC234)"
+                placeholder="ABC234"
                 placeholderTextColor={theme.colors.muted}
                 style={styles.input}
                 autoCapitalize="characters"
                 autoCorrect={false}
+                // The code is Latin: a Russian phone would open Cyrillic keys.
+                keyboardType={Platform.select({
+                  android: "visible-password",
+                  ios: "ascii-capable",
+                })}
                 returnKeyType="done"
                 onSubmitEditing={() => void submit()}
                 maxLength={12}

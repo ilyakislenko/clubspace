@@ -102,7 +102,8 @@ describe("subscriptionState", () => {
       NOW,
     )
     expect(s.tone).toBe("warn")
-    expect(s.text).toMatch(/\(3 дн\.\)$/)
+    // No-break spaces: the tail never wraps on its own («дн.)» alone).
+    expect(s.text).toMatch(/\u00A0\(3\u00A0дн\.\)$/)
   })
 })
 
@@ -113,7 +114,7 @@ describe("subscriptionState pack + expiry", () => {
       NOW,
     )
     expect(s.tone).toBe("warn")
-    expect(s.text).toMatch(/^Осталось 5 занятий · до .*\(3 дн\.\)$/)
+    expect(s.text).toMatch(/^Осталось 5 занятий · до .*\u00A0\(3\u00A0дн\.\)$/)
   })
 
   it("used-up pack shows when access ends", () => {
@@ -469,7 +470,7 @@ describe("mySubscriptionState", () => {
     expect(s.text).toMatch(/^Действуют 2 абонемента · доступ до /)
     const near = mySubscriptionState({ accessUntil: soon, history: [], abonements: two }, NOW)
     expect(near).toMatchObject({ tone: "warn" })
-    expect(near.text).toMatch(/\(3 дн\.\)$/)
+    expect(near.text).toMatch(/\u00A0\(3\u00A0дн\.\)$/)
     expect(
       mySubscriptionState({ accessUntil: null, history: [], abonements: two }, NOW),
     ).toEqual({ text: "Действуют 2 абонемента", tone: "ok" })

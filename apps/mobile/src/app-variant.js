@@ -53,9 +53,10 @@ const BRAND_ACCENT = {
 // art and by the installed PWA before the bundle paints.
 const APP_BACKGROUND = "#faf9fb"
 
-// The iOS camera prompt (NSCameraUsageDescription).
+// The iOS camera prompt (NSCameraUsageDescription). Both scanners ask: a
+// member joining by the club's QR, a coach scanning member cards at the door.
 const CAMERA_PERMISSION =
-  "Доступ к камере нужен, чтобы отсканировать QR-код клуба"
+  "Камера нужна, чтобы сканировать QR-коды: код клуба и карты учеников"
 
 // The iOS photo library prompt (NSPhotoLibraryUsageDescription).
 const PHOTOS_PERMISSION =

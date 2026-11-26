@@ -29,6 +29,10 @@ export const fmtDate = (iso: string, now: Date = new Date()): string => {
   })
 }
 
+// « (9 дн.)» after «до 5 декабря», glued with no-break spaces: on a 390 pt
+// iPhone the line broke inside it, leaving «дн.)» alone on the next line.
+const daysLeftTail = (days: number): string => `\u00A0(${days}\u00A0дн.)`
+
 // A first-visit abonement starts by itself this many days after the sale.
 const FIRST_VISIT_AUTO_START_DAYS = 14
 
@@ -235,7 +239,7 @@ export const subscriptionState = (
     const base = `Осталось ${left} ${classesWord(left)}`
     return {
       text: until
-        ? `${base} · до ${fmtDate(accessUntil!)}${soon ? ` (${daysLeft} дн.)` : ""}`
+        ? `${base} · до ${fmtDate(accessUntil!)}${soon ? daysLeftTail(daysLeft) : ""}`
         : base,
       tone: left === 1 || soon ? "warn" : "ok",
     }
@@ -244,7 +248,7 @@ export const subscriptionState = (
   if (until) {
     return {
       text: soon
-        ? `Активен · до ${fmtDate(accessUntil!)} (${daysLeft} дн.)`
+        ? `Активен · до ${fmtDate(accessUntil!)}${daysLeftTail(daysLeft)}`
         : `Активен · до ${fmtDate(accessUntil!)}`,
       tone: soon ? "warn" : "ok",
     }
@@ -302,7 +306,7 @@ export const mySubscriptionState = (
   const daysLeft = Math.ceil((until.getTime() - now.getTime()) / DAY_MS)
   const soon = daysLeft <= 14
   return {
-    text: `Действуют ${count} · доступ до ${fmtDate(accessUntil!)}${soon ? ` (${daysLeft} дн.)` : ""}`,
+    text: `Действуют ${count} · доступ до ${fmtDate(accessUntil!)}${soon ? daysLeftTail(daysLeft) : ""}`,
     tone: soon ? "warn" : "ok",
   }
 }

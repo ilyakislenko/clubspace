@@ -250,8 +250,10 @@ const makeStyles = (theme: Theme) =>
       fontWeight: "600",
     },
     // A tonal button: every card carries one, so none of them shouts.
+    // Horizontal padding 12: «Позвонить · Связались · Написать» then fit one
+    // row on a 375–393 pt iPhone (16 wrapped «Написать» onto a second line).
     call: {
-      paddingHorizontal: theme.spacing(4),
+      paddingHorizontal: theme.spacing(3),
       paddingVertical: theme.spacing(2),
       borderRadius: theme.radius.md,
       backgroundColor: theme.colors.accentSoft,
@@ -262,7 +264,7 @@ const makeStyles = (theme: Theme) =>
       fontWeight: "600",
     },
     secondary: {
-      paddingHorizontal: theme.spacing(4),
+      paddingHorizontal: theme.spacing(3),
       paddingVertical: theme.spacing(2),
       borderRadius: theme.radius.md,
       backgroundColor: theme.colors.surfaceMuted,

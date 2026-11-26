@@ -267,12 +267,12 @@ function EventRegistrationBlock({
             onPress={register}
             disabled={busy}
             accessibilityRole="button"
-            style={[styles.regButton, styles.regButtonPrimary]}
+            style={[styles.regButton, styles.regButtonTonal]}
           >
             {busy ? (
-              <ActivityIndicator color={theme.colors.accentText} />
+              <ActivityIndicator color={theme.colors.accent} />
             ) : (
-              <Text style={styles.regButtonPrimaryText}>
+              <Text style={styles.regButtonTonalText}>
                 {full ? "Встать в лист ожидания" : "Записаться"}
               </Text>
             )}
@@ -539,11 +539,6 @@ export function EventsScreen({ navigation, route }: Props) {
           />
         }
       >
-        <Text style={styles.subtitle}>
-          Семинары, открытые {vocabulary.session.nomPl} и спец-классы. Можно заглянуть в другой
-          зал, если есть желание.
-        </Text>
-
         {stale && events ? <OfflineNotice /> : null}
 
         <OrgEventsSection workspaceId={workspace.workspaceId} />
@@ -681,10 +676,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     padding: theme.spacing(5),
     gap: theme.spacing(3),
   },
-  subtitle: {
-    ...theme.typography.body,
-    color: theme.colors.muted,
-  },
   empty: {
     width: "100%",
     maxWidth: READABLE_WIDTH,
@@ -776,6 +767,14 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   regButtonPrimary: { backgroundColor: theme.colors.accent },
   regButtonPrimaryText: {
     color: theme.colors.accentText,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  // Every event card carries one: tonal, so a list of events isn't a column
+  // of filled buttons (the filled one is the payment step's «Оплатить»).
+  regButtonTonal: { backgroundColor: theme.colors.accentSoft },
+  regButtonTonalText: {
+    color: theme.colors.accent,
     fontSize: 15,
     fontWeight: "700",
   },

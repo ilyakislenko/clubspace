@@ -10,6 +10,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type ScrollViewInstance,
+  type ViewInstance,
 } from "react-native"
 
 import { revealScrollOffset } from "./keyboard-reveal"
@@ -30,8 +31,13 @@ import { revealScrollOffset } from "./keyboard-reveal"
 // which don't depend on a scroll that is still animating. A field outside this
 // scroll view fails to measure and is left alone, and the listener is only
 // active while the screen is focused — tab screens stay mounted.
+//
+// `revealRef` (optional): a block around the field to keep visible whole
+// instead — a short form whose submit button sits under the field (the
+// check-in code and «Отметиться»).
 export function useKeepFocusedInputVisible(
   scrollRef: RefObject<ScrollViewInstance | null>,
+  revealRef?: RefObject<ViewInstance | null>,
 ) {
   const offset = useRef(0)
   const viewportHeight = useRef(0)
@@ -43,8 +49,9 @@ export function useKeepFocusedInputVisible(
     let timers: ReturnType<typeof setTimeout>[] = []
     const reveal = (animated: boolean) => {
       const scroll = scrollRef.current
+      const focused = TextInput.State.currentlyFocusedInput()
+      const field = focused && (revealRef?.current ?? focused)
       const content = scroll?.getInnerViewRef()
-      const field = TextInput.State.currentlyFocusedInput()
       if (!scroll || !content || !field) return
       field.measureLayout(
         content,
@@ -72,7 +79,7 @@ export function useKeepFocusedInputVisible(
       timers.forEach(clearTimeout)
       sub.remove()
     }
-  }, [isFocused, scrollRef])
+  }, [isFocused, scrollRef, revealRef])
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {

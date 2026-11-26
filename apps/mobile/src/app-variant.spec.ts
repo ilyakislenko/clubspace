@@ -175,7 +175,7 @@ describe("resolveAppConfig — push", () => {
     const out = resolveAppConfig(CANONICAL_ENV)
     expect(pluginOptions(out, "expo-camera")).toEqual({
       cameraPermission:
-        "Доступ к камере нужен, чтобы отсканировать QR-код клуба",
+        "Камера нужна, чтобы сканировать QR-коды: код клуба и карты учеников",
       microphonePermission: false,
       recordAudioAndroid: false,
     })

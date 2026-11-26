@@ -158,7 +158,7 @@ export function OrgEventsSection({ workspaceId }: { workspaceId: string }) {
                     style={[styles.button, styles.primary]}
                   >
                     {busy ? (
-                      <ActivityIndicator color={theme.colors.accentText} />
+                      <ActivityIndicator color={theme.colors.accent} />
                     ) : (
                       <Text style={styles.primaryText}>Записаться</Text>
                     )}
@@ -237,8 +237,10 @@ const makeStyles = (theme: Theme) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    primary: { backgroundColor: theme.colors.accent },
-    primaryText: { color: theme.colors.accentText, fontSize: 15, fontWeight: "700" },
+    // Tonal: every event card carries one, so the list isn't a column of
+    // filled buttons (same as the club's own events below).
+    primary: { backgroundColor: theme.colors.accentSoft },
+    primaryText: { color: theme.colors.accent, fontSize: 15, fontWeight: "700" },
     secondary: {
       borderWidth: 1,
       borderColor: theme.colors.border,

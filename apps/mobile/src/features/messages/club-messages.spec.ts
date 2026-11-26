@@ -3,6 +3,7 @@ import {
   asIdList,
   composeError,
   formatMessageDate,
+  hasDraft,
   isQuietHour,
   markReadInList,
   messageByline,
@@ -90,7 +91,7 @@ describe("previewSentence", () => {
 
   it("names who gets it and through which channel", () => {
     expect(previewSentence(base, plain)).toBe(
-      "Получат 52 ученика (3 ребёнка — их родителям). Push — 40, отключили сообщения — 4, без приложения — 8.",
+      "Получат 52 ученика (3 ребёнка — их родителям). В приложении — 40, отключили сообщения — 4, без приложения — 8.",
     )
   })
 
@@ -100,7 +101,7 @@ describe("previewSentence", () => {
         { ...base, recipients: 1, children: 1, withPush: 1, optedOut: 0, noDevice: 0 },
         plain,
       ),
-    ).toBe("Получит 1 ученик (1 ребёнок — его родителям). Push — 1.")
+    ).toBe("Получит 1 ученик (1 ребёнок — его родителям). В приложении — 1.")
   })
 
   it("names the club mute and the daily push cap, leaving zero parts out", () => {
@@ -119,7 +120,7 @@ describe("previewSentence", () => {
         plain,
       ),
     ).toBe(
-      "Получат 6 учеников. Push — 3, выключили уведомления клуба — 2, уже получили 3 рассылки сегодня — 1.",
+      "Получат 6 учеников. В приложении — 3, выключили уведомления клуба — 2, уже получили 3 рассылки сегодня — 1.",
     )
   })
 
@@ -186,6 +187,13 @@ describe("sending", () => {
   it("tells sent from scheduled", () => {
     expect(sentToast("SENT")).toBe("Сообщение отправлено")
     expect(sentToast("SCHEDULED")).toBe("Сообщение уйдёт в 09:00")
+  })
+
+  it("counts typed text, not blanks, as a draft to keep", () => {
+    expect(hasDraft("", "")).toBe(false)
+    expect(hasDraft("  ", "\n")).toBe(false)
+    expect(hasDraft("Тема", "")).toBe(true)
+    expect(hasDraft("", "текст")).toBe(true)
   })
 
   it("asks for a title and a text within the limits", () => {

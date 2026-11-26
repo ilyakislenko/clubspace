@@ -383,7 +383,8 @@ export function FreezeRequestsCard({
           accessibilityRole="button"
           accessibilityLabel={`Заявка на заморозку: ${r.memberName}`}
         >
-          <Text style={styles.line} numberOfLines={1}>
+          {/* Two lines: on a 390 pt iPhone one cut the end date («по 20 декаб…»). */}
+          <Text style={styles.line} numberOfLines={2}>
             {r.memberName} · {formatRuDayRange(r.fromDate, r.untilDate)}
           </Text>
         </Pressable>
@@ -422,8 +423,8 @@ export function BirthdaysCard({
  * «Сегодня вы ведёте»: the coach's own classes today and the ones they run
  * as a substitute. The class on now and the next ones (at most three); the
  * finished ones fold into «Прошло: N». «Отметить» only on a class that has
- * started or starts within half an hour; the others open on a tap all the
- * same. `onAll` opens today's schedule when more classes follow; without it
+ * started (and isn't over) or starts within half an hour; the others open on
+ * a tap all the same. `onAll` opens today's schedule when more classes follow; without it
  * (no club schedule) the rest unfold in place. With nothing left to run
  * today, `next` (the next own class on a later day) becomes the block's
  * «Следующая — …» line instead of a separate «Ближайшая» card.
@@ -468,8 +469,11 @@ export function CoachTodayCard({
         onPress: () => setShowAll((v) => !v),
       }
 
-  const row = (c: CoachClassToday) => {
-    const mark = canMarkClassNow(c, now)
+  // A finished class (under «Прошло: N») opens its roster on a tap like the
+  // others, but with a chevron: five filled «Отметить» in a column was a
+  // button wall, and the filled one belongs to the class on now.
+  const row = (c: CoachClassToday, finished = false) => {
+    const mark = !finished && canMarkClassNow(c, now)
     const live = isClassInProgress(c, now)
     // The gym alone: the city and address live on the class's own screen.
     const sub = [c.gymName, c.note].filter(Boolean).join(" · ")
@@ -535,7 +539,7 @@ export function CoachTodayCard({
         nextRow
       ) : (
         <>
-          {view.rows.map(row)}
+          {view.rows.map((c) => row(c))}
           {view.rows.length === 0 &&
             (nextRow || (
               <Text style={styles.muted}>
@@ -567,7 +571,7 @@ export function CoachTodayCard({
               />
             </Pressable>
           )}
-          {showFinished && view.finished.map(row)}
+          {showFinished && view.finished.map((c) => row(c, true))}
         </>
       )}
     </HomeCard>
