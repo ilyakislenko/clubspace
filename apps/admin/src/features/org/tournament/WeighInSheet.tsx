@@ -180,7 +180,10 @@ function WeighInBody({
   const suggested = verdict?.suggestedDivisionId ? verdict : null
   const facts = [
     entry.clubName,
-    `${entry.sex === "MALE" ? "мужской" : "женский"} пол, ${entry.birthYear} г. р.`,
+    // A hidden participant comes without sex and birth year (no consent).
+    entry.sex && entry.birthYear != null
+      ? `${entry.sex === "MALE" ? "мужской" : "женский"} пол, ${entry.birthYear} г. р.`
+      : null,
     entry.levelName,
     entry.declaredWeightKg != null ? `заявленный вес ${formatKg(entry.declaredWeightKg)} кг` : null,
   ].filter(Boolean)
