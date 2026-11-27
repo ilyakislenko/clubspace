@@ -126,7 +126,7 @@ export type GroupKey =
     | 'enKidsSenior'
     | 'shBjjEvening'
     | 'shBjjMorning'
-    | 'rysMma'
+    | 'rysBjj'
     | 'rysKidsSenior'
     | 'yvKidsSenior'
     | 'yvKidsJunior'
@@ -171,7 +171,7 @@ export const GROUPS: readonly GroupDef[] = [
     { key: 'enKidsSenior', name: 'Дети Старшие', dir: 'bjj', gym: 'energetik', ladder: 'bjjKids', coach: 'shekunov', slots: [[2, '18:00', 60], [6, '13:00', 60]], kind: 'kid', ages: SENIOR, size: 10 },
     { key: 'shBjjEvening', name: 'BJJ Взрослые (Вечер)', dir: 'bjj', gym: 'shariki', ladder: 'bjj', coach: 'reshetyuk', slots: weekly([2, 4, 6], '19:30', 90), kind: 'adult', size: 22 },
     { key: 'shBjjMorning', name: 'BJJ Утро', dir: 'bjj', gym: 'shariki', ladder: 'bjj', coach: 'reshetyuk', slots: weekly([2, 4], '10:00', 60), kind: 'adult', size: 10 },
-    { key: 'rysMma', name: 'ММА Взрослые', dir: 'mma', gym: 'rys', ladder: 'mma', coach: 'starokorov', slots: weekly([1, 3, 5], '19:30', 90), kind: 'adult', size: 18 },
+    { key: 'rysBjj', name: 'BJJ Взрослые', dir: 'bjj', gym: 'rys', ladder: 'bjj', coach: 'chertovskikh', slots: weekly([1, 3, 5], '19:30', 90), kind: 'adult', size: 18 },
     { key: 'rysKidsSenior', name: 'Дети Старшие', dir: 'bjj', gym: 'rys', ladder: 'bjjKids', coach: 'shekunov', slots: weekly([1, 3, 5], '18:30', 60), kind: 'kid', ages: SENIOR, size: 14 },
     { key: 'yvKidsSenior', name: 'Дети Старшие', dir: 'bjj', gym: 'yuzhnye', ladder: 'bjjKids', coach: 'mishenin', slots: weekly([2, 4], '18:00', 60), kind: 'kid', ages: SENIOR, size: 12 },
     { key: 'yvKidsJunior', name: 'Дети Младшие', dir: 'bjj', gym: 'yuzhnye', ladder: 'bjjKids', coach: 'shadrina', slots: [[2, '18:00', 60], [6, '11:00', 60]], kind: 'kid', ages: JUNIOR, size: 10 },
@@ -227,7 +227,7 @@ export const TARIFFS: readonly TariffDef[] = [
     { key: 'single', name: 'Разовое', description: `Одна тренировка, ${FROM_FIRST}`, price: 500, classes: 1, days: 30, dirs: [], startsOnFirstVisit: true },
     { key: 'pack8', name: '8 занятий', description: `Весь клуб, ${FROM_FIRST}`, price: 4000, classes: 8, days: 30, dirs: [], startsOnFirstVisit: true },
     { key: 'pack12', name: '12 занятий', description: `Весь клуб, ${FROM_FIRST}. Самый популярный`, price: 5000, classes: 12, days: 30, dirs: [], startsOnFirstVisit: true },
-    { key: 'unlim', name: 'Безлимит', description: `Весь клуб без ограничений, ${FROM_FIRST}`, price: 6000, classes: null, days: 30, dirs: [], startsOnFirstVisit: true },
+    { key: 'unlim', name: 'Безлимит', description: `Весь клуб без ограничений, ${FROM_FIRST}`, price: 5500, classes: null, days: 30, dirs: [], startsOnFirstVisit: true },
     { key: 'muay12', name: 'Тайский бокс 12', description: `Тайский бокс в Северске, ${FROM_FIRST}`, price: 4500, classes: 12, days: 30, dirs: ['muay'], startsOnFirstVisit: true },
     { key: 'bjjMma12', name: 'БЖЖ + ММА 12', description: `BJJ и ММА, ${FROM_FIRST}`, price: 4800, classes: 12, days: 30, dirs: ['bjj', 'mma'], startsOnFirstVisit: true },
 ]
