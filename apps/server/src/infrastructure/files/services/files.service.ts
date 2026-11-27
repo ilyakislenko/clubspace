@@ -5,6 +5,14 @@ import { Readable } from 'stream'
 
 import { FILES_CONFIG, type FilesConfig } from '../files.config'
 
+// Virtual-host style (https://<bucket>.s3.example.com) only when the host name
+// starts with "<bucket>.". A substring test also matched origins that merely
+// contain the bucket name — https://media.clubspace.space with bucket
+// "clubspace" — and dropped the bucket from every public URL. The video worker
+// applies the same rule (apps/video-worker/src/storage-url.ts).
+const isVirtualHostEndpoint = (endpoint: string, bucket: string): boolean =>
+    new URL(endpoint).hostname.startsWith(`${bucket}.`)
+
 // A thin S3 wrapper: presigned URLs, object reads/deletes, URL building. It
 // owns no persistence — the `File` table is written by the feature slices that
 // need it, so nothing here needs Prisma.
@@ -173,12 +181,12 @@ export class FilesService {
         }
 
         // support old path-style S3 uploads and new virtual host uploads by
-        // checking for the bucket name in the endpoint url.
-        if (this.config.s3BucketName) {
-            const url = new URL(this.config.s3UploadBucketUrl)
-            if (url.hostname.startsWith(this.config.s3BucketName + '.')) {
-                return undefined
-            }
+        // checking the endpoint's host name for the bucket.
+        if (
+            this.config.s3BucketName &&
+            isVirtualHostEndpoint(this.config.s3UploadBucketUrl, this.config.s3BucketName)
+        ) {
+            return undefined
         }
 
         return this.config.s3UploadBucketUrl
@@ -201,10 +209,8 @@ export class FilesService {
             .replace(/\/$/, '')
 
         // support old path-style S3 uploads and new virtual host uploads by checking
-        // for the bucket name in the endpoint url before appending.
-        const isVirtualHost = host.includes(bucketName)
-
-        if (isVirtualHost) {
+        // the endpoint's host name for the bucket before appending it.
+        if (isVirtualHostEndpoint(host, bucketName)) {
             return host
         }
 

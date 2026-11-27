@@ -8,6 +8,7 @@ import { PrismaClient } from '@clubspace/prisma-client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { environment } from './environment.js'
 import { assertInputSize, assertTranscodable, probeVideo, restrictedInputArgs } from './probe.js'
+import { isVirtualHostEndpoint, publicObjectUrl } from './storage-url.js'
 import type { SubtitleStore } from './subtitles.js'
 import type { ThumbnailStore } from './thumbnail.js'
 import type { ChapterSourceFile } from './video-text.js'
@@ -127,21 +128,19 @@ export function getEndpoint() {
         return environment.s3Storage.s3AccelerateUrl
     }
 
-    if (environment.s3Storage.s3BucketName) {
-        const url = new URL(environment.s3Storage.s3UploadBucketUrl)
-        if (url.hostname.startsWith(environment.s3Storage.s3BucketName + '.')) {
-            return undefined
-        }
+    if (
+        environment.s3Storage.s3BucketName &&
+        isVirtualHostEndpoint(
+            environment.s3Storage.s3UploadBucketUrl,
+            environment.s3Storage.s3BucketName,
+        )
+    ) {
+        return undefined
     }
 
     return environment.s3Storage.s3UploadBucketUrl
 }
 
 export function getPublicObjectUrl(bucket: string, key: string) {
-    const host = environment.s3Storage.s3UploadBucketUrl
-        .replace('s3:', 'localhost:')
-        .replace(/\/$/, '')
-    const isVirtualHost = host.includes(bucket)
-    const baseUrl = isVirtualHost ? host : `${host}/${bucket}`
-    return `${baseUrl}/${key}`
+    return publicObjectUrl(environment.s3Storage.s3UploadBucketUrl, bucket, key)
 }

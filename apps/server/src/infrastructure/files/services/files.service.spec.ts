@@ -67,3 +67,43 @@ describe('FilesService endpoints', () => {
         ).toBe(100 * 1024 * 1024)
     })
 })
+
+describe('FilesService public object URLs', () => {
+    it('keeps the bucket in the path of an origin that merely contains its name', () => {
+        const service = new FilesService({
+            ...BASE,
+            s3UploadBucketUrl: 'https://media.clubspace.space',
+        })
+
+        expect(
+            service.getPublicObjectUrl({ bucket: 'clubspace', key: 'thumbnails/v1/c1' }),
+        ).toBe('https://media.clubspace.space/clubspace/thumbnails/v1/c1')
+    })
+
+    it('uses a virtual-host endpoint as the base', () => {
+        const service = new FilesService({
+            ...BASE,
+            s3UploadBucketUrl: 'https://clubspace.s3.example.com/',
+        })
+
+        expect(
+            service.getPublicObjectUrl({ bucket: 'clubspace', key: 'thumbnails/v1/c1' }),
+        ).toBe('https://clubspace.s3.example.com/thumbnails/v1/c1')
+    })
+
+    it('signs path-style uploads for an origin that merely contains the bucket name', async () => {
+        const service = new FilesService({
+            ...BASE,
+            s3UploadBucketUrl: 'https://media.clubspace.space',
+        })
+
+        const put = await service.getPresignedPutUrl({
+            bucket: 'clubspace',
+            key: 'raw/v1/source.mp4',
+            contentType: 'video/mp4',
+        })
+
+        expect(new URL(put.url).host).toBe('media.clubspace.space')
+        expect(new URL(put.url).pathname).toBe('/clubspace/raw/v1/source.mp4')
+    })
+})
