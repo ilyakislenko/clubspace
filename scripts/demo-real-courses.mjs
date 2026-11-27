@@ -18,14 +18,17 @@
 //
 // A course is created as a draft with the audience of «БЖЖ: база белого
 // пояса» and published once all its lessons play — one «Новый курс» instead
-// of a push per lesson. Re-running is safe: lessons already in a course
-// (course + chapter + title) are skipped, uploads a stopped run left outside
-// the course are picked up. Needs the API (ROOT_URL), MinIO, the video worker
+// of a push per lesson. Re-running is safe: every upload carries its course
+// and chapter as description, so a lesson already in its course is kept
+// (its chapter and place set again where a stopped run left them unset),
+// an upload a stopped run left outside the course is picked up, and extra
+// copies of a lesson go. A throttled request (429, production limits) is
+// waited out and retried. Needs the API (ROOT_URL), MinIO, the video worker
 // and DEMO_LOGIN_CODE in .env. «Сбросить демо» deletes the club with these
 // videos: run `npm run demo:videos`, then this again.
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, openAsBlob, readdirSync, statSync } from 'node:fs'
 import { basename, extname, join, resolve } from 'node:path'
 import ffmpegPath from 'ffmpeg-static'
 
@@ -61,7 +64,7 @@ const CLIPS_COURSE = 'Разборы техники'
 const LOOSE_CHAPTER = 'Разное'
 
 const fail = (message) => {
-    console.error(`✖ ${message}`)
+    console.error(`✘ ${message}`)
     process.exit(1)
 }
 
@@ -186,10 +189,18 @@ for (const arg of dirs) {
         if (seen.has(key)) skipped.push(`${l.file} — урок «${l.title}» уже есть в главе`)
         return !seen.has(key) && seen.add(key)
     })
-    plans.push({ title, lessons: unique, chapters: [...new Set(unique.map((l) => l.chapter).filter(Boolean))] })
+    plans.push({ title, dir, lessons: unique, chapters: [...new Set(unique.map((l) => l.chapter).filter(Boolean))] })
 }
 for (const line of skipped) console.log(`• Пропускаю: ${line}`)
 if (plans.length === 0 && clips.length === 0) fail('В папках нет видео.')
+
+// One course per title: two folders of the same name would make two courses.
+for (const [i, plan] of plans.entries()) {
+    const twin = plans.find((p, j) => j < i && p.title === plan.title)
+    if (twin) fail(`Папки ${twin.dir} и ${plan.dir} дают один курс «${plan.title}» — переименуйте одну.`)
+}
+const clash = plans.find((p) => p.title === CLIPS_COURSE)
+if (clash && clips.length > 0) fail(`Курс «${CLIPS_COURSE}» собирается из роликов презентации — переименуйте папку ${clash.dir}.`)
 
 // ---- API (as demo-videos.mjs) -----------------------------------------------
 
@@ -206,6 +217,18 @@ const request = async (url, init) => {
 const post = (path, body) =>
     request(`${API}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
+// A throttled request (429 — in production 20 a second and 600 a minute per
+// account) waits as long as the server asks, plus a second: Retry-After for
+// the per-minute bucket, Retry-After-Short for the per-second one. Up to
+// THROTTLE_RETRIES times per request, then it fails like any other error.
+const THROTTLE_RETRIES = 8
+const waitOut = async (response) => {
+    await response.body?.cancel()
+    const seconds = Math.max(Number(response.headers.get('retry-after')) || 0, Number(response.headers.get('retry-after-short')) || 0, 1)
+    if (seconds >= 5) console.log(`• Сервер просит притормозить (429) — жду ${seconds} с…`)
+    await sleep((seconds + 1) * 1000)
+}
+
 // The demo accounts take the fixed code, but only while a requested code is
 // pending: request one first; a throttled request is waited out.
 const signIn = async (email) => {
@@ -214,6 +237,10 @@ const signIn = async (email) => {
         const requested = await post('/send-auth-code', { email, language: 'RU' })
         const signedIn = await post('/sign-in', { email, code: CODE })
         if (signedIn.ok) return (await signedIn.json()).accessToken
+        if (signedIn.status === 429 && Date.now() < deadline) {
+            await waitOut(signedIn)
+            continue
+        }
         if (requested.ok || Date.now() > deadline) fail(`Не удалось войти как ${email}: ${signedIn.status} ${await signedIn.text()}`)
         console.log('• Вход: код только что запрашивали — жду…')
         await sleep(15_000)
@@ -228,15 +255,39 @@ const account = (email) => {
 }
 const client = (email, first) => {
     let token = first
+    // A token running out hits every upload worker at once: they share one
+    // sign-in — a second one would void the first one's code request.
+    let renewing = null
+    const renew = async (stale) => {
+        if (token !== stale) return
+        renewing ??= signIn(email)
+            .then((fresh) => {
+                token = fresh
+            })
+            .finally(() => {
+                renewing = null
+            })
+        await renewing
+    }
     return async (method, path, body) => {
-        for (let retried = false; ; retried = true) {
+        let signedInAgain = false
+        let throttled = 0
+        for (;;) {
+            const used = token
             const response = await request(`${API}${path}`, {
                 method,
-                headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${token}` },
+                headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${used}` },
                 body: body ? JSON.stringify(body) : undefined,
             })
-            if (response.status === 401 && !retried) {
-                token = await signIn(email)
+            if (response.status === 401 && !signedInAgain) {
+                signedInAgain = true
+                await response.body?.cancel()
+                await renew(used)
+                continue
+            }
+            if (response.status === 429 && throttled < THROTTLE_RETRIES) {
+                throttled++
+                await waitOut(response)
                 continue
             }
             if (!response.ok) fail(`${method} ${path} → ${response.status} ${await response.text()}`)
@@ -246,9 +297,21 @@ const client = (email, first) => {
     }
 }
 
+// Straight to the storage with the presigned URL, streamed from disk (a course
+// file can be gigabytes). Its failures are the storage's, not the API's.
 const put = async (url, file, contentType) => {
-    const response = await request(url, { method: 'PUT', headers: { 'Content-Type': contentType }, body: readFileSync(file) })
-    if (!response.ok) fail(`Хранилище отклонило загрузку ${file} (${response.status}): проверьте S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY в .env.`)
+    let response
+    try {
+        response = await fetch(url, { method: 'PUT', headers: { 'Content-Type': contentType }, body: await openAsBlob(file) })
+    } catch (error) {
+        fail(`Хранилище не ответило при загрузке ${file}: ${error.cause?.message ?? error.message}. Проверьте сеть и S3_UPLOAD_BUCKET_URL, затем запустите команду ещё раз.`)
+    }
+    if (response.ok) return
+    // Only the code and message of S3's XML: the rest may echo the signed request.
+    const xml = await response.text()
+    const reason = [/<Code>([^<]*)<\/Code>/.exec(xml)?.[1], /<Message>([^<]*)<\/Message>/.exec(xml)?.[1]].filter(Boolean).join(': ')
+    const hint = response.status === 403 ? 'проверьте S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY в .env' : 'запустите команду ещё раз'
+    fail(`Хранилище отклонило загрузку ${file} (${response.status}${reason ? ` ${reason}` : ''}): ${hint}.`)
 }
 
 const started = Date.now()
@@ -269,8 +332,15 @@ const library = await listLibrary()
 // uploading → uploaded (queued) → processing → ready | failed: a video that
 // never finished uploading or failed is redone, the rest are kept or awaited.
 const alive = (v) => v.status !== 'uploading' && v.status !== 'failed'
+// Each id once (a deleted one would fail the whole request), 200 a request —
+// the endpoint's cap.
+const removed = new Set()
 const removeVideos = async (ids) => {
-    if (ids.length > 0) await api('POST', '/admin/videos/bulk', { workspaceId: ws, videoIds: ids, action: 'delete' })
+    const fresh = [...new Set(ids)].filter((id) => !removed.has(id))
+    for (const id of fresh) removed.add(id)
+    for (let i = 0; i < fresh.length; i += 200) {
+        await api('POST', '/admin/videos/bulk', { workspaceId: ws, videoIds: fresh.slice(i, i + 200), action: 'delete' })
+    }
 }
 
 const coursePath = (id) => `/workspaces/${ws}/playlists/${id}`
@@ -304,7 +374,7 @@ const waiting = []
 // as the newest of the matches.
 const replacements = []
 const clipsCourse = []
-const created = new Map(library.map((v) => [v.id, v.createdAt]))
+const createdAt = new Map(library.map((v) => [v.id, v.createdAt]))
 const targets = [...courseList]
     .filter((c) => c.title !== CLIPS_COURSE && !plans.some((p) => p.title === c.title))
     .sort((a, b) => (b.title === AUDIENCE_FROM) - (a.title === AUDIENCE_FROM) || a.slug.localeCompare(b.slug))
@@ -314,23 +384,34 @@ for (const clip of clips) {
         clipsCourse.push(lesson(CLIPS_COURSE, null, clip.title, clip))
         continue
     }
-    const matches = details.get(course.id).videos.filter((v) => clip.lesson.test(v.title))
+    // Without its length a clip can't be told from the generated one: left as is.
     const length = probeDuration(clip.file)
+    if (length === null) {
+        skipped.push(`${clip.file} — не удалось прочитать длительность`)
+        console.log(`• Пропускаю ${clip.file}: ffmpeg не прочитал длительность — без неё не понять, стоит ли ролик уже в уроке. Проверьте файл.`)
+        continue
+    }
+    const playsIt = (v) => v.status === 'ready' && Math.abs((v.duration ?? 0) - length) <= 1
+    const matches = details.get(course.id).videos.filter((v) => clip.lesson.test(v.title))
     const [only] = matches
-    if (matches.length === 1 && only.status === 'ready' && length !== null && Math.abs((only.duration ?? 0) - length) <= 1) {
+    if (matches.length === 1 && playsIt(only)) {
         console.log(`• «${course.title}» · «${only.title}» уже с настоящим роликом — пропускаю`)
         continue
     }
-    let mine = matches.length > 1 ? [...matches].sort((a, b) => (created.get(b.id) ?? '').localeCompare(created.get(a.id) ?? ''))[0] : null
+    let mine = matches.length > 1 ? [...matches].sort((a, b) => (createdAt.get(b.id) ?? '').localeCompare(createdAt.get(a.id) ?? ''))[0] : null
     if (mine && !alive(mine)) {
         await removeVideos([mine.id])
         mine = null
     }
     const old = matches.filter((v) => v !== mine)
-    // An upload a stopped run left outside the course: picked up, or gone.
-    const left = mine ? null : library.find((v) => v.playlists.length === 0 && v.title === old[0].title)
-    if (left && !alive(left)) await removeVideos([left.id])
-    const reuse = left && alive(left) ? left.id : null
+    // Uploads a stopped run left outside the course, by title: the one that
+    // plays this file (its length) is picked up, the rest go — demo:videos
+    // leaves orphans of that title too, and one still in processing is
+    // cheaper to upload again than to tell apart.
+    const orphans = mine ? [] : library.filter((v) => v.playlists.length === 0 && v.title === old[0].title)
+    const left = orphans.find(playsIt)
+    await removeVideos(orphans.filter((v) => v !== left).map((v) => v.id))
+    const reuse = left?.id ?? null
     const r = { clip, course, old, attached: Boolean(mine), videoId: mine?.id ?? reuse, label: `«${course.title}» · «${old[0].title}»` }
     replacements.push(r)
     if (!r.videoId) {
@@ -346,18 +427,31 @@ if (clipsCourse.length > 0) plans.push({ title: CLIPS_COURSE, lessons: clipsCour
 
 // ---- courses ----------------------------------------------------------------
 
-const audience = await (async () => {
+// The audience of «БЖЖ: база белого пояса», read once — the first time a
+// course is created. Without that course a new one would open to everyone.
+let audience = null
+const audienceOf = async () => {
+    if (audience) return audience
     const from = courseList.find((c) => c.title === AUDIENCE_FROM)
-    if (!from) return { groupIds: [], directionIds: [], rankLevelIds: [], planIds: [] }
+    if (!from) fail(`В клубе нет курса «${AUDIENCE_FROM}», чью аудиторию берут новые курсы — сначала npm run demo:reset.`)
     const a = await api('GET', `${coursePath(from.id)}/audience`)
-    return { groupIds: a.groupIds, directionIds: a.directionIds, rankLevelIds: a.rankLevelIds, planIds: a.planIds }
-})()
+    audience = { groupIds: a.groupIds, directionIds: a.directionIds, rankLevelIds: a.rankLevelIds, planIds: a.planIds }
+    return audience
+}
 const slugs = new Set(courseList.map((c) => c.slug))
+// Which of a lesson's copies stays: one that plays or will, ready, in its
+// chapter, the oldest.
+const best = (l) => (a, b) =>
+    alive(b) - alive(a) ||
+    (b.status === 'ready') - (a.status === 'ready') ||
+    ((b.chapterTitle ?? null) === l.chapter) - ((a.chapterTitle ?? null) === l.chapter) ||
+    (createdAt.get(a.id) ?? '').localeCompare(createdAt.get(b.id) ?? '')
 
 const courses = []
 for (const plan of plans) {
     let summary = courseList.find((c) => c.title === plan.title)
     if (!summary) {
+        const who = await audienceOf()
         let slug = slugify(plan.title)
         for (let i = 2; slugs.has(slug); i++) slug = `${slugify(plan.title)}-${i}`
         slugs.add(slug)
@@ -370,7 +464,7 @@ for (const plan of plans) {
             isPublic: true,
             publishedAt: null,
         })
-        await api('PUT', `${coursePath(summary.id)}/audience`, audience)
+        await api('PUT', `${coursePath(summary.id)}/audience`, who)
         details.set(summary.id, await api('GET', coursePath(summary.id)))
         console.log(`✔ Курс «${plan.title}» создан (черновик до готовности всех уроков)`)
     }
@@ -383,31 +477,60 @@ for (const plan of plans) {
         if (!course.chapterIds.has(title)) course.chapterIds.set(title, (await api('POST', `${path}/chapters`, { title })).id)
     }
 
-    const inCourse = new Map(current.videos.map((v) => [`${v.chapterTitle}\u0000${v.title}`, v]))
+    // A lesson in the course is found by the stamp of its upload (title and
+    // description), all copies a stopped run's re-uploads made too — the best
+    // stays, the rest go. A lesson added by hand (no stamp) is found by its
+    // chapter and title, and only once no stamped one claimed it.
+    const copies = new Map(plan.lessons.map((l) => [l, []]))
+    const claimed = new Set()
+    for (const l of plan.lessons) {
+        for (const v of current.videos) {
+            if (claimed.has(v.id) || v.title !== l.title || v.description !== l.description) continue
+            claimed.add(v.id)
+            copies.get(l).push(v)
+        }
+    }
+    for (const l of plan.lessons) {
+        if (copies.get(l).length > 0) continue
+        const byHand = current.videos.filter((v) => !claimed.has(v.id) && v.title === l.title && (v.chapterTitle ?? null) === l.chapter).sort(best(l))[0]
+        if (byHand) {
+            claimed.add(byHand.id)
+            copies.get(l).push(byHand)
+        }
+    }
     const broken = []
     for (const l of plan.lessons) {
         const entry = { ...l, videoId: null, fresh: false }
         course.lessons.push(entry)
-        const there = inCourse.get(`${l.chapter}\u0000${l.title}`)
+        const [there, ...extra] = copies.get(l).sort(best(l))
+        broken.push(...extra.map((v) => v.id))
         if (there && alive(there)) {
             entry.videoId = there.id
         } else {
             if (there) broken.push(there.id)
-            const left = library.find((v) => v.playlists.length === 0 && v.title === l.title && (v.description ?? null) === l.description)
-            if (left && alive(left)) {
-                entry.videoId = left.id
-                entry.fresh = true
-            } else {
-                if (left) broken.push(left.id)
-                entry.fresh = true
-                jobs.push({ label: `${l.description} · «${l.title}»`, size: l.size, run: async () => (entry.videoId = await upload(l)) })
-            }
+            // Outside the course, the others are swept below.
+            const left = library.filter((v) => v.playlists.length === 0 && v.title === l.title && v.description === l.description && alive(v)).sort(best(l))[0]
+            entry.fresh = true
+            if (left) entry.videoId = left.id
+            else jobs.push({ label: `${l.description} · «${l.title}»`, size: l.size, run: async () => (entry.videoId = await upload(l)) })
         }
         waiting.push({ label: `${l.description} · «${l.title}»`, id: () => entry.videoId, course })
     }
     await removeVideos(broken)
     const reused = plan.lessons.length - course.lessons.filter((e) => e.fresh).length
-    console.log(`• «${plan.title}»: уроков ${plan.lessons.length}, уже в курсе ${reused}`)
+    const extras = broken.length > 0 ? `, удалено лишних и сломанных копий ${broken.length}` : ''
+    console.log(`• «${plan.title}»: уроков ${plan.lessons.length}, уже в курсе ${reused}${extras}`)
+}
+
+// Uploads of this script outside any course that nothing picked up above (a
+// stopped run's, a renamed file's): their description names a course of this
+// run. Videos uploaded during this run are not in `library`.
+const adopted = new Set([...courses.flatMap((c) => c.lessons.map((e) => e.videoId)), ...replacements.map((r) => r.videoId)])
+const stamped = (v) => plans.some((p) => v.description === p.title || v.description?.startsWith(`${p.title} · `))
+const strays = library.filter((v) => v.playlists.length === 0 && !adopted.has(v.id) && stamped(v)).map((v) => v.id)
+if (strays.length > 0) {
+    await removeVideos(strays)
+    console.log(`• Удалено загрузок прерванных запусков вне курса: ${strays.length}`)
 }
 
 // ---- upload, attach, order --------------------------------------------------
@@ -433,15 +556,18 @@ if (jobs.length > 0) {
     console.log(`• Загрузка — ${elapsed(from)}`)
 }
 
-// One attach per course in lesson order, a chapter per new lesson, a move only
-// for a lesson out of place.
+// One attach per course in lesson order, then the chapters and the order of
+// every lesson, not just the new ones — a run stopped after the attach left
+// some without their chapter or place. A PATCH only where it is off.
 for (const course of courses) {
     const fresh = course.lessons.filter((e) => e.fresh)
     for (let i = 0; i < fresh.length; i += 200) {
         await api('POST', `${course.path}/videos`, { videoIds: fresh.slice(i, i + 200).map((e) => e.videoId) })
     }
-    for (const e of fresh) {
-        if (e.chapter) await api('PATCH', `${course.path}/videos/${e.videoId}`, { chapterId: course.chapterIds.get(e.chapter) })
+    const inCourse = new Map((await api('GET', course.path)).videos.map((v) => [v.id, v]))
+    for (const e of course.lessons) {
+        const chapterId = e.chapter ? course.chapterIds.get(e.chapter) : null
+        if (chapterId && inCourse.get(e.videoId)?.chapterId !== chapterId) await api('PATCH', `${course.path}/videos/${e.videoId}`, { chapterId })
     }
     const { videos } = await api('GET', course.path)
     const current = videos.map((v) => v.id)
