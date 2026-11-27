@@ -508,8 +508,9 @@ for (const plan of plans) {
             entry.videoId = there.id
         } else {
             if (there) broken.push(there.id)
-            // Outside the course, the others are swept below.
-            const left = library.filter((v) => v.playlists.length === 0 && v.title === l.title && v.description === l.description && alive(v)).sort(best(l))[0]
+            // Outside the course, the others are swept below. `removed`: the
+            // clip step may already have deleted a same-title leftover.
+            const left = library.filter((v) => v.playlists.length === 0 && !removed.has(v.id) && v.title === l.title && v.description === l.description && alive(v)).sort(best(l))[0]
             entry.fresh = true
             if (left) entry.videoId = left.id
             else jobs.push({ label: `${l.description} · «${l.title}»`, size: l.size, run: async () => (entry.videoId = await upload(l)) })
