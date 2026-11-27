@@ -14,7 +14,7 @@
 // run only finishes what the first one did not. Needs the API (ROOT_URL),
 // MinIO and the video worker running, and DEMO_LOGIN_CODE in .env.
 // «Сбросить демо» deletes the clips with the rest of the club — run it again
-// after a reset.
+// after a reset. Courses of `npm run demo:real-courses` are left alone.
 
 import { spawn } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -416,6 +416,14 @@ for (const name of selected) {
     for (const [ci, summary] of [...list].sort((a, b) => a.slug.localeCompare(b.slug)).entries()) {
         const path = `/workspaces/${ws}/playlists/${summary.id}`
         const { videos } = await api('GET', path)
+        // A course of demo:real-courses holds the owner's real videos — not
+        // ours to redraw, sweep or cover. Its uploads carry the course title as
+        // description («<course>» or «<course> · <chapter>»); the generator's
+        // lessons have «<course> — <chapter>».
+        if (videos.some((v) => v.description === summary.title || v.description?.startsWith(`${summary.title} · `))) {
+            console.log(`• ${def.short} · курс «${summary.title}» — из demo:real-courses, не трогаю`)
+            continue
+        }
         const palette = PALETTES[ci % PALETTES.length]
         const course = { ...summary, path, palette, lessons: videos.length, order: videos.map((v) => v.id), tasks: [] }
         club.courses.push(course)
