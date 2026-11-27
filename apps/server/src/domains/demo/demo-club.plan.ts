@@ -920,17 +920,17 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         .filter((p) => p.archetype === 'fanatic' && p.kind === 'adult' && p.groups.length === 1)
         .forEach((p) => secondGroup(p, fanaticExtra[groupDef(p.groups[0].key).dir]))
     crossFrom('dvBjjEvening', 'dvMma', 5, ['regular'])
-    crossFrom('yuBjj', 'rysMma', 3, ['regular'])
+    crossFrom('yuBjj', 'dvMma', 3, ['regular'])
     crossFrom('shBjjEvening', 'svMuay', 3, ['regular', 'casual'])
-    crossFrom('rysMma', 'yuBjj', 2, ['regular'])
+    crossFrom('dvMma', 'yuBjj', 2, ['regular'])
 
-    // «Дни рождения сегодня»: Аня, an adult of the MMA group in «Белая рысь»
-    // (outside the БЖЖ direction manager's groups) and a kid of «Юпитер» —
-    // three rows for the owner, two for the БЖЖ direction manager. Nobody
-    // else in the club has a birthday today, so the list is the same on
+    // «Дни рождения сегодня»: Аня, an adult of the MMA group in «Дворец
+    // спорта» (outside the БЖЖ direction manager's groups) and a kid of
+    // «Юпитер» — three rows for the owner, two for the БЖЖ direction manager.
+    // Nobody else in the club has a birthday today, so the list is the same on
     // every reset.
     const birthdayAdult = generatedOlder.find(
-        (p) => p.archetype === 'regular' && p.groups.length === 1 && p.groups[0].key === 'rysMma',
+        (p) => p.archetype === 'regular' && p.groups.length === 1 && p.groups[0].key === 'dvMma',
     )
     const birthdayKid = generatedKids.find((p) => p.archetype === 'regular' && p.groups[0].key === 'yuKidsJunior')
     for (const p of persons) {
@@ -1139,13 +1139,13 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         })
     }
     // A cancelled week in the past (no sessions then) and one ahead.
-    const pastBreak = { group: 'rysMma' as GroupKey, from: ago(17), until: ago(11) }
+    const pastBreak = { group: 'rysBjj' as GroupKey, from: ago(17), until: ago(11) }
     plan.scheduleExceptions.push({
         groupId: groupId(pastBreak.group),
         slotId: null,
         fromDate: ymdToDbDate(pastBreak.from),
         untilDate: ymdToDbDate(pastBreak.until),
-        reason: 'Тренер на сборах',
+        reason: 'Зал закрыт на ремонт',
     })
     const busySaturday = nextDow(6, 3)
     plan.scheduleExceptions.push({
@@ -2281,7 +2281,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         { key: 'openmat-past', title: 'Open mat BJJ', description: 'Свободные спарринги для всех уровней и всех залов. Можно в ги и без.', ymd: prevSat, time: '17:00', hours: 2, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
         { key: 'openmat-next', title: 'Open mat BJJ', description: 'Свободные спарринги для всех уровней и всех залов. Можно в ги и без.', ymd: nextSat, time: '17:00', hours: 2, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
         { key: 'seminar', title: 'Семинар: проходы гарда — гость клуба, чёрный пояс', description: 'Три часа техники и вопросов. Для синих поясов и старше, белым — по согласованию с тренером.', ymd: addDaysYmd(nextSat, 7), time: '12:00', hours: 3, gym: 'yupiter', dir: 'bjj', coach: null, by: 'reshetyuk', link: 'https://academytomsk.ru', tickets: { price: 2500, capacity: 20, hostName: 'Гость клуба, чёрный пояс' } },
-        { key: 'mma-sparring', title: 'Спарринг-день ММА', description: 'Раунды по 3 минуты, перчатки и капа обязательны.', ymd: ahead(6), time: '19:00', hours: 2, gym: 'rys', dir: 'mma', coach: 'starokorov', by: 'starokorov' },
+        // Sunday 15:00: the hall is free (only «BJJ Младшие дети» 12:00–13:00).
+        { key: 'mma-sparring', title: 'Спарринг-день ММА', description: 'Раунды по 3 минуты, перчатки и капа обязательны.', ymd: nextDow(7), time: '15:00', hours: 2, gym: 'dvorets', dir: 'mma', coach: 'starokorov', by: 'starokorov' },
         { key: 'muay-clinch', title: 'Мастер-класс: клинч и колени', description: 'Работа в клинче с Романом Савельевым. Северск, приезжайте из Томска.', ymd: ahead(9), time: '14:00', hours: 2, gym: 'seversk', dir: 'muay', coach: 'savelyev', by: 'savelyev', tickets: { price: 1500, capacity: 16, hostName: null } },
         { key: 'kids-cup', title: 'Детский турнир по BJJ «Кубок ACADEMY»', description: 'Для детей 5–13 лет из всех залов. Взвешивание с 9:00.', ymd: ahead(20), time: '10:00', hours: 5, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
         { key: 'club-meetup', title: 'Клубная встреча: итоги сезона', description: 'Награждаем самых преданных учеников, рассказываем о планах. Чай и пицца.', ymd: ahead(25), time: '19:00', hours: 2, gym: 'dvorets', dir: null, coach: null, by: 'owner' },
@@ -2398,7 +2399,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     for (const c of ['savelyev', 'reshetyuk', 'starokorov'] as StaffKey[]) {
         plan.ptCoaches.push({ workspaceId, userId: staffId(c), createdAt: at(ago(60), '12:00') })
     }
-    const mmaPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'regular' && p.groups.some((g) => g.key === 'rysMma'))!
+    const mmaPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'regular' && p.groups.some((g) => g.key === 'dvMma'))!
     const muayPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'regular' && p.groups.some((g) => g.key === 'svMuay'))!
     const declinedPerson = members.find((p) => !fixedPeople.has(p) && p.archetype === 'casual')!
     // Asks coach@ himself, so the coach's phone has a personal request to answer.
@@ -2451,7 +2452,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             workspaceId,
             memberId: r.member.id,
             coachId: staffId(r.coach),
-            // Персональные тренировки Савельева — в Северске.
+            // Персональные тренировки Савельева — в Северске, Старокорова — в «Белой рыси»
+            // (утром зал свободен; во «Дворце спорта» утром детские и BJJ).
             gymId: gymId(r.coach === 'savelyev' ? 'seversk' : r.coach === 'starokorov' ? 'rys' : 'yupiter'),
             timezone: tz,
             status: r.status,
@@ -2533,8 +2535,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
     // Решетюк is away: Савельев (head coach) runs his next БЖЖ at «Юпитер» —
     // student@ booked into it and sees «Замена: Р. Савельев».
     substitute('yuBjj', soonestSlot('yuBjj'), 'savelyev', 'ASSIGN', 'reshetyuk')
-    // Власов offers to take Старокоров's next ММА at «Белая рысь»: waits for the go-ahead.
-    substitute('rysMma', soonestSlot('rysMma'), 'vlasov', 'OFFER', 'vlasov')
+    // Власов offers to take Чертовских's next БЖЖ at «Белая рысь»: waits for the go-ahead.
+    substitute('rysBjj', soonestSlot('rysBjj'), 'vlasov', 'OFFER', 'vlasov')
 
     // ---- «Выплаты тренерам» ---------------------------------------------------------
     // Rates from half a year back; Решетюк got a raise from this month (two
@@ -2665,7 +2667,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         groups: GROUPS.filter((g) => g.dir === 'bjj' && g.kind === 'adult').map((g) => g.key),
     })
     announce('savelyev', 'Open mat по субботам', 'Каждую субботу в 17:00 во «Дворце спорта» — свободные спарринги для всех залов. Приводите друзей: первое занятие бесплатно.', 12, { dir: 'bjj' })
-    announce('starokorov', 'Спарринг-день в «Белой рыси»', 'Нужны перчатки 16 oz, капа и бинты. Новичкам — только технические раунды.', 1, { dir: 'mma' })
+    announce('starokorov', 'Спарринг-день во «Дворце спорта»', 'Нужны перчатки 16 oz, капа и бинты. Новичкам — только технические раунды.', 1, { dir: 'mma' })
     announce('savelyev', 'Северск: купите бинты и капу', 'С 1 числа без бинтов и капы к парным работам не допускаем.', 8, { dir: 'muay' })
     announce('savelyev', 'Запись на детский турнир — до пятницы', 'Для всех детских групп. Взвешивание в день турнира с 9:00, нужна медицинская справка и страховка.', 4, { dir: 'bjj' })
     announce('admin', 'Абонемент — 30 дней с первой тренировки', 'Купили заранее — срок пойдёт с первого занятия. Заморозку и отметку оплаты делает тренер вашей группы.', 15)

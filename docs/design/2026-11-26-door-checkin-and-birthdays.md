@@ -448,7 +448,7 @@ matrix: no change (no routes).
 - **(implementation) The `member.updateOwnProfile` audit keeps the date as sent** (`YYYY-MM-DD`), not the
   stored timestamp.
 - **(implementation) Demo generator is in the server slice** (the assignment moved it from S3). Аня turns 7
-  on reset day; the other two are the first regular single-group adult of «ММА Взрослые» (Белая рысь,
+  on reset day; the other two are the first regular single-group adult of «ММА Взрослые» (Дворец спорта,
   outside the БЖЖ direction manager's groups) and the first regular kid of «Юпитер» juniors, so the owner
   sees three rows and the БЖЖ direction manager two. Anyone else whose random date falls on reset day is
   moved a week earlier, so the list is the same on every reset. On 29 February the leap year at or before
