@@ -1145,7 +1145,7 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         slotId: null,
         fromDate: ymdToDbDate(pastBreak.from),
         untilDate: ymdToDbDate(pastBreak.until),
-        reason: 'Тренер на сборах',
+        reason: 'Зал закрыт на ремонт',
     })
     const busySaturday = nextDow(6, 3)
     plan.scheduleExceptions.push({
@@ -2281,7 +2281,8 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
         { key: 'openmat-past', title: 'Open mat BJJ', description: 'Свободные спарринги для всех уровней и всех залов. Можно в ги и без.', ymd: prevSat, time: '17:00', hours: 2, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
         { key: 'openmat-next', title: 'Open mat BJJ', description: 'Свободные спарринги для всех уровней и всех залов. Можно в ги и без.', ymd: nextSat, time: '17:00', hours: 2, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
         { key: 'seminar', title: 'Семинар: проходы гарда — гость клуба, чёрный пояс', description: 'Три часа техники и вопросов. Для синих поясов и старше, белым — по согласованию с тренером.', ymd: addDaysYmd(nextSat, 7), time: '12:00', hours: 3, gym: 'yupiter', dir: 'bjj', coach: null, by: 'reshetyuk', link: 'https://academytomsk.ru', tickets: { price: 2500, capacity: 20, hostName: 'Гость клуба, чёрный пояс' } },
-        { key: 'mma-sparring', title: 'Спарринг-день ММА', description: 'Раунды по 3 минуты, перчатки и капа обязательны.', ymd: ahead(6), time: '19:00', hours: 2, gym: 'dvorets', dir: 'mma', coach: 'starokorov', by: 'starokorov' },
+        // Sunday 15:00: the hall is free (only «BJJ Младшие дети» 12:00–13:00).
+        { key: 'mma-sparring', title: 'Спарринг-день ММА', description: 'Раунды по 3 минуты, перчатки и капа обязательны.', ymd: nextDow(7), time: '15:00', hours: 2, gym: 'dvorets', dir: 'mma', coach: 'starokorov', by: 'starokorov' },
         { key: 'muay-clinch', title: 'Мастер-класс: клинч и колени', description: 'Работа в клинче с Романом Савельевым. Северск, приезжайте из Томска.', ymd: ahead(9), time: '14:00', hours: 2, gym: 'seversk', dir: 'muay', coach: 'savelyev', by: 'savelyev', tickets: { price: 1500, capacity: 16, hostName: null } },
         { key: 'kids-cup', title: 'Детский турнир по BJJ «Кубок ACADEMY»', description: 'Для детей 5–13 лет из всех залов. Взвешивание с 9:00.', ymd: ahead(20), time: '10:00', hours: 5, gym: 'dvorets', dir: 'bjj', coach: 'savelyev', by: 'savelyev' },
         { key: 'club-meetup', title: 'Клубная встреча: итоги сезона', description: 'Награждаем самых преданных учеников, рассказываем о планах. Чай и пицца.', ymd: ahead(25), time: '19:00', hours: 2, gym: 'dvorets', dir: null, coach: null, by: 'owner' },
@@ -2451,8 +2452,9 @@ export const buildDemoClubPlan = (input: DemoPlanInput): DemoClubPlan => {
             workspaceId,
             memberId: r.member.id,
             coachId: staffId(r.coach),
-            // Персональные тренировки Савельева — в Северске, Старокорова — там же, где ММА.
-            gymId: gymId(r.coach === 'savelyev' ? 'seversk' : r.coach === 'starokorov' ? 'dvorets' : 'yupiter'),
+            // Персональные тренировки Савельева — в Северске, Старокорова — в «Белой рыси»
+            // (утром зал свободен; во «Дворце спорта» утром детские и BJJ).
+            gymId: gymId(r.coach === 'savelyev' ? 'seversk' : r.coach === 'starokorov' ? 'rys' : 'yupiter'),
             timezone: tz,
             status: r.status,
             memberComment: r.memberComment,
