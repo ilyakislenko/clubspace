@@ -345,6 +345,73 @@ export const trialLimitRows = (b: {
   },
 ]
 
+// `neutral`: reaching it blocks nothing (the tier switches by itself), so its
+// bar never turns amber/red.
+export type ClubLimitRow = { label: string; usedLabel: string; percent: number; neutral?: boolean }
+
+// What «Лимиты» needs of the club's billing; null when billing is off on this
+// install (no tier, trial or video quota exists).
+export type ClubLimitsBilling = {
+  activeMembers: number
+  tier: BillingTierRef
+  modules: { code: string; entitled: boolean }[]
+  trial: Parameters<typeof trialLimitRows>[0]["trial"] & { limited: boolean }
+  videoUsage: BillingSnapshot["videoUsage"]
+}
+
+// The AI assistant's monthly question quota; null when its state is unknown.
+export type ClubLimitsAi = { configured: boolean; limit: { used: number; perMonth: number } }
+
+// «Лимиты»: every quota the club has and how much of it is used, in a fixed
+// order — active students vs the tier, the trial caps while they apply (else
+// the video module's included storage and views), AI questions this month. A
+// quota that does not exist for this club (incl. a tier without a cap) is
+// left out.
+export const clubLimitRows = (
+  billing: ClubLimitsBilling | null,
+  ai: ClubLimitsAi | null,
+): ClubLimitRow[] => {
+  const rows: ClubLimitRow[] = []
+  if (billing) {
+    const { activeMembers, tier, videoUsage } = billing
+    if (tier.upTo !== null) {
+      rows.push({
+        label: `Активные ученики · тариф «${tier.name}»`,
+        usedLabel: `${activeMembers} из ${tier.upTo}`,
+        percent: usagePercent(activeMembers, tier.upTo),
+        neutral: true,
+      })
+    }
+    if (billing.trial.limited) {
+      rows.push(...trialLimitRows(billing))
+    } else if (billing.modules.some((m) => m.code === "VIDEO" && m.entitled)) {
+      rows.push(
+        {
+          label: "Видео в хранилище",
+          usedLabel: `${formatBytes(videoUsage.storageBytes)} из ${videoUsage.includedStorageGb} ГБ`,
+          percent: usagePercent(videoUsage.storageBytes, videoUsage.includedStorageGb * GB),
+        },
+        {
+          label: "Просмотры видео в этом месяце",
+          usedLabel: `${formatHours(videoUsage.viewedSecondsThisMonth)} ч из ${videoUsage.includedViewHours} ч`,
+          percent: usagePercent(
+            videoUsage.viewedSecondsThisMonth,
+            videoUsage.includedViewHours * HOUR_S,
+          ),
+        },
+      )
+    }
+  }
+  if (ai?.configured) {
+    rows.push({
+      label: "Вопросы ИИ-ассистенту в этом месяце",
+      usedLabel: `${ai.limit.used} из ${ai.limit.perMonth}`,
+      percent: usagePercent(ai.limit.used, ai.limit.perMonth),
+    })
+  }
+  return rows
+}
+
 // ─── Card payments, autopay and self-serve modules ─────────────────────
 
 export const MODULE_NAME: Record<string, string> = {
