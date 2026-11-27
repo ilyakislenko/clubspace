@@ -5,6 +5,7 @@ import {
   Award,
   BarChart3,
   CalendarCheck,
+  ChartPie,
   ChevronsUpDown,
   CreditCard,
   FileText,
@@ -323,12 +324,20 @@ export function WorkspaceSidebar() {
                   Мой профиль
                 </DropdownMenuItem>
                 {isClubAdmin(membership) && (
-                  <DropdownMenuItem asChild>
-                    <Link href={`${basePath}/billing`}>
-                      <Gauge className="size-4" />
-                      Подписка ClubSpace
-                    </Link>
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link href={`${basePath}/billing`}>
+                        <Gauge className="size-4" />
+                        Подписка ClubSpace
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href={`${basePath}/limits`}>
+                        <ChartPie className="size-4" />
+                        Лимиты
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
                 )}
                 {(adminClubs > 1 || hasOrganization || me?.isSuperAdmin) && (
                   <DropdownMenuItem asChild>

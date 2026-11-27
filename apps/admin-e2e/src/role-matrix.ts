@@ -39,9 +39,10 @@ const SETTINGS_SECTIONS = [
 ] as const
 
 // Money and system: owner/admin only (ClubAdminGate). «Подписка ClubSpace»
-// (billing) sits in the account menu.
+// (billing) and «Лимиты» (limits) sit in the account menu.
 const CLUB_ADMIN_ONLY = [
   'billing',
+  'limits',
   'subscriptions',
   'subscriptions/discounts',
   'subscriptions/payments',
@@ -53,7 +54,7 @@ const CLUB_ADMIN_ONLY = [
   'analytics/export',
 ] as const
 
-const CLUB_ADMIN_OFF_MENU = ['billing', 'club-import', ...SETTINGS_SECTIONS] as const
+const CLUB_ADMIN_OFF_MENU = ['billing', 'limits', 'club-import', ...SETTINGS_SECTIONS] as const
 
 // «Удержание → Продлить» (renewals and unpaid abonements): sport leads.
 const RENEW_TAB = 'retention?tab=renew'

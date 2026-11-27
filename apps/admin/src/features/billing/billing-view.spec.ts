@@ -1,5 +1,6 @@
 import {
   billingBanner,
+  clubLimitRows,
   daysUntil,
   declineReasonRu,
   formatBytes,
@@ -30,6 +31,7 @@ import {
   usagePercent,
   videoOverage,
   type BillingSnapshot,
+  type ClubLimitRow,
   type LegalStatusView,
 } from "./billing-view"
 
@@ -280,6 +282,58 @@ describe("billing view", () => {
     })
     expect(rows.map((r) => r.usedLabel)).toEqual(["1 ГБ из 2 ГБ", "12 ч из 10 ч", "50 из 200"])
     expect(rows.map((r) => r.percent)).toEqual([50, 100, 25])
+  })
+
+  describe("club limits", () => {
+    const trial = {
+      limited: false,
+      videoStorageGb: 2,
+      videoViewHoursPerMonth: 10,
+      emailLimit: 200,
+      emailsSent: 50,
+    }
+    const paid = { ...base, activeMembers: 87, tier: { ...klub, upTo: 150 }, trial }
+    const ai = { configured: true, limit: { used: 12, perMonth: 100 } }
+    const shown = (rows: ClubLimitRow[]) => rows.map((r) => [r.label, r.usedLabel, r.percent])
+
+    it("measures active students against the tier, count only without a cap", () => {
+      expect(shown(clubLimitRows({ ...paid, modules: [] }, null))).toEqual([
+        ["Активные ученики · тариф «Клуб»", "87 из 150", 58],
+      ])
+      expect(shown(clubLimitRows({ ...paid, tier: set, modules: [] }, null))).toEqual([
+        ["Активные ученики · тариф «Сеть»", "87", null],
+      ])
+    })
+
+    it("shows the trial caps while the trial is limited, not the video module's", () => {
+      const rows = clubLimitRows({ ...paid, trial: { ...trial, limited: true } }, null)
+      expect(rows.map((r) => r.label)).toEqual([
+        "Активные ученики · тариф «Клуб»",
+        "Видео в хранилище",
+        "Просмотры видео в этом месяце",
+        "Письма",
+      ])
+      expect(rows.map((r) => r.usedLabel).slice(1)).toEqual(["5 ГБ из 2 ГБ", "10 ч из 10 ч", "50 из 200"])
+    })
+
+    it("shows the video module's included usage once paid, nothing without the module", () => {
+      expect(shown(clubLimitRows(paid, null)).slice(1)).toEqual([
+        ["Видео в хранилище", "5 ГБ из 20 ГБ", 25],
+        ["Просмотры видео в этом месяце", "10 ч из 100 ч", 10],
+      ])
+      const offVideo = { ...paid, modules: [{ code: "VIDEO", entitled: false }] }
+      expect(clubLimitRows(offVideo, null).map((r) => r.label)).toEqual([
+        "Активные ученики · тариф «Клуб»",
+      ])
+    })
+
+    it("adds AI questions only when the assistant is configured, even with billing off", () => {
+      const aiRow = ["Вопросы ИИ-ассистенту в этом месяце", "12 из 100", 12]
+      expect(shown(clubLimitRows({ ...paid, modules: [] }, ai)).at(-1)).toEqual(aiRow)
+      expect(clubLimitRows({ ...paid, modules: [] }, { ...ai, configured: false })).toHaveLength(1)
+      expect(shown(clubLimitRows(null, ai))).toEqual([aiRow])
+      expect(clubLimitRows(null, { ...ai, configured: false })).toEqual([])
+    })
   })
 
   it("translates YooKassa decline reasons, keeps Russian text, falls back", () => {
