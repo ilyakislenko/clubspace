@@ -66,12 +66,7 @@ export default function WorkspaceLimitsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Лимиты</h1>
-        <p className="text-sm text-muted-foreground">
-          Что входит в подписку клуба и сколько из этого уже использовано.
-        </p>
-      </div>
+      <h1 className="text-2xl font-semibold">Лимиты</h1>
 
       <div className="space-y-2">
         <section className="space-y-4 rounded-lg border bg-card p-4">
@@ -81,12 +76,17 @@ export default function WorkspaceLimitsPage() {
               label={row.label}
               usedLabel={row.usedLabel}
               percent={row.percent}
+              tone={row.neutral ? "neutral" : "cap"}
             />
           ))}
-          {!billing && (
+          {!billing ? (
             <p className="text-sm text-muted-foreground">
               На этой установке ClubSpace лимитов по тарифу нет.
             </p>
+          ) : (
+            rows.length === 0 && (
+              <p className="text-sm text-muted-foreground">У клуба сейчас нет лимитов.</p>
+            )
           )}
         </section>
         {footnote && <p className="text-xs text-muted-foreground">{footnote}</p>}

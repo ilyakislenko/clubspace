@@ -296,13 +296,16 @@ describe("billing view", () => {
     const ai = { configured: true, limit: { used: 12, perMonth: 100 } }
     const shown = (rows: ClubLimitRow[]) => rows.map((r) => [r.label, r.usedLabel, r.percent])
 
-    it("measures active students against the tier, count only without a cap", () => {
+    it("measures active students against a capped tier, none without a cap", () => {
       expect(shown(clubLimitRows({ ...paid, modules: [] }, null))).toEqual([
         ["Активные ученики · тариф «Клуб»", "87 из 150", 58],
       ])
-      expect(shown(clubLimitRows({ ...paid, tier: set, modules: [] }, null))).toEqual([
-        ["Активные ученики · тариф «Сеть»", "87", null],
-      ])
+      expect(clubLimitRows({ ...paid, tier: set, modules: [] }, null)).toEqual([])
+    })
+
+    it("keeps only the tier bar neutral: reaching it blocks nothing", () => {
+      const rows = clubLimitRows({ ...paid, trial: { ...trial, limited: true } }, ai)
+      expect(rows.map((r) => r.neutral ?? false)).toEqual([true, false, false, false, false])
     })
 
     it("shows the trial caps while the trial is limited, not the video module's", () => {

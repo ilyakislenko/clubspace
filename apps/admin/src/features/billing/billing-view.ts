@@ -345,7 +345,9 @@ export const trialLimitRows = (b: {
   },
 ]
 
-export type ClubLimitRow = { label: string; usedLabel: string; percent: number | null }
+// `neutral`: reaching it blocks nothing (the tier switches by itself), so its
+// bar never turns amber/red.
+export type ClubLimitRow = { label: string; usedLabel: string; percent: number; neutral?: boolean }
 
 // What «Лимиты» needs of the club's billing; null when billing is off on this
 // install (no tier, trial or video quota exists).
@@ -363,8 +365,8 @@ export type ClubLimitsAi = { configured: boolean; limit: { used: number; perMont
 // «Лимиты»: every quota the club has and how much of it is used, in a fixed
 // order — active students vs the tier, the trial caps while they apply (else
 // the video module's included storage and views), AI questions this month. A
-// quota that does not exist for this club is left out; a tier without a cap
-// shows the count only (percent null, no bar).
+// quota that does not exist for this club (incl. a tier without a cap) is
+// left out.
 export const clubLimitRows = (
   billing: ClubLimitsBilling | null,
   ai: ClubLimitsAi | null,
@@ -372,11 +374,14 @@ export const clubLimitRows = (
   const rows: ClubLimitRow[] = []
   if (billing) {
     const { activeMembers, tier, videoUsage } = billing
-    rows.push({
-      label: `Активные ученики · тариф «${tier.name}»`,
-      usedLabel: tier.upTo === null ? String(activeMembers) : `${activeMembers} из ${tier.upTo}`,
-      percent: tier.upTo === null ? null : usagePercent(activeMembers, tier.upTo),
-    })
+    if (tier.upTo !== null) {
+      rows.push({
+        label: `Активные ученики · тариф «${tier.name}»`,
+        usedLabel: `${activeMembers} из ${tier.upTo}`,
+        percent: usagePercent(activeMembers, tier.upTo),
+        neutral: true,
+      })
+    }
     if (billing.trial.limited) {
       rows.push(...trialLimitRows(billing))
     } else if (billing.modules.some((m) => m.code === "VIDEO" && m.entitled)) {
