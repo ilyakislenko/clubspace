@@ -191,12 +191,14 @@ Local (macOS): `brew install whisper-cpp`, then download a model, e.g.
 `curl -L -o ~/.cache/whisper-cpp/ggml-small.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin`
 and set `WHISPER_MODEL_PATH` to it.
 
-**Docker:** the image ships neither `whisper-cli` nor a model (≈ 0.5 GB for
-`small`), so the step is off there by default. To turn it on, mount a
-`whisper-cli` built for Alpine (musl) and a model into the container and set
-`WHISPER_CLI_PATH`/`WHISPER_MODEL_PATH` to them, or build an image `FROM` this
-one that compiles whisper.cpp in. Alternatively run the backfill from a host
-that has both.
+**Docker:** build the image with `--build-arg WITH_WHISPER=1` (compose:
+`WITH_WHISPER=1` in the env file) to compile a pinned whisper.cpp release in —
+a portable CPU build that picks the best code path for the CPU at run time;
+`whisper-cli` lands on `PATH`. The default build ships no whisper, and no
+image ships a model (≈ 0.5 GB for `small`): `deploy/whisper-model.sh` (the
+`whisper-model` compose service) downloads a pinned, checksummed one into the
+`whisper_models` volume, mounted read-only at `/models`. Step by step:
+`deploy/README.md`, «Расшифровка речи (Whisper)».
 
 ### Glossary
 
