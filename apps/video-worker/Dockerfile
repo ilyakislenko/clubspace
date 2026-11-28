@@ -1,5 +1,58 @@
 # syntax=docker/dockerfile:1.7
 
+# Optional whisper.cpp (auto subtitles, speech chapters, technique mentions
+# from speech): WITH_WHISPER=1 compiles its CLI into the image; 0 (default)
+# keeps the image small and the speech steps off. The model is not baked in —
+# it lives on the whisper_models volume (deploy/README.md, «Расшифровка речи»).
+ARG WITH_WHISPER=0
+
+# ─── whisper.cpp ──────────────────────────────────────────────────────────────
+# Built on the runtime's own base image, so musl and libstdc++ match. Portable
+# CPU build for amd64 and arm64: every CPU variant of the ggml backend is
+# compiled (x86: SSE4.2 … AVX-512/AMX; ARM: armv8.0 … armv9.2) and whisper-cli
+# loads the best one for the CPU it runs on — an image built on one host runs
+# on another, an old home-server CPU without AVX2 included. No OpenMP: ggml's
+# own thread pool, so no libgomp at runtime.
+FROM node:22.23.5-alpine3.24 AS whisper-1
+
+# Pinned release; bump the version and its checksum together.
+ARG WHISPER_CPP_VERSION=1.9.6
+ARG WHISPER_CPP_SHA256=7ab15dc88022d2425ad94dcffd8abbf1b6d7018089b4e48d6b40780738e0b445
+
+RUN apk add --no-cache build-base cmake linux-headers
+
+WORKDIR /src
+RUN wget -q -O whisper.tar.gz \
+        "https://github.com/ggml-org/whisper.cpp/archive/refs/tags/v${WHISPER_CPP_VERSION}.tar.gz" \
+    && echo "${WHISPER_CPP_SHA256}  whisper.tar.gz" | sha256sum -c - \
+    && tar -xzf whisper.tar.gz --strip-components=1 \
+    && rm whisper.tar.gz
+# Shared libraries with an $ORIGIN rpath: the CPU variants are plugins loaded
+# from whisper-cli's own directory, so everything lives flat in /opt/whisper.
+RUN cmake -S . -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_RPATH_USE_ORIGIN=ON \
+        -DGGML_NATIVE=OFF \
+        -DGGML_BACKEND_DL=ON \
+        -DGGML_CPU_ALL_VARIANTS=ON \
+        -DGGML_OPENMP=OFF \
+        -DWHISPER_BUILD_TESTS=OFF \
+        -DWHISPER_BUILD_SERVER=OFF \
+        -DWHISPER_SDL2=OFF \
+        -DWHISPER_CURL=OFF \
+    && cmake --build build --target whisper-cli -j"$(nproc)" \
+    && mkdir -p /opt/whisper \
+    && cp -P build/bin/whisper-cli build/bin/*.so* /opt/whisper/ \
+    && find /opt/whisper -type f -exec strip --strip-unneeded {} + \
+    && /opt/whisper/whisper-cli --help > /dev/null 2>&1
+
+# Without whisper: an empty directory, so the runtime stage is the same.
+FROM node:22.23.5-alpine3.24 AS whisper-0
+RUN mkdir -p /opt/whisper
+
+FROM whisper-${WITH_WHISPER} AS whisper
+
 # ─── Build stage ──────────────────────────────────────────────────────────────
 # Node 22 LTS, pinned to a patch release and Alpine version so a rebuild is
 # reproducible. Same tag in every app image — bump them together.
@@ -72,6 +125,13 @@ RUN printf '{"type":"module","main":"src/index.js"}\n' > libs/sport-glossary/pac
 # node_modules copied above. The worker never downloads the model, so fail the
 # build rather than ship an image without it.
 RUN test -s node_modules/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz
+
+# whisper-cli and its libraries with WITH_WHISPER=1; an empty directory
+# otherwise. On PATH, where the worker looks by default (WHISPER_CLI_PATH).
+# Needs only musl and libstdc++, both already in the base image. Last, so
+# both variants share every layer above.
+COPY --from=whisper /opt/whisper /opt/whisper
+RUN if [ -e /opt/whisper/whisper-cli ]; then ln -s /opt/whisper/whisper-cli /usr/local/bin/whisper-cli; fi
 
 # ffmpeg parses untrusted uploads, so it must not run as root. The image's
 # built-in `node` user only needs to read /app and write its scratch dirs

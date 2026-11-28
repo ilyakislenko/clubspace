@@ -30,6 +30,8 @@ volumes:
   minio_data:
   caddy_data:
   caddy_config:
+  # whisper.cpp models (deploy/whisper-model.sh), read-only in the worker.
+  whisper_models:
 
 services:
   postgres:
@@ -211,6 +213,10 @@ services:
     build:
       context: .
       dockerfile: apps/video-worker/Dockerfile
+      args:
+        # 1: compile whisper.cpp in (speech: auto subtitles, speech chapters,
+        # technique mentions from speech). Default 0 keeps the image small.
+        WITH_WHISPER: ${WITH_WHISPER:-0}
     restart: unless-stopped
     logging: *default-logging
     # No env_file: the worker parses untrusted uploads, so it gets exactly the
@@ -241,8 +247,10 @@ services:
       APP_RELEASE: ${APP_RELEASE:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       # Optional speech features — empty leaves them off. Whisper (auto
-      # subtitles, speech chapters) needs a whisper.cpp binary and a model file
-      # inside the image, which apps/video-worker/Dockerfile does not ship.
+      # subtitles, speech chapters) needs the image built WITH_WHISPER=1 (puts
+      # whisper-cli on PATH, so WHISPER_CLI_PATH can stay empty) and a model on
+      # the whisper_models volume: WHISPER_MODEL_PATH=/models/ggml-small.bin.
+      # deploy/README.md, «Расшифровка речи (Whisper)».
       WHISPER_CLI_PATH: ${WHISPER_CLI_PATH:-}
       WHISPER_MODEL_PATH: ${WHISPER_MODEL_PATH:-}
       # OpenAI-compatible endpoint for speech-based chapters and subtitle
@@ -261,11 +269,31 @@ services:
       # before the worker reads/writes Video rows.
       server:
         condition: service_healthy
+    volumes:
+      - whisper_models:/models:ro
     networks:
       - bjj_net
     # No healthcheck: the worker is a BullMQ consumer with no HTTP listener, and
     # its node process is PID 1 — if it dies the container exits and
     # `restart: unless-stopped` brings it back.
+
+  # One-shot download of a whisper.cpp model into whisper_models — see
+  # deploy/whisper-model.sh. Not started by `up`; run it by hand:
+  #   docker compose ... run --rm whisper-model [base|small|medium]
+  # Reuses the worker image (busybox wget and sha256sum), so nothing is pulled.
+  whisper-model:
+    image: clubspace.local/video-worker:latest
+    profiles: ["tools"]
+    # Root: a fresh named volume is root-owned. The file it writes is
+    # world-readable, and the worker mounts the volume read-only.
+    user: "0:0"
+    entrypoint: ["/bin/sh", "/whisper-model.sh"]
+    command: ["small"]
+    volumes:
+      - whisper_models:/models
+      - ./deploy/whisper-model.sh:/whisper-model.sh:ro
+    restart: "no"
+    logging: *default-logging
 
   # Verified nightly database dump — see deploy/backup-db.sh. Dumps when the
   # container starts, then every BACKUP_INTERVAL_HOURS. `up -d` doesn't restart

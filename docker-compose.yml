@@ -173,6 +173,9 @@ services:
     build:
       context: .
       dockerfile: apps/video-worker/Dockerfile
+      # WITH_WHISPER=1 compiles whisper.cpp in (see docker-compose.prod.yml).
+      args:
+        WITH_WHISPER: ${WITH_WHISPER:-0}
     restart: unless-stopped
     depends_on:
       redis:

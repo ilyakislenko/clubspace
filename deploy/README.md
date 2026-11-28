@@ -1122,6 +1122,84 @@ the card is bound with a `PLATFORM_CARD_CHECK_AMOUNT` (1 ₽) payment that is
 refunded as soon as it succeeds. When the trial ends, the hourly autopay pass
 charges the first period — with the setup fee — once. Schema change is additive.
 
+## Расшифровка речи (Whisper)
+
+Automatic subtitles, chapters from speech, «Техники» mentions from what the
+coach says and search over speech all start from a transcript, and the worker
+makes one only with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) and a
+model. Both are opt-in: the default worker image has neither, so an install
+without them has no transcripts (OCR chapters from on-screen titles still work).
+
+1. **Image.** In `.env.production` set `WITH_WHISPER=1`, then rebuild the worker
+   (`sudo ./deploy/update.sh --force`, or by hand
+   `docker compose -f docker-compose.prod.yml --env-file .env.production build video-worker`).
+   The build compiles a pinned whisper.cpp release (a few minutes on 4 cores;
+   the image grows by ≈ 10 MB). It is a portable CPU build: every ggml CPU
+   variant is compiled (amd64: SSE4.2 up to AVX-512; arm64: armv8.0 up to
+   armv9.2) and the fastest one the CPU supports is loaded at run time, so the
+   same image runs on an old Celeron and on a new EPYC. `whisper-cli` is on
+   `PATH`; leave `WHISPER_CLI_PATH` empty.
+2. **Model, once.** Not in the image (size) — in the `whisper_models` volume,
+   which the worker mounts read-only at `/models`:
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.production \
+     run --rm whisper-model small
+   ```
+   `deploy/whisper-model.sh` downloads a pinned revision and checks its SHA-256;
+   a re-run with a verified file does nothing. All three are multilingual
+   (Russian and English in one model):
+
+   | Model | Size | When |
+   |---|---|---|
+   | `small` | 488 MB | **recommended**: good Russian and English, technique names mostly right |
+   | `medium` | 1.5 GB | better on noisy mat audio; ≈ 3× slower than `small` — only on 8+ fast cores |
+   | `base` | 148 MB | weak or old CPUs (a NAS, a 2-core VDS); noticeably more misheard terms |
+3. **Env.** In `.env.production`:
+   ```
+   WHISPER_MODEL_PATH=/models/ggml-small.bin
+   # Optional: chapters from speech and the Russian subtitle track need a chat model
+   # CHAPTERS_LLM_BASE_URL=https://openrouter.ai/api/v1
+   # CHAPTERS_LLM_MODEL=openai/gpt-4.1-mini
+   # CHAPTERS_LLM_API_KEY=sk-or-…
+   ```
+   then `docker compose -f docker-compose.prod.yml --env-file .env.production up -d video-worker`.
+   The worker's first log line lists what is on (`whisper`, `chaptersLlm`). From
+   now on every new upload gets a transcript right after its transcode.
+4. **Existing videos, once.** Videos transcoded before have no transcript. The
+   backfills run inside the worker container, straight against the database —
+   no per-video limit of the admin's «Пересоздать» — one video at a time, and are
+   idempotent: a re-run (after an interruption, a worker restart, a failed
+   video) only picks up what is still missing. Start them under `nohup` (or in
+   `tmux`) so an SSH disconnect does not stop them:
+   ```bash
+   cd /opt/clubspace   # the checkout
+   C="docker compose -f docker-compose.prod.yml --env-file .env.production"
+   # transcripts + automatic subtitles for every ready video without a transcript
+   nohup $C exec -T video-worker node apps/video-worker/scripts/backfill-transcripts.js \
+     > backfill-transcripts.log 2>&1 &
+   tail -f backfill-transcripts.log   # ends with a summary; exit code 1 if a video failed
+   # then «Техники» from the new transcripts (seconds, no download)
+   $C exec -T video-worker node apps/video-worker/scripts/backfill-techniques.js
+   ```
+   Optional, with `CHAPTERS_LLM_*` set: chapters from speech for videos that
+   were scanned before Whisper and have no chapters a coach wrote —
+   `backfill-chapters.js --rescan-auto` the same way. It re-does every video
+   without a manual chapter (its OCR chapters are rebuilt too, so it takes about
+   as long as the transcript backfill again); videos with any manual chapter are
+   never touched. Details: `apps/video-worker/README.md`.
+
+**Speed and CPU.** `whisper-cli` uses 4 threads (more cores do not speed up one
+video, they keep the transcodes responsive meanwhile); one transcript runs at a
+time, next to the transcodes. Measured: `base` transcribes 2 minutes of speech
+in 18 s on 4 threads of a recent ARM CPU (≈ 6–7× faster than real time);
+`small` is ≈ 3× slower than `base`, `medium` ≈ 3× slower than `small`. On 4–8
+cores of a current x86 CPU (AVX2) expect `small` at roughly 2–4× real time — a
+60-minute lesson in 15–30 minutes, so an archive of 100 one-hour lessons takes
+one to two days. Each transcript has to finish within the video's own length
+(at most an hour), so a CPU that cannot transcribe in real time needs the
+smaller model. Keep `TRANSCODE_CONCURRENCY=1`: a second encode beside Whisper
+only slows both down.
+
 ## Rollback
 
 `deploy/update.sh` rolls back by itself when the new version does not come up
