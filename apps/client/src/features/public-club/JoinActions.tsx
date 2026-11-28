@@ -1,5 +1,5 @@
 import {
-  androidButtons,
+  androidInstall,
   appJoinUrl,
   pwaJoinUrl,
   type StoreButton,
@@ -23,10 +23,14 @@ export function JoinActions({
   codeDisplay: string
   links: StoreLinks
 }) {
+  // Android's web-app fallback is «Открыть в браузере» below; the APK is a
+  // download, so it opens in this tab, unlike the stores.
+  const android = androidInstall(links)
   const stores: StoreButton[] = [
     ...(links.appStore ? [{ href: links.appStore, label: "App Store" }] : []),
-    ...androidButtons(links),
+    ...(android?.kind === "stores" ? android.stores : []),
   ]
+  const apk = android?.kind === "apk" ? android.href : null
   const browser = pwaJoinUrl(links, code)
 
   return (
@@ -35,7 +39,7 @@ export function JoinActions({
         Открыть в приложении
       </a>
 
-      {(stores.length > 0 || browser) && (
+      {(stores.length > 0 || apk || browser) && (
         <div className="space-y-2">
           <p className="text-center text-sm text-muted-foreground">
             Ещё нет приложения ClubSpace?
@@ -52,6 +56,11 @@ export function JoinActions({
                 {s.label}
               </a>
             ))}
+            {apk && (
+              <a href={apk} className={secondary}>
+                Скачать для Android
+              </a>
+            )}
             {browser && (
               <a href={browser} className={secondary}>
                 Открыть в браузере

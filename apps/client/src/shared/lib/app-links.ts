@@ -37,10 +37,12 @@ export const readStoreLinks = (env: Env = process.env): StoreLinks => ({
 
 export type StoreButton = { href: string; label: string }
 
-// How to get the app on Android: the stores it is in; with none, the APK.
+// How to get the app on Android: the stores it is in; with none, the APK;
+// with neither, the web app (it installs from the browser menu).
 export type AndroidInstall =
   | { kind: "stores"; stores: StoreButton[] }
   | { kind: "apk"; href: string }
+  | { kind: "pwa"; href: string }
   | null
 
 export const androidInstall = (links: StoreLinks): AndroidInstall => {
@@ -49,16 +51,8 @@ export const androidInstall = (links: StoreLinks): AndroidInstall => {
     { href: links.ruStore, label: "RuStore" },
   ].filter((s): s is StoreButton => !!s.href)
   if (stores.length > 0) return { kind: "stores", stores }
-  return links.androidApk ? { kind: "apk", href: links.androidApk } : null
-}
-
-// The same choice as buttons; the APK one reads «Скачать для Android».
-export const androidButtons = (links: StoreLinks): StoreButton[] => {
-  const install = androidInstall(links)
-  if (!install) return []
-  return install.kind === "stores"
-    ? install.stores
-    : [{ href: install.href, label: "Скачать для Android" }]
+  if (links.androidApk) return { kind: "apk", href: links.androidApk }
+  return links.pwa ? { kind: "pwa", href: links.pwa } : null
 }
 
 // How to get the app on iPhone: the App Store; without it, the web app added

@@ -1,5 +1,4 @@
 import {
-  androidButtons,
   androidInstall,
   apiBaseUrl,
   appJoinUrl,
@@ -57,17 +56,34 @@ describe("androidInstall", () => {
     })
   })
 
-  it("falls back to the APK without a store", () => {
-    const links = readStoreLinks({ ANDROID_APK_URL: apk })
-    expect(androidInstall(links)).toEqual({ kind: "apk", href: apk })
-    expect(androidButtons(links)).toEqual([
-      { href: apk, label: "Скачать для Android" },
-    ])
+  it("offers a single store on its own", () => {
+    const links = readStoreLinks({
+      RUSTORE_URL: "https://rustore.ru/x",
+      ANDROID_APK_URL: apk,
+      PWA_URL: "https://pwa.club.example",
+    })
+    expect(androidInstall(links)).toEqual({
+      kind: "stores",
+      stores: [{ href: "https://rustore.ru/x", label: "RuStore" }],
+    })
   })
 
-  it("is null with neither", () => {
+  it("falls back to the APK without a store, before the web app", () => {
+    const links = readStoreLinks({
+      ANDROID_APK_URL: apk,
+      PWA_URL: "https://pwa.club.example",
+    })
+    expect(androidInstall(links)).toEqual({ kind: "apk", href: apk })
+  })
+
+  it("falls back to the web app without a store or an APK", () => {
+    expect(
+      androidInstall(readStoreLinks({ PWA_URL: "https://pwa.club.example/" })),
+    ).toEqual({ kind: "pwa", href: "https://pwa.club.example" })
+  })
+
+  it("is null with none of them", () => {
     expect(androidInstall(readStoreLinks({}))).toBeNull()
-    expect(androidButtons(readStoreLinks({}))).toEqual([])
   })
 })
 

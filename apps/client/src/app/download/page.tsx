@@ -20,9 +20,9 @@ export const metadata: Metadata = {
 }
 
 const primary =
-  "flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-base font-semibold text-primary-foreground transition-opacity hover:opacity-90 sm:w-auto"
+  "flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-base font-semibold text-primary-foreground transition-opacity hover:opacity-90 sm:w-fit"
 const secondary =
-  "flex h-12 w-full items-center justify-center rounded-full border border-border px-6 text-base font-semibold transition-colors hover:bg-muted sm:w-auto"
+  "flex h-12 w-full items-center justify-center rounded-full border border-border px-6 text-base font-semibold transition-colors hover:bg-muted sm:w-fit"
 const card = "space-y-4 rounded-xl border border-border bg-card p-5"
 
 // This page's own address as a QR code, for opening it on a phone from a
@@ -42,9 +42,40 @@ const hostOf = (href: string): string => {
   }
 }
 
+// Adding the web app to the home screen: open it in the browser, then two
+// taps there. A link inside the steps, not a button — on a page where both
+// platforms fall back to the web app it would be the same button twice.
+function PwaSteps({
+  href,
+  browser,
+  steps,
+}: {
+  href: string
+  browser: string
+  steps: [string, string]
+}) {
+  return (
+    <ol className="list-decimal space-y-2 pl-5 text-sm leading-6">
+      <li>
+        Откройте{" "}
+        <a
+          href={href}
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {hostOf(href)}
+        </a>{" "}
+        в {browser}.
+      </li>
+      {steps.map((s) => (
+        <li key={s}>{s}</li>
+      ))}
+    </ol>
+  )
+}
+
 // One way to install the app per platform, from what the instance has
-// configured: the stores, else the APK (Android) or the web app on the home
-// screen (iPhone).
+// configured: the stores, else the APK (Android), else the web app on the
+// home screen.
 export default async function DownloadPage() {
   const links = readStoreLinks()
   const android = androidInstall(links)
@@ -80,7 +111,7 @@ export default async function DownloadPage() {
                       </a>
                     ))}
                   </div>
-                ) : (
+                ) : android.kind === "apk" ? (
                   <>
                     <a href={android.href} className={primary}>
                       Скачать для Android
@@ -90,6 +121,15 @@ export default async function DownloadPage() {
                       источника — разрешите и продолжите.
                     </p>
                   </>
+                ) : (
+                  <PwaSteps
+                    href={android.href}
+                    browser="Chrome"
+                    steps={[
+                      "Откройте меню ⋮.",
+                      "Выберите «Установить приложение» или «Добавить на главный экран».",
+                    ]}
+                  />
                 )}
               </section>
             )}
@@ -107,20 +147,11 @@ export default async function DownloadPage() {
                     App Store
                   </a>
                 ) : (
-                  <ol className="list-decimal space-y-2 pl-5 text-sm leading-6">
-                    <li>
-                      Откройте{" "}
-                      <a
-                        href={ios.href}
-                        className="font-medium text-primary underline-offset-4 hover:underline"
-                      >
-                        {hostOf(ios.href)}
-                      </a>{" "}
-                      в Safari.
-                    </li>
-                    <li>Нажмите «Поделиться».</li>
-                    <li>Выберите «На экран „Домой“».</li>
-                  </ol>
+                  <PwaSteps
+                    href={ios.href}
+                    browser="Safari"
+                    steps={["Нажмите «Поделиться».", "Выберите «На экран „Домой“»."]}
+                  />
                 )}
               </section>
             )}

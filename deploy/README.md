@@ -914,23 +914,26 @@ out:
   enabled «Показывать клуб в каталоге» in the admin («Настройки → Профиль клуба»).
   Unlisted clubs answer 404 there and never appear in search.
 - `/download` — «Скачать приложение»: per platform, the store buttons; without
-  them, «Скачать для Android» (`ANDROID_APK_URL`) and, for iPhone, the three
-  steps to add `PWA_URL` to the home screen. On a computer it also shows a QR
-  code of its own address (`SITE_URL/download`) to open it on a phone. With no
-  link configured it says so instead.
+  them, «Скачать для Android» (`ANDROID_APK_URL`) on Android, and otherwise
+  the steps to add the web app (`PWA_URL`) to the home screen — on Android
+  without an APK, on iPhone without `APP_STORE_URL`. On a computer it also
+  shows a QR code of its own address (`SITE_URL/download`) to open it on a
+  phone. With no link configured it says so instead.
 - `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`
   — Universal Links / App Links for `/join/*`, `application/json`, 404 until
   configured.
 
-These read the **client container's runtime environment** (a restart applies a
-change, no rebuild). Set them in `.env.production`; unset means the button or
-file is left out:
+These read the **client container's runtime environment** (no rebuild:
+`docker compose -f docker-compose.prod.yml --env-file .env.production up -d client`
+recreates the container with the new values; a plain `restart` keeps the old
+ones). Set them in `.env.production`; unset means the button or file is left
+out:
 
 | Variable | Used for |
 |---|---|
 | `APP_STORE_URL`, `PLAY_STORE_URL`, `RUSTORE_URL` | store buttons on `/join` and `/download` (the server also puts them in e-mails) |
 | `ANDROID_APK_URL` | direct `.apk` link, «Скачать для Android» on `/download` and `/join` while neither Play nor RuStore is set |
-| `PWA_URL` | «Открыть в браузере»: opens `${PWA_URL}/join/<code>` in the installable web app; the iPhone steps on `/download` while `APP_STORE_URL` is unset |
+| `PWA_URL` | «Открыть в браузере»: opens `${PWA_URL}/join/<code>` in the installable web app; the home-screen steps on `/download` for whichever platform has no store link (nor, on Android, an APK) |
 | `APPLE_TEAM_ID`, `IOS_BUNDLE_ID` | AASA; `IOS_BUNDLE_ID` may list several bundle ids, comma-separated |
 | `ANDROID_PACKAGE`, `ANDROID_CERT_SHA256` | `assetlinks.json`; both comma-separated (e.g. the Play app-signing key and the upload key) |
 | `ADMIN_URL`, `SITE_URL` | set by compose to `https://admin.<domain>` / `https://app.<domain>`: the landing's «Попробовать» link, canonical / Open Graph / sitemap URLs |
@@ -945,7 +948,8 @@ docker compose -f docker-compose.prod.yml --env-file .env.production exec minio 
 ```
 
 then set `ANDROID_APK_URL=https://s3.<domain>/clubspace/downloads/clubspace.apk`
-and restart `client`. Name each new build differently (`clubspace-1.0.1.apk`)
+and apply it with `docker compose -f docker-compose.prod.yml --env-file .env.production up -d client`.
+Name each new build differently (`clubspace-1.0.1.apk`)
 and point `ANDROID_APK_URL` at it: a CDN in front of storage caches `.apk`
 files, so a file replaced under the same name may keep being served stale.
 
