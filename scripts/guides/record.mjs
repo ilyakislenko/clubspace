@@ -15,13 +15,18 @@ import { parseArgs } from 'node:util'
 import { assemble } from './lib/assemble.mjs'
 import { config } from './lib/env.mjs'
 import { closeBrowser } from './lib/recorder.mjs'
+import attendance from './scenarios/attendance.mjs'
+import federation from './scenarios/federation.mjs'
 import invite from './scenarios/invite.mjs'
+import money from './scenarios/money.mjs'
 import ownerSetup from './scenarios/owner-setup.mjs'
+import student from './scenarios/student.mjs'
+import videoCourse from './scenarios/video-course.mjs'
 
 // Manifest order = order on /help (grouped by role there). The manifest ids are
 // a contract with the admin help panel: owner-setup, invite, attendance,
 // video-course, money, student, federation (docs/guides.md).
-const GUIDES = [ownerSetup, invite]
+const GUIDES = [ownerSetup, invite, attendance, videoCourse, money, student, federation]
 
 const { values: flags, positionals } = parseArgs({
     allowPositionals: true,

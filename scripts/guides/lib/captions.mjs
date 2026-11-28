@@ -53,11 +53,11 @@ export function keptSegments({ start, end, cuts }) {
     return segments.filter((s) => s.to - s.from > 0.05)
 }
 
-// Cues on the content timeline (no title card yet): `{ from, to, lines }`.
+// Cues on the content timeline (no title card yet): `{ from, to, lines, top }`.
 export function timeCues(cues, timeline) {
     const contentEnd = keptSegments(timeline).reduce((sum, s) => sum + s.to - s.from, 0)
     const mapped = cues
-        .map((c) => ({ at: mapTime(c.at, timeline), text: c.text }))
+        .map((c) => ({ at: mapTime(c.at, timeline), text: c.text, top: Boolean(c.top) }))
         .filter((c) => c.at !== null)
     return mapped.map((c, i) => {
         const next = mapped[i + 1]?.at ?? contentEnd
@@ -65,6 +65,7 @@ export function timeCues(cues, timeline) {
             from: c.at,
             to: Math.min(next - (mapped[i + 1] ? GAP : 0), c.at + MAX_SHOW, contentEnd),
             lines: wrapCaption(c.text),
+            top: c.top,
         }
     })
 }

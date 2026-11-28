@@ -29,8 +29,9 @@ export const config = {
     pwaUrl: url('GUIDES_PWA_URL', 'http://localhost:8086'),
     siteUrl: url('GUIDES_SITE_URL', 'http://localhost:4302'),
     apiUrl: url('GUIDES_API_URL', 'http://localhost:3301'),
-    // Printed on the end card: where viewers find the other guides.
-    publicHelpUrl: url('GUIDES_PUBLIC_HELP_URL', 'https://app.clubspace.space/help'),
+    // Printed on the end card: where viewers find the other guides (the
+    // public site, not the PWA at app.).
+    publicHelpUrl: url('GUIDES_PUBLIC_HELP_URL', 'https://site.clubspace.space/help'),
     accounts: {
         owner: process.env.GUIDES_OWNER_EMAIL || 'owner@academy.demo',
         coach: process.env.GUIDES_COACH_EMAIL || 'coach@academy.demo',

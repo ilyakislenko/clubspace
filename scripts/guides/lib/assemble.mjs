@@ -51,7 +51,7 @@ export async function assemble(guide, recording) {
         await r.frame(guide, kind, png('frame'))
         await r.posterStrip(guide, png('strip'))
         await r.blank(png('blank'))
-        for (const [i, c] of timed.entries()) await r.caption(c.lines, png(`cap-${i}`))
+        for (const [i, c] of timed.entries()) await r.caption(c.lines, kind, c.top, png(`cap-${i}`))
     } finally {
         await r.close()
     }

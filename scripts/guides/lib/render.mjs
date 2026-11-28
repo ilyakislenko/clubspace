@@ -8,10 +8,10 @@ export const W = 1920
 export const H = 1080
 
 // Where the recording sits inside the 1920×1080 frame, per guide kind. The
-// desktop admin is recorded at 1440×900, the phone at 390×844 (2× pixels).
+// desktop admin is recorded at 1440×900, the phone at its CSS size 390×844.
 export const LAYOUTS = {
     admin: { x: 128, y: 18, w: 1664, h: 1040, radius: 14 },
-    phone: { x: 1140, y: 28, w: 434, h: 940, radius: 40 },
+    phone: { x: 1220, y: 20, w: 480, h: 1040, radius: 44 },
 }
 
 const FONT = `-apple-system, "SF Pro Display", "Helvetica Neue", Arial, sans-serif`
@@ -29,6 +29,8 @@ html, body { width: ${W}px; height: ${H}px; overflow: hidden; font-family: ${FON
   padding: 14px 30px 16px; border-radius: 16px; background: rgba(9,14,28,.88);
   box-shadow: 0 0 0 2px rgba(255,255,255,.08); text-align: center; font-size: 46px; line-height: 1.25;
   font-weight: 600; white-space: nowrap; }
+.cap.phone { left: 150px; bottom: 150px; transform: none; text-align: left; font-size: 42px; }
+.cap.top { bottom: auto; top: 40px; }
 </style></head><body>${body}</body></html>`
 
 export async function openRenderer() {
@@ -88,8 +90,9 @@ export async function openRenderer() {
                 { transparent: true },
             )
         },
-        caption: (lines, path) =>
-            shot(`<div class="cap">${lines.map(esc).join('<br>')}</div>`, path, { transparent: true }),
+        // Below the admin (or `top`); beside the phone, under the title (clear of the screen).
+        caption: (lines, kind, top, path) =>
+            shot(`<div class="cap ${kind}${top ? ' top' : ''}">${lines.map(esc).join('<br>')}</div>`, path, { transparent: true }),
         posterStrip: (guide, path) =>
             shot(
                 `<div style="position:absolute;left:0;right:0;bottom:0;height:420px;padding:0 120px 60px;

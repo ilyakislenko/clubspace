@@ -13,17 +13,15 @@ import { config } from './env.mjs'
 
 const PHONE = devices['iPhone 13']
 
-// Context options per kind. The phone is recorded at twice its CSS size (its
-// device scale is 3), so the downscaled frame stays sharp.
+// Context options per kind.
 const contextOptions = (kind) =>
     kind === 'phone'
         ? { ...PHONE, locale: 'ru-RU', timezoneId: 'Asia/Tomsk' }
         : { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, locale: 'ru-RU', timezoneId: 'Asia/Tomsk' }
 
-const videoSize = (kind) =>
-    kind === 'phone'
-        ? { width: PHONE.viewport.width * 2, height: PHONE.viewport.height * 2 }
-        : { width: 1440, height: 900 }
+// The video is the viewport's CSS size: Chromium's screencast frames come at
+// CSS pixels, and Playwright pads a larger video instead of scaling them up.
+const videoSize = (kind) => (kind === 'phone' ? { ...PHONE.viewport } : { width: 1440, height: 900 })
 
 // Injected into the recording context only: the pointer the viewer follows.
 // Listens in the capture phase so the app cannot swallow the events.
@@ -118,10 +116,15 @@ export async function signIn(kind, email, { app = kind === 'phone' ? 'pwa' : 'ad
                 await page.getByText('Получить код', { exact: true }).click()
                 await page.getByPlaceholder('000000').first().waitFor({ timeout: 4000 })
             }, 6)
-            await page.getByPlaceholder('000000').first().fill(config.demoLoginCode)
-            await page.getByText('Войти', { exact: true }).last().click()
-            await page.getByPlaceholder('000000').first().waitFor({ state: 'detached', timeout: 30_000 })
+            const codeInput = page.getByPlaceholder('000000').first()
+            await codeInput.fill(config.demoLoginCode)
+            // A full code submits itself; the button is only a fallback.
+            const submitted = await codeInput.waitFor({ state: 'detached', timeout: 3000 }).then(() => true, () => false)
+            if (!submitted) await page.getByText('Войти', { exact: true }).last().click()
+            await codeInput.waitFor({ state: 'detached', timeout: 30_000 })
             await sleep(1500)
+            // The «Уведомления на iPhone» tip, dismissed once (kept in localStorage).
+            await page.getByLabel('Скрыть').click({ timeout: 3000 }).catch(() => {})
         }
         return await ctx.storageState()
     } finally {
@@ -189,9 +192,10 @@ export class Recorder {
     }
 
     // A caption, shown from now until the next one; waits long enough to read
-    // before the next action starts.
-    async say(text, { hold } = {}) {
-        this.cues.push({ at: this.now(), text })
+    // before the next action starts. `top`: at the top of the frame, for steps
+    // at the bottom of the page (desktop captions sit at the bottom).
+    async say(text, { hold, top = false } = {}) {
+        this.cues.push({ at: this.now(), text, top })
         await sleep(hold ?? Math.min(3600, Math.max(1500, text.length * 42)))
     }
 
@@ -266,6 +270,26 @@ export class Recorder {
             await this.page.mouse.wheel(0, step)
             await sleep(25)
         }
+        await sleep(after)
+    }
+
+    // Drags `from` onto the middle of `to` with the button held (sortable lists).
+    async drag(from, to, { after = 900 } = {}) {
+        await this.moveTo(from)
+        await sleep(300)
+        await this.page.mouse.down()
+        const box = await to.boundingBox()
+        if (!box) throw new Error(`No box for ${to}`)
+        const start = this.pos
+        const target = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+        for (let i = 1; i <= 30; i++) {
+            const k = 1 - (1 - i / 30) ** 3
+            await this.page.mouse.move(start.x + (target.x - start.x) * k, start.y + (target.y - start.y) * k)
+            await sleep(20)
+        }
+        await sleep(300)
+        await this.page.mouse.up()
+        this.pos = target
         await sleep(after)
     }
 
