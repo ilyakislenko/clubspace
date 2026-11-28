@@ -1,6 +1,7 @@
 // Runtime configuration of the public join/club pages and the app-link files.
 // Read on the server at request time (these routes are dynamic), so a deploy
-// changes them by restarting the container — no rebuild, unlike NEXT_PUBLIC_*.
+// changes them by recreating the container (`up -d client`; a plain restart
+// keeps the old env) — no rebuild, unlike NEXT_PUBLIC_*.
 // Unset or blank means "not configured": the matching button or file is left
 // out rather than pointing somewhere wrong.
 
