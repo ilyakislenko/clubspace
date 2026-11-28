@@ -27,11 +27,14 @@ export const readGuidesBaseUrl = (env: Env = process.env): string | null => {
 const text = (v: unknown): string | null =>
   typeof v === "string" && v.trim() ? v.trim() : null
 
-// A manifest name is either a full http(s) URL or a file name next to it.
+// A manifest name is a file name next to it or a full URL on the same origin
+// as the base: the page's CSP lets media load only from GUIDES_BASE_URL's
+// origin, so a file elsewhere would render a player that never plays.
 const resolve = (name: string, base: string): string | null => {
   try {
     const url = new URL(name, `${base}/`)
-    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null
+    return url.origin === new URL(base).origin ? url.href : null
   } catch {
     return null
   }

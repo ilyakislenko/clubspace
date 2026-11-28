@@ -19,7 +19,7 @@ describe("readGuidesBaseUrl", () => {
 })
 
 describe("parseGuidesManifest", () => {
-  it("resolves file names against the base and keeps absolute URLs", () => {
+  it("resolves file names against the base and keeps same-origin absolute URLs", () => {
     expect(
       parseGuidesManifest(
         [
@@ -35,7 +35,7 @@ describe("parseGuidesManifest", () => {
             id: "coach-attendance",
             role: "Тренеру",
             title: "Отметить посещения",
-            file: "https://cdn.example/a.mp4",
+            file: "https://media.club.example/other/a.mp4",
           },
         ],
         base,
@@ -53,11 +53,23 @@ describe("parseGuidesManifest", () => {
         id: "coach-attendance",
         role: "Тренеру",
         title: "Отметить посещения",
-        file: "https://cdn.example/a.mp4",
+        file: "https://media.club.example/other/a.mp4",
         poster: null,
         durationSec: null,
       },
     ])
+  })
+
+  // The page's CSP allows media only from the base's origin.
+  it("drops files on another origin and ignores a poster there", () => {
+    const guides = parseGuidesManifest(
+      [
+        { id: "a", role: "Ученику", title: "A", file: "https://cdn.example/a.mp4" },
+        { id: "b", role: "Ученику", title: "B", file: "b.mp4", poster: "https://cdn.example/b.jpg" },
+      ],
+      base,
+    )
+    expect(guides.map((g) => [g.id, g.poster])).toEqual([["b", null]])
   })
 
   it("drops incomplete, duplicate and non-http entries", () => {

@@ -77,6 +77,9 @@ export default {
             const subs = await api.get(subsPath(ws, member.userId))
             return subs.abonements.find((a) => a.status === 'ACTIVE' && !a.isPaid)
         })
+        // Without the sold abonement there is nothing to clean up later and
+        // the rest of the take would show the wrong card: stop with a reason.
+        if (!sold) throw new Error(`money: no unpaid ACTIVE abonement for ${member.userId} after «Назначить»`)
         remember(this.id, { userId: member.userId, subscriptionId: sold.id })
         await rec.moveTo(p.getByText(/^Ожидает оплаты/))
         await rec.pause(2000)

@@ -7,8 +7,9 @@ ACADEMY, поэтому после изменений интерфейса их 
 Где их видят:
 - публичный сайт (`SITE_URL`, на clubspace.space — `https://site.clubspace.space`):
   `/help` («Видеоинструкции», по ролям);
-- админка: меню аккаунта внизу боковой панели → «Видеоинструкции» (новая
-  вкладка с `/help`; пункта нет, если адрес сайта неизвестен);
+- админка: меню аккаунта внизу боковой панели → «Видеоинструкции» — в клубе
+  и в кабинете федерации (новая вкладка с `/help`; пункта нет, если адрес
+  сайта неизвестен);
 - справочная панель «?» админки — по `id` из того же манифеста.
 
 Оба читают манифест `${GUIDES_BASE_URL}/guides.json`.
@@ -124,11 +125,11 @@ mp4/jpg по имени, поэтому новая запись = новые и�
 set -a; . /opt/clubspace/.env.production; set +a
 docker run --rm --network container:clubspace-minio-1 -v "$PWD:/src" \
   --entrypoint sh "$MINIO_CLIENT_IMAGE" -c \
-  'mc alias set s3 http://localhost:9000 "$0" "$1" >/dev/null && mc cp /src/* s3/clubspace/downloads/guides/' \
+  'mc alias set s3 http://localhost:9000 "$0" "$1" >/dev/null && mc cp /src/*.mp4 /src/*.jpg s3/clubspace/downloads/guides/ && mc cp /src/guides.json s3/clubspace/downloads/guides/' \
   "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY"
 ```
 
-`guides.json` кладётся последним (он ссылается на уже загруженные ролики).
+Сначала ролики и постеры, `guides.json` вторым шагом: он ссылается на уже
+загруженные файлы, а `/help` читает его при каждом запросе.
 Затем в `.env.production` — `GUIDES_BASE_URL=https://<хранилище>/clubspace/downloads/guides`
-и `docker compose … up -d client` (сайт читает манифест при каждом запросе);
-админке после смены `GUIDES_BASE_URL` нужна пересборка (панель «?»).
+и `docker compose … up -d client` (сайт читает манифест при каждом запросе).

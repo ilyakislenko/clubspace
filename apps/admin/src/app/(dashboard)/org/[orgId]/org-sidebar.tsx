@@ -10,6 +10,7 @@ import {
   Layers,
   LogOut,
   Megaphone,
+  PlayCircle,
   Settings,
   UserRound,
   Users,
@@ -38,6 +39,7 @@ import {
   useSidebar,
 } from "@clubspace/ui-kit/ui"
 
+import { environment } from "../../../../environments/environment"
 import { signOut } from "../../../../shared/api/client"
 import { fetchMe, type Me } from "../../../../shared/api/me"
 import { confirmLeave } from "../../../../shared/lib/use-dirty-guard"
@@ -197,6 +199,20 @@ export function OrgSidebar() {
                     Сменить клуб или федерацию
                   </Link>
                 </DropdownMenuItem>
+                {/* Same guides entry as the club menu: federation staff often
+                    belong to no club, so they'd never see it there. */}
+                {environment.publicAppUrl && (
+                  <DropdownMenuItem asChild>
+                    <a
+                      href={`${environment.publicAppUrl}/help`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <PlayCircle className="size-4" />
+                      Видеоинструкции
+                    </a>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => void handleSignOut()}>
                   <LogOut className="size-4" />
