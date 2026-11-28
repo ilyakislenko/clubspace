@@ -9267,6 +9267,81 @@ export type DeleteRefundOutputOutput = {
     status: 'deleted';
 };
 
+export type PreviewBankStatementOutputOutput = {
+    format: 'ONE_C' | 'CSV' | 'XLSX';
+    skippedDebits: number;
+    directionKnown: boolean;
+    columns: {
+        complete: boolean;
+        headers: Array<string>;
+        sample: Array<Array<string>>;
+        date: number | null;
+        amount: number | null;
+        payer: number | null;
+        purpose: number | null;
+    } | null;
+    transactions: Array<{
+        fingerprint: string;
+        date: string;
+        time: string | null;
+        amount: number;
+        receivedAmount: number;
+        currency: string;
+        payer: string;
+        purpose: string;
+        docNumber: string | null;
+        status: 'MATCHED' | 'AMBIGUOUS' | 'UNMATCHED' | 'ALREADY_MATCHED';
+        suggestedSubscriptionId: string | null;
+        flags: Array<'AMOUNT_DIFFERS' | 'SEVERAL_ABONEMENTS' | 'SAME_ABONEMENT_TWICE' | 'SIMILAR_CANDIDATES' | 'MAYBE_ALREADY_MATCHED'>;
+        candidates: Array<{
+            subscriptionId: string;
+            userId: string;
+            memberName: string;
+            planName: string;
+            amount: number;
+            currency: string;
+            startDate: string | null;
+            soldOn: string;
+            score: number;
+            reasons: Array<'AMOUNT_EXACT' | 'AMOUNT_CLOSE' | 'PAYER_NAME' | 'PAYER_SHORT_NAME' | 'PAYER_SURNAME' | 'GUARDIAN_NAME' | 'GUARDIAN_SHORT_NAME' | 'PURPOSE_NAME' | 'PHONE' | 'DATE_CLOSE'>;
+            paidBy: string | null;
+        }>;
+        matchedTo: {
+            subscriptionId: string;
+            userId: string | null;
+            memberName: string;
+            planName: string;
+            matchedAt: string;
+        } | null;
+    }>;
+    counts: {
+        matched: number;
+        ambiguous: number;
+        unmatched: number;
+        alreadyMatched: number;
+    };
+};
+
+export type ConfirmBankStatementInput = {
+    matches: Array<{
+        fingerprint: string;
+        subscriptionId: string;
+        amount: number;
+        paidOn: string;
+        paidTime?: string | null;
+    }>;
+};
+
+export type ConfirmBankStatementOutputOutput = {
+    confirmed: number;
+    results: Array<{
+        fingerprint: string;
+        subscriptionId: string;
+        status: 'CONFIRMED' | 'ALREADY_MATCHED' | 'FAILED';
+        message: string | null;
+    }>;
+};
+
 export type ListDiscountsOutputOutput = {
     data: Array<{
         id: string;
@@ -17993,6 +18068,42 @@ export type DeleteRefundResponses = {
 };
 
 export type DeleteRefundResponse = DeleteRefundResponses[keyof DeleteRefundResponses];
+
+export type PreviewBankStatementData = {
+    body: {
+        file: Blob | File;
+        dateColumn?: number;
+        amountColumn?: number;
+        payerColumn?: number;
+        purposeColumn?: number;
+    };
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/bank-statements/preview';
+};
+
+export type PreviewBankStatementResponses = {
+    default: PreviewBankStatementOutputOutput;
+};
+
+export type PreviewBankStatementResponse = PreviewBankStatementResponses[keyof PreviewBankStatementResponses];
+
+export type ConfirmBankStatementData = {
+    body: ConfirmBankStatementInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/bank-statements/confirm';
+};
+
+export type ConfirmBankStatementResponses = {
+    default: ConfirmBankStatementOutputOutput;
+};
+
+export type ConfirmBankStatementResponse = ConfirmBankStatementResponses[keyof ConfirmBankStatementResponses];
 
 export type ListDiscountsData = {
     body?: never;

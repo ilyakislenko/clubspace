@@ -76,6 +76,22 @@ export type GrantFromPlanParams = {
     externalPaymentId?: string | null
 }
 
+export type MarkPaidParams = {
+    workspaceId: string
+    userId: string
+    subscriptionId: string
+    amount?: number
+    discountId?: string
+    // Omitted = not recorded («не указано»).
+    paymentMethod?: ClubPaymentMethodValue | null
+    // The staff member recording it (the journal's «Отметил»).
+    markedById: string
+    // When the money arrived; omitted = now. «Сверить выписку» passes the
+    // transfer's day (club-local midnight).
+    paidAt?: Date
+    now?: Date
+}
+
 // Single place that turns "member bought plan X" into a Subscription row and an
 // extended access window. Both the admin flow and the payment-gateway webhook
 // go through here so access is granted identically regardless of source.
@@ -326,113 +342,106 @@ export class SubscriptionService {
     // listPrice. Changing the amount or applying a discount makes the marker
     // the one who priced it (pricedById); a plain confirm keeps the seller.
     // An expired or not-yet-started abonement can still be paid — it is a debt.
-    async markPaid(params: {
-        workspaceId: string
-        userId: string
-        subscriptionId: string
-        amount?: number
-        discountId?: string
-        // Omitted = not recorded («не указано»).
-        paymentMethod?: ClubPaymentMethodValue | null
-        // The staff member recording it (the journal's «Отметил»).
-        markedById: string
-        now?: Date
-    }) {
-        return this.prisma.$transaction(async (tx) => {
-            const now = params.now ?? new Date()
-            const sub = await tx.subscription.findFirst({
-                where: {
-                    id: params.subscriptionId,
-                    workspaceId: params.workspaceId,
-                    workspaceMember: { userId: params.userId },
-                },
-                select: {
-                    id: true,
-                    status: true,
-                    isPaid: true,
-                    paidAt: true,
-                    amountPaid: true,
-                    planId: true,
-                    currency: true,
-                    listPrice: true,
-                    discountId: true,
-                    pricedById: true,
-                    workspace: { select: { timezone: true } },
-                },
-            })
-            if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
-            if (sub.status === 'CANCELLED') {
-                throw new BadRequestError({
-                    message: 'Абонемент отменён — отметить оплату нельзя',
-                })
-            }
-            if (sub.isPaid) {
-                throw new BadRequestError({
-                    message: sub.paidAt
-                        ? `Оплата уже отмечена ${formatRuDate(sub.paidAt, sub.workspace.timezone)}`
-                        : 'Оплата уже отмечена',
-                })
-            }
+    async markPaid(params: MarkPaidParams) {
+        return this.prisma.$transaction((tx) => this.markPaidInTx(tx, params))
+    }
 
-            let priced: PricedSale | null = null
-            if (params.discountId) {
-                if (sub.discountId) {
-                    throw new BadRequestError({
-                        message: 'Скидку можно выбрать при оформлении абонемента',
-                    })
-                }
-                if (sub.listPrice === null) {
-                    throw new BadRequestError({
-                        message: 'У этой продажи не записана цена тарифа',
-                    })
-                }
-                priced = await priceStaffSale(tx, {
-                    workspaceId: params.workspaceId,
-                    discountId: params.discountId,
-                    userId: params.userId,
-                    item: {
-                        planId: sub.planId,
-                        eventId: null,
-                        listPrice: sub.listPrice,
-                        currency: sub.currency,
-                    },
-                    now,
-                    timezone: sub.workspace.timezone,
+    // The same mark inside a caller's transaction, so «Сверить выписку» writes
+    // its transfer fingerprint and the payment atomically.
+    async markPaidInTx(tx: PrismaTransactionClientType, params: MarkPaidParams) {
+        const now = params.now ?? new Date()
+        const sub = await tx.subscription.findFirst({
+            where: {
+                id: params.subscriptionId,
+                workspaceId: params.workspaceId,
+                workspaceMember: { userId: params.userId },
+            },
+            select: {
+                id: true,
+                status: true,
+                isPaid: true,
+                paidAt: true,
+                amountPaid: true,
+                planId: true,
+                currency: true,
+                listPrice: true,
+                discountId: true,
+                pricedById: true,
+                workspace: { select: { timezone: true } },
+            },
+        })
+        if (!sub) throw new NotFoundError({ message: 'Абонемент не найден' })
+        if (sub.status === 'CANCELLED') {
+            throw new BadRequestError({
+                message: 'Абонемент отменён — отметить оплату нельзя',
+            })
+        }
+        if (sub.isPaid) {
+            throw new BadRequestError({
+                message: sub.paidAt
+                    ? `Оплата уже отмечена ${formatRuDate(sub.paidAt, sub.workspace.timezone)}`
+                    : 'Оплата уже отмечена',
+            })
+        }
+
+        let priced: PricedSale | null = null
+        if (params.discountId) {
+            if (sub.discountId) {
+                throw new BadRequestError({
+                    message: 'Скидку можно выбрать при оформлении абонемента',
                 })
             }
-            const amount = params.amount ?? priced?.amount ?? sub.amountPaid
-            const repriced = priced !== null || amount !== sub.amountPaid
-
-            // Compare-and-set: two coaches marking at once must not both succeed.
-            const res = await tx.subscription.updateMany({
-                where: {
-                    id: sub.id,
-                    isPaid: false,
-                    status: { not: 'CANCELLED' },
-                },
-                data: {
-                    isPaid: true,
-                    paidAt: now,
-                    amountPaid: amount,
-                    paymentMethod: params.paymentMethod ?? null,
-                    markedPaidById: params.markedById,
-                    ...(priced
-                        ? {
-                              discountId: priced.discountId,
-                              discountName: priced.discountName,
-                              discountAmount: priced.discountAmount,
-                          }
-                        : {}),
-                    pricedById: repriced ? params.markedById : sub.pricedById,
-                },
-            })
-            if (res.count !== 1) {
-                throw new BadRequestError({ message: CHANGED_MESSAGE })
+            if (sub.listPrice === null) {
+                throw new BadRequestError({
+                    message: 'У этой продажи не записана цена тарифа',
+                })
             }
-            return tx.subscription.findUniqueOrThrow({
-                where: { id: sub.id },
-                include: subscriptionDtoInclude,
+            priced = await priceStaffSale(tx, {
+                workspaceId: params.workspaceId,
+                discountId: params.discountId,
+                userId: params.userId,
+                item: {
+                    planId: sub.planId,
+                    eventId: null,
+                    listPrice: sub.listPrice,
+                    currency: sub.currency,
+                },
+                now,
+                timezone: sub.workspace.timezone,
             })
+        }
+        const amount = params.amount ?? priced?.amount ?? sub.amountPaid
+        const repriced = priced !== null || amount !== sub.amountPaid
+
+        // Compare-and-set: two coaches marking at once must not both succeed.
+        const res = await tx.subscription.updateMany({
+            where: {
+                id: sub.id,
+                isPaid: false,
+                status: { not: 'CANCELLED' },
+            },
+            data: {
+                isPaid: true,
+                paidAt: params.paidAt ?? now,
+                amountPaid: amount,
+                paymentMethod: params.paymentMethod ?? null,
+                markedPaidById: params.markedById,
+                ...(priced
+                    ? {
+                          discountId: priced.discountId,
+                          discountName: priced.discountName,
+                          discountAmount: priced.discountAmount,
+                      }
+                    : {}),
+                pricedById: repriced ? params.markedById : sub.pricedById,
+            },
+        })
+        if (res.count !== 1) {
+            throw new BadRequestError({ message: CHANGED_MESSAGE })
+        }
+        return tx.subscription.findUniqueOrThrow({
+            where: { id: sub.id },
+            include: subscriptionDtoInclude,
         })
     }
 
@@ -489,6 +498,9 @@ export class SubscriptionService {
             if (res.count !== 1) {
                 throw new BadRequestError({ message: CHANGED_MESSAGE })
             }
+            // A statement transfer that paid it no longer did: re-uploading
+            // the statement offers it again («Сверить выписку»).
+            await tx.bankStatementMatch.deleteMany({ where: { subscriptionId: sub.id } })
             return tx.subscription.findUniqueOrThrow({
                 where: { id: sub.id },
                 include: subscriptionDtoInclude,

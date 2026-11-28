@@ -64,6 +64,7 @@ import {
 } from "./journal-view"
 import { PaymentEntrySheet } from "./PaymentEntrySheet"
 import { PeriodPicker } from "./PeriodPicker"
+import { StatementMatchSheet } from "./StatementMatchSheet"
 
 const PER_PAGE = 50
 // The server's page cap: a refresh reloads everything already shown.
@@ -105,6 +106,7 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [staff, setStaff] = useState<WorkspaceMember[] | null>(null)
   const [openUnapplied, setOpenUnapplied] = useState<PaymentJournalUnapplied | null>(null)
+  const [statementOpen, setStatementOpen] = useState(false)
   // Rows on screen, so a refresh doesn't fold «Показать ещё» back.
   const shown = useRef(0)
 
@@ -269,6 +271,14 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
           type="button"
           variant="outline"
           className="ml-auto h-9"
+          onClick={() => setStatementOpen(true)}
+        >
+          Сверить выписку
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9"
           disabled={exporting}
           onClick={() => void exportCsv()}
         >
@@ -555,6 +565,12 @@ export function PaymentJournal({ workspaceId }: { workspaceId: string }) {
           update({ entry: null })
         }}
         onChanged={() => void load()}
+      />
+      <StatementMatchSheet
+        workspaceId={workspaceId}
+        open={statementOpen}
+        onClose={() => setStatementOpen(false)}
+        onConfirmed={() => void load()}
       />
     </div>
   )

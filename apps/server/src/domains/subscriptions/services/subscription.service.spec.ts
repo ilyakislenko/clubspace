@@ -37,6 +37,7 @@ const makeTx = () => ({
         update: jest.fn().mockResolvedValue({}),
         delete: jest.fn().mockResolvedValue({}),
     },
+    bankStatementMatch: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
 })
 const makePrisma = (tx: ReturnType<typeof makeTx>) => ({
     workspace: { findUnique: jest.fn().mockResolvedValue({ type: 'GRAPPLING' }) },
@@ -889,6 +890,18 @@ describe('markPaid', () => {
             expect(data.pricedById).toBe('staff-1')
         })
 
+        it('records the given payment date (a bank transfer) instead of now', async () => {
+            const tx = makeTx()
+            tx.subscription.findFirst.mockResolvedValue(priced())
+            tx.subscription.findUniqueOrThrow.mockResolvedValue({ id: 's1' })
+            const paidAt = new Date('2026-10-20T17:00:00Z')
+            await svcWith(tx).markPaid({ ...params, paidAt, paymentMethod: 'TRANSFER' })
+            expect(tx.subscription.updateMany.mock.calls[0][0].data).toMatchObject({
+                paidAt,
+                paymentMethod: 'TRANSFER',
+            })
+        })
+
         it('applies a discount from the list price, in the same transaction', async () => {
             const tx = makeTx()
             tx.subscription.findFirst.mockResolvedValue(priced())
@@ -1061,6 +1074,8 @@ describe('unmarkPaid', () => {
             // Who marked it goes with the payment (the journal row leaves).
             data: { isPaid: false, paidAt: null, paymentMethod: null, markedPaidById: null },
         })
+        // A statement transfer matched to it may be matched again.
+        expect(tx.bankStatementMatch.deleteMany).toHaveBeenCalledWith({ where: { subscriptionId: 's1' } })
         expect(res).toEqual({ id: 's1', isPaid: false })
     })
 
