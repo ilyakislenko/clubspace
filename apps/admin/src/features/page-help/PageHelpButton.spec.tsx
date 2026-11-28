@@ -28,6 +28,8 @@ const manifest = (base: string) => [
   { id: "attendance", role: "coach", title: "Отметить посещения", file: `${base}/attendance.mp4` },
 ]
 
+const everyone = () => true
+
 const openHelp = () => {
   fireEvent.click(screen.getByRole("button", { name: "Как работает этот раздел" }))
   return screen.getByRole("dialog")
@@ -43,7 +45,7 @@ beforeEach(() => {
 describe("PageHelpButton", () => {
   it("renders nothing on a page without help", () => {
     pathnameMock.mockReturnValue(`${W}/nope`)
-    const { container } = render(<PageHelpButton />)
+    const { container } = render(<PageHelpButton allows={everyone} />)
     expect(container.innerHTML).toBe("")
   })
 
@@ -52,7 +54,7 @@ describe("PageHelpButton", () => {
     env.publicAppUrl = "https://app.example.com"
     fetchMock.mockResolvedValue({ ok: true, json: async () => manifest(env.guidesBaseUrl ?? "") })
     pathnameMock.mockReturnValue(`${W}/schedule`)
-    render(<PageHelpButton />)
+    render(<PageHelpButton allows={everyone} />)
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
 
@@ -71,6 +73,7 @@ describe("PageHelpButton", () => {
     expect(setup.hasAttribute("controls")).toBe(true)
     expect(attendance.hasAttribute("poster")).toBe(false)
     expect(within(dialog).getByText("Зал, группа и абонемент")).toBeTruthy()
+    expect(setup.getAttribute("aria-label")).toBe("Зал, группа и абонемент")
     expect(within(dialog).getByText("2:05")).toBeTruthy()
 
     const all = within(dialog).getByRole("link", { name: "Все видеоинструкции" })
@@ -82,7 +85,7 @@ describe("PageHelpButton", () => {
     env.guidesBaseUrl = "https://s3.example.com/guides-b"
     fetchMock.mockResolvedValue({ ok: false, status: 404, json: async () => ({}) })
     pathnameMock.mockReturnValue(`${W}/content`)
-    render(<PageHelpButton />)
+    render(<PageHelpButton allows={everyone} />)
     const dialog = openHelp()
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     expect(within(dialog).getByRole("heading", { name: "Как работает раздел «Курсы и видео»" })).toBeTruthy()
@@ -93,14 +96,35 @@ describe("PageHelpButton", () => {
 
   it("asks for no manifest without a guides address or on a page without guides", () => {
     pathnameMock.mockReturnValue(`${W}/schedule`)
-    const { unmount } = render(<PageHelpButton />)
+    const { unmount } = render(<PageHelpButton allows={everyone} />)
     openHelp()
     unmount()
 
     env.guidesBaseUrl = "https://s3.example.com/guides-c"
     pathnameMock.mockReturnValue(`${W}/users/messages`)
-    render(<PageHelpButton />)
+    render(<PageHelpButton allows={everyone} />)
     openHelp()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("lists only the controls this viewer gets", () => {
+    pathnameMock.mockReturnValue(`${W}/users`)
+    const { unmount } = render(<PageHelpButton allows={(access) => access === "staff"} />)
+    let dialog = openHelp()
+    expect(within(dialog).getAllByRole("listitem")).toHaveLength(4)
+    expect(within(dialog).queryByText("«Импорт из Excel (CSV)» в меню «Ещё»")).toBeNull()
+    unmount()
+
+    render(<PageHelpButton allows={everyone} />)
+    dialog = openHelp()
+    expect(within(dialog).getByText("«Импорт из Excel (CSV)» в меню «Ещё»")).toBeTruthy()
+  })
+
+  it("drops «Что здесь можно сделать» when nothing on the page is the viewer's", () => {
+    pathnameMock.mockReturnValue("/org/0b1d9e6c-1111-4222-8333-444455556666/announcements")
+    render(<PageHelpButton allows={() => false} />)
+    const dialog = openHelp()
+    expect(within(dialog).getByText("Объявления федерации для клубов и их учеников.")).toBeTruthy()
+    expect(within(dialog).queryByText("Что здесь можно сделать")).toBeNull()
   })
 })

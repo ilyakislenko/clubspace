@@ -30,7 +30,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 }
 
 function OrgShell({ children }: { children: React.ReactNode }) {
-  const { org } = useOrg()
+  const { org, isAdmin } = useOrg()
   // The federation's discipline picks the words, as a club's does.
   const vocabulary = useMemo(() => vocabularyForWorkspaceType(org.type), [org.type])
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -47,7 +47,7 @@ function OrgShell({ children }: { children: React.ReactNode }) {
             <SidebarTrigger />
             <div className="text-sm font-medium">{org.name}</div>
             <div className="ml-auto flex items-center gap-1">
-              <PageHelpButton />
+              <PageHelpButton allows={(access) => access === "orgAdmin" && isAdmin} />
               <ThemeSwitcher />
             </div>
           </header>

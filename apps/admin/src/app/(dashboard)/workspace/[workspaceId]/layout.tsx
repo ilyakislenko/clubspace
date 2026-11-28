@@ -8,7 +8,7 @@ import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
 
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@clubspace/ui-kit/ui"
 import { getWorkspaceSettings } from "../../../../shared/api/workspaces"
-import { isClubAdmin } from "../../../../shared/lib/permissions"
+import { hasAccess, isClubAdmin } from "../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import { defaultSidebarOpen } from "../../../../shared/lib/sidebar-default"
 import { setActiveWorkspaceId } from "../../../../shared/workspace/storage"
@@ -40,7 +40,8 @@ export default function WorkspaceLayout({
   // Set when the API answers WORKSPACE_SUSPENDED: the club is closed, and
   // only its billing page stays open (for admins).
   const [suspended, setSuspended] = useState<SuspendedInfo | null>(null)
-  const canAdmin = isClubAdmin(useMyMembership(workspaceId))
+  const membership = useMyMembership(workspaceId)
+  const canAdmin = isClubAdmin(membership)
   // The server render has neither the cookie nor the window width, so it
   // renders expanded and the real default is applied before the first paint
   // (a layout effect) — no hydration mismatch, no visible jump. The provider
@@ -108,7 +109,11 @@ export default function WorkspaceLayout({
             {workspaceName || "Клуб"}
           </div>
           <div className="ml-auto flex items-center gap-1">
-            {!blocked && <PageHelpButton />}
+            {!blocked && (
+              <PageHelpButton
+                allows={(access) => access !== "orgAdmin" && hasAccess(membership, access)}
+              />
+            )}
             <ThemeSwitcher />
           </div>
         </header>

@@ -966,16 +966,20 @@ site elsewhere sets `PUBLIC_SITE_URL` (e.g. `https://site.<domain>`): compose
 bakes it into the admin as `NEXT_PUBLIC_APP_URL`, so rebuild `admin` after
 changing it.
 
-**Video guides in the admin.** Every admin page has a «?» button in its header:
-what the section is for, what can be done there and, where one exists, the
-video guide for it. The guides are read from `GUIDES_BASE_URL`
-(`${GUIDES_BASE_URL}/guides.json`, see `.env.production.example`), which
-compose bakes into the admin as `NEXT_PUBLIC_GUIDES_BASE_URL` — rebuild `admin`
-after changing it. The admin's Content-Security-Policy admits that origin
-(usually the storage host, `https://s3.<domain>`). Unset, or a manifest that
-can't be fetched: the panel shows its text only. The «Все видеоинструкции»
-link goes to `<public site>/help` and is hidden when the admin has no public
-site address.
+**Video guides in the admin.** Pages of a club and of a federation console that
+have a help entry show a «?» button in the header (`/platform`, the club picker
+and redirect-only routes have none): what the section is for, what the viewer's
+role can do there and, where one exists, the video guide for it. The guides
+are read from `GUIDES_BASE_URL` (`${GUIDES_BASE_URL}/guides.json`, see
+`.env.production.example`), which compose bakes into the admin as
+`NEXT_PUBLIC_GUIDES_BASE_URL` — rebuild `admin` after changing it. The admin's
+Content-Security-Policy admits that origin (usually the storage host,
+`https://s3.<domain>`). The admin fetches `guides.json` cross-origin: the
+bundled MinIO allows any origin, but on external S3 the bucket's CORS rules
+must also allow `GET` from the admin origin, or the panel stays text-only.
+Unset, or a manifest that can't be fetched: the panel shows its text only. The
+«Все видеоинструкции» link goes to `<public site>/help` and is hidden when the
+admin has no public site address.
 
 Check after deploy:
 

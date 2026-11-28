@@ -16,12 +16,19 @@ import {
 import { environment } from "../../environments/environment"
 import { useVocabulary } from "../../shared/lib/vocabulary"
 import { formatGuideDuration, loadGuides, type Guide } from "./guides-manifest"
-import { helpEntryFor, type GuideId, type HelpEntry } from "./help-entries"
+import {
+  helpEntryFor,
+  visibleActions,
+  type GuideId,
+  type HelpAccess,
+  type HelpEntry,
+} from "./help-entries"
 
-// The «?» of the shell header: what the open section is for, what can be done
-// on it and the video guide that shows it. Only on pages with an entry; opens
-// on a click only.
-export function PageHelpButton() {
+// The «?» of the shell header: what the open section is for, what this viewer
+// can do on it and the video guide that shows it. Only on pages with an
+// entry; opens on a click only. `allows`: the shell's answer for the controls
+// only some viewers of the page get (a club role, the federation's admins).
+export function PageHelpButton({ allows }: { allows: (access: HelpAccess) => boolean }) {
   const pathname = usePathname()
   const vocabulary = useVocabulary()
   const entry = useMemo(() => helpEntryFor(pathname, vocabulary), [pathname, vocabulary])
@@ -39,6 +46,7 @@ export function PageHelpButton() {
       </Button>
       <PageHelpSheet
         entry={entry}
+        actions={visibleActions(entry, allows)}
         open={open}
         onOpenChange={setOpen}
         guidesBaseUrl={environment.guidesBaseUrl}
@@ -50,12 +58,14 @@ export function PageHelpButton() {
 
 export function PageHelpSheet({
   entry,
+  actions,
   open,
   onOpenChange,
   guidesBaseUrl,
   allGuidesUrl,
 }: {
   entry: HelpEntry
+  actions: string[]
   open: boolean
   onOpenChange: (open: boolean) => void
   guidesBaseUrl: string | null
@@ -89,14 +99,16 @@ export function PageHelpSheet({
           <SheetDescription>{entry.purpose}</SheetDescription>
         </SheetHeader>
 
-        <section className="space-y-2">
-          <h3 className="text-sm font-medium">Что здесь можно сделать</h3>
-          <ul className="list-disc space-y-1.5 pl-5 text-sm">
-            {entry.actions.map((action) => (
-              <li key={action}>{action}</li>
-            ))}
-          </ul>
-        </section>
+        {actions.length > 0 && (
+          <section className="space-y-2">
+            <h3 className="text-sm font-medium">Что здесь можно сделать</h3>
+            <ul className="list-disc space-y-1.5 pl-5 text-sm">
+              {actions.map((action) => (
+                <li key={action}>{action}</li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {videos.map((guide) => (
           <figure key={guide.id} className="space-y-2">
@@ -105,6 +117,7 @@ export function PageHelpSheet({
               preload="metadata"
               poster={guide.posterUrl ?? undefined}
               src={guide.videoUrl}
+              aria-label={guide.title}
               className="aspect-video w-full rounded-md bg-muted"
             />
             <figcaption className="flex items-baseline justify-between gap-3 text-sm">
