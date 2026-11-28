@@ -262,6 +262,10 @@ export type AuditAction =
     // the club's data to the AI provider, and every question asked.
     | 'ai.chatEnable'
     | 'ai.chatQuestion'
+    // «Спросить ИИ по видео клуба» in the app (features/ask-club-videos): a
+    // member accepted the notice before their first question, and every question.
+    | 'ai.videoAnswerNotice'
+    | 'ai.videoAnswerQuestion'
 
 export type AuditTargetType =
     | 'video'

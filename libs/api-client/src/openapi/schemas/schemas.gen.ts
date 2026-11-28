@@ -4732,6 +4732,9 @@ export const UpdateWorkspaceSettingsBodySchema = {
         messagesEmailEnabled: {
             type: 'boolean'
         },
+        videoAnswersEnabled: {
+            type: 'boolean'
+        },
         announcementsEnabled: {
             type: 'boolean'
         },
@@ -5979,6 +5982,34 @@ export const RegenerateVideoTextInputSchema = {
     required: [
         'chapters',
         'subtitles'
+    ]
+} as const;
+
+export const AskClubVideosInputSchema = {
+    type: 'object',
+    properties: {
+        question: {
+            type: 'string',
+            minLength: 5,
+            maxLength: 200
+        }
+    },
+    required: [
+        'question'
+    ]
+} as const;
+
+export const AcceptClubVideoAnswersNoticeInputSchema = {
+    type: 'object',
+    properties: {
+        version: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 64
+        }
+    },
+    required: [
+        'version'
     ]
 } as const;
 

@@ -736,6 +736,12 @@ import { GetWorkspaceVideoController } from '../features/get-video/get-workspace
 import { GetWorkspaceVideoHandler } from '../features/get-video/get-workspace-video.handler'
 import { SearchVideosController } from '../features/search-videos/search-videos.controller'
 import { SearchVideosHandler } from '../features/search-videos/search-videos.handler'
+import { AskClubVideosController } from '../features/ask-club-videos/ask-club-videos.controller'
+import {
+    AcceptClubVideoAnswersNoticeHandler,
+    AskClubVideosHandler,
+    GetClubVideoAnswersStateHandler,
+} from '../features/ask-club-videos/ask-club-videos.handler'
 import { TechniquesController } from '../features/techniques/techniques.controller'
 import { ListTechniquesHandler } from '../features/techniques/list-techniques.handler'
 import { GetTechniqueHandler } from '../features/techniques/get-technique.handler'
@@ -895,6 +901,7 @@ const controllers: ModuleMetadata['controllers'] = [
     GetVideoController,
     // Before GetWorkspaceVideoController: `videos/search` must not match `videos/:videoId`.
     SearchVideosController,
+    AskClubVideosController,
     TechniquesController,
     VideoTextController,
     GetWorkspaceVideoController,
@@ -1112,6 +1119,9 @@ const handlers: ModuleMetadata['providers'] = [
     GetVideoHandler,
     GetWorkspaceVideoHandler,
     SearchVideosHandler,
+    GetClubVideoAnswersStateHandler,
+    AcceptClubVideoAnswersNoticeHandler,
+    AskClubVideosHandler,
     ListTechniquesHandler,
     GetTechniqueHandler,
     GetVideoTextStatusHandler,

@@ -1156,6 +1156,38 @@ export type SearchVideosOutputOutput = {
     }>;
 };
 
+export type ClubVideoAnswersStateOutputOutput = {
+    available: boolean;
+    noticeAccepted: boolean;
+    notice: {
+        version: string;
+        title: string;
+        text: string;
+    };
+};
+
+export type AcceptClubVideoAnswersNoticeInput = {
+    version: string;
+};
+
+export type AskClubVideosInput = {
+    question: string;
+};
+
+export type AskClubVideosOutputOutput = {
+    answer: string;
+    answered: boolean;
+    citations: Array<{
+        n: number;
+        videoId: string;
+        courseId: string | null;
+        title: string;
+        startAt: number;
+        endAt: number | null;
+        excerpt: string;
+    }>;
+};
+
 export type ListTechniquesOutputOutput = {
     categories: Array<{
         category: 'submissions' | 'guards' | 'passes' | 'sweeps' | 'takedowns' | 'positions' | 'escapes' | 'other';
@@ -3036,6 +3068,8 @@ export type GetWorkspaceSettingsOutputOutput = {
     joinAutoApprove: boolean;
     birthdayGreetingsEnabled: boolean;
     messagesEmailEnabled: boolean;
+    videoAnswersEnabled: boolean;
+    aiConfigured: boolean;
     announcementsEnabled: boolean;
     ranksEnabled: boolean;
     leaderboardEnabled: boolean;
@@ -3069,6 +3103,7 @@ export type UpdateWorkspaceSettingsBody = {
     joinAutoApprove?: boolean;
     birthdayGreetingsEnabled?: boolean;
     messagesEmailEnabled?: boolean;
+    videoAnswersEnabled?: boolean;
     announcementsEnabled?: boolean;
     ranksEnabled?: boolean;
     leaderboardEnabled?: boolean;
@@ -3101,6 +3136,7 @@ export type UpdateWorkspaceSettingsOutputOutput = {
     joinAutoApprove: boolean;
     birthdayGreetingsEnabled: boolean;
     messagesEmailEnabled: boolean;
+    videoAnswersEnabled: boolean;
     announcementsEnabled: boolean;
     ranksEnabled: boolean;
     leaderboardEnabled: boolean;
@@ -12679,6 +12715,51 @@ export type SearchVideosResponses = {
 };
 
 export type SearchVideosResponse = SearchVideosResponses[keyof SearchVideosResponses];
+
+export type GetClubVideoAnswersStateData = {
+    body?: never;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/video-answers/state';
+};
+
+export type GetClubVideoAnswersStateResponses = {
+    default: ClubVideoAnswersStateOutputOutput;
+};
+
+export type GetClubVideoAnswersStateResponse = GetClubVideoAnswersStateResponses[keyof GetClubVideoAnswersStateResponses];
+
+export type AcceptClubVideoAnswersNoticeData = {
+    body: AcceptClubVideoAnswersNoticeInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/video-answers/notice';
+};
+
+export type AcceptClubVideoAnswersNoticeResponses = {
+    default: ClubVideoAnswersStateOutputOutput;
+};
+
+export type AcceptClubVideoAnswersNoticeResponse = AcceptClubVideoAnswersNoticeResponses[keyof AcceptClubVideoAnswersNoticeResponses];
+
+export type AskClubVideosData = {
+    body: AskClubVideosInput;
+    path: {
+        workspaceId: string;
+    };
+    query?: never;
+    url: '/workspaces/{workspaceId}/video-answers';
+};
+
+export type AskClubVideosResponses = {
+    default: AskClubVideosOutputOutput;
+};
+
+export type AskClubVideosResponse = AskClubVideosResponses[keyof AskClubVideosResponses];
 
 export type ListTechniquesData = {
     body?: never;

@@ -228,3 +228,15 @@ export class QuotaExceededError extends DefaultError {
         })
     }
 }
+
+// The club's AI model failed or ran out of time for a member-facing answer.
+// `message` is shown as is (no provider or configuration details).
+export class AiServiceUnavailableError extends DefaultError {
+    constructor(payload: { message: string }) {
+        super({
+            message: payload.message,
+            code: 'AI_UNAVAILABLE',
+            statusCode: 503,
+        })
+    }
+}

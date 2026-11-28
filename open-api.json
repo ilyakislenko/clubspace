@@ -1955,6 +1955,107 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/video-answers/state": {
+      "get": {
+        "operationId": "getClubVideoAnswersState",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClubVideoAnswersStateOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/video-answers/notice": {
+      "post": {
+        "operationId": "acceptClubVideoAnswersNotice",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptClubVideoAnswersNoticeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClubVideoAnswersStateOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/video-answers": {
+      "post": {
+        "operationId": "askClubVideos",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskClubVideosInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskClubVideosOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/techniques": {
       "get": {
         "operationId": "listTechniques",
@@ -24959,6 +25060,137 @@
         ],
         "additionalProperties": false
       },
+      "ClubVideoAnswersStateOutput_Output": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "noticeAccepted": {
+            "type": "boolean"
+          },
+          "notice": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "title",
+              "text"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "available",
+          "noticeAccepted",
+          "notice"
+        ],
+        "additionalProperties": false
+      },
+      "AcceptClubVideoAnswersNoticeInput": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "AskClubVideosInput": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "question"
+        ]
+      },
+      "AskClubVideosOutput_Output": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "answered": {
+            "type": "boolean"
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "n": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "videoId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "courseId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "nullable": true
+                },
+                "title": {
+                  "type": "string"
+                },
+                "startAt": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "endAt": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "nullable": true
+                },
+                "excerpt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "n",
+                "videoId",
+                "courseId",
+                "title",
+                "startAt",
+                "endAt",
+                "excerpt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "answer",
+          "answered",
+          "citations"
+        ],
+        "additionalProperties": false
+      },
       "ListTechniquesOutput_Output": {
         "type": "object",
         "properties": {
@@ -34454,6 +34686,12 @@
           "messagesEmailEnabled": {
             "type": "boolean"
           },
+          "videoAnswersEnabled": {
+            "type": "boolean"
+          },
+          "aiConfigured": {
+            "type": "boolean"
+          },
           "announcementsEnabled": {
             "type": "boolean"
           },
@@ -34566,6 +34804,8 @@
           "joinAutoApprove",
           "birthdayGreetingsEnabled",
           "messagesEmailEnabled",
+          "videoAnswersEnabled",
+          "aiConfigured",
           "announcementsEnabled",
           "ranksEnabled",
           "leaderboardEnabled",
@@ -34612,6 +34852,9 @@
             "type": "boolean"
           },
           "messagesEmailEnabled": {
+            "type": "boolean"
+          },
+          "videoAnswersEnabled": {
             "type": "boolean"
           },
           "announcementsEnabled": {
@@ -34704,6 +34947,9 @@
             "type": "boolean"
           },
           "messagesEmailEnabled": {
+            "type": "boolean"
+          },
+          "videoAnswersEnabled": {
             "type": "boolean"
           },
           "announcementsEnabled": {
@@ -34814,6 +35060,7 @@
           "joinAutoApprove",
           "birthdayGreetingsEnabled",
           "messagesEmailEnabled",
+          "videoAnswersEnabled",
           "announcementsEnabled",
           "ranksEnabled",
           "leaderboardEnabled",

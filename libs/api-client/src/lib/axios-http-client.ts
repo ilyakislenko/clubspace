@@ -244,6 +244,7 @@ export const createAxiosHttpClient = (
         data: request.data,
         params: request.params,
         headers: request.headers,
+        timeout: request.timeout,
       })
 
       return response.data

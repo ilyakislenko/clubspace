@@ -4,6 +4,7 @@ import { useParams } from "next/navigation"
 
 import { AchievementsSettings } from "../../../../../../features/achievements/AchievementsSettings"
 import { AppSectionsCard } from "../../../../../../features/settings/AppSectionsCard"
+import { VideoAnswersToggle } from "../../../../../../features/settings/VideoAnswersToggle"
 import { SettingsSectionHeader } from "../../../../../../features/settings/SettingsNav"
 import { SettingsLoadState } from "../../../../../../features/settings/SettingsLoadState"
 import { useWorkspaceSettings } from "../../../../../../features/settings/use-workspace-settings"
@@ -30,11 +31,18 @@ export default function SettingsAppPage() {
         onRetry={reload}
       />
       {settings && (
-        <AppSectionsCard
-          settings={settings}
-          saving={saving}
-          onSave={(patch) => void save(patch)}
-        />
+        <>
+          <AppSectionsCard
+            settings={settings}
+            saving={saving}
+            onSave={(patch) => void save(patch)}
+          />
+          <VideoAnswersToggle
+            settings={settings}
+            saving={saving}
+            onSave={(patch) => void save(patch)}
+          />
+        </>
       )}
       {workspaceId && settings?.achievementsEnabled && (
         <AchievementsSettings workspaceId={workspaceId} />

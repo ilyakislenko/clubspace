@@ -16,6 +16,12 @@ import {
   searchVideos,
   type VideoSearchItem,
 } from "../../shared/api/video-search"
+import {
+  acceptVideoAnswersNotice,
+  askClubVideos,
+  getVideoAnswersState,
+  type VideoAnswersState,
+} from "../../shared/api/video-answers"
 import { useAuth } from "../../shared/auth-context"
 import {
   CenteredColumn,
@@ -25,11 +31,14 @@ import { ErrorRetry } from "../../shared/components/ErrorRetry"
 import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
-import { errorMessage } from "../../shared/error-message"
+import { showAlert } from "../../shared/alert"
+import { errorCode, errorMessage } from "../../shared/error-message"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { MIN_VIDEO_QUERY } from "./search-text"
 import { Highlighted, MomentChip } from "./SearchMoment"
+import { canAskVideos, citationRoute } from "./video-answer"
+import { VideoAnswerCard, type VideoAnswerView } from "./VideoAnswerCard"
 
 type Props = NativeStackScreenProps<RootStackParamList, "VideoSearch">
 
@@ -43,7 +52,7 @@ const SEARCH_MAX_LENGTH = 100
 export function VideoSearchScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { workspace } = useAuth()
+  const { workspace, actingAs } = useAuth()
   const network = useNetworkState()
   // Unknown counts as online: the request is tried and fails into an error.
   const online =
@@ -101,6 +110,97 @@ export function VideoSearchScreen({ route, navigation }: Props) {
       }),
     [navigation],
   )
+
+  // «Спросить ИИ по видео клуба»: only when the club offers it to this member;
+  // never on its own — the member taps the action for the typed text.
+  const [answers, setAnswers] = useState<VideoAnswersState | null>(null)
+  const [asked, setAsked] = useState<string | null>(null)
+  const [answerView, setAnswerView] = useState<VideoAnswerView | null>(null)
+  // Only the latest question may paint.
+  const askSeq = useRef(0)
+
+  // Not offered in a child profile (the server refuses it there too).
+  const childProfile = Boolean(actingAs)
+  useEffect(() => {
+    setAnswers(null)
+    if (childProfile) {
+      askSeq.current++
+      setAsked(null)
+      setAnswerView(null)
+    }
+    if (!workspaceId || !online || childProfile) return
+    let alive = true
+    void getVideoAnswersState({ workspaceId })
+      .then((res) => alive && setAnswers(res))
+      // An optional extra: unknown = not offered.
+      .catch(() => alive && setAnswers(null))
+    return () => {
+      alive = false
+    }
+  }, [workspaceId, online, childProfile])
+
+  // The answer belongs to the question asked: editing the text drops it.
+  useEffect(() => {
+    if (asked !== null && query.trim() !== asked) {
+      askSeq.current++
+      setAsked(null)
+      setAnswerView(null)
+    }
+  }, [query, asked])
+
+  const runAsk = useCallback(
+    async (question: string, acceptNotice?: string) => {
+      if (!workspaceId) return
+      const mine = ++askSeq.current
+      setAsked(question)
+      setAnswerView({ status: "loading" })
+      try {
+        if (acceptNotice) {
+          // Accepted is accepted, even if the question was dropped meanwhile.
+          setAnswers(await acceptVideoAnswersNotice({ workspaceId, version: acceptNotice }))
+          if (mine !== askSeq.current) return
+        }
+        const answer = await askClubVideos({ workspaceId, question })
+        if (mine === askSeq.current) setAnswerView({ status: "done", answer })
+      } catch (err: unknown) {
+        if (mine !== askSeq.current) return
+        const code = errorCode(err)
+        if (code === "FORBIDDEN" || code === "CONFLICT") {
+          // The club switched it off, access changed or the notice has a new
+          // edition: re-read, so the screen offers only what applies (the
+          // next tap shows the current notice) instead of failing on retry.
+          const state = await getVideoAnswersState({ workspaceId }).catch(() => null)
+          if (mine !== askSeq.current) return
+          setAnswers(state)
+          if (!state?.available || !state.noticeAccepted) {
+            setAsked(null)
+            setAnswerView(null)
+            return
+          }
+        }
+        setAnswerView({
+          status: "error",
+          message: errorMessage(err, "Не удалось получить ответ. Попробуйте ещё раз."),
+        })
+      }
+    },
+    [workspaceId],
+  )
+
+  // Before the first question: the member agrees that it goes to the AI
+  // service (kept on the server, asked once per club and edition).
+  const ask = (question: string) => {
+    if (!answers) return
+    if (answers.noticeAccepted) {
+      void runAsk(question)
+      return
+    }
+    const { notice } = answers
+    showAlert(notice.title, notice.text, [
+      { text: "Отмена", style: "cancel" },
+      { text: "Согласен, спросить", onPress: () => void runAsk(question, notice.version) },
+    ])
+  }
 
   const renderItem = ({ item }: { item: VideoSearchItem }) => (
     <View style={styles.card}>
@@ -180,6 +280,22 @@ export function VideoSearchScreen({ route, navigation }: Props) {
     return null
   })()
 
+  const trimmed = query.trim()
+  const canAsk = canAskVideos({
+    available: Boolean(answers?.available),
+    childProfile,
+    online,
+    text: trimmed,
+    asked,
+  })
+  const answerCard = answerView ? (
+    <VideoAnswerCard
+      view={answerView}
+      onOpen={(citation) => navigation.navigate("Video", citationRoute(citation))}
+      onRetry={() => asked && void runAsk(asked)}
+    />
+  ) : null
+
   return (
     <SafeAreaView style={styles.root} edges={["bottom"]}>
       <CenteredColumn maxWidth={READABLE_WIDTH}>
@@ -210,16 +326,33 @@ export function VideoSearchScreen({ route, navigation }: Props) {
               </Pressable>
             )}
           </View>
+          {canAsk && (
+            <Pressable
+              onPress={() => ask(trimmed)}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.askButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.askText}>Спросить ИИ по видео клуба</Text>
+            </Pressable>
+          )}
         </View>
 
-        {status ?? (
+        {status ? (
+          <>
+            {answerCard && <View style={styles.answerAbove}>{answerCard}</View>}
+            {status}
+          </>
+        ) : (
           <FlatList
             data={items ?? []}
             keyExtractor={(item) => item.video.id}
             renderItem={renderItem}
             keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={answerCard ?? undefined}
             contentContainerStyle={
-              items && items.length > 0 ? styles.list : styles.emptyWrap
+              answerCard || (items && items.length > 0)
+                ? styles.list
+                : styles.emptyWrap
             }
             ListEmptyComponent={
               <View style={styles.state}>
@@ -266,6 +399,21 @@ const makeStyles = (theme: Theme) =>
       justifyContent: "center",
     },
     searchClearText: { fontSize: 14, color: theme.colors.muted, fontWeight: "600" },
+    askButton: {
+      alignSelf: "flex-start",
+      marginTop: theme.spacing(2),
+      paddingHorizontal: theme.spacing(3),
+      paddingVertical: theme.spacing(2),
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+    },
+    askText: { fontSize: 14, fontWeight: "600", color: theme.colors.accent },
+    answerAbove: {
+      paddingHorizontal: theme.spacing(5),
+      paddingTop: theme.spacing(3),
+    },
     list: {
       padding: theme.spacing(5),
       paddingTop: theme.spacing(3),

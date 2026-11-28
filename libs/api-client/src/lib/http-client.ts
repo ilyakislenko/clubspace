@@ -6,6 +6,8 @@ export interface HttpRequestConfig<TBody = unknown> {
   data?: TBody
   params?: Record<string, unknown>
   headers?: Record<string, string>
+  /** This request's timeout in ms, for the few that legitimately run long; unset = the client's. */
+  timeout?: number
 }
 
 export interface HttpClient {
