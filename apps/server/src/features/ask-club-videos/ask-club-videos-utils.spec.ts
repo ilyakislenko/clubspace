@@ -41,6 +41,17 @@ describe('search terms', () => {
         expect(parseExpansionTerms('{broken')).toEqual([])
     })
 
+    it('still reads the terms when the model closes the JSON wrongly', () => {
+        // Seen live (a free model): the brace before the bracket.
+        expect(parseExpansionTerms('{"terms": ["гард осьминога", "octopus guard", "sweep"}]')).toEqual([
+            'гард осьминога',
+            'octopus guard',
+            'sweep',
+        ])
+        expect(parseExpansionTerms('{"terms": ["mount", "back \\"take\\""')).toEqual(['mount', 'back "take"'])
+        expect(parseExpansionTerms('{"words": ["x"')).toEqual([])
+    })
+
     it('falls back to the meaningful words of the question', () => {
         expect(questionWords('Как выйти из маунта, если держат голову?')).toEqual(['выйти', 'маунта', 'держат', 'голову'])
     })

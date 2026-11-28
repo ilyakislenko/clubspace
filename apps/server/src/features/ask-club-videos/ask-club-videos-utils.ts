@@ -90,21 +90,40 @@ const normalizeTerm = (raw: string): string | null => {
     return term.length >= MIN_TERM_LENGTH ? term : null
 }
 
-/** The model's `{"terms": [...]}`, tolerating a code fence or prose around it. */
+/**
+ * The model's `{"terms": [...]}`, tolerating a code fence or prose around it.
+ * Smaller models often close the JSON wrongly (`… "sweep"}]`); then the quoted
+ * strings after `"terms"` are taken as the list, so one stray bracket doesn't
+ * throw away good search words.
+ */
 export const parseExpansionTerms = (raw: string): string[] => {
     const start = raw.indexOf('{')
     const end = raw.lastIndexOf('}')
-    if (start < 0 || end <= start) return []
-    let parsed: unknown
-    try {
-        parsed = JSON.parse(raw.slice(start, end + 1))
-    } catch {
-        return []
+    if (start >= 0 && end > start) {
+        try {
+            const result = ExpansionSchema.safeParse(JSON.parse(raw.slice(start, end + 1)))
+            if (result.success) {
+                return result.data.terms.filter((t): t is string => typeof t === 'string').slice(0, 20)
+            }
+        } catch {
+            // Malformed — read the quoted strings below.
+        }
     }
-    const result = ExpansionSchema.safeParse(parsed)
-    return result.success
-        ? result.data.terms.filter((t): t is string => typeof t === 'string').slice(0, 20)
-        : []
+    const key = raw.search(/"terms"\s*:\s*\[/)
+    if (key < 0) return []
+    const list = raw.slice(raw.indexOf('[', key) + 1)
+    const terms: string[] = []
+    for (const m of list.matchAll(/"((?:[^"\\]|\\.)*)"/g)) {
+        let term: unknown
+        try {
+            term = JSON.parse(`"${m[1]}"`)
+        } catch {
+            continue
+        }
+        if (typeof term === 'string' && term.trim()) terms.push(term)
+        if (terms.length === 20) break
+    }
+    return terms
 }
 
 const ExpansionSchema = z.object({ terms: z.array(z.unknown()) })
