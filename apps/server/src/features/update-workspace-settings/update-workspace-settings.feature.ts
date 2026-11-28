@@ -20,6 +20,8 @@ export const UpdateWorkspaceSettingsFeatureInputSchema = z.object({
     birthdayGreetingsEnabled: z.boolean().optional(),
     // «Сообщения ученикам на e-mail» (club messages' e-mail copy; trial allowance applies).
     messagesEmailEnabled: z.boolean().optional(),
+    // «ИИ-ответы по видео клуба» (docs/design/2026-11-28-ask-club-videos.md).
+    videoAnswersEnabled: z.boolean().optional(),
     // leaderboardEnabled + the app-section flags — each optional so the admin
     // can PATCH a single toggle.
     ...FeatureFlagColumnsSchema.partial().shape,
@@ -38,6 +40,7 @@ export const UpdateWorkspaceSettingsFeatureOutputSchema = z.object({
     joinAutoApprove: z.boolean(),
     birthdayGreetingsEnabled: z.boolean(),
     messagesEmailEnabled: z.boolean(),
+    videoAnswersEnabled: z.boolean(),
     ...FeatureFlagColumnsSchema.shape,
     ...WorkspaceBookingSettingsFields,
     // Switches the platform pinned: the club cannot change these.

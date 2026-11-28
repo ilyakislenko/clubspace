@@ -359,7 +359,8 @@ export type ClubLimitsBilling = {
   videoUsage: BillingSnapshot["videoUsage"]
 }
 
-// The AI assistant's monthly question quota; null when its state is unknown.
+// The club's monthly AI question quota (the assistant chat and the members'
+// answers by video share it); null when its state is unknown.
 export type ClubLimitsAi = { configured: boolean; limit: { used: number; perMonth: number } }
 
 // «Лимиты»: every quota the club has and how much of it is used, in a fixed
@@ -404,7 +405,7 @@ export const clubLimitRows = (
   }
   if (ai?.configured) {
     rows.push({
-      label: "Вопросы ИИ-ассистенту в этом месяце",
+      label: "Вопросы к ИИ в этом месяце",
       usedLabel: `${ai.limit.used} из ${ai.limit.perMonth}`,
       percent: usagePercent(ai.limit.used, ai.limit.perMonth),
     })

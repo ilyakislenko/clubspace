@@ -1,3 +1,4 @@
+import { environment } from '../../environments/environment'
 import { NotFoundError } from '../../shared/errors/shared.errors'
 import { GetWorkspaceSettingsFeature } from './get-workspace-settings.feature'
 import { GetWorkspaceSettingsHandler } from './get-workspace-settings.handler'
@@ -11,6 +12,14 @@ const build = (row: unknown) => {
 }
 
 describe('getWorkspaceSettings', () => {
+    const savedKey = environment.ai.chat.apiKey
+    beforeEach(() => {
+        environment.ai.chat.apiKey = ''
+    })
+    afterAll(() => {
+        environment.ai.chat.apiKey = savedKey
+    })
+
     it('selects and returns the auto-approval setting', async () => {
         const row = {
             id: 'w1',
@@ -39,6 +48,7 @@ describe('getWorkspaceSettings', () => {
             // The version a settings edit sends back.
             updatedAt: '2026-11-14T10:00:00.000Z',
             videoModuleEntitled: true,
+            aiConfigured: false,
             lockedFeatures: [],
         })
     })
@@ -56,6 +66,7 @@ describe('getWorkspaceSettings', () => {
             id: 'w1',
             updatedAt: '2026-11-14T10:00:00.000Z',
             videoModuleEntitled: false,
+            aiConfigured: false,
             lockedFeatures: [],
         })
     })
@@ -81,6 +92,21 @@ describe('getWorkspaceSettings', () => {
             { feature: 'events', enabled: true, until: until.toISOString() },
             { feature: 'videos', enabled: false, until: null },
         ])
+    })
+
+    it('selects the video answers switch and tells whether an AI model is configured', async () => {
+        environment.ai.chat.apiKey = 'key'
+        const { handler, findUnique } = build({
+            id: 'w1',
+            videoAnswersEnabled: true,
+            updatedAt: new Date('2026-11-14T10:00:00.000Z'),
+            billing: null,
+            moduleEntitlements: [],
+            featureLocks: [],
+        })
+        const out = await handler.execute(new GetWorkspaceSettingsFeature('w1'))
+        expect(findUnique.mock.calls[0][0].select.videoAnswersEnabled).toBe(true)
+        expect(out).toMatchObject({ videoAnswersEnabled: true, aiConfigured: true })
     })
 
     it('404s on a missing club', async () => {

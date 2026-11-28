@@ -1,5 +1,6 @@
 import { Feature, IFeatureHandler } from '@shelfjs/features'
 
+import { isLlmConfigured } from '../../domains/ai-assistant/llm-chat.client'
 import {
     isWorkspaceEntitled,
     moduleEntitlementSelect,
@@ -43,6 +44,7 @@ export class GetWorkspaceSettingsHandler
                 joinAutoApprove: true,
                 birthdayGreetingsEnabled: true,
                 messagesEmailEnabled: true,
+                videoAnswersEnabled: true,
                 updatedAt: true,
                 ...featureFlagSelect,
                 ...workspaceBookingSettingsSelect,
@@ -67,6 +69,7 @@ export class GetWorkspaceSettingsHandler
             ...settings,
             updatedAt: updatedAt.toISOString(),
             videoModuleEntitled: isWorkspaceEntitled({ billing, moduleEntitlements }),
+            aiConfigured: isLlmConfigured(),
             lockedFeatures: activeFeatureLocks(featureLocks, now).map(
                 serializeFeatureLock,
             ),

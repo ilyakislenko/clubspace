@@ -21,6 +21,10 @@ export const GetWorkspaceSettingsFeatureOutputSchema = z.object({
     birthdayGreetingsEnabled: z.boolean(),
     // «Сообщения ученикам на e-mail»: club messages may carry an e-mail copy.
     messagesEmailEnabled: z.boolean(),
+    // «ИИ-ответы по видео клуба»: members may ask the AI about the club's videos.
+    videoAnswersEnabled: z.boolean(),
+    // The platform has an AI model configured — the switch above means nothing without it.
+    aiConfigured: z.boolean(),
     // leaderboardEnabled + the app-section flags all live here now.
     ...FeatureFlagColumnsSchema.shape,
     // «Запись на занятие»: window, free-cancel deadline, burn switches.

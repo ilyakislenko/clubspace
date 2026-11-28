@@ -8,6 +8,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { FeaturesBus } from '@shelfjs/features'
 
 import type { AiAccess } from '../../domains/ai-assistant/ai-access'
+import { monthlyAiAllowance } from '../../domains/ai-assistant/ai-allowance'
 import { AI_CHAT_DATA_WARNING, aiChatDataWarning } from '../../domains/ai-assistant/ai-chat-warning'
 import {
     isLlmConfigured,
@@ -18,7 +19,6 @@ import {
 } from '../../domains/ai-assistant/llm-chat.client'
 import { pseudonymFor } from '../../domains/ai-assistant/pseudonym'
 import { AuditService } from '../../domains/audit/services/audit.service'
-import { trialCapsApply } from '../../domains/billing/trial-limits'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
 import { STAFF_ROLES } from '../../shared/decorators/roles.decorator'
@@ -30,7 +30,7 @@ import {
     QuotaExceededError,
 } from '../../shared/errors/shared.errors'
 import { loadClubVocabulary } from '../../shared/utils/club-vocabulary'
-import { localDateInTz, wallClockToUtc } from '../attendance/attendance-utils'
+import { localDateInTz } from '../attendance/attendance-utils'
 import { displayName } from '../attendance/schemas'
 import { GetWorkspaceScheduleHandler } from '../get-workspace-schedule/get-workspace-schedule.handler'
 import { McpPeople } from '../mcp/mcp-people'
@@ -47,7 +47,6 @@ import {
     MAX_ANSWER_TOKENS,
     MAX_QUESTIONS_PER_CONVERSATION,
     MAX_TOOL_ROUNDS,
-    monthBounds,
     parseStoredMessages,
     parseStoredRefs,
     pseudonymizeQuestion,
@@ -96,30 +95,10 @@ export class AiChatService {
         })
     }
 
-    // Questions asked this calendar month (club time) against the allowance —
-    // the smaller one while the club is on its unpaid trial.
+    // Questions asked this calendar month (club time) against the club's
+    // allowance — shared with the members' video answers.
     async limit(access: AiAccess, now: Date): Promise<Limit> {
-        const { from, to } = monthBounds(localDateInTz(now, access.timezone))
-        const [used, billing] = await Promise.all([
-            this.prisma.aiChatUsage.count({
-                where: {
-                    workspaceId: access.workspaceId,
-                    createdAt: {
-                        gte: wallClockToUtc(`${from}T00:00:00`, access.timezone),
-                        lt: wallClockToUtc(`${to}T00:00:00`, access.timezone),
-                    },
-                },
-            }),
-            this.prisma.workspaceBilling.findUnique({
-                where: { workspaceId: access.workspaceId },
-                select: { status: true, currentPeriodEnd: true },
-            }),
-        ])
-        const { monthlyQuestions, trialMonthlyQuestions } = environment.ai.chat
-        const perMonth = trialCapsApply(billing, now, environment.billing.enabled)
-            ? trialMonthlyQuestions
-            : monthlyQuestions
-        return { perMonth, used, remaining: Math.max(0, perMonth - used) }
+        return monthlyAiAllowance(this.prisma, access, now)
     }
 
     async state(access: AiAccess): Promise<AiChatStateResponse> {

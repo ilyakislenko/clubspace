@@ -331,7 +331,7 @@ describe("billing view", () => {
     })
 
     it("adds AI questions only when the assistant is configured, even with billing off", () => {
-      const aiRow = ["Вопросы ИИ-ассистенту в этом месяце", "12 из 100", 12]
+      const aiRow = ["Вопросы к ИИ в этом месяце", "12 из 100", 12]
       expect(shown(clubLimitRows({ ...paid, modules: [] }, ai)).at(-1)).toEqual(aiRow)
       expect(clubLimitRows({ ...paid, modules: [] }, { ...ai, configured: false })).toHaveLength(1)
       expect(shown(clubLimitRows(null, ai))).toEqual([aiRow])

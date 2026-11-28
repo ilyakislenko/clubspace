@@ -157,6 +157,11 @@ model Workspace {
   // messages (each message still opts in). Off by default; trial allowance applies.
   messagesEmailEnabled Boolean @default(false)
 
+  // «ИИ-ответы по видео клуба» (docs/design/2026-11-28-ask-club-videos.md): members
+  // may ask the club's AI model about its lessons; only the question and
+  // transcript excerpts are sent. Off by default.
+  videoAnswersEnabled Boolean @default(false)
+
   // «О клубе»: contacts/links/rules the club shows its students in the app.
   // contacts = [{label, phone}] (phone normalised to +7…), links = [{label, url}]
   // (http/https only). Parsed defensively on read (club-about/schemas.ts).
@@ -4038,9 +4043,11 @@ model AiChatConversation {
   @@index([workspaceId, userId, updatedAt])
 }
 
-// One question asked in the chat. The club's monthly limit counts these rows,
-// so deleting a conversation keeps them (plain ids, no cascade from it); the
-// tokens are the provider's usage summed over every tool round of the turn.
+// One question to the club's AI model: the admin chat's (kind 'chat') and the
+// members' «Спросить ИИ по видео клуба» (kind 'videoAnswer'). The club's
+// monthly limit counts every row, so deleting a conversation keeps them (plain
+// ids, no cascade from it); the tokens are the provider's usage summed over
+// every model call of the question.
 model AiChatUsage {
   id             String    @id @default(uuid()) @db.Uuid
   workspaceId    String    @db.Uuid
@@ -4054,10 +4061,13 @@ model AiChatUsage {
   toolCalls    Int    @default(0)
   // 'ok' | 'error' | 'aborted' (the admin closed the stream).
   status       String @default("ok") @db.VarChar(16)
+  // 'chat' | 'videoAnswer' — the per-member daily cap counts only its own kind.
+  kind         String @default("chat") @db.VarChar(16)
 
   createdAt DateTime @default(now())
 
   @@index([workspaceId, createdAt])
+  @@index([workspaceId, userId, createdAt])
 }
 
 // «Выплаты тренерам» (docs/design/2026-11-26-coach-payroll.md §2). A coach's

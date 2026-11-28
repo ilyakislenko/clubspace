@@ -703,6 +703,16 @@ export const actionMetaFor = (
     icon: Bot,
     tone: "indigo",
   },
+  "ai.videoAnswerNotice": {
+    label: "Разрешена отправка своих вопросов по видео ИИ-сервису",
+    icon: ShieldAlert,
+    tone: "amber",
+  },
+  "ai.videoAnswerQuestion": {
+    label: "Вопрос ИИ по видео клуба",
+    icon: Bot,
+    tone: "indigo",
+  },
   // Federation hub: the federation's own journal and, for the club's
   // decisions, the club's history too.
   "org.create": { label: "Федерация создана", icon: Building2, tone: "green" },
@@ -1115,6 +1125,8 @@ const FIELD_LABEL: Record<string, string> = {
   // «Настройки → Уведомления → Ученикам».
   birthdayGreetingsEnabled: "поздравления с днём рождения",
   messagesEmailEnabled: "сообщения ученикам на e-mail",
+  // «Настройки → Приложение учеников».
+  videoAnswersEnabled: "ИИ-ответы по видео клуба",
   // A trial request (lead.update `fields`).
   personName: "имя",
   phone: "телефон",

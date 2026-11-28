@@ -136,6 +136,7 @@ export class UpdateWorkspaceSettingsHandler
                     joinAutoApprove: true,
                     birthdayGreetingsEnabled: true,
                     messagesEmailEnabled: true,
+                    videoAnswersEnabled: true,
                     updatedAt: true,
                     ...featureFlagSelect,
                     ...workspaceBookingSettingsSelect,
