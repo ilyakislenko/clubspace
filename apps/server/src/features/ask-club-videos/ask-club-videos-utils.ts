@@ -113,7 +113,10 @@ export const parseExpansionTerms = (raw: string): string[] => {
     if (key < 0) return []
     const list = raw.slice(raw.indexOf('[', key) + 1)
     const terms: string[] = []
-    for (const m of list.matchAll(/"((?:[^"\\]|\\.)*)"/g)) {
+    // Only the leading run of strings: whatever follows the list (another key,
+    // prose) is not search words.
+    const item = /\s*"((?:[^"\\]|\\.)*)"\s*,?/y
+    for (let m = item.exec(list); m && terms.length < 20; m = item.exec(list)) {
         let term: unknown
         try {
             term = JSON.parse(`"${m[1]}"`)
@@ -121,7 +124,6 @@ export const parseExpansionTerms = (raw: string): string[] => {
             continue
         }
         if (typeof term === 'string' && term.trim()) terms.push(term)
-        if (terms.length === 20) break
     }
     return terms
 }
