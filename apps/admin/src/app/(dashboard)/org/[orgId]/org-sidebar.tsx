@@ -201,7 +201,7 @@ export function OrgSidebar() {
                 </DropdownMenuItem>
                 {/* Same guides entry as the club menu: federation staff often
                     belong to no club, so they'd never see it there. */}
-                {environment.publicAppUrl && (
+                {environment.publicAppUrl && environment.guidesBaseUrl && (
                   <DropdownMenuItem asChild>
                     <a
                       href={`${environment.publicAppUrl}/help`}
