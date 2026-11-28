@@ -913,6 +913,9 @@ export const META_KEY_LABEL: Record<string, string> = {
   toStatus: "Статус после",
   lostReason: "Причина отказа",
   paid: "Оплачено",
+  // «Сверить выписку» (member.markSubscriptionPaid): the transfer's day.
+  paidOn: "Дата перевода",
+  bankStatement: "По банковской выписке",
   periodMonths: "Месяцев",
   startDate: "Начало",
   endDate: "Окончание",

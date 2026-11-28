@@ -38,6 +38,9 @@ import { PaymentsController } from '../features/online-payments/payments.control
 import { CreateRefundHandler } from '../features/refunds/create-refund.handler'
 import { DeleteRefundHandler } from '../features/refunds/delete-refund.handler'
 import { RefundsController } from '../features/refunds/refunds.controller'
+import { BankStatementsController } from '../features/bank-statements/bank-statements.controller'
+import { ConfirmBankStatementHandler } from '../features/bank-statements/confirm-bank-statement.handler'
+import { PreviewBankStatementHandler } from '../features/bank-statements/preview-bank-statement.handler'
 import { CreateDiscountHandler } from '../features/discounts/create-discount.handler'
 import { DeleteDiscountHandler } from '../features/discounts/delete-discount.handler'
 import { DiscountsController } from '../features/discounts/discounts.controller'
@@ -1053,6 +1056,7 @@ const controllers: ModuleMetadata['controllers'] = [
     PaymentJournalController,
     RequestsController,
     RefundsController,
+    BankStatementsController,
     DiscountsController,
     SaleDiscountsController,
     CoachPayrollController,
@@ -1444,6 +1448,8 @@ const handlers: ModuleMetadata['providers'] = [
     ListOpenRequestsHandler,
     CreateRefundHandler,
     DeleteRefundHandler,
+    PreviewBankStatementHandler,
+    ConfirmBankStatementHandler,
     ListDiscountsHandler,
     CreateDiscountHandler,
     UpdateDiscountHandler,

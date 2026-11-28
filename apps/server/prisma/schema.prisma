@@ -282,6 +282,7 @@ model Workspace {
   refunds                Refund[]
   memberAutopays         MemberAutopay[]
   discounts              Discount[]
+  bankStatementMatches   BankStatementMatch[]
 
   invitations WorkspaceInvitation[]
 
@@ -2095,6 +2096,8 @@ model Subscription {
   // revenue subtracts refunds by refund date, mrr uses amountPaid − this.
   refundedAmount Int            @default(0)
   refunds        Refund[]
+  // Bank-statement transfers that paid it («Сверить выписку»).
+  bankStatementMatches BankStatementMatch[]
 
   // Class-pack balance (null for time-only tariffs). classesTotal is what the
   // tariff granted; classesRemaining is decremented on attendance check-in
@@ -3768,6 +3771,42 @@ model Refund {
   @@index([subscriptionId])
   @@index([eventRegistrationId])
   @@index([paymentId])
+}
+
+// A bank-statement transfer matched to an unpaid abonement and confirmed by a
+// club admin («Сверить выписку», docs/design/2026-11-28-bank-statement-match.md).
+// The statement file is never stored and neither is the payer's name: only a
+// fingerprint of the transfer, so re-uploading the same statement shows it as
+// already matched instead of marking a second payment. Written in the same
+// transaction as the mark-paid; unmarking the abonement deletes it, so a wrong
+// match can be redone. Sport-agnostic.
+model BankStatementMatch {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // sha256 hex of workspace | date | amount | payer | document number | n-th
+  // identical line (features/bank-statements/statement-parse.ts).
+  fingerprint String @db.Char(64)
+
+  // Cascade: the row only guards that sale against a second mark.
+  subscriptionId String       @db.Uuid
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  // Whole currency units recorded as received, and when the money arrived.
+  amount      Int
+  paidOn      DateTime
+  // The transfer's day as the bank wrote it (YYYY-MM-DD). With workspace and
+  // amount, a soft key: a transfer of the same day and amount in another
+  // export of the statement (1C vs CSV) is flagged «возможно, уже сверено».
+  transferDay String   @db.Char(10)
+  // Who confirmed it. Display only, no FK (like Subscription.markedPaidById).
+  matchedById String   @db.Uuid
+  createdAt   DateTime @default(now())
+
+  @@unique([workspaceId, fingerprint])
+  @@index([subscriptionId])
+  @@index([workspaceId, transferDay, amount])
 }
 
 enum MemberAutopayStatus {

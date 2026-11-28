@@ -1596,6 +1596,55 @@ export const CreateDiscountInputSchema = {
     ]
 } as const;
 
+export const ConfirmBankStatementInputSchema = {
+    type: 'object',
+    properties: {
+        matches: {
+            minItems: 1,
+            maxItems: 500,
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    fingerprint: {
+                        type: 'string',
+                        pattern: '^[0-9a-f]{64}$'
+                    },
+                    subscriptionId: {
+                        type: 'string',
+                        format: 'uuid',
+                        pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+                    },
+                    amount: {
+                        type: 'integer',
+                        minimum: 1,
+                        maximum: 10000000
+                    },
+                    paidOn: {
+                        type: 'string',
+                        format: 'date',
+                        pattern: '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$'
+                    },
+                    paidTime: {
+                        type: 'string',
+                        pattern: '^([01]\\d|2[0-3]):[0-5]\\d$',
+                        nullable: true
+                    }
+                },
+                required: [
+                    'fingerprint',
+                    'subscriptionId',
+                    'amount',
+                    'paidOn'
+                ]
+            }
+        }
+    },
+    required: [
+        'matches'
+    ]
+} as const;
+
 export const CreateRefundInputSchema = {
     type: 'object',
     properties: {
