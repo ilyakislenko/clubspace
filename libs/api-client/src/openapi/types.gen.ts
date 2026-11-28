@@ -980,8 +980,14 @@ export type CreateVideoUploadOutputOutput = {
     videoId: string;
     rawKey: string;
     upload: {
-        url: string;
-        method: 'PUT';
+        method: 'PUT' | 'MULTIPART';
+        url?: string;
+        uploadId?: string;
+        partSize?: number;
+        parts?: Array<{
+            partNumber: number;
+            url: string;
+        }>;
     };
 };
 
@@ -1037,10 +1043,22 @@ export type CreateCategoryOutputOutput = {
 
 export type CompleteVideoUploadInput = {
     workspaceId: string;
+    parts?: Array<{
+        partNumber: number;
+        etag: string;
+    }>;
 };
 
 export type CompleteVideoUploadOutputOutput = {
     status: 'queued';
+};
+
+export type AbortVideoUploadInput = {
+    workspaceId: string;
+};
+
+export type AbortVideoUploadOutputOutput = {
+    status: 'aborted';
 };
 
 export type GetVideoOutputOutput = {
@@ -12579,6 +12597,21 @@ export type CompleteUploadResponses = {
 };
 
 export type CompleteUploadResponse = CompleteUploadResponses[keyof CompleteUploadResponses];
+
+export type AbortVideoUploadData = {
+    body: AbortVideoUploadInput;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/admin/videos/{id}/abort-upload';
+};
+
+export type AbortVideoUploadResponses = {
+    default: AbortVideoUploadOutputOutput;
+};
+
+export type AbortVideoUploadResponse = AbortVideoUploadResponses[keyof AbortVideoUploadResponses];
 
 export type DeleteVideoData = {
     body?: never;

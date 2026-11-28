@@ -5,10 +5,10 @@ jest.mock("next/navigation", () => ({ useRouter: () => ({ push: jest.fn() }) }))
 jest.mock("../../shared/api/tags", () => ({ createTag: jest.fn() }))
 jest.mock("../../shared/api/categories", () => ({ createCategory: jest.fn() }))
 jest.mock("../../shared/api/videos", () => ({
+  abortVideoUpload: jest.fn(),
   createVideoUpload: jest.fn(),
   completeVideoUpload: jest.fn(),
   createVideoThumbnailUpload: jest.fn(),
-  deleteVideo: jest.fn(),
   getVideo: jest.fn(),
   updateVideo: jest.fn(),
 }))

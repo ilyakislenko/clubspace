@@ -16,6 +16,8 @@ export interface FilesConfig {
     s3Acl: AWS.ObjectCannedACL
     // Largest single video upload, in MiB (MAX_VIDEO_UPLOAD_MB).
     maxVideoUploadMb?: number
+    // Part size of a multipart video upload, in MiB (S3_MULTIPART_PART_MB).
+    multipartPartMb?: number
 }
 
 export const DEFAULT_FILES_CONFIG = {}

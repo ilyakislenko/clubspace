@@ -116,7 +116,7 @@ describe('environment security defaults', () => {
 })
 
 describe('environment storage', () => {
-    const STORAGE_KEYS = ['MAX_VIDEO_UPLOAD_MB', 'S3_INTERNAL_URL']
+    const STORAGE_KEYS = ['MAX_VIDEO_UPLOAD_MB', 'S3_INTERNAL_URL', 'S3_MULTIPART_PART_MB']
     let stashed: Record<string, string | undefined>
 
     beforeEach(() => {
@@ -143,6 +143,22 @@ describe('environment storage', () => {
             'MAX_VIDEO_UPLOAD_MB=10240 exceeds 5120',
         )
     })
+
+    it('defaults multipart parts to 64 MiB and reads an override', () => {
+        expect(loadEnvironment({}).s3Storage.multipartPartMb).toBe(64)
+        expect(
+            loadEnvironment({ S3_MULTIPART_PART_MB: '32' }).s3Storage.multipartPartMb,
+        ).toBe(32)
+    })
+
+    it.each(['4', '91', '100'])(
+        'refuses to boot with a part size S3 or Cloudflare would refuse (%s MiB)',
+        (mb) => {
+            expect(() => loadEnvironment({ S3_MULTIPART_PART_MB: mb })).toThrow(
+                `S3_MULTIPART_PART_MB=${mb} must be between 5 and 90`,
+            )
+        },
+    )
 
     it('reads the internal storage URL and treats an empty one as unset', () => {
         expect(

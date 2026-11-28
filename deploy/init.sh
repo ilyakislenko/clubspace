@@ -249,6 +249,9 @@ S3_ACL=private
 S3_REGION=us-east-1
 # Largest single video upload, in MiB. At most 5120 (one S3 PUT).
 MAX_VIDEO_UPLOAD_MB=5120
+# Videos bigger than this many MiB upload in parts of this size, so no request
+# to storage exceeds it (Cloudflare's free plan refuses bodies over 100 MB). 5–90.
+S3_MULTIPART_PART_MB=64
 
 # Video worker: parallel transcodes, longest accepted video.
 TRANSCODE_CONCURRENCY=1

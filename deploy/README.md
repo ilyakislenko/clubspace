@@ -541,7 +541,8 @@ Add five proxy hosts, all plain HTTP; your proxy terminates TLS:
 **On the `s3.` host, lift the upload limit and pass on only what browsers
 send.** nginx caps request bodies by default, and video uploads go through this
 host — a large file is cut off mid-flight with no useful error. Browsers and
-phones only ever GET/HEAD objects, PUT one object (the presigned upload) and
+phones only ever GET/HEAD objects, PUT an object (the presigned upload — one
+PUT, or one per part of a large video, see *Video uploads* under Caveats) and
 send the CORS preflight; MinIO's admin API under `/minio/`, bucket listings,
 DELETE and POST have no business on the public name (the server and the worker
 reach MinIO directly on the internal network). In nginx-proxy-manager's
@@ -800,7 +801,7 @@ rerun it with
   `apps/video-worker/src/main.ts` when egress no longer rides that link.
 - **Uploads are vetted before transcoding.** The worker probes every file and
   accepts only MP4/MOV and MKV/WebM containers with a video track, up to
-  `MAX_VIDEO_UPLOAD_MB` (at most 5120 — one browser PUT) and
+  `MAX_VIDEO_UPLOAD_MB` (at most 5120) and
   `MAX_VIDEO_DURATION_MINUTES` (240). Anything else fails at once with a reason
   the coach sees next to the video, instead of after three retries. Failed
   transcode jobs stay in Redis for 7 days for inspection.
@@ -853,9 +854,10 @@ EOF
 ```
 
 `up -d` then runs `minio-init` before the apps start. Also lower
-`MAX_VIDEO_UPLOAD_MB` to `5120` or less if it is higher: uploads are a single
-S3 PUT, which tops out at 5 GiB, and the server and worker now refuse to boot
-above that rather than fail each oversized upload at the very end.
+`MAX_VIDEO_UPLOAD_MB` to `5120` or less if it is higher: an upload whose size
+the client does not declare is a single S3 PUT, which tops out at 5 GiB, and
+the server and worker now refuse to boot above that rather than fail such an
+upload at the very end.
 
 `update.sh` takes its own encrypted backup to S3 first (`backup-s3.sh`). By
 hand, `./deploy/backup-now.sh` takes a fresh verified local dump instead — `up
@@ -1283,7 +1285,7 @@ healthchecks.io) at `https://api.<domain>/readyz`.
 
   | Account | Used by | Allowed |
   |---|---|---|
-  | `clubspace-server` (`S3_SERVER_*`) | API | read, write, delete objects in the bucket; list it. Presigned upload and playback URLs act with these rights |
+  | `clubspace-server` (`S3_SERVER_*`) | API | read, write, delete objects in the bucket; list it; abort an unfinished multipart upload. Presigned upload and playback URLs act with these rights |
   | `clubspace-worker` (`S3_WORKER_*`) | video worker | read `raw/*`; read, write and delete `hls/*`; list `hls/`; write (not delete) `thumbnails/*` for auto-generated covers |
 
   Neither can create buckets, change policies or reach the admin API. To rotate
@@ -1294,6 +1296,29 @@ healthchecks.io) at `https://api.<domain>/readyz`.
 - **The public `s3.` name serves objects, nothing else.** Caddy passes only
   GET/HEAD/PUT/OPTIONS on `/<bucket>/<key>`; the server and the worker do their
   listings and deletes against `http://minio:9000` on the internal network.
+- **Video uploads.** The browser uploads straight to storage. A video no bigger
+  than `S3_MULTIPART_PART_MB` (default 64 MiB) goes in one presigned PUT; a
+  bigger one as an S3 multipart upload — one presigned PUT per part of that
+  size, three at a time, each retried, then the server assembles the parts
+  (`CompleteMultipartUpload`) and measures the result against
+  `MAX_VIDEO_UPLOAD_MB`. No single request to storage is then larger than one
+  part, which is what lets `s3.` sit behind Cloudflare: its free plan refuses
+  request bodies over 100 MB. `S3_MULTIPART_PART_MB` must be 5–90 (S3's minimum
+  part, and room under Cloudflare's limit); the server refuses to boot outside
+  that. The browser completes an upload with each part's `ETag` response
+  header, so storage CORS must expose it: MinIO does by default (its CORS
+  handler exposes `ETag` with the other S3 headers, origins `*` unless
+  `MINIO_API_CORS_ALLOW_ORIGIN` narrows them). On external S3 the bucket's CORS
+  needs `AllowedMethods: PUT`, the admin origin in `AllowedOrigins` and
+  `ExposeHeaders: ["ETag"]`. A cancelled or failed upload is aborted (its parts
+  dropped) and its video removed. An upload nobody finished or aborted (a
+  closed tab) leaves its video in the library as still uploading until someone
+  deletes it, which aborts the upload too; its parts are cleaned up by storage
+  itself meanwhile — MinIO after 24 h (`MINIO_API_STALE_UPLOADS_EXPIRY`), on
+  AWS S3 add a lifecycle rule `AbortIncompleteMultipartUpload`. The server
+  account needs
+  `s3:AbortMultipartUpload` (granted by `minio-init`; after updating from an
+  older version run `up minio-init` once).
 - **Postgres, Redis and MinIO are not exposed to the host.** They are reachable
   only on the internal `bjj_net` network. For a `psql` shell:
   `docker compose -f docker-compose.prod.yml --env-file .env.production exec postgres psql -U postgres -d clubspace`.

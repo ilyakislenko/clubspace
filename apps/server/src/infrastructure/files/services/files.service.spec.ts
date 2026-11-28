@@ -107,3 +107,97 @@ describe('FilesService public object URLs', () => {
         expect(new URL(put.url).pathname).toBe('/clubspace/raw/v1/source.mp4')
     })
 })
+
+describe('FilesService multipart uploads', () => {
+    let send: jest.SpyInstance
+
+    beforeEach(() => {
+        send = jest
+            .spyOn(AWS.S3.prototype, 'send')
+            .mockResolvedValue({ UploadId: 'upload-1' } as never)
+    })
+
+    afterEach(() => send.mockRestore())
+
+    const service = () => new FilesService({ ...BASE, s3InternalUrl: 'http://minio:9000' })
+    const object = { bucket: 'clubspace', key: 'raw/v1/source.mp4' }
+
+    it('defaults parts to 64 MiB', () => {
+        expect(new FilesService(BASE).getMultipartPartBytes()).toBe(64 * 1024 * 1024)
+        expect(
+            new FilesService({ ...BASE, multipartPartMb: 16 }).getMultipartPartBytes(),
+        ).toBe(16 * 1024 * 1024)
+    })
+
+    it('starts, completes and aborts on the internal endpoint', async () => {
+        const files = service()
+
+        await expect(
+            files.createMultipartUpload({ ...object, contentType: 'video/mp4' }),
+        ).resolves.toBe('upload-1')
+        expect(send.mock.calls[0][0]).toBeInstanceOf(AWS.CreateMultipartUploadCommand)
+        expect(send.mock.calls[0][0].input).toEqual({
+            Bucket: 'clubspace',
+            Key: 'raw/v1/source.mp4',
+            ContentType: 'video/mp4',
+        })
+        expect(await sentToHost(send)).toBe('minio')
+
+        await files.completeMultipartUpload({
+            ...object,
+            uploadId: 'upload-1',
+            parts: [
+                { partNumber: 1, etag: '"a"' },
+                { partNumber: 2, etag: '"b"' },
+            ],
+        })
+        expect(send.mock.calls[1][0]).toBeInstanceOf(AWS.CompleteMultipartUploadCommand)
+        expect(send.mock.calls[1][0].input).toEqual({
+            Bucket: 'clubspace',
+            Key: 'raw/v1/source.mp4',
+            UploadId: 'upload-1',
+            MultipartUpload: {
+                Parts: [
+                    { PartNumber: 1, ETag: '"a"' },
+                    { PartNumber: 2, ETag: '"b"' },
+                ],
+            },
+        })
+
+        await files.abortMultipartUpload({ ...object, uploadId: 'upload-1' })
+        expect(send.mock.calls[2][0]).toBeInstanceOf(AWS.AbortMultipartUploadCommand)
+        expect(send.mock.calls[2][0].input).toEqual({
+            Bucket: 'clubspace',
+            Key: 'raw/v1/source.mp4',
+            UploadId: 'upload-1',
+        })
+        expect(await sentToHost(send)).toBe('minio')
+    })
+
+    it('refuses an answer without an upload id', async () => {
+        send.mockResolvedValue({} as never)
+        await expect(
+            service().createMultipartUpload({ ...object, contentType: 'video/mp4' }),
+        ).rejects.toThrow('no multipart upload id')
+    })
+
+    it('signs part URLs for the public origin, naming the upload and part', async () => {
+        const url = new URL(
+            await service().getPresignedUploadPartUrl({
+                ...object,
+                uploadId: 'upload-1',
+                partNumber: 3,
+                contentLength: 1_000,
+                expiresInSeconds: 3_600,
+            }),
+        )
+
+        expect(url.host).toBe('s3.club.example')
+        expect(url.pathname).toBe('/clubspace/raw/v1/source.mp4')
+        expect(url.searchParams.get('uploadId')).toBe('upload-1')
+        expect(url.searchParams.get('partNumber')).toBe('3')
+        expect(url.searchParams.get('X-Amz-Expires')).toBe('3600')
+        expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('content-length')
+        expect(send).not.toHaveBeenCalled()
+    })
+})

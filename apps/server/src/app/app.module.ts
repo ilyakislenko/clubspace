@@ -705,6 +705,8 @@ import { GetCourseAudienceHandler } from '../features/manage-course-audience/get
 import { UpdateCourseAudienceHandler } from '../features/manage-course-audience/update-course-audience.handler'
 import { CompleteVideoUploadController } from '../features/complete-video-upload/complete-video-upload.controller'
 import { CompleteVideoUploadHandler } from '../features/complete-video-upload/complete-video-upload.handler'
+import { AbortVideoUploadController } from '../features/abort-video-upload/abort-video-upload.controller'
+import { AbortVideoUploadHandler } from '../features/abort-video-upload/abort-video-upload.handler'
 import { CreateVideoUploadController } from '../features/create-video-upload/create-video-upload.controller'
 import { CreateVideoUploadHandler } from '../features/create-video-upload/create-video-upload.handler'
 import { CreateVideoThumbnailUploadController } from '../features/create-video-thumbnail-upload/create-video-thumbnail-upload.controller'
@@ -889,6 +891,7 @@ const controllers: ModuleMetadata['controllers'] = [
     CreateTagController,
     CreateCategoryController,
     CompleteVideoUploadController,
+    AbortVideoUploadController,
     GetVideoController,
     // Before GetWorkspaceVideoController: `videos/search` must not match `videos/:videoId`.
     SearchVideosController,
@@ -1105,6 +1108,7 @@ const handlers: ModuleMetadata['providers'] = [
     CreateTagHandler,
     CreateCategoryHandler,
     CompleteVideoUploadHandler,
+    AbortVideoUploadHandler,
     GetVideoHandler,
     GetWorkspaceVideoHandler,
     SearchVideosHandler,

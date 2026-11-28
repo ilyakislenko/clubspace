@@ -17,7 +17,7 @@
 // after a reset. Courses of `npm run demo:real-courses` are left alone.
 
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, openAsBlob, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ffmpegPath from 'ffmpeg-static'
@@ -364,6 +364,41 @@ const put = async (url, file, contentType) => {
     }
 }
 
+// A clip bigger than one part goes up in parts (the server answers MULTIPART
+// above S3_MULTIPART_PART_MB: storage behind Cloudflare refuses request bodies
+// over 100 MB) — each part to its own presigned URL, its ETag kept for
+// complete-upload, a failed part tried PART_ATTEMPTS times. One that still
+// fails drops the upload (`abort`) and stops the run.
+const PART_ATTEMPTS = 3
+const putParts = async (upload, file, abort) => {
+    const blob = await openAsBlob(file)
+    const parts = []
+    for (const { partNumber, url } of upload.parts) {
+        const start = (partNumber - 1) * upload.partSize
+        const body = blob.slice(start, start + upload.partSize)
+        let etag = null
+        let status = 'нет ответа'
+        for (let attempt = 1; attempt <= PART_ATTEMPTS && !etag; attempt++) {
+            try {
+                const response = await fetch(url, { method: 'PUT', body })
+                await response.text()
+                status = response.ok ? 'нет ETag' : String(response.status)
+                etag = response.ok ? response.headers.get('etag') : null
+                if (response.ok || response.status === 403) break
+            } catch (error) {
+                status = error.cause?.message ?? error.message
+            }
+        }
+        if (!etag) {
+            console.error(`✘ Часть ${partNumber} из ${upload.parts.length} не загрузилась (${status}).`)
+            await abort()
+            fail('Хранилище отклонило загрузку: проверьте S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY в .env и запустите команду ещё раз.')
+        }
+        parts.push({ partNumber, etag })
+    }
+    return parts
+}
+
 // Polls `read` until it reports ready; fails on «failed» or after the timeout.
 const waitReady = async (what, read) => {
     const deadline = Date.now() + READY_TIMEOUT_MS
@@ -496,8 +531,15 @@ const runLesson = async (task, name) => {
             contentType: 'video/mp4',
             sizeBytes: readFileSync(video).length,
         })
-        await put(created.upload.url, video, 'video/mp4')
-        await api('POST', `/admin/videos/${created.videoId}/complete-upload`, { workspaceId: ws })
+        let parts
+        if (created.upload.method === 'MULTIPART') {
+            parts = await putParts(created.upload, video, () =>
+                api('POST', `/admin/videos/${created.videoId}/abort-upload`, { workspaceId: ws }),
+            )
+        } else {
+            await put(created.upload.url, video, 'video/mp4')
+        }
+        await api('POST', `/admin/videos/${created.videoId}/complete-upload`, { workspaceId: ws, parts })
         task.videoId = created.videoId
     }
     await waitReady(`Ролик «${title}»`, async () => {

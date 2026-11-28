@@ -6,6 +6,12 @@ export type CreateVideoUploadPayload = ApiTypes.CreateVideoUploadInput
 
 export type CreateVideoUploadResponse = ApiTypes.CreateVideoUploadOutputOutput
 
+export type VideoUploadTarget = CreateVideoUploadResponse["upload"]
+
+export type CompletedUploadPart = NonNullable<
+  ApiTypes.CompleteVideoUploadInput["parts"]
+>[number]
+
 export type VideoTag = ApiTypes.ListTagsOutputOutput["data"][number]
 
 export type VideoCategory = ApiTypes.ListCategoriesOutputOutput["data"][number]
@@ -24,17 +30,36 @@ export const createVideoUpload = async (
   )
 }
 
+// `parts`: the ETags of a multipart upload (create returned MULTIPART).
 export const completeVideoUpload = async (params: {
   videoId: string
   workspaceId: string
-}): Promise<{ status: "queued" }> => {
-  return await getApiClient().request<{ status: "queued" }, { workspaceId: string }>(
-    {
-      method: "post",
-      url: `/admin/videos/${params.videoId}/complete-upload`,
-      data: { workspaceId: params.workspaceId },
-    }
-  )
+  parts?: CompletedUploadPart[]
+}): Promise<ApiTypes.CompleteVideoUploadOutputOutput> => {
+  return await getApiClient().request<
+    ApiTypes.CompleteVideoUploadOutputOutput,
+    ApiTypes.CompleteVideoUploadInput
+  >({
+    method: "post",
+    url: `/admin/videos/${params.videoId}/complete-upload`,
+    data: { workspaceId: params.workspaceId, parts: params.parts },
+  })
+}
+
+// Drops an upload that was cancelled or failed before transcoding: the parts
+// already in storage and the video row.
+export const abortVideoUpload = async (params: {
+  videoId: string
+  workspaceId: string
+}): Promise<ApiTypes.AbortVideoUploadOutputOutput> => {
+  return await getApiClient().request<
+    ApiTypes.AbortVideoUploadOutputOutput,
+    ApiTypes.AbortVideoUploadInput
+  >({
+    method: "post",
+    url: `/admin/videos/${params.videoId}/abort-upload`,
+    data: { workspaceId: params.workspaceId },
+  })
 }
 
 export type VideoTimestamp = ApiTypes.VideoTimestampOutputOutput

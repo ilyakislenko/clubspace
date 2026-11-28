@@ -87,6 +87,10 @@ export class FilesService {
         return (this.config.maxVideoUploadMb ?? 5120) * 1024 * 1024
     }
 
+    getMultipartPartBytes() {
+        return (this.config.multipartPartMb ?? 64) * 1024 * 1024
+    }
+
     // Size of a stored object in bytes, or null when it isn't there.
     async getObjectSize(payload: {
         bucket: string
@@ -126,6 +130,79 @@ export class FilesService {
             url,
             method: 'PUT' as const,
         }
+    }
+
+    // Starts a multipart upload (a server call, so the internal endpoint) and
+    // returns its id; the parts themselves go up through presigned URLs.
+    async createMultipartUpload(payload: {
+        bucket: string
+        key: string
+        contentType: string
+    }): Promise<string> {
+        const result = await this.s3Client.createMultipartUpload({
+            Bucket: payload.bucket,
+            Key: payload.key,
+            ContentType: payload.contentType,
+        })
+        if (!result.UploadId) {
+            throw new Error('Storage returned no multipart upload id')
+        }
+        return result.UploadId
+    }
+
+    async getPresignedUploadPartUrl(payload: {
+        bucket: string
+        key: string
+        uploadId: string
+        partNumber: number
+        // Signed into the URL: storage refuses a part of any other length.
+        contentLength: number
+        expiresInSeconds?: number
+    }) {
+        const command = new AWS.UploadPartCommand({
+            Bucket: payload.bucket,
+            Key: payload.key,
+            UploadId: payload.uploadId,
+            PartNumber: payload.partNumber,
+            ContentLength: payload.contentLength,
+        })
+
+        return await getSignedUrl(this.presignClient, command, {
+            expiresIn: payload.expiresInSeconds ?? 15 * 60,
+        })
+    }
+
+    // `parts` must be in ascending partNumber order, as S3 requires.
+    async completeMultipartUpload(payload: {
+        bucket: string
+        key: string
+        uploadId: string
+        parts: Array<{ partNumber: number; etag: string }>
+    }) {
+        await this.s3Client.completeMultipartUpload({
+            Bucket: payload.bucket,
+            Key: payload.key,
+            UploadId: payload.uploadId,
+            MultipartUpload: {
+                Parts: payload.parts.map((part) => ({
+                    PartNumber: part.partNumber,
+                    ETag: part.etag,
+                })),
+            },
+        })
+    }
+
+    // Drops the parts uploaded so far; storage frees their space.
+    async abortMultipartUpload(payload: {
+        bucket: string
+        key: string
+        uploadId: string
+    }) {
+        await this.s3Client.abortMultipartUpload({
+            Bucket: payload.bucket,
+            Key: payload.key,
+            UploadId: payload.uploadId,
+        })
     }
 
     async getPresignedGetUrl(payload: {

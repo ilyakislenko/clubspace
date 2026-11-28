@@ -5982,6 +5982,20 @@ export const RegenerateVideoTextInputSchema = {
     ]
 } as const;
 
+export const AbortVideoUploadInputSchema = {
+    type: 'object',
+    properties: {
+        workspaceId: {
+            type: 'string',
+            format: 'uuid',
+            pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        }
+    },
+    required: [
+        'workspaceId'
+    ]
+} as const;
+
 export const CompleteVideoUploadInputSchema = {
     type: 'object',
     properties: {
@@ -5989,6 +6003,30 @@ export const CompleteVideoUploadInputSchema = {
             type: 'string',
             format: 'uuid',
             pattern: '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        },
+        parts: {
+            minItems: 1,
+            maxItems: 10000,
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    partNumber: {
+                        type: 'integer',
+                        minimum: 1,
+                        maximum: 10000
+                    },
+                    etag: {
+                        type: 'string',
+                        minLength: 1,
+                        maxLength: 256
+                    }
+                },
+                required: [
+                    'partNumber',
+                    'etag'
+                ]
+            }
         }
     },
     required: [

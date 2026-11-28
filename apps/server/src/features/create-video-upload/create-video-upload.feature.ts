@@ -22,9 +22,25 @@ export const CreateVideoUploadFeatureInputSchema = z.object({
 export const CreateVideoUploadFeatureOutputSchema = z.object({
     videoId: z.string().uuid(),
     rawKey: z.string(),
+    // Flat, not a union (keeps the contract free of oneOf):
+    // - PUT: one presigned URL (`url`) for the whole file — a file no bigger
+    //   than one part, or no declared size.
+    // - MULTIPART: PUT each part to its URL — `partSize` bytes each, the last
+    //   one shorter — and send every part's ETag to complete-upload; on
+    //   cancel or failure call abort-upload.
     upload: z.object({
-        url: z.string().url(),
-        method: z.literal('PUT'),
+        method: z.enum(['PUT', 'MULTIPART']),
+        url: z.string().url().optional(),
+        uploadId: z.string().optional(),
+        partSize: z.number().int().positive().optional(),
+        parts: z
+            .array(
+                z.object({
+                    partNumber: z.number().int().positive(),
+                    url: z.string().url(),
+                }),
+            )
+            .optional(),
     }),
 })
 

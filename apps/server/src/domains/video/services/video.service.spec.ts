@@ -248,10 +248,17 @@ describe('VideoService.createUpload', () => {
         }
         const files = {
             getMaxVideoUploadBytes: jest.fn().mockReturnValue(1_000),
+            // Parts of 300 bytes: a 1 000-byte file goes up in 4.
+            getMultipartPartBytes: jest.fn().mockReturnValue(300),
             getDefaultBucketName: jest.fn().mockReturnValue('raw'),
             getPresignedPutUrl: jest
                 .fn()
                 .mockResolvedValue({ url: 'https://s3/x', method: 'PUT' }),
+            createMultipartUpload: jest.fn().mockResolvedValue('upload-1'),
+            getPresignedUploadPartUrl: jest.fn(
+                async ({ partNumber }: { partNumber: number }) =>
+                    `https://s3/x?partNumber=${partNumber}`,
+            ),
         }
         const service = new VideoService(
             prisma as never,
@@ -275,19 +282,308 @@ describe('VideoService.createUpload', () => {
 
     it('signs the declared size into the upload URL, so storage enforces it', async () => {
         const { service, files } = build()
-        const out = await service.createUpload({ ...base, sizeBytes: 1_000 })
+        const out = await service.createUpload({ ...base, sizeBytes: 300 })
         expect(out.videoId).toBe('vid-1')
         expect(files.getPresignedPutUrl).toHaveBeenCalledWith(
-            expect.objectContaining({ contentLength: 1_000 }),
+            expect.objectContaining({ contentLength: 300 }),
         )
+    })
+
+    it('keeps a single PUT for a file no bigger than one part', async () => {
+        const { service, prisma, files } = build()
+        const out = await service.createUpload({ ...base, sizeBytes: 300 })
+        expect(out.upload).toEqual({ url: 'https://s3/x', method: 'PUT' })
+        expect(files.createMultipartUpload).not.toHaveBeenCalled()
+        expect(files.getPresignedUploadPartUrl).not.toHaveBeenCalled()
+        expect(prisma.video.create.mock.calls[0][0].data.rawUploadId).toBeNull()
     })
 
     it('still works for an older admin that declares no size', async () => {
         const { service, files } = build()
-        await service.createUpload(base)
+        const out = await service.createUpload(base)
+        expect(out.upload.method).toBe('PUT')
+        expect(files.createMultipartUpload).not.toHaveBeenCalled()
         expect(files.getPresignedPutUrl).toHaveBeenCalledWith(
             expect.objectContaining({ contentLength: undefined }),
         )
+    })
+
+    it('uploads a file bigger than one part in parts, each length signed into its URL', async () => {
+        const { service, prisma, files } = build()
+        const out = await service.createUpload({ ...base, sizeBytes: 1_000 })
+
+        const create = prisma.video.create.mock.calls[0][0]
+        expect(files.createMultipartUpload).toHaveBeenCalledWith({
+            bucket: 'raw',
+            key: create.data.rawKey,
+            contentType: 'video/mp4',
+        })
+        // The row remembers the upload, so complete/abort/delete find it.
+        expect(create.data.rawUploadId).toBe('upload-1')
+        expect(files.getPresignedPutUrl).not.toHaveBeenCalled()
+        expect(
+            files.getPresignedUploadPartUrl.mock.calls.map(([c]) => [
+                c.partNumber,
+                c.contentLength,
+            ]),
+        ).toEqual([
+            [1, 300],
+            [2, 300],
+            [3, 300],
+            [4, 100],
+        ])
+        expect(files.getPresignedUploadPartUrl).toHaveBeenCalledWith(
+            expect.objectContaining({
+                bucket: 'raw',
+                key: 'raw/vid-1/source.mp4',
+                uploadId: 'upload-1',
+                // Outlives a long upload: parts are used one after another.
+                expiresInSeconds: 24 * 60 * 60,
+            }),
+        )
+        expect(out.upload).toEqual({
+            method: 'MULTIPART',
+            uploadId: 'upload-1',
+            partSize: 300,
+            parts: [1, 2, 3, 4].map((partNumber) => ({
+                partNumber,
+                url: `https://s3/x?partNumber=${partNumber}`,
+            })),
+        })
+    })
+
+    it('starts no multipart upload for a size over the cap', async () => {
+        const { service, files } = build()
+        await expect(
+            service.createUpload({ ...base, sizeBytes: 1_001 }),
+        ).rejects.toBeInstanceOf(BadRequestError)
+        expect(files.createMultipartUpload).not.toHaveBeenCalled()
+    })
+})
+
+describe('VideoService multipart completion', () => {
+    const parts = [
+        { partNumber: 2, etag: '"b"' },
+        { partNumber: 1, etag: '"a"' },
+        { partNumber: 3, etag: '"c"' },
+    ]
+    const build = (o: { completeError?: unknown } = {}) => {
+        const built = buildComplete({
+            video: {
+                id: 'vid-1',
+                rawBucket: 'raw',
+                rawKey: 'raw/vid-1/source.mp4',
+                rawUploadId: 'upload-1',
+            },
+        })
+        const files = built.files as typeof built.files & {
+            completeMultipartUpload: jest.Mock
+        }
+        files.completeMultipartUpload = o.completeError
+            ? jest.fn().mockRejectedValue(o.completeError)
+            : jest.fn().mockResolvedValue(undefined)
+        return { ...built, files }
+    }
+    const call = (service: VideoService, p?: typeof parts) =>
+        service.completeUpload({ videoId: 'vid-1', workspaceId: 'ws-1', parts: p })
+
+    it('assembles the parts in ascending order before measuring the object', async () => {
+        const { service, prisma, files } = build()
+        await call(service, parts)
+        expect(files.completeMultipartUpload).toHaveBeenCalledWith({
+            bucket: 'raw',
+            key: 'raw/vid-1/source.mp4',
+            uploadId: 'upload-1',
+            parts: [
+                { partNumber: 1, etag: '"a"' },
+                { partNumber: 2, etag: '"b"' },
+                { partNumber: 3, etag: '"c"' },
+            ],
+        })
+        expect(files.completeMultipartUpload.mock.invocationCallOrder[0]).toBeLessThan(
+            files.getObjectSize.mock.invocationCallOrder[0],
+        )
+        // The spent upload id is cleared with the status.
+        expect(prisma.video.update).toHaveBeenCalledWith({
+            where: { id: 'vid-1' },
+            data: { status: 'uploaded', sizeBytes: BigInt(1_000), rawUploadId: null },
+        })
+    })
+
+    it.each([
+        ['no parts', undefined],
+        ['an empty list', []],
+        ['a missing part', [parts[0], parts[2]]],
+        ['a repeated part', [...parts, { partNumber: 2, etag: '"b2"' }]],
+    ])('refuses %s without touching storage or the row', async (_case, given) => {
+        const { service, prisma, files } = build()
+        await expect(call(service, given)).rejects.toBeInstanceOf(BadRequestError)
+        expect(files.completeMultipartUpload).not.toHaveBeenCalled()
+        expect(files.getObjectSize).not.toHaveBeenCalled()
+        expect(prisma.video.update).not.toHaveBeenCalled()
+    })
+
+    it('refuses parts storage would not assemble, leaving the upload to retry or abort', async () => {
+        const { service, prisma } = build({
+            completeError: Object.assign(new Error('bad part'), { name: 'InvalidPart' }),
+        })
+        await expect(call(service, parts)).rejects.toBeInstanceOf(BadRequestError)
+        expect(prisma.video.update).not.toHaveBeenCalled()
+    })
+
+    it('goes on to the size check when an earlier try already assembled the upload', async () => {
+        const { service, prisma, files } = build({
+            completeError: Object.assign(new Error('gone'), { name: 'NoSuchUpload' }),
+        })
+        await call(service, parts)
+        expect(files.getObjectSize).toHaveBeenCalled()
+        expect(prisma.video.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({ status: 'uploaded' }),
+            }),
+        )
+    })
+
+    it('clears the upload id when the assembled file is refused as too large', async () => {
+        const { service, prisma, files } = build()
+        files.getObjectSize.mockResolvedValue(10 * 1024 ** 3 + 1)
+        await expect(call(service, parts)).rejects.toThrow(/больше 10 ГБ/)
+        expect(prisma.video.update).toHaveBeenCalledWith({
+            where: { id: 'vid-1' },
+            data: expect.objectContaining({ status: 'failed', rawUploadId: null }),
+        })
+    })
+})
+
+describe('VideoService.abortUpload', () => {
+    const build = (o: { video?: unknown; abortError?: unknown } = {}) => {
+        const prisma = {
+            video: {
+                findFirst: jest.fn().mockResolvedValue(
+                    'video' in o
+                        ? o.video
+                        : {
+                              id: 'vid-1',
+                              status: 'uploading',
+                              rawBucket: 'raw',
+                              rawKey: 'raw/vid-1/source.mp4',
+                              rawUploadId: 'upload-1',
+                          },
+                ),
+                delete: jest.fn().mockResolvedValue({}),
+            },
+        }
+        const files = {
+            getDefaultBucketName: jest.fn().mockReturnValue('raw'),
+            abortMultipartUpload: o.abortError
+                ? jest.fn().mockRejectedValue(o.abortError)
+                : jest.fn().mockResolvedValue(undefined),
+            deleteObject: jest.fn().mockResolvedValue(undefined),
+        }
+        const service = new VideoService(
+            prisma as never,
+            files as never,
+            { notifyWorkspace: jest.fn() } as never,
+            {} as never,
+            trialLimits as never,
+        )
+        return { service, prisma, files }
+    }
+    const call = (service: VideoService) =>
+        service.abortUpload({ videoId: 'vid-1', workspaceId: 'ws-1' })
+
+    it('404s a video of another workspace', async () => {
+        const { service, prisma } = build({ video: null })
+        await expect(call(service)).rejects.toBeInstanceOf(NotFoundError)
+        expect(prisma.video.findFirst.mock.calls[0][0].where).toEqual({
+            id: 'vid-1',
+            workspaceId: 'ws-1',
+        })
+    })
+
+    it.each(['uploaded', 'processing', 'ready'])(
+        'refuses a video already handed to transcoding (%s)',
+        async (status) => {
+            const { service, prisma, files } = build({
+                video: { id: 'vid-1', status, rawBucket: 'raw', rawKey: 'k', rawUploadId: null },
+            })
+            await expect(call(service)).rejects.toBeInstanceOf(BadRequestError)
+            expect(files.deleteObject).not.toHaveBeenCalled()
+            expect(prisma.video.delete).not.toHaveBeenCalled()
+        },
+    )
+
+    it('aborts the multipart upload, drops any object and the row', async () => {
+        const { service, prisma, files } = build()
+        await expect(call(service)).resolves.toEqual({ status: 'aborted' })
+        expect(files.abortMultipartUpload).toHaveBeenCalledWith({
+            bucket: 'raw',
+            key: 'raw/vid-1/source.mp4',
+            uploadId: 'upload-1',
+        })
+        expect(files.deleteObject).toHaveBeenCalledWith({
+            bucket: 'raw',
+            key: 'raw/vid-1/source.mp4',
+        })
+        expect(prisma.video.delete).toHaveBeenCalledWith({ where: { id: 'vid-1' } })
+    })
+
+    it('drops a single-PUT upload (or one refused at completion) without an abort call', async () => {
+        const { service, prisma, files } = build({
+            video: { id: 'vid-1', status: 'failed', rawBucket: 'raw', rawKey: 'k', rawUploadId: null },
+        })
+        await call(service)
+        expect(files.abortMultipartUpload).not.toHaveBeenCalled()
+        expect(prisma.video.delete).toHaveBeenCalled()
+    })
+
+    it.each([
+        ['storage no longer knows the upload', Object.assign(new Error('gone'), { name: 'NoSuchUpload' })],
+        ['storage is down', new Error('s3 down')],
+    ])('still drops the row when %s', async (_case, abortError) => {
+        const { service, prisma } = build({ abortError })
+        await expect(call(service)).resolves.toEqual({ status: 'aborted' })
+        expect(prisma.video.delete).toHaveBeenCalled()
+    })
+})
+
+describe('VideoService.deleteVideo', () => {
+    it('aborts a multipart upload still in progress', async () => {
+        const prisma = {
+            video: {
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'vid-1',
+                    rawBucket: 'raw',
+                    rawKey: 'raw/vid-1/source.mp4',
+                    rawUploadId: 'upload-1',
+                    hlsBucket: 'raw',
+                    hlsMasterKey: null,
+                }),
+                delete: jest.fn().mockResolvedValue({}),
+            },
+        }
+        const files = {
+            getDefaultBucketName: jest.fn().mockReturnValue('raw'),
+            abortMultipartUpload: jest.fn().mockResolvedValue(undefined),
+            deleteObject: jest.fn().mockResolvedValue(undefined),
+            deleteObjectsByPrefix: jest.fn().mockResolvedValue(undefined),
+        }
+        const service = new VideoService(
+            prisma as never,
+            files as never,
+            { notifyWorkspace: jest.fn() } as never,
+            {} as never,
+            trialLimits as never,
+        )
+        await expect(
+            service.deleteVideo({ videoId: 'vid-1', workspaceId: 'ws-1' }),
+        ).resolves.toEqual({ status: 'deleted' })
+        expect(files.abortMultipartUpload).toHaveBeenCalledWith({
+            bucket: 'raw',
+            key: 'raw/vid-1/source.mp4',
+            uploadId: 'upload-1',
+        })
+        expect(prisma.video.delete).toHaveBeenCalledWith({ where: { id: 'vid-1' } })
     })
 })
 

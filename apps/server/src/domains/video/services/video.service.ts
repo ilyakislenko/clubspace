@@ -17,6 +17,18 @@ import { NotificationProducerService } from '../../notifications/services/notifi
 import { CourseAccessService } from '../../playlist/services/course-access.service'
 import { TrialLimitsService } from '../../billing/services/trial-limits.service'
 import { announceVideoIfLive } from './announce-video'
+import {
+    type CompletedUploadPart,
+    isMultipartUpload,
+    orderCompletedParts,
+    planUploadParts,
+    UPLOAD_PART_URL_TTL_SECONDS,
+} from './multipart-upload'
+
+// S3 answers NoSuchUpload for an upload id it no longer knows: completed or
+// aborted already, or expired as stale.
+const isNoSuchUpload = (err: unknown) =>
+    (err as { name?: string } | null)?.name === 'NoSuchUpload'
 
 const formatLimit = (bytes: number) =>
     bytes >= 1024 ** 3
@@ -70,12 +82,26 @@ export class VideoService {
         sizeBytes?: number
     }) {
         // Refuse before anything is written or signed; the declared size is
-        // then signed into the URL, and completeUpload measures the object.
+        // then signed into the URL(s), and completeUpload measures the object.
         assertUploadSize(payload.sizeBytes, this.filesService.getMaxVideoUploadBytes())
 
         const bucket = this.filesService.getDefaultBucketName()
         const videoId = randomUUID()
         const rawKey = `raw/${videoId}/source.mp4`
+        // A file bigger than one part goes up in parts: no single request to
+        // storage then carries more than a part (Cloudflare refuses request
+        // bodies over 100 MB). Started first, so the row records its id.
+        const partBytes = this.filesService.getMultipartPartBytes()
+        const partPlan = isMultipartUpload(payload.sizeBytes, partBytes)
+            ? planUploadParts(payload.sizeBytes, partBytes)
+            : null
+        const rawUploadId = partPlan
+            ? await this.filesService.createMultipartUpload({
+                  bucket,
+                  key: rawKey,
+                  contentType: payload.contentType,
+              })
+            : null
         const video = await this.prisma.video
             .create({
                 data: {
@@ -87,6 +113,7 @@ export class VideoService {
                     status: 'uploading',
                     rawBucket: bucket,
                     rawKey,
+                    rawUploadId,
                     hlsBucket: bucket,
                 },
                 select: { id: true, rawKey: true },
@@ -96,23 +123,50 @@ export class VideoService {
             throw new BadRequestError({ message: 'Не удалось подготовить загрузку файла' })
         }
 
-        const upload = await this.filesService.getPresignedPutUrl({
-            bucket,
-            key: video.rawKey,
-            contentType: payload.contentType,
-            contentLength: payload.sizeBytes,
-        })
+        if (!partPlan || !rawUploadId) {
+            const upload = await this.filesService.getPresignedPutUrl({
+                bucket,
+                key: video.rawKey,
+                contentType: payload.contentType,
+                contentLength: payload.sizeBytes,
+            })
+            return { videoId: video.id, rawKey: video.rawKey, upload }
+        }
+
+        const key = video.rawKey
+        const parts = await Promise.all(
+            partPlan.map(
+                async ({ partNumber, contentLength }) => ({
+                    partNumber,
+                    url: await this.filesService.getPresignedUploadPartUrl({
+                        bucket,
+                        key,
+                        uploadId: rawUploadId,
+                        partNumber,
+                        contentLength,
+                        expiresInSeconds: UPLOAD_PART_URL_TTL_SECONDS,
+                    }),
+                }),
+            ),
+        )
 
         return {
             videoId: video.id,
-            rawKey: video.rawKey,
-            upload,
+            rawKey: key,
+            upload: {
+                method: 'MULTIPART' as const,
+                uploadId: rawUploadId,
+                partSize: partBytes,
+                parts,
+            },
         }
     }
 
     async completeUpload(payload: {
         videoId: string
         workspaceId: string
+        // ETags of the parts of a multipart upload; ignored for a single PUT.
+        parts?: CompletedUploadPart[]
     }) {
         const video = await this.prisma.video.findFirst({
             where: {
@@ -123,6 +177,7 @@ export class VideoService {
                 id: true,
                 rawBucket: true,
                 rawKey: true,
+                rawUploadId: true,
             },
         })
 
@@ -135,6 +190,15 @@ export class VideoService {
         }
 
         const rawBucket = video.rawBucket ?? this.filesService.getDefaultBucketName()
+        if (video.rawUploadId) {
+            await this.completeMultipart(
+                { bucket: rawBucket, key: video.rawKey, uploadId: video.rawUploadId },
+                payload.parts,
+            )
+        }
+        // The upload id is spent once the parts are assembled (or refused).
+        const clearUploadId = video.rawUploadId ? { rawUploadId: null } : {}
+
         const size = await this.filesService.getObjectSize({
             bucket: rawBucket,
             key: video.rawKey,
@@ -160,7 +224,7 @@ export class VideoService {
         if (rejection) {
             await this.prisma.video.update({
                 where: { id: video.id },
-                data: { status: 'failed', errorMessage: rejection.message },
+                data: { status: 'failed', errorMessage: rejection.message, ...clearUploadId },
             })
             try {
                 await this.filesService.deleteObject({ bucket: rawBucket, key: video.rawKey })
@@ -175,8 +239,105 @@ export class VideoService {
         // The measured size is what the club's storage usage sums.
         await this.prisma.video.update({
             where: { id: video.id },
-            data: { status: 'uploaded', sizeBytes: BigInt(size) },
+            data: { status: 'uploaded', sizeBytes: BigInt(size), ...clearUploadId },
         })
+    }
+
+    // Assembles the uploaded parts into the object. An upload storage no
+    // longer knows was most likely completed by an earlier try of this same
+    // request: fall through, and the size check finds the object or not.
+    private async completeMultipart(
+        upload: { bucket: string; key: string; uploadId: string },
+        parts: CompletedUploadPart[] | undefined,
+    ) {
+        if (!parts?.length) {
+            throw new BadRequestError({
+                message: 'Загружены не все части файла. Загрузите видео ещё раз.',
+            })
+        }
+        const ordered = orderCompletedParts(parts)
+        try {
+            await this.filesService.completeMultipartUpload({ ...upload, parts: ordered })
+        } catch (err) {
+            if (isNoSuchUpload(err)) return
+            this.logger.error(`could not complete multipart upload ${upload.key}: ${String(err)}`)
+            throw new BadRequestError({
+                message: 'Не удалось собрать видео из загруженных частей. Загрузите его ещё раз.',
+            })
+        }
+    }
+
+    // Drops an upload that never reached transcoding — cancelled or failed in
+    // the client, or refused at completion — with the parts or object it left
+    // in storage. A video the pipeline already owns is deleted from the
+    // library instead.
+    async abortUpload(payload: { videoId: string; workspaceId: string }) {
+        const video = await this.prisma.video.findFirst({
+            where: {
+                id: payload.videoId,
+                workspaceId: payload.workspaceId,
+            },
+            select: {
+                id: true,
+                status: true,
+                rawBucket: true,
+                rawKey: true,
+                rawUploadId: true,
+            },
+        })
+
+        if (!video) {
+            throw new NotFoundError({ message: 'Видео не найдено' })
+        }
+
+        if (video.status !== 'uploading' && video.status !== 'failed') {
+            throw new BadRequestError({
+                message: 'Видео уже загружено — удалите его из библиотеки',
+            })
+        }
+
+        const rawBucket = video.rawBucket ?? this.filesService.getDefaultBucketName()
+        if (video.rawKey) {
+            await this.abortPendingUpload({
+                bucket: rawBucket,
+                key: video.rawKey,
+                uploadId: video.rawUploadId,
+            })
+            try {
+                await this.filesService.deleteObject({ bucket: rawBucket, key: video.rawKey })
+            } catch (err) {
+                this.logger.error(
+                    `could not delete aborted upload ${video.rawKey}: ${String(err)}`,
+                )
+            }
+        }
+
+        await this.prisma.video.delete({ where: { id: video.id } })
+
+        return { status: 'aborted' as const }
+    }
+
+    // Best effort: a failed abort only leaves parts that storage expires on
+    // its own (MinIO after 24 h; an AWS bucket needs an
+    // AbortIncompleteMultipartUpload lifecycle rule) — never a stuck video.
+    private async abortPendingUpload(upload: {
+        bucket: string
+        key: string
+        uploadId: string | null
+    }) {
+        if (!upload.uploadId) return
+        try {
+            await this.filesService.abortMultipartUpload({
+                bucket: upload.bucket,
+                key: upload.key,
+                uploadId: upload.uploadId,
+            })
+        } catch (err) {
+            if (isNoSuchUpload(err)) return
+            this.logger.error(
+                `could not abort multipart upload ${upload.key}: ${String(err)}`,
+            )
+        }
     }
 
     async getVideo(payload: { videoId: string; workspaceId: string }) {
@@ -896,6 +1057,12 @@ export class VideoService {
 
         const rawBucket = video.rawBucket ?? this.filesService.getDefaultBucketName()
         if (video.rawKey) {
+            // A video deleted while still uploading in parts: drop the parts.
+            await this.abortPendingUpload({
+                bucket: rawBucket,
+                key: video.rawKey,
+                uploadId: video.rawUploadId,
+            })
             await this.filesService.deleteObject({
                 bucket: rawBucket,
                 key: video.rawKey,

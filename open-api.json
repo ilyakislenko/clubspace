@@ -1774,6 +1774,43 @@
         }
       }
     },
+    "/admin/videos/{id}/abort-upload": {
+      "post": {
+        "operationId": "abortVideoUpload",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbortVideoUploadInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbortVideoUploadOutput_Output"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/videos/{id}": {
       "get": {
         "operationId": "getVideo",
@@ -24091,19 +24128,51 @@
           "upload": {
             "type": "object",
             "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "PUT",
+                  "MULTIPART"
+                ]
+              },
               "url": {
                 "type": "string",
                 "format": "uri"
               },
-              "method": {
-                "type": "string",
-                "enum": [
-                  "PUT"
-                ]
+              "uploadId": {
+                "type": "string"
+              },
+              "partSize": {
+                "type": "integer",
+                "exclusiveMinimum": true,
+                "maximum": 9007199254740991,
+                "minimum": 0
+              },
+              "parts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "partNumber": {
+                      "type": "integer",
+                      "exclusiveMinimum": true,
+                      "maximum": 9007199254740991,
+                      "minimum": 0
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "required": [
+                    "partNumber",
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
               }
             },
             "required": [
-              "url",
               "method"
             ],
             "additionalProperties": false
@@ -24337,6 +24406,30 @@
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "parts": {
+            "minItems": 1,
+            "maxItems": 10000,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "partNumber": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10000
+                },
+                "etag": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              },
+              "required": [
+                "partNumber",
+                "etag"
+              ]
+            }
           }
         },
         "required": [
@@ -24350,6 +24443,34 @@
             "type": "string",
             "enum": [
               "queued"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "AbortVideoUploadInput": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ]
+      },
+      "AbortVideoUploadOutput_Output": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "aborted"
             ]
           }
         },

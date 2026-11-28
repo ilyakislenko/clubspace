@@ -36,14 +36,14 @@ export class CompleteVideoUploadController {
     @ZodResponse({ type: CompleteVideoUploadOutput })
     async completeUpload(
         @Param('id') id: string,
-        // Declares the body contract; the value is read via the resolver.
-        @Body() _input: CompleteVideoUploadInput,
+        // workspaceId in the body is read via the resolver, never from here.
+        @Body() input: CompleteVideoUploadInput,
         @RequestWorkspaceId() workspaceId: string,
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return await this.bus.execute<
             CompleteVideoUploadFeature,
             CompleteVideoUploadFeatureResponse
-        >(new CompleteVideoUploadFeature(workspaceId, id, user.userId))
+        >(new CompleteVideoUploadFeature(workspaceId, id, user.userId, input.parts))
     }
 }
