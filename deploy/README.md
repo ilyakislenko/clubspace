@@ -921,6 +921,10 @@ out:
   without an APK, on iPhone without `APP_STORE_URL`. On a computer it also
   shows a QR code of its own address (`SITE_URL/download`) to open it on a
   phone. With no link configured it says so instead.
+- `/help` — «Видеоинструкции»: the task guides grouped by role, each a video
+  with its poster and length, from `${GUIDES_BASE_URL}/guides.json` (fetched
+  per request; recording and publishing: `docs/guides.md`). Without
+  `GUIDES_BASE_URL`, or while the manifest is unreachable, a short notice.
 - `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`
   — Universal Links / App Links for `/join/*`, `application/json`, 404 until
   configured.
@@ -936,6 +940,7 @@ out:
 | `APP_STORE_URL`, `PLAY_STORE_URL`, `RUSTORE_URL` | store buttons on `/join` and `/download` (the server also puts them in e-mails) |
 | `ANDROID_APK_URL` | direct `.apk` link, «Скачать для Android» on `/download` and `/join` while neither Play nor RuStore is set |
 | `PWA_URL` | «Открыть в браузере»: opens `${PWA_URL}/join/<code>` in the installable web app; the home-screen steps on `/download` for whichever platform has no store link (nor, on Android, an APK) |
+| `GUIDES_BASE_URL` | `/help`: where `guides.json` and the guide videos live (e.g. `https://s3.<domain>/clubspace/downloads/guides`); also allowed as a media origin in the page CSP. The admin's help panel bakes the same value in at build time |
 | `APPLE_TEAM_ID`, `IOS_BUNDLE_ID` | AASA; `IOS_BUNDLE_ID` may list several bundle ids, comma-separated |
 | `ANDROID_PACKAGE`, `ANDROID_CERT_SHA256` | `assetlinks.json`; both comma-separated (e.g. the Play app-signing key and the upload key) |
 | `ADMIN_URL`, `SITE_URL` | set by compose to `https://admin.<domain>` / `https://app.<domain>`: the landing's «Попробовать» link, canonical / Open Graph / sitemap URLs |

@@ -16,6 +16,7 @@ import {
   MapPin,
   Megaphone,
   PhoneCall,
+  PlayCircle,
   Settings,
   UserRound,
   Users,
@@ -46,6 +47,7 @@ import {
 } from "@clubspace/ui-kit/ui"
 import { type ClubVocabulary } from "@clubspace/ui-kit/brand"
 
+import { environment } from "../../../../environments/environment"
 import { signOut } from "../../../../shared/api/client"
 import { fetchMe, type Me } from "../../../../shared/api/me"
 import { fetchWorkspaces, isAdminWorkspace } from "../../../../shared/api/workspaces"
@@ -338,6 +340,20 @@ export function WorkspaceSidebar() {
                       </Link>
                     </DropdownMenuItem>
                   </>
+                )}
+                {/* Task-based video guides on the public site's /help, for every
+                    staff role; the site's address is unknown without it. */}
+                {environment.publicAppUrl && (
+                  <DropdownMenuItem asChild>
+                    <a
+                      href={`${environment.publicAppUrl}/help`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <PlayCircle className="size-4" />
+                      Видеоинструкции
+                    </a>
+                  </DropdownMenuItem>
                 )}
                 {(adminClubs > 1 || hasOrganization || me?.isSuperAdmin) && (
                   <DropdownMenuItem asChild>
