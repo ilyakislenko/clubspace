@@ -43,6 +43,10 @@ ENV NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL}
 # from an api.<domain> NEXT_PUBLIC_API_URL as app.<domain>).
 ARG NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+# The video guides the «?» panel plays: base of guides.json and the files
+# (empty = the panel shows text only).
+ARG NEXT_PUBLIC_GUIDES_BASE_URL
+ENV NEXT_PUBLIC_GUIDES_BASE_URL=${NEXT_PUBLIC_GUIDES_BASE_URL}
 COPY --from=deps /workspace/node_modules ./node_modules
 COPY . .
 # The build first compiles libs/api-client (dependsOn ^build): the typecheck

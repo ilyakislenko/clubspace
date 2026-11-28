@@ -344,6 +344,9 @@ services:
         # The public site the admin links /legal/* on; empty = app.<domain>
         # (derived from the API address). See .env.production.example.
         NEXT_PUBLIC_APP_URL: ${PUBLIC_SITE_URL:-}
+        # The video guides in the «?» panel; empty = text only. See
+        # .env.production.example (GUIDES_BASE_URL).
+        NEXT_PUBLIC_GUIDES_BASE_URL: ${GUIDES_BASE_URL:-}
     restart: unless-stopped
     logging: *default-logging
     # Runtime: the Content-Security-Policy (apps/admin/src/proxy.ts) lets pages

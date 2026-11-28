@@ -13,4 +13,8 @@ export const environment = {
   }),
   // Same inbox the landing shows (apps/client reads the same variable).
   supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || null,
+  // Where the video guides and their guides.json live (a public storage
+  // prefix, baked in at build time). null: the «?» panel shows text only.
+  guidesBaseUrl:
+    process.env.NEXT_PUBLIC_GUIDES_BASE_URL?.trim().replace(/\/+$/, "") || null,
 }

@@ -15,6 +15,7 @@ import { setActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { VocabularyProvider } from "../../../../shared/lib/vocabulary"
 import { ThemeSwitcher } from "../../../../shared/theme/theme-switcher"
 import { BillingBanner } from "../../../../features/billing/BillingBanner"
+import { PageHelpButton } from "../../../../features/page-help/PageHelpButton"
 import {
   readSuspended,
   type SuspendedInfo,
@@ -82,6 +83,10 @@ export default function WorkspaceLayout({
 
   const onBillingPage = Boolean(pathname?.endsWith("/billing"))
 
+  // A suspended club shows its notice instead of the page (billing stays
+  // open to admins) — and no help about a page that isn't there.
+  const blocked = Boolean(suspended) && !(onBillingPage && canAdmin)
+
   return (
     // The shell is exactly one viewport tall and the CONTENT is the scroll
     // container — not the document. With document-level scrolling the header
@@ -102,13 +107,14 @@ export default function WorkspaceLayout({
           <div className="text-sm font-medium">
             {workspaceName || "Клуб"}
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            {!blocked && <PageHelpButton />}
             <ThemeSwitcher />
           </div>
         </header>
         {workspaceId && !suspended && <BillingBanner workspaceId={workspaceId} />}
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
-          {suspended && !(onBillingPage && canAdmin) ? (
+          {blocked && suspended ? (
             <div className="mx-auto max-w-xl space-y-3 rounded-lg border border-destructive/40 bg-destructive/10 p-6 text-sm">
               <div className="text-base font-medium text-destructive">
                 {suspended.reason === "SUSPENDED"
