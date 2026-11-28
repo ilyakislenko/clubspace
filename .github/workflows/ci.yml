@@ -535,6 +535,9 @@ jobs:
         image:
           - { name: server, dockerfile: apps/server/Dockerfile }
           - { name: video-worker, dockerfile: apps/video-worker/Dockerfile }
+          # The optional whisper.cpp stage (WITH_WHISPER=1), built only here:
+          # operators hit it on update.sh, so a compile break must fail CI.
+          - { name: video-worker-whisper, dockerfile: apps/video-worker/Dockerfile, whisper: '1' }
           - { name: admin, dockerfile: apps/admin/Dockerfile }
           - { name: client, dockerfile: apps/client/Dockerfile }
           - { name: pwa, dockerfile: apps/mobile/Dockerfile }
@@ -552,6 +555,7 @@ jobs:
             NEXT_PUBLIC_API_URL=https://api.example.com
             EXPO_PUBLIC_API_URL=https://api.example.com
             EXPO_PUBLIC_WEB_URL=https://app.example.com
+            WITH_WHISPER=${{ matrix.image.whisper || '0' }}
           cache-from: type=gha,scope=${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
 

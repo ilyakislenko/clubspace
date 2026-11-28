@@ -1133,8 +1133,9 @@ without them has no transcripts (OCR chapters from on-screen titles still work).
 1. **Image.** In `.env.production` set `WITH_WHISPER=1`, then rebuild the worker
    (`sudo ./deploy/update.sh --force`, or by hand
    `docker compose -f docker-compose.prod.yml --env-file .env.production build video-worker`).
-   The build compiles a pinned whisper.cpp release (a few minutes on 4 cores;
-   the image grows by ≈ 10 MB). It is a portable CPU build: every ggml CPU
+   The build compiles a pinned whisper.cpp release (≈ 10–20 min, repeated when
+   updates are more than a week apart because `update.sh` prunes older build
+   cache; the image grows by ≈ 10 MB). `WITH_WHISPER` must be exactly `1`. It is a portable CPU build: every ggml CPU
    variant is compiled (amd64: SSE4.2 up to AVX-512; arm64: armv8.0 up to
    armv9.2) and the fastest one the CPU supports is loaded at run time, so the
    same image runs on an old Celeron and on a new EPYC. `whisper-cli` is on
@@ -1189,8 +1190,10 @@ without them has no transcripts (OCR chapters from on-screen titles still work).
    never touched. Details: `apps/video-worker/README.md`.
 
 **Speed and CPU.** `whisper-cli` uses 4 threads (more cores do not speed up one
-video, they keep the transcodes responsive meanwhile); one transcript runs at a
-time, next to the transcodes. Measured: `base` transcribes 2 minutes of speech
+video, they keep the transcodes responsive meanwhile); the worker runs one
+transcript at a time, next to the transcodes — a backfill started by hand runs
+beside it, so during a backfill two may overlap (a timed-out video is picked up
+again by the next backfill run). Measured: `base` transcribes 2 minutes of speech
 in 18 s on 4 threads of a recent ARM CPU (≈ 6–7× faster than real time);
 `small` is ≈ 3× slower than `base`, `medium` ≈ 3× slower than `small`. On 4–8
 cores of a current x86 CPU (AVX2) expect `small` at roughly 2–4× real time — a
