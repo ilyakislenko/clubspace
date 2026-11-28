@@ -1,6 +1,8 @@
 import {
+  androidButtons,
   appJoinUrl,
   pwaJoinUrl,
+  type StoreButton,
   type StoreLinks,
 } from "../../shared/lib/app-links"
 
@@ -10,7 +12,8 @@ const secondary =
   "flex h-11 items-center justify-center rounded-full border border-border bg-card px-5 text-sm font-medium transition-colors hover:bg-muted"
 
 // The join flow for one code: open it in the installed app; no app yet —
-// a store, or the web app; or type the code by hand.
+// a store (on Android the APK when the app is in none), or the web app; or
+// type the code by hand.
 export function JoinActions({
   code,
   codeDisplay,
@@ -20,11 +23,10 @@ export function JoinActions({
   codeDisplay: string
   links: StoreLinks
 }) {
-  const stores = [
-    { href: links.appStore, label: "App Store" },
-    { href: links.googlePlay, label: "Google Play" },
-    { href: links.ruStore, label: "RuStore" },
-  ].filter((s): s is { href: string; label: string } => !!s.href)
+  const stores: StoreButton[] = [
+    ...(links.appStore ? [{ href: links.appStore, label: "App Store" }] : []),
+    ...androidButtons(links),
+  ]
   const browser = pwaJoinUrl(links, code)
 
   return (

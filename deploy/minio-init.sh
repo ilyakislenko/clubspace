@@ -7,7 +7,8 @@
 #    the membership-checked manifest proxy, which signs short-lived segment
 #    URLs. Only thumbnails/ and subtitles/ are anonymously readable, because
 #    the apps load those unsigned — plus playlists/, where course covers were
-#    uploaded before they moved under thumbnails/.
+#    uploaded before they moved under thumbnails/, and downloads/, for app
+#    files people fetch from a link (the APK behind ANDROID_APK_URL).
 # 2. One service account per app, each with the least it needs, so neither the
 #    server nor the worker ever holds the root credentials:
 #    - server: read, write and delete objects in the bucket and list it. It
@@ -34,6 +35,7 @@ mc anonymous set none "local/$BUCKET"
 mc anonymous set download "local/$BUCKET/thumbnails"
 mc anonymous set download "local/$BUCKET/subtitles"
 mc anonymous set download "local/$BUCKET/playlists"
+mc anonymous set download "local/$BUCKET/downloads"
 
 cat > "$POLICY_DIR/clubspace-server.json" <<EOF
 {

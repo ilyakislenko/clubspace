@@ -341,6 +341,9 @@ services:
         NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
         NEXT_PUBLIC_APP_RELEASE: ${APP_RELEASE:-}
         NEXT_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+        # The public site the admin links /legal/* on; empty = app.<domain>
+        # (derived from the API address). See .env.production.example.
+        NEXT_PUBLIC_APP_URL: ${PUBLIC_SITE_URL:-}
     restart: unless-stopped
     logging: *default-logging
     # Runtime: the Content-Security-Policy (apps/admin/src/proxy.ts) lets pages
@@ -377,7 +380,7 @@ services:
         NEXT_PUBLIC_APP_RELEASE: ${APP_RELEASE:-}
     restart: unless-stopped
     logging: *default-logging
-    # Runtime (not baked): /, /join, /c, /clubs, /.well-known, robots.txt and
+    # Runtime (not baked): /, /join, /download, /c, /clubs, /.well-known, robots.txt and
     # sitemap.xml read these per request — see deploy/README.md, "Join links,
     # club pages and app links".
     environment:
@@ -389,6 +392,8 @@ services:
       APP_STORE_URL: ${APP_STORE_URL:-}
       PLAY_STORE_URL: ${PLAY_STORE_URL:-}
       RUSTORE_URL: ${RUSTORE_URL:-}
+      # «Скачать для Android» on /download and /join when the app is in no store.
+      ANDROID_APK_URL: ${ANDROID_APK_URL:-}
       # «Открыть в браузере» on /join → the stack's own PWA unless overridden.
       PWA_URL: ${PWA_URL:-https://pwa.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}}
       APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}

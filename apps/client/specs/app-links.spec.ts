@@ -1,8 +1,11 @@
 import {
+  androidButtons,
+  androidInstall,
   apiBaseUrl,
   appJoinUrl,
   buildAppleAppSiteAssociation,
   buildAssetLinks,
+  iosInstall,
   pwaJoinUrl,
   readStoreLinks,
 } from "../src/shared/lib/app-links"
@@ -13,6 +16,7 @@ describe("readStoreLinks", () => {
       appStore: null,
       googlePlay: null,
       ruStore: null,
+      androidApk: null,
       pwa: null,
     })
   })
@@ -32,6 +36,61 @@ describe("readStoreLinks", () => {
 
   it("has no browser link without a PWA", () => {
     expect(pwaJoinUrl(readStoreLinks({}), "ABCD2345")).toBeNull()
+  })
+})
+
+describe("androidInstall", () => {
+  const apk = "https://media.club.example/clubspace/downloads/clubspace.apk"
+
+  it("offers the stores the app is in, and not the APK beside them", () => {
+    const links = readStoreLinks({
+      PLAY_STORE_URL: "https://play.google.com/x",
+      RUSTORE_URL: "https://rustore.ru/x",
+      ANDROID_APK_URL: apk,
+    })
+    expect(androidInstall(links)).toEqual({
+      kind: "stores",
+      stores: [
+        { href: "https://play.google.com/x", label: "Google Play" },
+        { href: "https://rustore.ru/x", label: "RuStore" },
+      ],
+    })
+  })
+
+  it("falls back to the APK without a store", () => {
+    const links = readStoreLinks({ ANDROID_APK_URL: apk })
+    expect(androidInstall(links)).toEqual({ kind: "apk", href: apk })
+    expect(androidButtons(links)).toEqual([
+      { href: apk, label: "Скачать для Android" },
+    ])
+  })
+
+  it("is null with neither", () => {
+    expect(androidInstall(readStoreLinks({}))).toBeNull()
+    expect(androidButtons(readStoreLinks({}))).toEqual([])
+  })
+})
+
+describe("iosInstall", () => {
+  it("prefers the App Store over the web app", () => {
+    const links = readStoreLinks({
+      APP_STORE_URL: "https://apps.apple.com/app/id1",
+      PWA_URL: "https://pwa.club.example",
+    })
+    expect(iosInstall(links)).toEqual({
+      kind: "store",
+      href: "https://apps.apple.com/app/id1",
+    })
+  })
+
+  it("falls back to the web app", () => {
+    expect(
+      iosInstall(readStoreLinks({ PWA_URL: "https://pwa.club.example/" })),
+    ).toEqual({ kind: "pwa", href: "https://pwa.club.example" })
+  })
+
+  it("is null with neither", () => {
+    expect(iosInstall(readStoreLinks({}))).toBeNull()
   })
 })
 

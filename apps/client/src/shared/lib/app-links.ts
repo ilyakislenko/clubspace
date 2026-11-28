@@ -21,6 +21,8 @@ export type StoreLinks = {
   appStore: string | null
   googlePlay: string | null
   ruStore: string | null
+  // A direct link to the Android .apk, for installs outside the stores.
+  androidApk: string | null
   // The installable web app; the join link is opened there as /join/<code>.
   pwa: string | null
 }
@@ -29,8 +31,47 @@ export const readStoreLinks = (env: Env = process.env): StoreLinks => ({
   appStore: value(env, "APP_STORE_URL"),
   googlePlay: value(env, "PLAY_STORE_URL"),
   ruStore: value(env, "RUSTORE_URL"),
+  androidApk: value(env, "ANDROID_APK_URL"),
   pwa: value(env, "PWA_URL")?.replace(/\/+$/, "") ?? null,
 })
+
+export type StoreButton = { href: string; label: string }
+
+// How to get the app on Android: the stores it is in; with none, the APK.
+export type AndroidInstall =
+  | { kind: "stores"; stores: StoreButton[] }
+  | { kind: "apk"; href: string }
+  | null
+
+export const androidInstall = (links: StoreLinks): AndroidInstall => {
+  const stores = [
+    { href: links.googlePlay, label: "Google Play" },
+    { href: links.ruStore, label: "RuStore" },
+  ].filter((s): s is StoreButton => !!s.href)
+  if (stores.length > 0) return { kind: "stores", stores }
+  return links.androidApk ? { kind: "apk", href: links.androidApk } : null
+}
+
+// The same choice as buttons; the APK one reads «Скачать для Android».
+export const androidButtons = (links: StoreLinks): StoreButton[] => {
+  const install = androidInstall(links)
+  if (!install) return []
+  return install.kind === "stores"
+    ? install.stores
+    : [{ href: install.href, label: "Скачать для Android" }]
+}
+
+// How to get the app on iPhone: the App Store; without it, the web app added
+// to the home screen.
+export type IosInstall =
+  | { kind: "store"; href: string }
+  | { kind: "pwa"; href: string }
+  | null
+
+export const iosInstall = (links: StoreLinks): IosInstall => {
+  if (links.appStore) return { kind: "store", href: links.appStore }
+  return links.pwa ? { kind: "pwa", href: links.pwa } : null
+}
 
 // The custom scheme every ClubSpace build registers; the app holds the code
 // until sign-in (apps/mobile/src/features/join/pending-join.ts).
