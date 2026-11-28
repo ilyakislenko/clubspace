@@ -1,6 +1,8 @@
 import {
+  androidInstall,
   appJoinUrl,
   pwaJoinUrl,
+  type StoreButton,
   type StoreLinks,
 } from "../../shared/lib/app-links"
 
@@ -10,7 +12,8 @@ const secondary =
   "flex h-11 items-center justify-center rounded-full border border-border bg-card px-5 text-sm font-medium transition-colors hover:bg-muted"
 
 // The join flow for one code: open it in the installed app; no app yet —
-// a store, or the web app; or type the code by hand.
+// a store (on Android the APK when the app is in none), or the web app; or
+// type the code by hand.
 export function JoinActions({
   code,
   codeDisplay,
@@ -20,11 +23,14 @@ export function JoinActions({
   codeDisplay: string
   links: StoreLinks
 }) {
-  const stores = [
-    { href: links.appStore, label: "App Store" },
-    { href: links.googlePlay, label: "Google Play" },
-    { href: links.ruStore, label: "RuStore" },
-  ].filter((s): s is { href: string; label: string } => !!s.href)
+  // Android's web-app fallback is «Открыть в браузере» below; the APK is a
+  // download, so it opens in this tab, unlike the stores.
+  const android = androidInstall(links)
+  const stores: StoreButton[] = [
+    ...(links.appStore ? [{ href: links.appStore, label: "App Store" }] : []),
+    ...(android?.kind === "stores" ? android.stores : []),
+  ]
+  const apk = android?.kind === "apk" ? android.href : null
   const browser = pwaJoinUrl(links, code)
 
   return (
@@ -33,7 +39,7 @@ export function JoinActions({
         Открыть в приложении
       </a>
 
-      {(stores.length > 0 || browser) && (
+      {(stores.length > 0 || apk || browser) && (
         <div className="space-y-2">
           <p className="text-center text-sm text-muted-foreground">
             Ещё нет приложения ClubSpace?
@@ -50,6 +56,11 @@ export function JoinActions({
                 {s.label}
               </a>
             ))}
+            {apk && (
+              <a href={apk} className={secondary}>
+                Скачать для Android
+              </a>
+            )}
             {browser && (
               <a href={browser} className={secondary}>
                 Открыть в браузере

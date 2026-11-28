@@ -81,7 +81,8 @@ services:
       mc anonymous set none local/clubspace &&
       mc anonymous set download local/clubspace/thumbnails &&
       mc anonymous set download local/clubspace/subtitles &&
-      mc anonymous set download local/clubspace/playlists
+      mc anonymous set download local/clubspace/playlists &&
+      mc anonymous set download local/clubspace/downloads
       "
     restart: "no"
 

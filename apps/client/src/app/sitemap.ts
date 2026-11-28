@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic"
 const PATHS: Array<{ path: string; priority: number }> = [
   { path: "/", priority: 1 },
   { path: "/clubs", priority: 0.6 },
+  { path: "/download", priority: 0.5 },
   { path: "/legal/privacy", priority: 0.2 },
   { path: "/legal/terms", priority: 0.2 },
   { path: "/legal/consent", priority: 0.1 },

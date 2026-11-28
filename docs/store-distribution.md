@@ -72,8 +72,12 @@ App Store и RuStore — в [`docs/store/`](store/README.md).
   приложения из Play Console и ключ EAS (для APK вне магазина).
 
 Пока подтверждения нет, ссылка открывает PWA — вступить в клуб можно и там.
-Кнопки магазинов на странице `/join` и в письмах берутся из `APP_STORE_URL`,
-`PLAY_STORE_URL`, `RUSTORE_URL`.
+Кнопки магазинов на страницах `/join` и `/download` («Скачать приложение») и в
+письмах берутся из `APP_STORE_URL`, `PLAY_STORE_URL`, `RUSTORE_URL`. Пока
+приложения нет ни в Google Play, ни в RuStore, Android-кнопка — «Скачать для
+Android» по прямой ссылке `ANDROID_APK_URL` (APK можно положить в бакет под
+`downloads/`, его читают без подписи). Где нет ни магазина, ни (на Android)
+APK, `/download` показывает, как добавить PWA (`PWA_URL`) на экран «Домой».
 
 ## 3. Брендовое приложение клуба (платная услуга)
 
