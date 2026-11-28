@@ -380,7 +380,7 @@ services:
         NEXT_PUBLIC_APP_RELEASE: ${APP_RELEASE:-}
     restart: unless-stopped
     logging: *default-logging
-    # Runtime (not baked): /, /join, /download, /c, /clubs, /.well-known, robots.txt and
+    # Runtime (not baked): /, /join, /download, /help, /c, /clubs, /.well-known, robots.txt and
     # sitemap.xml read these per request — see deploy/README.md, "Join links,
     # club pages and app links".
     environment:
@@ -396,6 +396,9 @@ services:
       ANDROID_APK_URL: ${ANDROID_APK_URL:-}
       # «Открыть в браузере» on /join → the stack's own PWA unless overridden.
       PWA_URL: ${PWA_URL:-https://pwa.${DOMAIN}${PUBLIC_PORT_SUFFIX:-}}
+      # «Видеоинструкции» on /help: the manifest and files under this base
+      # (docs/guides.md); unset — the page says they are not published yet.
+      GUIDES_BASE_URL: ${GUIDES_BASE_URL:-}
       APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
       IOS_BUNDLE_ID: ${IOS_BUNDLE_ID:-}
       ANDROID_PACKAGE: ${ANDROID_PACKAGE:-}

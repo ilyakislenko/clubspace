@@ -72,4 +72,16 @@ describe("readMediaUrls", () => {
       "https://s3.example.ru",
     ])
   })
+
+  it("adds the video guides' address", () => {
+    expect(
+      readMediaUrls({
+        S3_UPLOAD_BUCKET_URL: "https://s3.example.ru",
+        GUIDES_BASE_URL: "https://media.example.ru/clubspace/downloads/guides",
+      }),
+    ).toEqual([
+      "https://s3.example.ru",
+      "https://media.example.ru/clubspace/downloads/guides",
+    ])
+  })
 })

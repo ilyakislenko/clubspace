@@ -48,9 +48,10 @@ const present = (values: Array<string | null | undefined | false>): string[] => 
 
 // Where presigned object URLs point: the server signs them for
 // S3_ACCELERATE_URL when set, S3_UPLOAD_BUCKET_URL otherwise (both are passed
-// to this container at runtime, like the server's own).
+// to this container at runtime, like the server's own), plus GUIDES_BASE_URL —
+// the «Видеоинструкции» videos and posters on /help, possibly on a CDN host.
 export const readMediaUrls = (env: Env = process.env): string[] =>
-  present([env.S3_UPLOAD_BUCKET_URL, env.S3_ACCELERATE_URL])
+  present([env.S3_UPLOAD_BUCKET_URL, env.S3_ACCELERATE_URL, env.GUIDES_BASE_URL])
 
 export const buildContentSecurityPolicy = (s: CspSources): string => {
   const api = originOf(s.apiUrl)

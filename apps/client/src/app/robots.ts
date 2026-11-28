@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic"
  * root ("/$" — the root only, not everything under it), the public legal
  * pages (privacy policy, account deletion) that store reviewers must reach,
  * the club catalog with the pages of clubs that chose to be listed, and the
- * «Скачать приложение» page.
+ * «Скачать приложение» and «Видеоинструкции» pages.
  * Join pages (/join/<code>) stay out: a code is a key to the club.
  */
 export default function robots(): MetadataRoute.Robots {
@@ -19,7 +19,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: ["/$", "/legal/", "/c/", "/clubs", "/download"],
+        allow: ["/$", "/legal/", "/c/", "/clubs", "/download", "/help"],
         disallow: "/",
       },
     ],
