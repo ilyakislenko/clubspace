@@ -24,6 +24,7 @@ import {
     QuotaExceededError,
 } from '../../shared/errors/shared.errors'
 import { pseudonymizeQuestion } from '../ai-chat/ai-chat-utils'
+import { loadKnownPeople } from '../ai-chat/known-people'
 import { localDateInTz, wallClockToUtc } from '../attendance/attendance-utils'
 import { displayName } from '../attendance/schemas'
 import {
@@ -57,6 +58,7 @@ export const VIDEO_ANSWERS_NOT_CONFIGURED_MESSAGE = 'ИИ-ответы по ви
 export const VIDEO_ANSWERS_DISABLED_MESSAGE = 'Клуб не включил ИИ-ответы по видео'
 export const VIDEO_ANSWERS_NOTICE_MESSAGE =
     'Сначала подтвердите, что вопрос можно отправить ИИ-сервису'
+export const VIDEO_ANSWERS_CHILD_MESSAGE = 'В профиле ребёнка ИИ-ответы по видео недоступны'
 const TIMEOUT_MESSAGE = 'ИИ не ответил за 30 секунд — попробуйте ещё раз'
 const FAILED_MESSAGE = 'ИИ сейчас не отвечает — попробуйте позже'
 
@@ -65,7 +67,7 @@ const USAGE_KIND = 'videoAnswer'
 const loadClub = async (prisma: PrismaService, workspaceId: string) => {
     const club = await prisma.workspace.findUnique({
         where: { id: workspaceId },
-        select: { type: true, timezone: true, videoAnswersEnabled: true },
+        select: { type: true, timezone: true, ownerId: true, videoAnswersEnabled: true },
     })
     if (!club) throw new NotFoundError({ message: 'Клуб не найден' })
     return club
@@ -116,8 +118,9 @@ const readState = async (
 
 /**
  * Whether «Спросить ИИ по видео клуба» shows in the app: the AI model is
- * configured, the club switched it on and its videos are open to this user.
- * Never refuses a member (the app reads it on opening the search).
+ * configured, the club switched it on and its videos are open to this user —
+ * never in a child profile. Never refuses a member (the app reads it on
+ * opening the search).
  */
 @Feature(GetClubVideoAnswersStateFeature)
 export class GetClubVideoAnswersStateHandler
@@ -128,7 +131,9 @@ export class GetClubVideoAnswersStateHandler
         private readonly courseAccess: CourseAccessService,
     ) {}
 
-    async execute({ workspaceId, userId }: GetClubVideoAnswersStateFeature) {
+    async execute({ workspaceId, userId, actingForChild }: GetClubVideoAnswersStateFeature) {
+        // Not offered in a child profile (a guardian acting for a child).
+        if (actingForChild) return { available: false, noticeAccepted: false, notice: { ...VIDEO_ANSWERS_NOTICE } }
         return readState(this.prisma, this.courseAccess, workspaceId, userId)
     }
 }
@@ -145,7 +150,8 @@ export class AcceptClubVideoAnswersNoticeHandler
         private readonly audit: AuditService,
     ) {}
 
-    async execute({ workspaceId, userId, payload, ip, userAgent }: AcceptClubVideoAnswersNoticeFeature) {
+    async execute({ workspaceId, userId, payload, ip, userAgent, actingForChild }: AcceptClubVideoAnswersNoticeFeature) {
+        if (actingForChild) throw new ForbiddenError({ message: VIDEO_ANSWERS_CHILD_MESSAGE })
         const state = await readState(this.prisma, this.courseAccess, workspaceId, userId)
         if (!state.available) throw new ForbiddenError({ message: VIDEO_ANSWERS_DISABLED_MESSAGE })
         if (payload.version !== VIDEO_ANSWERS_NOTICE.version) {
@@ -186,9 +192,9 @@ export class AcceptClubVideoAnswersNoticeHandler
 /**
  * «Спросить ИИ по видео клуба»: a short answer built only from the club's own
  * transcripts of the videos this member may watch, citing the moments.
- * The model gets the question (phone and e-mail scrubbed) and transcript
- * excerpts — nothing about the member. Two model calls: search terms, then
- * the answer from the excerpts found with them.
+ * The model gets the question (phone, e-mail and club members' full names
+ * scrubbed) and transcript excerpts — nothing about the member. Two model
+ * calls: search terms, then the answer from the excerpts found with them.
  */
 @Feature(AskClubVideosFeature)
 export class AskClubVideosHandler
@@ -203,7 +209,13 @@ export class AskClubVideosHandler
         private readonly audit: AuditService,
     ) {}
 
-    async execute({ workspaceId, userId, payload }: AskClubVideosFeature): Promise<AskClubVideosFeatureResponse> {
+    async execute({
+        workspaceId,
+        userId,
+        payload,
+        actingForChild,
+    }: AskClubVideosFeature): Promise<AskClubVideosFeatureResponse> {
+        if (actingForChild) throw new ForbiddenError({ message: VIDEO_ANSWERS_CHILD_MESSAGE })
         if (!isLlmConfigured()) throw new BadRequestError({ message: VIDEO_ANSWERS_NOT_CONFIGURED_MESSAGE })
         const club = await loadClub(this.prisma, workspaceId)
         if (!club.videoAnswersEnabled) throw new ForbiddenError({ message: VIDEO_ANSWERS_DISABLED_MESSAGE })
@@ -211,29 +223,6 @@ export class AskClubVideosHandler
         if ('refused' in access) throw access.refused
         if (!(await noticeAccepted(this.prisma, workspaceId, userId))) {
             throw new ForbiddenError({ message: VIDEO_ANSWERS_NOTICE_MESSAGE })
-        }
-
-        const now = new Date()
-        const allowance = await monthlyAiAllowance(this.prisma, { workspaceId, timezone: club.timezone }, now)
-        if (allowance.remaining <= 0) {
-            throw new QuotaExceededError({
-                message: 'ИИ-вопросы клуба на этот месяц закончились — лимит обновится 1-го числа.',
-                metadata: { perMonth: allowance.perMonth },
-            })
-        }
-        const today = await this.prisma.aiChatUsage.count({
-            where: {
-                workspaceId,
-                userId,
-                kind: USAGE_KIND,
-                createdAt: { gte: wallClockToUtc(`${localDateInTz(now, club.timezone)}T00:00:00`, club.timezone) },
-            },
-        })
-        if (today >= DAILY_QUESTIONS_PER_MEMBER) {
-            throw new QuotaExceededError({
-                message: `Сегодня вы уже задали ${DAILY_QUESTIONS_PER_MEMBER} вопросов ИИ — продолжим завтра.`,
-                metadata: { perDay: DAILY_QUESTIONS_PER_MEMBER },
-            })
         }
 
         const ready = await this.prisma.video.findMany({
@@ -248,14 +237,18 @@ export class AskClubVideosHandler
         // Nothing to answer from: no model call, nothing counted.
         if (watchable.size === 0) return { answer: NO_ANSWER_TEXT, answered: false, citations: [] }
 
-        // Only the question leaves, with any phone or e-mail in it hidden.
-        const question = pseudonymizeQuestion(payload.question, []).content
+        // Only the question leaves: phone and e-mail hidden, full names of
+        // the club's people replaced by pseudonyms (like the admin's chat).
+        const question = pseudonymizeQuestion(
+            payload.question,
+            await loadKnownPeople(this.prisma, { workspaceId, ownerId: club.ownerId }),
+        ).content
         const started = Date.now()
-        // Counted before the first call: a failure still counts, like the chat.
-        const usageRow = await this.prisma.aiChatUsage.create({
-            data: { workspaceId, userId, kind: USAGE_KIND, model: this.llm.model.slice(0, 128) },
-            select: { id: true },
-        })
+        // Counted before the first call (a failure still counts, like the
+        // chat), and checked against both caps in the same transaction under
+        // the club's and the member's locks, so parallel questions can't all
+        // pass the check before any of them is counted.
+        const usageRow = await this.countQuestion(workspaceId, userId, club.timezone)
         const usage: LlmUsage = { inputTokens: 0, outputTokens: 0 }
         const deadline = AbortSignal.timeout(ANSWER_TIMEOUT_MS)
         const trace = { terms: 0, excerpts: 0, cited: 0 }
@@ -275,10 +268,15 @@ export class AskClubVideosHandler
             status = 'ok'
             return result
         } finally {
-            await this.prisma.aiChatUsage.update({
-                where: { id: usageRow.id },
-                data: { ...usage, status },
-            })
+            // Bookkeeping never replaces the answer or the error.
+            await this.prisma.aiChatUsage
+                .update({ where: { id: usageRow.id }, data: { ...usage, status } })
+                .catch((error: unknown) =>
+                    this.logger.error(
+                        'Ответ по видео: usage update failed',
+                        error instanceof Error ? error.stack : String(error),
+                    ),
+                )
             await this.audit.record({
                 action: 'ai.videoAnswerQuestion',
                 targetType: 'aiChat',
@@ -298,6 +296,41 @@ export class AskClubVideosHandler
                 },
             })
         }
+    }
+
+    // The club's monthly allowance (shared with the admin's chat) and this
+    // member's daily cap, checked and the question counted atomically.
+    private countQuestion(workspaceId: string, userId: string, timezone: string) {
+        return this.prisma.$transaction(async (tx) => {
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`ai-allowance:${workspaceId}`}))`
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`video-answers:${workspaceId}:${userId}`}))`
+            const now = new Date()
+            const allowance = await monthlyAiAllowance(tx, { workspaceId, timezone }, now)
+            if (allowance.remaining <= 0) {
+                throw new QuotaExceededError({
+                    message: 'ИИ-вопросы клуба на этот месяц закончились — лимит обновится 1-го числа.',
+                    metadata: { perMonth: allowance.perMonth },
+                })
+            }
+            const today = await tx.aiChatUsage.count({
+                where: {
+                    workspaceId,
+                    userId,
+                    kind: USAGE_KIND,
+                    createdAt: { gte: wallClockToUtc(`${localDateInTz(now, timezone)}T00:00:00`, timezone) },
+                },
+            })
+            if (today >= DAILY_QUESTIONS_PER_MEMBER) {
+                throw new QuotaExceededError({
+                    message: `Сегодня вы уже задали ${DAILY_QUESTIONS_PER_MEMBER} вопросов ИИ — продолжим завтра.`,
+                    metadata: { perDay: DAILY_QUESTIONS_PER_MEMBER },
+                })
+            }
+            return tx.aiChatUsage.create({
+                data: { workspaceId, userId, kind: USAGE_KIND, model: this.llm.model.slice(0, 128) },
+                select: { id: true },
+            })
+        })
     }
 
     private async answerFrom(

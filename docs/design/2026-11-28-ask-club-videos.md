@@ -19,8 +19,10 @@ Builds on: «Поиск по видео» (`features/search-videos`), content ga
    согласие хранится на сервере, по клубу и редакции текста.
 4. **Лимиты:** вопрос расходует месячный лимит ИИ клуба (общий с «ИИ-ассистентом» админки — строка «Вопросы к ИИ
    в этом месяце» на «Лимитах»), плюс не больше 10 вопросов в день на человека.
-5. **Приватность:** ИИ-сервис получает только вопрос (телефон и e-mail в нём скрываются) и отрывки расшифровок.
-   Имени, контактов и данных профиля в запросе нет. Каждый вопрос — запись в «Истории изменений», как у чата.
+5. **Приватность:** ИИ-сервис получает вопрос (телефон и e-mail в нём скрываются, полные имена людей клуба
+   заменяются псевдонимами, как в чате админки) и отрывки видео клуба — названия и то, что в них говорится.
+   Данных профиля спрашивающего в запросе нет. Каждый вопрос — запись в «Истории изменений», как у чата.
+6. **Профиль ребёнка:** в профиле ребёнка (родитель действует за ребёнка) функции нет — ни кнопки, ни ответа.
 
 Не входит: история вопросов, чат с уточнениями, потоковый вывод ответа, поиск по смыслу (эмбеддинги).
 
@@ -29,6 +31,10 @@ Builds on: «Поиск по видео» (`features/search-videos`), content ga
 `available = isLlmConfigured() && Workspace.videoAnswersEnabled && CourseAccessService.resolveMemberAccess passes`
 (the same member/video gate as playback: ACTIVE, unexpired, club videos on, VIDEO module entitled; staff and the
 owner pass). Coaches use it in the app like members; there is no extra admin UI beyond the switch.
+
+**Not in a child profile.** Under `X-Act-As` (a guardian acting for a child) the state reports unavailable and
+the notice and ask routes refuse with 403 — a child's questions don't go to a third-party model, and nobody
+accepts the notice on a child's behalf. The app hides the action there as well.
 
 ## 2. API (`features/ask-club-videos`)
 
@@ -66,8 +72,11 @@ after the expansion call (counted).
 
 `AiChatUsage` gained `kind` (`'chat'` default, `'videoAnswer'`) and an index `[workspaceId, userId, createdAt]`.
 The monthly allowance (`domains/ai-assistant/ai-allowance.ts`, used by the chat too) counts every row; the daily
-cap (`DAILY_QUESTIONS_PER_MEMBER = 10`, club-local day) counts only `videoAnswer` rows of the user. The row is
-written before the first model call (a failure still counts) and updated with tokens and status. Audit
+cap (`DAILY_QUESTIONS_PER_MEMBER = 10`, club-local day) counts only `videoAnswer` rows of the user. Both caps are
+checked and the row inserted in one transaction under `pg_advisory_xact_lock` on `ai-allowance:<club>` and
+`video-answers:<club>:<user>`, so parallel questions can't all pass before any is counted (the admin chat still
+checks then inserts; it is admin-only). The row is written before the first model call (a failure still counts)
+and updated with tokens and status afterwards — a failed update is logged, never replacing the answer. Audit
 `ai.videoAnswerQuestion` keeps the scrubbed question (first 200 characters, like the chat), term/excerpt/cited
 counts, tokens, status and duration.
 
@@ -78,3 +87,6 @@ text of ≥ 5 characters; first use shows the notice (`showAlert`, a browser con
 the notice then the question. `VideoAnswerCard` renders loading / error with «Повторить» / the answer with inline
 citation chips, the cited lessons with their time, and «Ответ по видео клуба · может ошибаться». Editing the text
 drops the answer. The request gets a 40 s client timeout (`HttpRequestConfig.timeout`, new) over the default 15 s.
+A refusal (`FORBIDDEN`) or a stale notice (`CONFLICT`) re-reads the state: when the feature is gone or the notice
+needs accepting again, the card clears and the next tap shows the current notice instead of retrying into the same
+error. In a child profile the state isn't read and the action is never shown.

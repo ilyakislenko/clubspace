@@ -40,7 +40,7 @@ export class AskClubVideosController {
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return this.bus.execute<GetClubVideoAnswersStateFeature, GetClubVideoAnswersStateFeatureResponse>(
-            new GetClubVideoAnswersStateFeature(workspaceId, user.userId),
+            new GetClubVideoAnswersStateFeature(workspaceId, user.userId, Boolean(user.guardianId)),
         )
     }
 
@@ -56,7 +56,16 @@ export class AskClubVideosController {
         return this.bus.execute<
             AcceptClubVideoAnswersNoticeFeature,
             AcceptClubVideoAnswersNoticeFeatureResponse
-        >(new AcceptClubVideoAnswersNoticeFeature(workspaceId, user.userId, body, ip ?? null, userAgent ?? null))
+        >(
+            new AcceptClubVideoAnswersNoticeFeature(
+                workspaceId,
+                user.userId,
+                body,
+                ip ?? null,
+                userAgent ?? null,
+                Boolean(user.guardianId),
+            ),
+        )
     }
 
     @Post()
@@ -67,7 +76,7 @@ export class AskClubVideosController {
         @CurrentUser() user: CurrentUserPayload,
     ) {
         return this.bus.execute<AskClubVideosFeature, AskClubVideosFeatureResponse>(
-            new AskClubVideosFeature(workspaceId, user.userId, body),
+            new AskClubVideosFeature(workspaceId, user.userId, body, Boolean(user.guardianId)),
         )
     }
 }

@@ -17,7 +17,6 @@ import {
     type LlmMessage,
     type LlmToolDefinition,
 } from '../../domains/ai-assistant/llm-chat.client'
-import { pseudonymFor } from '../../domains/ai-assistant/pseudonym'
 import { AuditService } from '../../domains/audit/services/audit.service'
 import { environment } from '../../environments/environment'
 import { PrismaService } from '../../infrastructure/prisma'
@@ -43,7 +42,6 @@ import {
     conversationTitle,
     type EntityTokens,
     extractEntityTokens,
-    type KnownPerson,
     MAX_ANSWER_TOKENS,
     MAX_QUESTIONS_PER_CONVERSATION,
     MAX_TOOL_ROUNDS,
@@ -61,6 +59,7 @@ import type {
     AiChatStateResponse,
     AskAiChatFeatureResponse,
 } from './ai-chat.feature'
+import { loadKnownPeople } from './known-people'
 
 export const AI_CHAT_NOT_CONFIGURED_MESSAGE =
     'ИИ-ассистент не настроен: администратор платформы должен задать AI_CHAT_API_KEY'
@@ -230,46 +229,6 @@ export class AiChatService {
         return out
     }
 
-    // Everyone in the club with a pseudonym, for taking full names out of a
-    // question. Out-of-scope people get a pseudonym too: the tools then refuse
-    // it, and the model never learns who it was.
-    private async knownPeople(access: AiAccess): Promise<KnownPerson[]> {
-        const [members, owner] = await Promise.all([
-            this.prisma.workspaceMember.findMany({
-                where: { workspaceId: access.workspaceId },
-                select: {
-                    userId: true,
-                    role: { select: { name: true } },
-                    user: { select: { firstname: true, lastname: true } },
-                },
-            }),
-            this.prisma.user.findUnique({
-                where: { id: access.ownerId },
-                select: { id: true, firstname: true, lastname: true },
-            }),
-        ])
-        const person = (
-            userId: string,
-            kind: KnownPerson['kind'],
-            u: { firstname: string | null; lastname: string | null },
-        ): KnownPerson => ({
-            ref: pseudonymFor(environment.encryptionKey, access.workspaceId, userId, kind),
-            kind,
-            userId,
-            firstname: u.firstname,
-            lastname: u.lastname,
-        })
-        const staffRoles: readonly string[] = STAFF_ROLES
-        return [
-            ...members
-                .filter((m) => m.userId !== access.ownerId)
-                .map((m) =>
-                    person(m.userId, staffRoles.includes(m.role.name) ? 'staff' : 'member', m.user),
-                ),
-            ...(owner ? [person(owner.id, 'staff', owner)] : []),
-        ]
-    }
-
     // ---- one turn ----
 
     async prepareTurn(
@@ -331,7 +290,7 @@ export class AiChatService {
         const started = Date.now()
         const refs: StoredRefs = { ...t.refs }
 
-        const { content, matched } = pseudonymizeQuestion(t.question, await this.knownPeople(access))
+        const { content, matched } = pseudonymizeQuestion(t.question, await loadKnownPeople(this.prisma, access))
         for (const m of matched) refs[m.ref] = { kind: m.kind, userId: m.userId }
         const userMessage: StoredChatMessage = {
             role: 'user',

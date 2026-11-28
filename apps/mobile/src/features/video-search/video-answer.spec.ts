@@ -1,5 +1,5 @@
 import type { VideoAnswerCitation } from "../../shared/api/video-answers"
-import { citationRoute, splitAnswer } from "./video-answer"
+import { canAskVideos, citationRoute, splitAnswer } from "./video-answer"
 
 const cite = (n: number, over: Partial<VideoAnswerCitation> = {}): VideoAnswerCitation => ({
   n,
@@ -32,6 +32,28 @@ describe("splitAnswer", () => {
       { kind: "text", text: "." },
     ])
     expect(splitAnswer("Не нашлось.", [])).toEqual([{ kind: "text", text: "Не нашлось." }])
+  })
+})
+
+describe("canAskVideos", () => {
+  const base = {
+    available: true,
+    childProfile: false,
+    online: true,
+    text: "как выйти из маунта?",
+    asked: null,
+  }
+
+  it("offers the action for a long enough question the club allows", () => {
+    expect(canAskVideos(base)).toBe(true)
+  })
+
+  it("never in a child profile, offline, unavailable, for a short or an already asked text", () => {
+    expect(canAskVideos({ ...base, childProfile: true })).toBe(false)
+    expect(canAskVideos({ ...base, online: false })).toBe(false)
+    expect(canAskVideos({ ...base, available: false })).toBe(false)
+    expect(canAskVideos({ ...base, text: "кимр" })).toBe(false)
+    expect(canAskVideos({ ...base, asked: base.text })).toBe(false)
   })
 })
 

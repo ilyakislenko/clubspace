@@ -47,7 +47,8 @@ export const askClubVideosMomentsSql = (params: {
         JOIN "Video" v ON v.id = c."videoId"
         WHERE v."workspaceId" = ${workspaceId}::uuid
           AND c.text ILIKE ANY(${pats})
-        ORDER BY score DESC, c."videoId", c.at
+        -- pickMoments' ranking (terms named, title, chapter) before the cut.
+        ORDER BY score DESC, "titleScore" DESC, (c.kind = 'chapter') DESC, c."videoId", c.at
         LIMIT ${MOMENT_CANDIDATE_LIMIT}
     `
 }

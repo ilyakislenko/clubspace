@@ -32,12 +32,12 @@ import { PlayGlyph } from "../../shared/components/PlayGlyph"
 import { Pressable } from "../../shared/components/Pressable"
 import { TextInput } from "../../shared/components/TextInput"
 import { showAlert } from "../../shared/alert"
-import { errorMessage } from "../../shared/error-message"
+import { errorCode, errorMessage } from "../../shared/error-message"
 import type { Theme } from "../../shared/theme"
 import { useTheme, useThemedStyles } from "../../shared/theme-context"
 import { MIN_VIDEO_QUERY } from "./search-text"
 import { Highlighted, MomentChip } from "./SearchMoment"
-import { citationRoute, MIN_ASK_LENGTH } from "./video-answer"
+import { canAskVideos, citationRoute } from "./video-answer"
 import { VideoAnswerCard, type VideoAnswerView } from "./VideoAnswerCard"
 
 type Props = NativeStackScreenProps<RootStackParamList, "VideoSearch">
@@ -52,7 +52,7 @@ const SEARCH_MAX_LENGTH = 100
 export function VideoSearchScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  const { workspace } = useAuth()
+  const { workspace, actingAs } = useAuth()
   const network = useNetworkState()
   // Unknown counts as online: the request is tried and fails into an error.
   const online =
@@ -119,8 +119,16 @@ export function VideoSearchScreen({ route, navigation }: Props) {
   // Only the latest question may paint.
   const askSeq = useRef(0)
 
+  // Not offered in a child profile (the server refuses it there too).
+  const childProfile = Boolean(actingAs)
   useEffect(() => {
-    if (!workspaceId || !online) return
+    setAnswers(null)
+    if (childProfile) {
+      askSeq.current++
+      setAsked(null)
+      setAnswerView(null)
+    }
+    if (!workspaceId || !online || childProfile) return
     let alive = true
     void getVideoAnswersState({ workspaceId })
       .then((res) => alive && setAnswers(res))
@@ -129,7 +137,7 @@ export function VideoSearchScreen({ route, navigation }: Props) {
     return () => {
       alive = false
     }
-  }, [workspaceId, online])
+  }, [workspaceId, online, childProfile])
 
   // The answer belongs to the question asked: editing the text drops it.
   useEffect(() => {
@@ -148,18 +156,32 @@ export function VideoSearchScreen({ route, navigation }: Props) {
       setAnswerView({ status: "loading" })
       try {
         if (acceptNotice) {
-          const state = await acceptVideoAnswersNotice({ workspaceId, version: acceptNotice })
-          if (mine === askSeq.current) setAnswers(state)
+          // Accepted is accepted, even if the question was dropped meanwhile.
+          setAnswers(await acceptVideoAnswersNotice({ workspaceId, version: acceptNotice }))
+          if (mine !== askSeq.current) return
         }
         const answer = await askClubVideos({ workspaceId, question })
         if (mine === askSeq.current) setAnswerView({ status: "done", answer })
       } catch (err: unknown) {
-        if (mine === askSeq.current) {
-          setAnswerView({
-            status: "error",
-            message: errorMessage(err, "Не удалось получить ответ. Попробуйте ещё раз."),
-          })
+        if (mine !== askSeq.current) return
+        const code = errorCode(err)
+        if (code === "FORBIDDEN" || code === "CONFLICT") {
+          // The club switched it off, access changed or the notice has a new
+          // edition: re-read, so the screen offers only what applies (the
+          // next tap shows the current notice) instead of failing on retry.
+          const state = await getVideoAnswersState({ workspaceId }).catch(() => null)
+          if (mine !== askSeq.current) return
+          setAnswers(state)
+          if (!state?.available || !state.noticeAccepted) {
+            setAsked(null)
+            setAnswerView(null)
+            return
+          }
         }
+        setAnswerView({
+          status: "error",
+          message: errorMessage(err, "Не удалось получить ответ. Попробуйте ещё раз."),
+        })
       }
     },
     [workspaceId],
@@ -259,11 +281,13 @@ export function VideoSearchScreen({ route, navigation }: Props) {
   })()
 
   const trimmed = query.trim()
-  const canAsk =
-    Boolean(answers?.available) &&
-    online &&
-    trimmed.length >= MIN_ASK_LENGTH &&
-    asked !== trimmed
+  const canAsk = canAskVideos({
+    available: Boolean(answers?.available),
+    childProfile,
+    online,
+    text: trimmed,
+    asked,
+  })
   const answerCard = answerView ? (
     <VideoAnswerCard
       view={answerView}

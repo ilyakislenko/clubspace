@@ -4,6 +4,24 @@ import type { VideoAnswerCitation } from "../../shared/api/video-answers"
 // The server's minimum question length (shorter ones are refused).
 export const MIN_ASK_LENGTH = 5
 
+/**
+ * Whether the screen offers «Спросить ИИ по видео клуба» for the typed text:
+ * the club offers it to this member, not in a child profile (the server
+ * refuses there too), online, a long enough question not already asked.
+ */
+export const canAskVideos = (p: {
+  available: boolean
+  childProfile: boolean
+  online: boolean
+  text: string
+  asked: string | null
+}): boolean =>
+  p.available &&
+  !p.childProfile &&
+  p.online &&
+  p.text.length >= MIN_ASK_LENGTH &&
+  p.asked !== p.text
+
 export type AnswerPart =
   | { kind: "text"; text: string }
   | { kind: "citation"; citation: VideoAnswerCitation }

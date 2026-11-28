@@ -21,6 +21,7 @@ export class GetClubVideoAnswersStateFeature {
     constructor(
         readonly workspaceId: string,
         readonly userId: string,
+        readonly actingForChild: boolean,
     ) {}
 }
 
@@ -40,6 +41,7 @@ export class AcceptClubVideoAnswersNoticeFeature {
         readonly payload: z.infer<typeof AcceptClubVideoAnswersNoticeInputSchema>,
         readonly ip: string | null,
         readonly userAgent: string | null,
+        readonly actingForChild: boolean,
     ) {}
 }
 
@@ -76,6 +78,8 @@ export class AskClubVideosFeature {
         readonly workspaceId: string,
         readonly userId: string,
         readonly payload: z.infer<typeof AskClubVideosInputSchema>,
+        // A guardian acting for a child (X-Act-As): the feature isn't offered there.
+        readonly actingForChild: boolean,
     ) {}
 }
 
