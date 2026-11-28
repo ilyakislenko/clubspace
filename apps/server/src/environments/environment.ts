@@ -33,15 +33,34 @@ const publicUrlOrWarn = (
     return resolved
 }
 
-// Videos are uploaded in one presigned PUT, and S3 refuses a single PUT above
-// 5 GiB. A higher limit would let a coach pick a file that is accepted here and
-// then fails at storage after the whole upload — so refuse to boot instead.
+// A client that declares no file size (an older admin bundle) still uploads in
+// one presigned PUT, and S3 refuses a single PUT above 5 GiB; the video worker
+// shares the same cap. A higher limit would let a coach pick a file that is
+// accepted here and then fails at storage after the whole upload — so refuse
+// to boot instead.
 const SINGLE_PUT_MAX_MB = 5120
 
 const requireSinglePutLimit = (mb: number): number => {
     if (mb > SINGLE_PUT_MAX_MB) {
         throw new Error(
-            `MAX_VIDEO_UPLOAD_MB=${mb} exceeds ${SINGLE_PUT_MAX_MB}: videos are uploaded in one presigned PUT, and S3 refuses a single PUT above 5 GiB. Set MAX_VIDEO_UPLOAD_MB=${SINGLE_PUT_MAX_MB} or lower.`,
+            `MAX_VIDEO_UPLOAD_MB=${mb} exceeds ${SINGLE_PUT_MAX_MB}: an upload without a declared size goes in one presigned PUT, and S3 refuses a single PUT above 5 GiB. Set MAX_VIDEO_UPLOAD_MB=${SINGLE_PUT_MAX_MB} or lower.`,
+        )
+    }
+    return mb
+}
+
+// Videos larger than one part go up as an S3 multipart upload, one request
+// per part, because storage behind Cloudflare (free plan) refuses request
+// bodies over 100 MB. S3 refuses parts under 5 MiB (all but the last), and a
+// part too close to 100 MB leaves no room for that limit. With at least 5 MiB
+// parts, MAX_VIDEO_UPLOAD_MB ≤ 5120 stays far below S3's 10 000 parts.
+const MULTIPART_PART_MIN_MB = 5
+const MULTIPART_PART_MAX_MB = 90
+
+const requireMultipartPartSize = (mb: number): number => {
+    if (mb < MULTIPART_PART_MIN_MB || mb > MULTIPART_PART_MAX_MB) {
+        throw new Error(
+            `S3_MULTIPART_PART_MB=${mb} must be between ${MULTIPART_PART_MIN_MB} and ${MULTIPART_PART_MAX_MB}: S3 refuses parts under 5 MiB, and Cloudflare refuses request bodies over 100 MB.`,
         )
     }
     return mb
@@ -198,11 +217,16 @@ export const environment = {
         // Largest single video upload. Uploads go straight from the browser to
         // storage, so without a cap one stray 4K export can fill a home
         // server's disk — and Postgres shares that disk. Capped at a single
-        // S3 PUT, which is how the browser uploads.
+        // S3 PUT, which is how a client that declares no size uploads.
         maxVideoUploadMb: requireSinglePutLimit(
             get('MAX_VIDEO_UPLOAD_MB')
                 .default(String(SINGLE_PUT_MAX_MB))
                 .asIntPositive(),
+        ),
+        // Part size of a multipart video upload, in MiB; a declared size above
+        // it is uploaded in parts of this size (the last one shorter).
+        multipartPartMb: requireMultipartPartSize(
+            get('S3_MULTIPART_PART_MB').default('64').asIntPositive(),
         ),
         s3Acl: get('S3_ACL')
             .required()

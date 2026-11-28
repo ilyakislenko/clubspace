@@ -17,7 +17,7 @@
 // after a reset. Courses of `npm run demo:real-courses` are left alone.
 
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, openAsBlob, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ffmpegPath from 'ffmpeg-static'
@@ -364,6 +364,53 @@ const put = async (url, file, contentType) => {
     }
 }
 
+// A clip bigger than one part goes up in parts (the server answers MULTIPART
+// above S3_MULTIPART_PART_MB: storage behind Cloudflare refuses request bodies
+// over 100 MB) — each part to its own presigned URL, its ETag kept for
+// complete-upload, a failed part tried PART_ATTEMPTS times. One that still
+// fails drops the upload (`abort`) and stops the run.
+const PART_ATTEMPTS = 3
+const putParts = async (upload, file, abort) => {
+    const blob = await openAsBlob(file)
+    const parts = []
+    for (const { partNumber, url } of upload.parts) {
+        const start = (partNumber - 1) * upload.partSize
+        const body = blob.slice(start, start + upload.partSize)
+        let etag = null
+        let problem = ''
+        let hint = ''
+        for (let attempt = 1; attempt <= PART_ATTEMPTS && !etag; attempt++) {
+            try {
+                const response = await fetch(url, { method: 'PUT', body })
+                await response.text()
+                if (response.ok) {
+                    etag = response.headers.get('etag')
+                    problem = 'хранилище не вернуло ETag'
+                    hint = 'прокси перед хранилищем не пропускает заголовок ETag'
+                    break
+                }
+                problem = `код ${response.status}`
+                // A refused signature stays refused; anything else is tried again.
+                if (response.status === 403) {
+                    hint = 'проверьте S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY в .env'
+                    break
+                }
+                hint = 'хранилище отвечает ошибкой — посмотрите его логи'
+            } catch (error) {
+                problem = `хранилище не ответило: ${error.cause?.message ?? error.message}`
+                hint = 'проверьте сеть и S3_UPLOAD_BUCKET_URL'
+            }
+        }
+        if (!etag) {
+            console.error(`✘ Часть ${partNumber} из ${upload.parts.length} не загрузилась (${problem}).`)
+            await abort()
+            fail(`Загрузка отменена: ${hint}, затем запустите команду ещё раз.`)
+        }
+        parts.push({ partNumber, etag })
+    }
+    return parts
+}
+
 // Polls `read` until it reports ready; fails on «failed» or after the timeout.
 const waitReady = async (what, read) => {
     const deadline = Date.now() + READY_TIMEOUT_MS
@@ -495,9 +542,18 @@ const runLesson = async (task, name) => {
             description: task.description,
             contentType: 'video/mp4',
             sizeBytes: readFileSync(video).length,
+            // putParts below can send parts.
+            multipart: true,
         })
-        await put(created.upload.url, video, 'video/mp4')
-        await api('POST', `/admin/videos/${created.videoId}/complete-upload`, { workspaceId: ws })
+        let parts
+        if (created.upload.method === 'MULTIPART') {
+            parts = await putParts(created.upload, video, () =>
+                api('POST', `/admin/videos/${created.videoId}/abort-upload`, { workspaceId: ws }),
+            )
+        } else {
+            await put(created.upload.url, video, 'video/mp4')
+        }
+        await api('POST', `/admin/videos/${created.videoId}/complete-upload`, { workspaceId: ws, parts })
         task.videoId = created.videoId
     }
     await waitReady(`Ролик «${title}»`, async () => {

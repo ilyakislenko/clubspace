@@ -24,13 +24,14 @@ import { readTrialLimit } from "../billing/billing-view"
 import { type PlaylistResponse } from "../../shared/api/playlists"
 import { createTag, type TagResponse } from "../../shared/api/tags"
 import {
+  abortVideoUpload,
   completeVideoUpload,
   createVideoThumbnailUpload,
   createVideoUpload,
-  deleteVideo,
   getVideo,
   updateVideo,
 } from "../../shared/api/videos"
+import { uploadVideoFile } from "../../shared/multipart-upload"
 import {
   ALLOWED_THUMBNAIL_ACCEPT,
   isAllowedThumbnailType,
@@ -223,13 +224,17 @@ export function VideoUploadSheet({
         description: trimmedDescription ? trimmedDescription : undefined,
         contentType: videoFile.type || "video/mp4",
         sizeBytes: videoFile.size,
+        // uploadVideoFile below can send parts.
+        multipart: true,
       })
       createdVideoId = createResponse.videoId
 
-      await putToPresignedUrl(createResponse.upload.url, videoFile, {
+      // One PUT, or parts (a file bigger than one part, so no request to
+      // storage exceeds the proxy's body limit) — the server decides.
+      const parts = await uploadVideoFile(createResponse.upload, videoFile, {
         contentType: videoFile.type || "video/mp4",
         signal: abortController.signal,
-        onProgress: ({ percent }) =>
+        onProgress: (percent) =>
           setUploadState({
             status: "uploading",
             message: "Загружаем видео...",
@@ -247,6 +252,7 @@ export function VideoUploadSheet({
       await completeVideoUpload({
         workspaceId,
         videoId: createResponse.videoId,
+        parts,
       })
       handedOff = true
 
@@ -292,11 +298,12 @@ export function VideoUploadSheet({
       })
     } catch (error) {
       // Best-effort cleanup of the orphaned row: only when we created it but
-      // never handed it to transcoding (an aborted or failed PUT). Swallow
-      // cleanup errors — surfacing the original failure matters more.
+      // never handed it to transcoding (an aborted or failed upload). The
+      // abort also drops the parts already in storage. Swallow cleanup
+      // errors — surfacing the original failure matters more.
       if (createdVideoId && !handedOff) {
         try {
-          await deleteVideo({ workspaceId, videoId: createdVideoId })
+          await abortVideoUpload({ workspaceId, videoId: createdVideoId })
         } catch {
           // ignore — the original error is what the user needs to see
         }

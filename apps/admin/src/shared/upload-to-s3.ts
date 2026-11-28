@@ -16,12 +16,15 @@ export interface PutToPresignedUrlOptions {
  * it gives no progress events for the request body and resolves even on a
  * 4xx/5xx, which is how a failed multi-GB upload used to "succeed" silently
  * and then enqueue transcoding of a missing object.
+ *
+ * Resolves with the object's ETag — a multipart upload completes with the
+ * ETag of every part. null when storage's CORS does not expose the header.
  */
 export function putToPresignedUrl(
   url: string,
   file: File | Blob,
   options: PutToPresignedUrlOptions = {},
-): Promise<void> {
+): Promise<{ etag: string | null }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open("PUT", url)
@@ -45,7 +48,7 @@ export function putToPresignedUrl(
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve()
+        resolve({ etag: xhr.getResponseHeader("ETag") })
       } else {
         reject(new Error(`Не удалось загрузить файл (код ${xhr.status})`))
       }

@@ -1278,6 +1278,12 @@ model Video {
   isPublic     Boolean @default(false)
   rawBucket    String? @db.VarChar(255)
   rawKey       String? @db.VarChar(512)
+  // S3 multipart upload id while a large source is still being uploaded in
+  // parts; cleared once the upload completes. Kept so complete/abort act only
+  // on the upload the API started, and deleting the video aborts it.
+  rawUploadId  String? @db.VarChar(1024)
+  // How many parts that upload was planned in; completion must bring them all.
+  rawUploadParts Int?
   hlsBucket    String? @db.VarChar(255)
   hlsMasterKey String? @db.VarChar(512)
   errorMessage String? @db.Text

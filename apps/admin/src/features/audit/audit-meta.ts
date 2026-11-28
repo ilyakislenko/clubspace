@@ -72,6 +72,11 @@ export const actionMetaFor = (
     icon: FileVideo,
     tone: "green",
   },
+  "video.abortUpload": {
+    label: "Загрузка видео отменена",
+    icon: FileVideo,
+    tone: "zinc",
+  },
   "video.update": {
     label: "Видео отредактировано",
     icon: Pencil,

@@ -307,11 +307,54 @@ const put = async (url, file, contentType) => {
         fail(`Хранилище не ответило при загрузке ${file}: ${error.cause?.message ?? error.message}. Проверьте сеть и S3_UPLOAD_BUCKET_URL, затем запустите команду ещё раз.`)
     }
     if (response.ok) return
-    // Only the code and message of S3's XML: the rest may echo the signed request.
-    const xml = await response.text()
-    const reason = [/<Code>([^<]*)<\/Code>/.exec(xml)?.[1], /<Message>([^<]*)<\/Message>/.exec(xml)?.[1]].filter(Boolean).join(': ')
+    const reason = s3Reason(await response.text())
     const hint = response.status === 403 ? 'проверьте S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY в .env' : 'запустите команду ещё раз'
     fail(`Хранилище отклонило загрузку ${file} (${response.status}${reason ? ` ${reason}` : ''}): ${hint}.`)
+}
+
+// Only the code and message of S3's XML: the rest may echo the signed request.
+const s3Reason = (xml) =>
+    [/<Code>([^<]*)<\/Code>/.exec(xml)?.[1], /<Message>([^<]*)<\/Message>/.exec(xml)?.[1]].filter(Boolean).join(': ')
+
+// A file bigger than one part goes up in parts (the server answers MULTIPART
+// above S3_MULTIPART_PART_MB: storage behind Cloudflare refuses request bodies
+// over 100 MB). Each part is streamed from disk to its own presigned URL and
+// its ETag kept for complete-upload; a part is tried PART_ATTEMPTS times. One
+// that still fails drops the upload (`abort`) and stops the run.
+const PART_ATTEMPTS = 3
+const putPart = async (url, body) => {
+    let problem = ''
+    for (let attempt = 1; attempt <= PART_ATTEMPTS; attempt++) {
+        try {
+            const response = await fetch(url, { method: 'PUT', body })
+            const text = await response.text()
+            const etag = response.headers.get('etag')
+            if (response.ok && etag) return { etag }
+            if (response.ok) return { problem: 'хранилище не вернуло ETag' }
+            const reason = s3Reason(text)
+            problem = `${response.status}${reason ? ` ${reason}` : ''}`
+            // A refused signature stays refused.
+            if (response.status === 403) return { problem: `${problem} — проверьте S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY в .env` }
+        } catch (error) {
+            problem = `хранилище не ответило: ${error.cause?.message ?? error.message}`
+        }
+    }
+    return { problem }
+}
+const putParts = async (upload, file, abort) => {
+    const blob = await openAsBlob(file)
+    const parts = []
+    for (const { partNumber, url } of upload.parts) {
+        const start = (partNumber - 1) * upload.partSize
+        const { etag, problem } = await putPart(url, blob.slice(start, start + upload.partSize))
+        if (!etag) {
+            console.error(`✘ Часть ${partNumber} из ${upload.parts.length} файла ${file} не загрузилась (${problem}).`)
+            await abort()
+            fail('Загрузка отменена — проверьте сеть и S3_UPLOAD_BUCKET_URL, затем запустите команду ещё раз.')
+        }
+        parts.push({ partNumber, etag })
+    }
+    return parts
 }
 
 const started = Date.now()
@@ -350,16 +393,23 @@ for (const c of courseList) details.set(c.id, await api('GET', coursePath(c.id))
 
 // ---- uploads ----------------------------------------------------------------
 
-// create-upload → poster (before the worker draws its own) → PUT → complete.
+// create-upload → poster (before the worker draws its own) → PUT (or parts) →
+// complete.
 const upload = async ({ title, description, file, contentType, size, poster }) => {
-    const created = await api('POST', '/admin/videos', { workspaceId: ws, title, description, contentType, sizeBytes: size })
+    // multipart: putParts below can send parts.
+    const created = await api('POST', '/admin/videos', { workspaceId: ws, title, description, contentType, sizeBytes: size, multipart: true })
     if (poster) {
         const thumb = await api('POST', `/admin/videos/${created.videoId}/thumbnail-upload`, { workspaceId: ws, contentType: poster.contentType })
         await put(thumb.upload.url, poster.file, poster.contentType)
         await api('PATCH', `/admin/videos/${created.videoId}`, { workspaceId: ws, thumbnailUrl: thumb.publicUrl })
     }
-    await put(created.upload.url, file, contentType)
-    await api('POST', `/admin/videos/${created.videoId}/complete-upload`, { workspaceId: ws })
+    let parts
+    if (created.upload.method === 'MULTIPART') {
+        parts = await putParts(created.upload, file, () => api('POST', `/admin/videos/${created.videoId}/abort-upload`, { workspaceId: ws }))
+    } else {
+        await put(created.upload.url, file, contentType)
+    }
+    await api('POST', `/admin/videos/${created.videoId}/complete-upload`, { workspaceId: ws, parts })
     return created.videoId
 }
 

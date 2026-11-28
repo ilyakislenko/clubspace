@@ -26,8 +26,11 @@ export class CompleteVideoUploadHandler
         workspaceId,
         videoId,
         invokerUserId,
+        parts,
     }: CompleteVideoUploadFeature) {
-        await this.videoService.completeUpload({ videoId, workspaceId })
+        // A multipart upload is assembled from its parts first; the real size
+        // is then measured either way.
+        await this.videoService.completeUpload({ videoId, workspaceId, parts })
 
         await this.videoTranscodeProducer.enqueue(videoId)
 

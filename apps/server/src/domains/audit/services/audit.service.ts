@@ -7,6 +7,8 @@ import { PrismaService } from '../../../infrastructure/prisma'
 export type AuditAction =
     | 'video.startUpload'
     | 'video.completeUpload'
+    // A cancelled or failed upload, dropped before transcoding.
+    | 'video.abortUpload'
     | 'video.update'
     | 'video.delete'
     | 'video.bulkUpdate'

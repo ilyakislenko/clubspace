@@ -29,6 +29,35 @@ describe('CompleteVideoUploadHandler', () => {
         expect(producer.enqueue).toHaveBeenCalledWith('v1')
     })
 
+    it('hands the parts of a multipart upload to the service before queueing', async () => {
+        const { handler, videoService, producer } = build()
+        const parts = [
+            { partNumber: 2, etag: '"b"' },
+            { partNumber: 1, etag: '"a"' },
+        ]
+        await handler.execute(new CompleteVideoUploadFeature('w1', 'v1', 'u1', parts))
+        expect(videoService.completeUpload).toHaveBeenCalledWith({
+            videoId: 'v1',
+            workspaceId: 'w1',
+            parts,
+        })
+        expect(videoService.completeUpload.mock.invocationCallOrder[0]).toBeLessThan(
+            producer.enqueue.mock.invocationCallOrder[0],
+        )
+    })
+
+    it('does not queue an upload whose parts are refused', async () => {
+        const { handler, videoService, producer } = build()
+        const refusal = new BadRequestError({ message: 'missing part' })
+        videoService.completeUpload.mockRejectedValue(refusal)
+        await expect(
+            handler.execute(
+                new CompleteVideoUploadFeature('w1', 'v1', 'u1', [{ partNumber: 2, etag: '"b"' }]),
+            ),
+        ).rejects.toBe(refusal)
+        expect(producer.enqueue).not.toHaveBeenCalled()
+    })
+
     it('does not queue a refused upload', async () => {
         const { handler, videoService, producer } = build()
         const refusal = new BadRequestError({ message: 'too large' })

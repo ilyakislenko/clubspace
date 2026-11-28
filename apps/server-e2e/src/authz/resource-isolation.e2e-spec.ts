@@ -32,6 +32,7 @@ const bodyFor = (label: string, workspaceId: string) =>
             contentType: 'image/jpeg',
         },
         'POST /admin/videos/{id}/complete-upload': { workspaceId },
+        'POST /admin/videos/{id}/abort-upload': { workspaceId },
         // Personal study data (bookmarks, notes, review grades): a well-formed
         // write, stamped now so last-write-wins actually applies it.
         'PUT /videos/{videoId}/my-bookmarks/{bookmarkId}': {
@@ -74,6 +75,10 @@ const NO_POSITIVE_CONTROL = new Map([
     [
         'POST /admin/videos/{id}/complete-upload',
         'expects the raw upload to exist in the bucket before it will queue a transcode',
+    ],
+    [
+        'POST /admin/videos/{id}/abort-upload',
+        'drops only an upload not yet transcoded; the fixture is ready (and must survive the sweep)',
     ],
 ])
 
@@ -225,8 +230,9 @@ describe('cross-club isolation by resource', () => {
     // every remaining assertion still green, so the count is pinned exactly.
     it('found the resource-scoped surface to probe', () => {
         // + GET /videos/{id}/web-playback, and the study routes: my-bookmarks
-        // (GET, PUT), my-note (GET, PUT) and the bookmark review grade.
-        expect(OPERATIONS.length).toBe(17)
+        // (GET, PUT), my-note (GET, PUT) and the bookmark review grade; and
+        // POST /admin/videos/{id}/abort-upload.
+        expect(OPERATIONS.length).toBe(18)
     })
 
     // The exclusion lists are the other way the sweep can shrink in silence:
@@ -280,7 +286,7 @@ describe('cross-club isolation by resource', () => {
     describe.each(
         OPERATIONS.map((op) => [`${op.method} ${op.path}`, op] as const),
     )('%s', (_label, op) => {
-        // 403 exactly, not any 4xx. Three of these routes have no positive
+        // 403 exactly, not any 4xx. Some of these routes have no positive
         // control, and several authorize inside the handler — after the Zod pipe.
         // Add a required field to one of those schemas and a loose assertion
         // would keep passing on a 400 that has nothing to do with tenancy.

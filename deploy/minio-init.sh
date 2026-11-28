@@ -14,6 +14,9 @@
 #    - server: read, write and delete objects in the bucket and list it. It
 #      signs the browsers' upload and playback URLs, which then act with these
 #      same rights, and it deletes a video's files when the video is deleted.
+#      Large videos go up as multipart uploads: s3:PutObject covers starting,
+#      uploading parts and completing; dropping a cancelled one needs
+#      s3:AbortMultipartUpload.
 #    - worker: read the raw uploads, write, read back and clean up the HLS
 #      renditions, and write auto-generated covers under thumbnails/ and
 #      automatic subtitle tracks under subtitles/ (not delete in either: they
@@ -48,7 +51,7 @@ cat > "$POLICY_DIR/clubspace-server.json" <<EOF
     },
     {
       "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload"],
       "Resource": ["arn:aws:s3:::$BUCKET/*"]
     }
   ]
