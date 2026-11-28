@@ -8,6 +8,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@clubspace/ui-kit
 
 import { OrgGate } from "../../../../features/org/OrgGate"
 import { useOrg } from "../../../../features/org/org-context"
+import { PageHelpButton } from "../../../../features/page-help/PageHelpButton"
 import { defaultSidebarOpen } from "../../../../shared/lib/sidebar-default"
 import { VocabularyProvider } from "../../../../shared/lib/vocabulary"
 import { ThemeSwitcher } from "../../../../shared/theme/theme-switcher"
@@ -29,7 +30,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 }
 
 function OrgShell({ children }: { children: React.ReactNode }) {
-  const { org } = useOrg()
+  const { org, isAdmin } = useOrg()
   // The federation's discipline picks the words, as a club's does.
   const vocabulary = useMemo(() => vocabularyForWorkspaceType(org.type), [org.type])
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -45,7 +46,8 @@ function OrgShell({ children }: { children: React.ReactNode }) {
           <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
             <SidebarTrigger />
             <div className="text-sm font-medium">{org.name}</div>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-1">
+              <PageHelpButton allows={(access) => access === "orgAdmin" && isAdmin} />
               <ThemeSwitcher />
             </div>
           </header>

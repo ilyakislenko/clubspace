@@ -342,8 +342,8 @@ export function WorkspaceSidebar() {
                   </>
                 )}
                 {/* Task-based video guides on the public site's /help, for every
-                    staff role; the site's address is unknown without it. */}
-                {environment.publicAppUrl && (
+                    staff role; needs the site's address and published guides. */}
+                {environment.publicAppUrl && environment.guidesBaseUrl && (
                   <DropdownMenuItem asChild>
                     <a
                       href={`${environment.publicAppUrl}/help`}

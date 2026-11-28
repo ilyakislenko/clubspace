@@ -18,7 +18,9 @@ export function proxy(request: NextRequest) {
     nonce,
     dev: process.env.NODE_ENV === "development",
     apiUrl: environment.apiBaseUrl,
-    mediaUrls: readMediaUrls(),
+    // Storage, plus the video guides' host (the «?» panel fetches their
+    // manifest and plays them) — usually the same origin.
+    mediaUrls: [...readMediaUrls(), environment.guidesBaseUrl],
     sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   })
 

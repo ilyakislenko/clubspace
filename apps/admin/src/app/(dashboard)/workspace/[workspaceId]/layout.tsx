@@ -8,13 +8,14 @@ import { vocabularyForWorkspaceType } from "@clubspace/ui-kit/brand"
 
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@clubspace/ui-kit/ui"
 import { getWorkspaceSettings } from "../../../../shared/api/workspaces"
-import { isClubAdmin } from "../../../../shared/lib/permissions"
+import { hasAccess, isClubAdmin } from "../../../../shared/lib/permissions"
 import { useMyMembership } from "../../../../shared/lib/use-my-membership"
 import { defaultSidebarOpen } from "../../../../shared/lib/sidebar-default"
 import { setActiveWorkspaceId } from "../../../../shared/workspace/storage"
 import { VocabularyProvider } from "../../../../shared/lib/vocabulary"
 import { ThemeSwitcher } from "../../../../shared/theme/theme-switcher"
 import { BillingBanner } from "../../../../features/billing/BillingBanner"
+import { PageHelpButton } from "../../../../features/page-help/PageHelpButton"
 import {
   readSuspended,
   type SuspendedInfo,
@@ -39,7 +40,8 @@ export default function WorkspaceLayout({
   // Set when the API answers WORKSPACE_SUSPENDED: the club is closed, and
   // only its billing page stays open (for admins).
   const [suspended, setSuspended] = useState<SuspendedInfo | null>(null)
-  const canAdmin = isClubAdmin(useMyMembership(workspaceId))
+  const membership = useMyMembership(workspaceId)
+  const canAdmin = isClubAdmin(membership)
   // The server render has neither the cookie nor the window width, so it
   // renders expanded and the real default is applied before the first paint
   // (a layout effect) — no hydration mismatch, no visible jump. The provider
@@ -82,6 +84,10 @@ export default function WorkspaceLayout({
 
   const onBillingPage = Boolean(pathname?.endsWith("/billing"))
 
+  // A suspended club shows its notice instead of the page (billing stays
+  // open to admins) — and no help about a page that isn't there.
+  const blocked = Boolean(suspended) && !(onBillingPage && canAdmin)
+
   return (
     // The shell is exactly one viewport tall and the CONTENT is the scroll
     // container — not the document. With document-level scrolling the header
@@ -102,13 +108,18 @@ export default function WorkspaceLayout({
           <div className="text-sm font-medium">
             {workspaceName || "Клуб"}
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            {!blocked && (
+              <PageHelpButton
+                allows={(access) => access !== "orgAdmin" && hasAccess(membership, access)}
+              />
+            )}
             <ThemeSwitcher />
           </div>
         </header>
         {workspaceId && !suspended && <BillingBanner workspaceId={workspaceId} />}
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
-          {suspended && !(onBillingPage && canAdmin) ? (
+          {blocked && suspended ? (
             <div className="mx-auto max-w-xl space-y-3 rounded-lg border border-destructive/40 bg-destructive/10 p-6 text-sm">
               <div className="text-base font-medium text-destructive">
                 {suspended.reason === "SUSPENDED"
