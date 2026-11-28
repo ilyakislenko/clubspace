@@ -23,8 +23,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.clubspace.example.com",
         "EXPO_PUBLIC_BRAND": "clubspace",
-        "EXPO_PUBLIC_CLUB_PICKER": "true",
-        "EXPO_PUBLIC_WORKSPACE_KEY": ""
+        "EXPO_PUBLIC_CLUB_PICKER": "true"
       }
     },
     "production": {
@@ -41,7 +40,6 @@
         "EXPO_PUBLIC_API_URL": "https://api.clubspace.example.com",
         "EXPO_PUBLIC_BRAND": "clubspace",
         "EXPO_PUBLIC_CLUB_PICKER": "true",
-        "EXPO_PUBLIC_WORKSPACE_KEY": "",
         "EXPO_PUBLIC_WEB_URL": "REPLACE_WITH_WEB_URL",
         "EXPO_PUBLIC_SUPPORT_EMAIL": "REPLACE_WITH_SUPPORT_EMAIL"
       }
