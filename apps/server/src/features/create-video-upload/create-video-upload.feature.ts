@@ -17,6 +17,10 @@ export const CreateVideoUploadFeatureInputSchema = z.object({
     // Optional so an admin bundle older than this field keeps working — the
     // real size is re-checked in completeUpload either way.
     sizeBytes: z.number().int().positive().optional(),
+    // The client can upload in parts (see `upload` below). Only then does a
+    // file bigger than one part get a MULTIPART answer: an admin bundle from
+    // before multipart sends sizeBytes too, and expects `upload.url`.
+    multipart: z.boolean().optional(),
 })
 
 export const CreateVideoUploadFeatureOutputSchema = z.object({
@@ -24,7 +28,8 @@ export const CreateVideoUploadFeatureOutputSchema = z.object({
     rawKey: z.string(),
     // Flat, not a union (keeps the contract free of oneOf):
     // - PUT: one presigned URL (`url`) for the whole file — a file no bigger
-    //   than one part, or no declared size.
+    //   than one part, no declared size, or a client that did not send
+    //   `multipart: true`.
     // - MULTIPART: PUT each part to its URL — `partSize` bytes each, the last
     //   one shorter — and send every part's ETag to complete-upload; on
     //   cancel or failure call abort-upload.

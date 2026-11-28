@@ -396,7 +396,8 @@ for (const c of courseList) details.set(c.id, await api('GET', coursePath(c.id))
 // create-upload → poster (before the worker draws its own) → PUT (or parts) →
 // complete.
 const upload = async ({ title, description, file, contentType, size, poster }) => {
-    const created = await api('POST', '/admin/videos', { workspaceId: ws, title, description, contentType, sizeBytes: size })
+    // multipart: putParts below can send parts.
+    const created = await api('POST', '/admin/videos', { workspaceId: ws, title, description, contentType, sizeBytes: size, multipart: true })
     if (poster) {
         const thumb = await api('POST', `/admin/videos/${created.videoId}/thumbnail-upload`, { workspaceId: ws, contentType: poster.contentType })
         await put(thumb.upload.url, poster.file, poster.contentType)

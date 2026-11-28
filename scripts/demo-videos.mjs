@@ -377,22 +377,34 @@ const putParts = async (upload, file, abort) => {
         const start = (partNumber - 1) * upload.partSize
         const body = blob.slice(start, start + upload.partSize)
         let etag = null
-        let status = 'нет ответа'
+        let problem = ''
+        let hint = ''
         for (let attempt = 1; attempt <= PART_ATTEMPTS && !etag; attempt++) {
             try {
                 const response = await fetch(url, { method: 'PUT', body })
                 await response.text()
-                status = response.ok ? 'нет ETag' : String(response.status)
-                etag = response.ok ? response.headers.get('etag') : null
-                if (response.ok || response.status === 403) break
+                if (response.ok) {
+                    etag = response.headers.get('etag')
+                    problem = 'хранилище не вернуло ETag'
+                    hint = 'прокси перед хранилищем не пропускает заголовок ETag'
+                    break
+                }
+                problem = `код ${response.status}`
+                // A refused signature stays refused; anything else is tried again.
+                if (response.status === 403) {
+                    hint = 'проверьте S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY в .env'
+                    break
+                }
+                hint = 'хранилище отвечает ошибкой — посмотрите его логи'
             } catch (error) {
-                status = error.cause?.message ?? error.message
+                problem = `хранилище не ответило: ${error.cause?.message ?? error.message}`
+                hint = 'проверьте сеть и S3_UPLOAD_BUCKET_URL'
             }
         }
         if (!etag) {
-            console.error(`✘ Часть ${partNumber} из ${upload.parts.length} не загрузилась (${status}).`)
+            console.error(`✘ Часть ${partNumber} из ${upload.parts.length} не загрузилась (${problem}).`)
             await abort()
-            fail('Хранилище отклонило загрузку: проверьте S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY в .env и запустите команду ещё раз.')
+            fail(`Загрузка отменена: ${hint}, затем запустите команду ещё раз.`)
         }
         parts.push({ partNumber, etag })
     }
@@ -530,6 +542,8 @@ const runLesson = async (task, name) => {
             description: task.description,
             contentType: 'video/mp4',
             sizeBytes: readFileSync(video).length,
+            // putParts below can send parts.
+            multipart: true,
         })
         let parts
         if (created.upload.method === 'MULTIPART') {

@@ -974,6 +974,7 @@ export type CreateVideoUploadInput = {
     description?: string;
     contentType: string;
     sizeBytes?: number;
+    multipart?: boolean;
 };
 
 export type CreateVideoUploadOutputOutput = {

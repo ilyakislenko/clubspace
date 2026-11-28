@@ -37,7 +37,13 @@ describe('CreateVideoUploadHandler', () => {
         )
         return { handler, videoService, audit, modules, trialLimits }
     }
-    const payload = { title: 'T', contentType: 'video/mp4', sizeBytes: 100 * 1024 * 1024 }
+    // The opt-in reaches the service untouched; it decides the shape.
+    const payload = {
+        title: 'T',
+        contentType: 'video/mp4',
+        sizeBytes: 100 * 1024 * 1024,
+        multipart: true,
+    }
     const run = (handler: CreateVideoUploadHandler) =>
         handler.execute(new CreateVideoUploadFeature(payload, 'w1', 'u1'))
 

@@ -12,12 +12,15 @@ export type UploadPartPlan = { partNumber: number; contentLength: number }
 
 export type CompletedUploadPart = { partNumber: number; etag: string }
 
-// A file is uploaded in parts only when it is bigger than one part; smaller
-// files, and clients that declare no size, keep the single presigned PUT.
+// A file is uploaded in parts only when the client asked for it (an older
+// admin sends a size but can only PUT) and the file is bigger than one part;
+// everything else keeps the single presigned PUT.
 export const isMultipartUpload = (
+    requested: boolean | undefined,
     sizeBytes: number | undefined,
     partBytes: number,
-): sizeBytes is number => sizeBytes !== undefined && sizeBytes > partBytes
+): sizeBytes is number =>
+    requested === true && sizeBytes !== undefined && sizeBytes > partBytes
 
 // The parts a file of `sizeBytes` goes up in: `partBytes` each, the last one
 // shorter. Each length is signed into its URL, so storage refuses any other.
@@ -38,18 +41,23 @@ export const planUploadParts = (
 }
 
 // The parts as CompleteMultipartUpload wants them: ascending, each number
-// once, 1..n with no gap — a missing or repeated part means the client did
-// not upload the whole file.
+// once, 1..n with no gap, and as many as create planned (`plannedCount`;
+// null when unknown) — a missing or repeated part means the client did not
+// upload the whole file.
 export const orderCompletedParts = (
-    parts: CompletedUploadPart[],
+    parts: CompletedUploadPart[] | undefined,
+    plannedCount: number | null,
 ): CompletedUploadPart[] => {
+    const incomplete = () =>
+        new BadRequestError({
+            message: 'Загружены не все части файла. Загрузите видео ещё раз.',
+        })
+    if (!parts?.length || (plannedCount !== null && parts.length !== plannedCount)) {
+        throw incomplete()
+    }
     const ordered = [...parts].sort((a, b) => a.partNumber - b.partNumber)
     ordered.forEach((part, i) => {
-        if (part.partNumber !== i + 1) {
-            throw new BadRequestError({
-                message: 'Загружены не все части файла. Загрузите видео ещё раз.',
-            })
-        }
+        if (part.partNumber !== i + 1) throw incomplete()
     })
     return ordered
 }

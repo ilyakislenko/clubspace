@@ -80,6 +80,8 @@ export class VideoService {
         description?: string
         contentType: string
         sizeBytes?: number
+        // The client can upload in parts; without it the answer is one PUT.
+        multipart?: boolean
     }) {
         // Refuse before anything is written or signed; the declared size is
         // then signed into the URL(s), and completeUpload measures the object.
@@ -88,11 +90,12 @@ export class VideoService {
         const bucket = this.filesService.getDefaultBucketName()
         const videoId = randomUUID()
         const rawKey = `raw/${videoId}/source.mp4`
-        // A file bigger than one part goes up in parts: no single request to
-        // storage then carries more than a part (Cloudflare refuses request
-        // bodies over 100 MB). Started first, so the row records its id.
+        // A file bigger than one part goes up in parts when the client can do
+        // that: no single request to storage then carries more than a part
+        // (Cloudflare refuses request bodies over 100 MB). Started first, so
+        // the row records its id and how many parts complete must bring.
         const partBytes = this.filesService.getMultipartPartBytes()
-        const partPlan = isMultipartUpload(payload.sizeBytes, partBytes)
+        const partPlan = isMultipartUpload(payload.multipart, payload.sizeBytes, partBytes)
             ? planUploadParts(payload.sizeBytes, partBytes)
             : null
         const rawUploadId = partPlan
@@ -102,8 +105,9 @@ export class VideoService {
                   contentType: payload.contentType,
               })
             : null
-        const video = await this.prisma.video
-            .create({
+        let video: { id: string; rawKey: string | null }
+        try {
+            video = await this.prisma.video.create({
                 data: {
                     id: videoId,
                     workspaceId: payload.workspaceId,
@@ -114,10 +118,16 @@ export class VideoService {
                     rawBucket: bucket,
                     rawKey,
                     rawUploadId,
+                    rawUploadParts: partPlan?.length ?? null,
                     hlsBucket: bucket,
                 },
                 select: { id: true, rawKey: true },
             })
+        } catch (err) {
+            // No row records the upload, so nothing else would ever abort it.
+            await this.abortPendingUpload({ bucket, key: rawKey, uploadId: rawUploadId })
+            throw err
+        }
 
         if (!video.rawKey) {
             throw new BadRequestError({ message: 'Не удалось подготовить загрузку файла' })
@@ -178,6 +188,7 @@ export class VideoService {
                 rawBucket: true,
                 rawKey: true,
                 rawUploadId: true,
+                rawUploadParts: true,
             },
         })
 
@@ -193,11 +204,13 @@ export class VideoService {
         if (video.rawUploadId) {
             await this.completeMultipart(
                 { bucket: rawBucket, key: video.rawKey, uploadId: video.rawUploadId },
-                payload.parts,
+                orderCompletedParts(payload.parts, video.rawUploadParts),
             )
         }
         // The upload id is spent once the parts are assembled (or refused).
-        const clearUploadId = video.rawUploadId ? { rawUploadId: null } : {}
+        const clearUploadId = video.rawUploadId
+            ? { rawUploadId: null, rawUploadParts: null }
+            : {}
 
         const size = await this.filesService.getObjectSize({
             bucket: rawBucket,
@@ -248,14 +261,8 @@ export class VideoService {
     // request: fall through, and the size check finds the object or not.
     private async completeMultipart(
         upload: { bucket: string; key: string; uploadId: string },
-        parts: CompletedUploadPart[] | undefined,
+        ordered: CompletedUploadPart[],
     ) {
-        if (!parts?.length) {
-            throw new BadRequestError({
-                message: 'Загружены не все части файла. Загрузите видео ещё раз.',
-            })
-        }
-        const ordered = orderCompletedParts(parts)
         try {
             await this.filesService.completeMultipartUpload({ ...upload, parts: ordered })
         } catch (err) {

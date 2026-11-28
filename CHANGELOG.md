@@ -31,10 +31,13 @@
   и, как раньше, проверяет его настоящий размер. Ни один запрос к хранилищу
   больше не превышает размер части — поэтому видео больше 100 МБ проходят
   через Cloudflare (бесплатный тариф отклоняет тела запросов больше 100 МБ).
-  Файлы поменьше и клиенты без `sizeBytes` загружаются одним PUT, как раньше.
-- `POST /admin/videos` возвращает `upload.method`: `PUT` (адрес `url`) или
+  Файлы поменьше и клиенты, которые не прислали `multipart: true` (вкладки
+  со старой админкой), загружаются одним PUT, как раньше.
+- `POST /admin/videos` принимает `multipart: true` (клиент умеет грузить
+  частями) и возвращает `upload.method`: `PUT` (адрес `url`) или
   `MULTIPART` (`uploadId`, `partSize`, `parts[]`); `complete-upload`
-  принимает `parts: [{ partNumber, etag }]`. Новый
+  принимает `parts: [{ partNumber, etag }]` и проверяет, что пришли все
+  запланированные части. Новый
   `POST /admin/videos/:id/abort-upload` отменяет незавершённую загрузку
   (части удаляются из хранилища) и удаляет видео — админка вызывает его при
   отмене или ошибке вместо удаления; удаление видео тоже отменяет
@@ -44,8 +47,8 @@
   (`deploy/minio-init.sh`; после обновления один раз `up minio-init`).
   Браузер читает заголовок `ETag` каждой части: MinIO отдаёт его в CORS по
   умолчанию, для внешнего S3 нужен `ExposeHeaders: ETag`
-  (deploy/README, «Video uploads»). Новое поле `Video.rawUploadId`
-  (`db push`, nullable).
+  (deploy/README, «Video uploads»). Новые поля `Video.rawUploadId` и
+  `Video.rawUploadParts` (`db push`, nullable).
 - `scripts/demo-videos.mjs` и `scripts/demo-real-courses.mjs` умеют загружать
   частями.
 

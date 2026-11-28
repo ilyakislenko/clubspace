@@ -55,19 +55,20 @@ class MissingEtagError extends Error {
   }
 }
 
-const wait = (ms: number, signal: AbortSignal) => {
-  const { promise, resolve, reject } = Promise.withResolvers<void>()
-  const timer = setTimeout(() => {
-    signal.removeEventListener("abort", onAbort)
-    resolve()
-  }, ms)
-  const onAbort = () => {
-    clearTimeout(timer)
-    reject(abortError())
-  }
-  signal.addEventListener("abort", onAbort, { once: true })
-  return promise
-}
+// Executor form on purpose: `Promise.withResolvers` is missing in Safari
+// < 17.4 / Chrome < 119 and Next does not polyfill it.
+const wait = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(abortError())
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort)
+      resolve()
+    }, ms)
+    signal.addEventListener("abort", onAbort, { once: true })
+  })
 
 /**
  * Uploads `file` in the parts the server signed: PART_CONCURRENCY at a time,

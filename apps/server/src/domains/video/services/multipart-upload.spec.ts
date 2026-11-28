@@ -10,9 +10,14 @@ const MiB = 1024 * 1024
 
 describe('isMultipartUpload', () => {
     it('splits only a declared size bigger than one part', () => {
-        expect(isMultipartUpload(undefined, 64 * MiB)).toBe(false)
-        expect(isMultipartUpload(64 * MiB, 64 * MiB)).toBe(false)
-        expect(isMultipartUpload(64 * MiB + 1, 64 * MiB)).toBe(true)
+        expect(isMultipartUpload(true, undefined, 64 * MiB)).toBe(false)
+        expect(isMultipartUpload(true, 64 * MiB, 64 * MiB)).toBe(false)
+        expect(isMultipartUpload(true, 64 * MiB + 1, 64 * MiB)).toBe(true)
+    })
+
+    it('never splits for a client that did not ask (it can only PUT)', () => {
+        expect(isMultipartUpload(undefined, 64 * MiB + 1, 64 * MiB)).toBe(false)
+        expect(isMultipartUpload(false, 64 * MiB + 1, 64 * MiB)).toBe(false)
     })
 })
 
@@ -40,13 +45,19 @@ describe('planUploadParts', () => {
 })
 
 describe('orderCompletedParts', () => {
+    const numbered = (numbers: number[]) =>
+        numbers.map((partNumber) => ({ partNumber, etag: 'x' }))
+
     it('sorts the parts by number', () => {
         expect(
-            orderCompletedParts([
-                { partNumber: 3, etag: 'c' },
-                { partNumber: 1, etag: 'a' },
-                { partNumber: 2, etag: 'b' },
-            ]).map((p) => p.etag),
+            orderCompletedParts(
+                [
+                    { partNumber: 3, etag: 'c' },
+                    { partNumber: 1, etag: 'a' },
+                    { partNumber: 2, etag: 'b' },
+                ],
+                3,
+            ).map((p) => p.etag),
         ).toEqual(['a', 'b', 'c'])
     })
 
@@ -55,8 +66,17 @@ describe('orderCompletedParts', () => {
         ['a repeat', [1, 2, 2]],
         ['no first part', [2, 3]],
     ])('refuses %s', (_case, numbers) => {
-        expect(() =>
-            orderCompletedParts(numbers.map((partNumber) => ({ partNumber, etag: 'x' }))),
-        ).toThrow(BadRequestError)
+        expect(() => orderCompletedParts(numbered(numbers), null)).toThrow(BadRequestError)
+    })
+
+    it('refuses no parts at all', () => {
+        expect(() => orderCompletedParts(undefined, 3)).toThrow(BadRequestError)
+        expect(() => orderCompletedParts([], null)).toThrow(BadRequestError)
+    })
+
+    it('refuses fewer or more parts than create planned', () => {
+        expect(() => orderCompletedParts(numbered([1, 2]), 3)).toThrow(BadRequestError)
+        expect(() => orderCompletedParts(numbered([1, 2, 3, 4]), 3)).toThrow(BadRequestError)
+        expect(orderCompletedParts(numbered([1, 2]), null)).toHaveLength(2)
     })
 })

@@ -6137,6 +6137,9 @@ export const CreateVideoUploadInputSchema = {
             exclusiveMinimum: true,
             maximum: 9007199254740991,
             minimum: 0
+        },
+        multipart: {
+            type: 'boolean'
         }
     },
     required: [

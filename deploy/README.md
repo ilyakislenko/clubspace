@@ -1298,9 +1298,11 @@ healthchecks.io) at `https://api.<domain>/readyz`.
   listings and deletes against `http://minio:9000` on the internal network.
 - **Video uploads.** The browser uploads straight to storage. A video no bigger
   than `S3_MULTIPART_PART_MB` (default 64 MiB) goes in one presigned PUT; a
-  bigger one as an S3 multipart upload — one presigned PUT per part of that
-  size, three at a time, each retried, then the server assembles the parts
-  (`CompleteMultipartUpload`) and measures the result against
+  bigger one, when the client says it can (`multipart: true` — the admin and
+  the demo scripts do; an admin tab from an older build keeps the single PUT),
+  as an S3 multipart upload — one presigned PUT per part of that size, three
+  at a time, each retried, then the server checks every planned part came
+  back, assembles them (`CompleteMultipartUpload`) and measures the result against
   `MAX_VIDEO_UPLOAD_MB`. No single request to storage is then larger than one
   part, which is what lets `s3.` sit behind Cloudflare: its free plan refuses
   request bodies over 100 MB. `S3_MULTIPART_PART_MB` must be 5–90 (S3's minimum
